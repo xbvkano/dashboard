@@ -17,7 +17,6 @@ model Client {
   id                   Int                    @id @default(autoincrement())
   name                 String                 @unique
   number               String
-  address              String
   notes                String?
   appointments         Appointment[]
   appointmentTemplates AppointmentTemplate[]
@@ -27,7 +26,6 @@ model Employee {
   id           Int                        @id @default(autoincrement())
   name         String                     @unique
   number       String
-  address      String
   notes        String?
   appointments Appointment[]              @relation("AppointmentEmployees")
 
