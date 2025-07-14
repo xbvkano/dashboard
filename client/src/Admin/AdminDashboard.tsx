@@ -8,7 +8,7 @@ import Financing from './pages/financing/Financing'
 export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900">
-      <nav className="bg-white shadow md:mb-4 fixed bottom-0 w-full md:static">
+      <nav className="bg-white shadow md:mb-4 fixed bottom-0 w-full md:static z-10">
         <ul className="flex flex-wrap justify-around p-2 text-sm">
           <li><Link className="px-2 py-1" to="/dashboard">Home</Link></li>
           <li><Link className="px-2 py-1" to="/dashboard/calendar">Calendar</Link></li>
