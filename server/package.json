@@ -18,7 +18,8 @@
     "axios": "^1.7.9",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "google-auth-library": "^10.1.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
@@ -28,5 +29,7 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.5.3"
   },
-  "prisma": { "seed": "ts-node prisma/seed.ts" }
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  }
 }
