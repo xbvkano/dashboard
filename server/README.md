@@ -4,4 +4,4 @@ This server uses Express with Prisma for database access. Run `npm install` and 
 
 The database connection string is configured via `.env` and a `docker-compose.yml` file is provided to start a local PostgreSQL instance.
 
-To enable Google authentication set `GOOGLE_CLIENT_ID` and `ADMIN_EMAILS` in your `.env` file. Emails listed in `ADMIN_EMAILS` (comma separated) will be treated as admins when logging in.
+To enable Google authentication set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` and `ADMIN_EMAILS` in your `.env` file. Emails listed in `ADMIN_EMAILS` (comma separated) will be treated as admins when logging in.

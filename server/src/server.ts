@@ -11,7 +11,11 @@ dotenv.config()
 const prisma = new PrismaClient()
 const app = express()
 const port = process.env.PORT || 3000
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
+const client = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173'
+)
 const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim()).filter(Boolean)
 
 app.use(cors())
@@ -363,25 +367,44 @@ app.post('/appointments', async (req: Request, res: Response) => {
 })
 
 app.post('/login', async (req: Request, res: Response) => {
-  const { token } = req.body
-  if (!token) {
-    return res.status(400).json({ error: 'Missing token' })
+  const { token, code } = req.body as { token?: string; code?: string }
+  if (!token && !code) {
+    return res.status(400).json({ error: 'Missing token or code' })
   }
   try {
     let email: string | undefined
     let name: string | undefined
 
-    if (token.includes('.')) {
-      const ticket = await client.verifyIdToken({ idToken: token, audience: process.env.GOOGLE_CLIENT_ID })
-      const payload = ticket.getPayload()
-      email = payload?.email
-      name = payload?.name || undefined
-    } else {
-      const resp = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${token}` },
+    if (code) {
+      const { tokens } = await client.getToken({
+        code,
+        redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173',
       })
-      email = resp.data.email
-      name = resp.data.name
+      if (tokens.id_token) {
+        const ticket = await client.verifyIdToken({ idToken: tokens.id_token, audience: process.env.GOOGLE_CLIENT_ID })
+        const payload = ticket.getPayload()
+        email = payload?.email
+        name = payload?.name || undefined
+      } else if (tokens.access_token) {
+        const resp = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokens.access_token}` },
+        })
+        email = resp.data.email
+        name = resp.data.name
+      }
+    } else if (token) {
+      if (token.includes('.')) {
+        const ticket = await client.verifyIdToken({ idToken: token, audience: process.env.GOOGLE_CLIENT_ID })
+        const payload = ticket.getPayload()
+        email = payload?.email
+        name = payload?.name || undefined
+      } else {
+        const resp = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        email = resp.data.email
+        name = resp.data.name
+      }
     }
 
     if (!email) {
