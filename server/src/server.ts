@@ -3,7 +3,6 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import { PrismaClient } from '@prisma/client'
 import { OAuth2Client } from 'google-auth-library'
-import type { Prisma } from '@prisma/client'
 dotenv.config()
 
 const prisma = new PrismaClient()
@@ -49,7 +48,7 @@ app.get('/clients', async (req: Request, res: Response) => {
   const take = parseInt(String(req.query.take || '20'), 10)
 
   // 2. Build a typed `where` clause
-  const where: Prisma.ClientWhereInput = searchTerm
+  const where = searchTerm
     ? {
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
@@ -108,7 +107,7 @@ app.put('/clients/:id', async (req: Request, res: Response) => {
       number?: string
       notes?: string
     }
-    const data: Prisma.ClientUpdateInput = {}
+    const data: any = {}
     if (name !== undefined) data.name = name
     if (number !== undefined) {
       if (!/^\d{10}$/.test(number)) {
@@ -129,7 +128,7 @@ app.get('/employees', async (req: Request, res: Response) => {
   const skip = parseInt(String(req.query.skip || '0'), 10)
   const take = parseInt(String(req.query.take || '20'), 10)
 
-  const where: Prisma.EmployeeWhereInput = searchTerm
+  const where = searchTerm
     ? {
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
@@ -187,7 +186,7 @@ app.put('/employees/:id', async (req: Request, res: Response) => {
       number?: string
       notes?: string
     }
-    const data: Prisma.EmployeeUpdateInput = {}
+    const data: any = {}
     if (name !== undefined) data.name = name
     if (number !== undefined) {
       if (!/^\d{10}$/.test(number)) {
@@ -200,6 +199,123 @@ app.put('/employees/:id', async (req: Request, res: Response) => {
     res.json(employee)
   } catch (e) {
     res.status(500).json({ error: 'Failed to update employee' })
+  }
+})
+
+// Appointment templates ---------------------------
+app.get('/appointment-templates', async (req: Request, res: Response) => {
+  const clientId = parseInt(String(req.query.clientId))
+  if (Number.isNaN(clientId)) {
+    return res.status(400).json({ error: 'clientId required' })
+  }
+  try {
+    const templates = await prisma.appointmentTemplate.findMany({
+      where: { clientId },
+      orderBy: { templateName: 'asc' },
+    })
+    res.json(templates)
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch templates' })
+  }
+})
+
+app.post('/appointment-templates', async (req: Request, res: Response) => {
+  try {
+    const { clientId, templateName, type, size, address, price, notes } =
+      req.body as {
+        clientId?: number
+        templateName?: string
+        type?: string
+        size?: string
+        address?: string
+        price?: number
+        notes?: string
+      }
+
+    if (
+      !clientId ||
+      !templateName ||
+      !type ||
+      !address ||
+      price === undefined
+    ) {
+      return res.status(400).json({ error: 'Missing fields' })
+    }
+
+    const template = await prisma.appointmentTemplate.create({
+      data: {
+        templateName,
+        type,
+        size,
+        address,
+        cityStateZip: notes,
+        price,
+        client: { connect: { id: clientId } },
+      },
+    })
+    res.json(template)
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Failed to create template' })
+  }
+})
+
+// Appointments ------------------------------------
+app.get('/appointments', async (req: Request, res: Response) => {
+  const dateStr = String(req.query.date || '')
+  if (!dateStr) return res.status(400).json({ error: 'date required' })
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) {
+    return res.status(400).json({ error: 'invalid date' })
+  }
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)
+  try {
+    const appts = await prisma.appointment.findMany({
+      where: { date: { gte: date, lt: next } },
+      orderBy: { time: 'asc' },
+    })
+    res.json(appts)
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch appointments' })
+  }
+})
+
+app.post('/appointments', async (req: Request, res: Response) => {
+  try {
+    const { clientId, templateId, date, time } = req.body as {
+      clientId?: number
+      templateId?: number
+      date?: string
+      time?: string
+    }
+    if (!clientId || !templateId || !date || !time) {
+      return res.status(400).json({ error: 'Missing fields' })
+    }
+
+    const template = await prisma.appointmentTemplate.findUnique({
+      where: { id: templateId },
+    })
+    if (!template) return res.status(400).json({ error: 'Invalid template' })
+
+    const appt = await prisma.appointment.create({
+      data: {
+        client: { connect: { id: clientId } },
+        date: new Date(date),
+        time,
+        type: template.type,
+        address: template.address,
+        cityStateZip: template.cityStateZip,
+        size: template.size,
+        price: template.price,
+        paymentMethod: 'CASH',
+        lineage: 'single',
+        notes: template.cityStateZip || undefined,
+      },
+    })
+    res.json(appt)
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Failed to create appointment' })
   }
 })
 

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import MonthSelector from './components/MonthSelector'
 import WeekSelector from './components/WeekSelector'
 import DayTimeline from './components/DayTimeline'
+import CreateAppointmentModal from './components/CreateAppointmentModal'
+import type { Appointment } from './types'
 
 function startOfWeek(date: Date) {
   const day = date.getDay()
@@ -21,6 +23,8 @@ export default function Calendar() {
   const [showMonth, setShowMonth] = useState(false)
   const [nowOffset, setNowOffset] = useState<number | null>(null)
   const [monthInfo, setMonthInfo] = useState<{ startDay: number; endDay: number; daysInMonth: number } | null>(null)
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [showCreate, setShowCreate] = useState(false)
 
   useEffect(() => {
     const year = selected.getFullYear()
@@ -30,6 +34,14 @@ export default function Calendar() {
       .then((data) => setMonthInfo(data))
       .catch(() => setMonthInfo(null))
   }, [selected.getFullYear(), selected.getMonth()])
+
+  useEffect(() => {
+    const dateStr = selected.toISOString().slice(0, 10)
+    fetch(`http://localhost:3000/appointments?date=${dateStr}`)
+      .then((r) => r.json())
+      .then((d) => setAppointments(d))
+      .catch(() => setAppointments([]))
+  }, [selected])
 
   const weekStart = startOfWeek(selected)
   const days = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i))
@@ -66,7 +78,29 @@ export default function Calendar() {
         prevWeek={prevWeek}
         nextWeek={nextWeek}
       />
-      <DayTimeline nowOffset={nowOffset} prevDay={prevDay} nextDay={nextDay} />
+      <DayTimeline
+        nowOffset={nowOffset}
+        prevDay={prevDay}
+        nextDay={nextDay}
+        appointments={appointments}
+      />
+      <button
+        className="fixed bottom-20 right-6 w-12 h-12 rounded-full bg-black text-white text-2xl flex items-center justify-center"
+        onClick={() => setShowCreate(true)}
+      >
+        +
+      </button>
+      {showCreate && (
+        <CreateAppointmentModal
+          onClose={() => setShowCreate(false)}
+          onCreated={() => {
+            const dateStr = selected.toISOString().slice(0, 10)
+            fetch(`http://localhost:3000/appointments?date=${dateStr}`)
+              .then((r) => r.json())
+              .then((d) => setAppointments(d))
+          }}
+        />
+      )}
     </div>
   )
 }
