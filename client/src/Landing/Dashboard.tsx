@@ -1,5 +1,5 @@
-import AdminDashboard from './AdminDashboard'
-import UserDashboard from './UserDashboard'
+import AdminDashboard from '../Admin/AdminDashboard'
+import UserDashboard from '../User/UserDashboard'
 
 type Role = 'admin' | 'user'
 
