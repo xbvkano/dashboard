@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Client } from '../../Clients/components/types'
 import type { AppointmentTemplate } from '../types'
+import type { Employee } from '../../Employees/components/types'
 
 interface Props {
   onClose: () => void
@@ -52,6 +53,12 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
 
+  // staff options and employee selection
+  const [staffOptions, setStaffOptions] = useState<{ sem: number; com: number; hours: number }[]>([])
+  const [selectedOption, setSelectedOption] = useState<number>(0)
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [selectedEmployees, setSelectedEmployees] = useState<number[]>([])
+
   // Load clients when search changes
   useEffect(() => {
     fetch(
@@ -74,6 +81,25 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
       .then((r) => r.json())
       .then((d) => setTemplates(d))
   }, [selectedClient])
+
+  // Load staff options when template selected
+  useEffect(() => {
+    if (!selectedTemplate) {
+      setStaffOptions([])
+      return
+    }
+    const t = templates.find((tt) => tt.id === selectedTemplate)
+    if (!t || !t.size) return
+    fetch(`http://localhost:3000/staff-options?size=${encodeURIComponent(t.size)}&type=${t.type}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setStaffOptions(d)
+        setSelectedOption(0)
+      })
+    fetch('http://localhost:3000/employees?search=&skip=0&take=1000')
+      .then((r) => r.json())
+      .then((d) => setEmployees(d))
+  }, [selectedTemplate])
 
   const createClient = async () => {
     const res = await fetch('http://localhost:3000/clients', {
@@ -118,6 +144,15 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     }
   }
 
+  const isValidSelection = () => {
+    if (staffOptions.length === 0) return true
+    const opt = staffOptions[selectedOption]
+    if (!opt) return false
+    const experienced = selectedEmployees.filter((id) => employees.find((e) => e.id === id)?.experienced).length
+    const total = selectedEmployees.length
+    return total >= opt.sem + opt.com && experienced >= opt.com
+  }
+
   const createAppointment = async () => {
     if (!selectedClient || !selectedTemplate) return
     const res = await fetch('http://localhost:3000/appointments', {
@@ -128,6 +163,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         templateId: selectedTemplate,
         date,
         time,
+        employeeIds: selectedEmployees,
       }),
     })
     if (res.ok) {
@@ -327,6 +363,58 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
           </div>
         )}
 
+        {/* Staff selection */}
+        {selectedTemplate && staffOptions.length > 0 && (
+          <div className="space-y-2 border p-2 rounded">
+            <h4 className="font-medium">Team Options</h4>
+            <div className="flex gap-2">
+              {staffOptions.map((o, idx) => (
+                <button
+                  key={idx}
+                  className={`px-2 py-1 border rounded ${selectedOption === idx ? 'bg-blue-500 text-white' : ''}`}
+                  onClick={() => {
+                    setSelectedOption(idx)
+                    setSelectedEmployees([])
+                  }}
+                >
+                  {o.sem} SEM / {o.com} COM - {o.hours}h
+                </button>
+              ))}
+            </div>
+            {staffOptions[selectedOption] && (
+              <div className="space-y-1">
+                {(() => {
+                  const opt = staffOptions[selectedOption]
+                  const exp = selectedEmployees.filter((id) => employees.find((e) => e.id === id)?.experienced).length
+                  const tot = selectedEmployees.length
+                  const ok = tot >= opt.sem + opt.com && exp >= opt.com
+                  return (
+                    <div className={ok ? 'text-green-600' : 'text-red-600'}>
+                      {tot}/{opt.sem + opt.com} total, {exp}/{opt.com} experienced
+                    </div>
+                  )
+                })()}
+                <div className="max-h-32 overflow-y-auto border rounded p-1 space-y-1">
+                  {employees.map((e) => (
+                    <label key={e.id} className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedEmployees.includes(e.id!)}
+                        onChange={() => {
+                          setSelectedEmployees((prev) =>
+                            prev.includes(e.id!) ? prev.filter((id) => id !== e.id) : [...prev, e.id!]
+                          )
+                        }}
+                      />
+                      {e.name} {e.experienced ? '(Exp)' : ''}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Date and time */}
         {selectedTemplate && (
           <div className="space-y-2">
@@ -348,7 +436,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         <div className="text-right">
           <button
             className="bg-blue-500 text-white px-4 py-1 rounded disabled:opacity-50"
-            disabled={!selectedTemplate || !date || !time}
+            disabled={!selectedTemplate || !date || !time || !isValidSelection()}
             onClick={createAppointment}
           >
             Create
