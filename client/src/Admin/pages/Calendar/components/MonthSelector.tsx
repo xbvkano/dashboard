@@ -6,8 +6,6 @@ interface Props {
   show: boolean
   setShow: (v: boolean) => void
   monthInfo: { startDay: number; endDay: number; daysInMonth: number } | null
-  prevMonth: () => void
-  nextMonth: () => void
 }
 
 function getPaddedMonthDays(date: Date) {
@@ -65,19 +63,17 @@ export default function MonthSelector({
   show,
   setShow,
   monthInfo,
-  prevMonth,
-  nextMonth,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const touchStartX = useRef<number | null>(null)
 
-  // how many pixels we've dragged
+  // pixels we've dragged
   const [dragDelta, setDragDelta] = useState(0)
-  // base offset (in px) of the 3-panel track
+  // base offset (px) of the three-panel track
   const [baseOffset, setBaseOffset] = useState(0)
   const [animating, setAnimating] = useState(false)
 
-  // center on the "current month" panel whenever selected changes
+  // whenever selected changes, center on the current month
   useLayoutEffect(() => {
     if (!containerRef.current) return
     const w = containerRef.current.offsetWidth
@@ -85,6 +81,39 @@ export default function MonthSelector({
     setDragDelta(0)
     setAnimating(false)
   }, [selected])
+
+  // helper to clamp to end of month
+  function clampDay(year: number, month: number, day: number) {
+    const lastDay = new Date(year, month + 1, 0).getDate()
+    return Math.min(day, lastDay)
+  }
+
+  // internal prev/next handlers with clamp logic
+  const handlePrevMonth = () => {
+    const year = selected.getFullYear()
+    const month = selected.getMonth()
+    const day = selected.getDate()
+
+    const newMonthIndex = month - 1
+    const newYear = newMonthIndex < 0 ? year - 1 : year
+    const wrappedMonth = (newMonthIndex + 12) % 12
+    const newDay = clampDay(newYear, wrappedMonth, day)
+
+    setSelected(new Date(newYear, wrappedMonth, newDay))
+  }
+
+  const handleNextMonth = () => {
+    const year = selected.getFullYear()
+    const month = selected.getMonth()
+    const day = selected.getDate()
+
+    const newMonthIndex = month + 1
+    const newYear = newMonthIndex > 11 ? year + 1 : year
+    const wrappedMonth = newMonthIndex % 12
+    const newDay = clampDay(newYear, wrappedMonth, day)
+
+    setSelected(new Date(newYear, wrappedMonth, newDay))
+  }
 
   const prevDate = new Date(selected.getFullYear(), selected.getMonth() - 1, 1)
   const nextDate = new Date(selected.getFullYear(), selected.getMonth() + 1, 1)
@@ -112,25 +141,25 @@ export default function MonthSelector({
     const moved = dragDelta
 
     if (Math.abs(moved) > threshold) {
-      // proceed to next/prev month
+      // advance to prev/next month
       setAnimating(true)
       setDragDelta(0)
 
       if (moved < 0) {
-        // swipe left → next month
+        // swipe left → next
         setBaseOffset(-2 * w)
         setTimeout(() => {
-          nextMonth()
+          handleNextMonth()
         }, 300)
       } else {
-        // swipe right → prev month
+        // swipe right → prev
         setBaseOffset(0)
         setTimeout(() => {
-          prevMonth()
+          handlePrevMonth()
         }, 300)
       }
     } else {
-      // bounce back to center panel
+      // bounce back
       setAnimating(true)
       setBaseOffset(-w)
       setDragDelta(0)
@@ -147,21 +176,17 @@ export default function MonthSelector({
     transition: animating ? 'transform 0.3s ease' : undefined,
   }
 
-  const paddedCurrent = (() => {
-    if (monthInfo) {
-      const startPad = monthInfo.startDay
-      const endPad = 6 - monthInfo.endDay
-      const monthDays = Array.from({ length: monthInfo.daysInMonth }).map(
-        (_, i) => new Date(selected.getFullYear(), selected.getMonth(), i + 1)
-      )
-      return [
-        ...Array.from({ length: startPad }).map(() => null as Date | null),
-        ...monthDays,
-        ...Array.from({ length: endPad }).map(() => null as Date | null),
+  const paddedCurrent = monthInfo
+    ? [
+        ...Array.from({ length: monthInfo.startDay }).map(() => null as Date | null),
+        ...Array.from({ length: monthInfo.daysInMonth }).map(
+          (_, i) => new Date(selected.getFullYear(), selected.getMonth(), i + 1)
+        ),
+        ...Array.from({ length: 6 - monthInfo.endDay }).map(
+          () => null as Date | null
+        ),
       ]
-    }
-    return currentDays
-  })()
+    : currentDays
 
   return (
     <>
@@ -187,13 +212,13 @@ export default function MonthSelector({
           <>
             <button
               className="hidden md:block absolute left-2 top-1/2 -translate-y-1/2"
-              onClick={prevMonth}
+              onClick={handlePrevMonth}
             >
               &#8592;
             </button>
             <button
               className="hidden md:block absolute right-2 top-1/2 -translate-y-1/2"
-              onClick={nextMonth}
+              onClick={handleNextMonth}
             >
               &#8594;
             </button>
