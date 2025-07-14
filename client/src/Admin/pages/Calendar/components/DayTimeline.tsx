@@ -1,12 +1,18 @@
-import { useRef, useState } from "react";
+import { useRef, useState } from 'react'
+import type { Appointment } from '../types'
 
 interface Props {
-  nowOffset: number | null;
-  prevDay: () => void;
-  nextDay: () => void;
+  nowOffset: number | null
+  prevDay: () => void
+  nextDay: () => void
+  appointments: Appointment[]
 }
-
-export default function DayTimeline({ nowOffset, prevDay, nextDay }: Props) {
+export default function DayTimeline({
+  nowOffset,
+  prevDay,
+  nextDay,
+  appointments,
+}: Props) {
   const dayTouchStart = useRef<number | null>(null);
   const [dayDragX, setDayDragX] = useState<number | null>(null);
   const [dragDirection, setDragDirection] = useState<"left" | "right" | null>(null);
@@ -120,14 +126,28 @@ export default function DayTimeline({ nowOffset, prevDay, nextDay }: Props) {
       {Array.from({ length: 24 }).map((_, i) => (
         <div key={i} className="h-[84px] grid grid-cols-[4rem_1fr] px-2">
           <div className="text-xs text-gray-500 pr-2 border-r flex items-start justify-end">
-            {new Date(0, 0, 0, i).toLocaleString("en-US", {
-              hour: "numeric",
+            {new Date(0, 0, 0, i).toLocaleString('en-US', {
+              hour: 'numeric',
               hour12: true,
             })}
           </div>
           <div />
         </div>
       ))}
+
+      {appointments.map((a) => {
+        const [h, m] = a.time.split(':').map((n) => parseInt(n, 10))
+        const top = h * 84 + (m / 60) * 84
+        return (
+          <div
+            key={a.id}
+            className="absolute left-16 right-2 h-8 bg-blue-200 border border-blue-400 rounded px-1 text-xs overflow-hidden"
+            style={{ top }}
+          >
+            {a.type}
+          </div>
+        )
+      })}
     </div>
   );
 }
