@@ -12,3 +12,103 @@ model User {
   email String @unique
   name  String?
 }
+
+model Client {
+  id                   Int                    @id @default(autoincrement())
+  name                 String                 @unique
+  number               String
+  address              String
+  notes                String?
+  appointments         Appointment[]
+  appointmentTemplates AppointmentTemplate[]
+}
+
+model Employee {
+  id           Int                        @id @default(autoincrement())
+  name         String                     @unique
+  number       String
+  address      String
+  notes        String?
+  appointments Appointment[]              @relation("AppointmentEmployees")
+
+  templateLinks EmployeeTemplateEmployee[] @relation("EmployeeOnTemplate")
+}
+
+model Appointment {
+  id              Int             @id @default(autoincrement())
+  date            DateTime
+  time            String
+  clientId        Int
+  client          Client          @relation(fields: [clientId], references: [id])
+  type            AppointmentType
+  address         String
+  cityStateZip    String?
+  size            String?
+  price           Float?
+  paid            Boolean         @default(false)
+  paymentMethod   PaymentMethod
+  tip             Float           @default(0)
+  reoccurring     Boolean         @default(false)
+  lineage         String
+  gateCode        String?
+  doorCode        String?
+  buildingNumber  String?
+  notes           String?
+  createdAt       DateTime?       @default(now())
+  updatedAt       DateTime?       @updatedAt
+
+  employees       Employee[]      @relation("AppointmentEmployees")
+}
+
+model AppointmentTemplate {
+  id                Int                @id @default(autoincrement())
+  templateName      String
+  type              AppointmentType
+  size              String?
+  address           String
+  cityStateZip      String?
+  price             Float
+  clientId          Int
+  client            Client             @relation(fields: [clientId], references: [id])
+  employeeTemplates EmployeeTemplate[]
+  createdAt         DateTime?          @default(now())
+  updatedAt         DateTime?          @updatedAt
+}
+
+model EmployeeTemplate {
+  id                    Int                       @id @default(autoincrement())
+  templateName          String
+  appointmentTemplateId Int
+  appointmentTemplate   AppointmentTemplate       @relation(fields: [appointmentTemplateId], references: [id], onDelete: Cascade)
+  employees             EmployeeTemplateEmployee[]
+  totalPrice            Float                     @default(0)
+
+  createdAt             DateTime?                 @default(now())
+  updatedAt             DateTime?                 @updatedAt
+}
+
+model EmployeeTemplateEmployee {
+  id                 Int       @id @default(autoincrement())
+  employeeId         Int
+  price              Float
+
+  employeeTemplateId Int
+  employeeTemplate   EmployeeTemplate @relation(fields: [employeeTemplateId], references: [id])
+
+  employee           Employee @relation("EmployeeOnTemplate", fields: [employeeId], references: [id])
+}
+
+enum PaymentMethod {
+  ZELLE
+  VENMO
+  CASH
+  PAYPAL
+  CHECK
+  OTHER
+}
+
+enum AppointmentType {
+  STANDARD
+  DEEP
+  MOVE_IN_OUT
+}
