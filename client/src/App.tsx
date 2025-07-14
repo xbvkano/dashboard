@@ -6,7 +6,10 @@ import Dashboard from './Landing/Dashboard'
 type Role = 'admin' | 'user'
 
 export default function App() {
-  const [role, setRole] = useState<Role | null>(null)
+  const [role, setRole] = useState<Role | null>(() => {
+    const stored = localStorage.getItem('role')
+    return stored === 'admin' || stored === 'user' ? (stored as Role) : null
+  })
 
   return (
     <BrowserRouter>
