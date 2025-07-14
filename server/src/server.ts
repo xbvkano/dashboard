@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 import { PrismaClient } from '@prisma/client'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { OAuth2Client } from 'google-auth-library'
+import { staffOptionsData } from './data/staffOptions'
 dotenv.config()
 
 const prisma = new PrismaClient()
@@ -274,6 +275,29 @@ app.post('/appointment-templates', async (req: Request, res: Response) => {
   }
 })
 
+// Staff options lookup
+app.get('/staff-options', (req: Request, res: Response) => {
+  const size = String(req.query.size || '')
+  const type = String(req.query.type || '')
+  if (!size || !type) {
+    return res.status(400).json({ error: 'size and type required' })
+  }
+  // map appointment type to service names used in data
+  const serviceMap: Record<string, string> = {
+    STANDARD: 'Standard',
+    DEEP: 'Deep',
+    MOVE_IN_OUT: 'Move',
+  }
+  const service = serviceMap[type as keyof typeof serviceMap]
+  if (!service) {
+    return res.status(400).json({ error: 'invalid type' })
+  }
+  const options = staffOptionsData
+    .filter((o) => o.size === size && o.service === service && o.available)
+    .map((o) => ({ sem: o.sem, com: o.com, hours: o.hours }))
+  res.json(options)
+})
+
 // Appointments ------------------------------------
 app.get('/appointments', async (req: Request, res: Response) => {
   const dateStr = String(req.query.date || '')
@@ -296,11 +320,12 @@ app.get('/appointments', async (req: Request, res: Response) => {
 
 app.post('/appointments', async (req: Request, res: Response) => {
   try {
-    const { clientId, templateId, date, time } = req.body as {
+    const { clientId, templateId, date, time, employeeIds } = req.body as {
       clientId?: number
       templateId?: number
       date?: string
       time?: string
+      employeeIds?: number[]
     }
     if (!clientId || !templateId || !date || !time) {
       return res.status(400).json({ error: 'Missing fields' })
@@ -324,6 +349,9 @@ app.post('/appointments', async (req: Request, res: Response) => {
         paymentMethod: 'CASH',
         lineage: 'single',
         notes: template.cityStateZip || undefined,
+        ...(employeeIds && employeeIds.length
+          ? { employees: { connect: employeeIds.map((id) => ({ id })) } }
+          : {}),
       },
     })
     res.json(appt)
