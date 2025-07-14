@@ -21,8 +21,8 @@ export default function AdminDashboard() {
         <Routes>
           <Route index element={<Home />} />
           <Route path="calendar" element={<Calendar />} />
-          <Route path="clients" element={<Clients />} />
-          <Route path="employees" element={<Employees />} />
+          <Route path="clients/*" element={<Clients />} />
+          <Route path="employees/*" element={<Employees />} />
           <Route path="financing" element={<Financing />} />
         </Routes>
       </main>
