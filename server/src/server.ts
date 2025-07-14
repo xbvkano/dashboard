@@ -3,7 +3,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import { PrismaClient } from '@prisma/client'
 import { OAuth2Client } from 'google-auth-library'
-
+import type { Prisma } from '@prisma/client'
 dotenv.config()
 
 const prisma = new PrismaClient()
@@ -25,21 +25,34 @@ app.get('/users', async (_req: Request, res: Response) => {
 })
 
 app.get('/clients', async (req: Request, res: Response) => {
-  const search = (req.query.search as string) || ''
-  const skip = parseInt((req.query.skip as string) || '0', 10)
-  const take = parseInt((req.query.take as string) || '20', 10)
+  // 1. Pull and normalize query params
+  const searchTerm = String(req.query.search || '').trim()
+  const skip = parseInt(String(req.query.skip || '0'), 10)
+  const take = parseInt(String(req.query.take || '20'), 10)
 
-  const where = search
+  // 2. Build a typed `where` clause
+  const where: Prisma.ClientWhereInput = searchTerm
     ? {
         OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { number: { contains: search, mode: 'insensitive' } },
+          { name: { contains: searchTerm, mode: 'insensitive' } },
+          { number: { contains: searchTerm, mode: 'insensitive' } },
         ],
       }
     : {}
 
-  const clients = await prisma.client.findMany({ where, skip, take, orderBy: { name: 'asc' } })
-  res.json(clients)
+  try {
+    // 3. Fetch and return
+    const clients = await prisma.client.findMany({
+      where,
+      skip,
+      take,
+      orderBy: { name: 'asc' },
+    })
+    res.json(clients)
+  } catch (error) {
+    console.error('Error fetching clients:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
 })
 
 app.post('/clients', async (req: Request, res: Response) => {
@@ -70,21 +83,31 @@ app.put('/clients/:id', async (req: Request, res: Response) => {
 })
 
 app.get('/employees', async (req: Request, res: Response) => {
-  const search = (req.query.search as string) || ''
-  const skip = parseInt((req.query.skip as string) || '0', 10)
-  const take = parseInt((req.query.take as string) || '20', 10)
+  const searchTerm = String(req.query.search || '').trim()
+  const skip = parseInt(String(req.query.skip || '0'), 10)
+  const take = parseInt(String(req.query.take || '20'), 10)
 
-  const where = search
+  const where: Prisma.EmployeeWhereInput = searchTerm
     ? {
         OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { number: { contains: search, mode: 'insensitive' } },
+          { name: { contains: searchTerm, mode: 'insensitive' } },
+          { number: { contains: searchTerm, mode: 'insensitive' } },
         ],
       }
     : {}
 
-  const employees = await prisma.employee.findMany({ where, skip, take, orderBy: { name: 'asc' } })
-  res.json(employees)
+  try {
+    const employees = await prisma.employee.findMany({
+      where,
+      skip,
+      take,
+      orderBy: { name: 'asc' },
+    })
+    res.json(employees)
+  } catch (error) {
+    console.error('Error fetching employees:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
 })
 
 app.post('/employees', async (req: Request, res: Response) => {
