@@ -3,4 +3,5 @@ export interface Employee {
   name: string
   number: string
   notes?: string
+  experienced?: boolean
 }

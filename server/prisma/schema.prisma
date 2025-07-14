@@ -27,6 +27,7 @@ model Employee {
   name         String                     @unique
   number       String
   notes        String?
+  experienced  Boolean                    @default(false)
   appointments Appointment[]              @relation("AppointmentEmployees")
 
   templateLinks EmployeeTemplateEmployee[] @relation("EmployeeOnTemplate")
