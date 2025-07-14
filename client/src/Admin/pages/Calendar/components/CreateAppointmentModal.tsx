@@ -28,6 +28,15 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
   const [newClient, setNewClient] = useState({ name: '', number: '', notes: '' })
   const [showNewClient, setShowNewClient] = useState(false)
 
+  const handleNewClientNumberChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const value = e.target.value
+    if (/^\d{0,10}$/.test(value)) {
+      setNewClient({ ...newClient, number: value })
+    }
+  }
+
   const [templates, setTemplates] = useState<AppointmentTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
   const [showNewTemplate, setShowNewTemplate] = useState(false)
@@ -78,7 +87,8 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
       setShowNewClient(false)
       setClientSearch('')
     } else {
-      alert('Failed to create client')
+      const err = await res.json().catch(() => ({}))
+      alert(err.error || 'Failed to create client')
     }
   }
 
@@ -148,6 +158,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
           </div>
         ) : showNewClient ? (
           <div className="space-y-2 border p-2 rounded">
+            <h3 className="font-medium">New Client</h3>
             <input
               className="w-full border p-1 rounded"
               placeholder="Name"
@@ -158,7 +169,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
               className="w-full border p-1 rounded"
               placeholder="Number"
               value={newClient.number}
-              onChange={(e) => setNewClient({ ...newClient, number: e.target.value })}
+              onChange={handleNewClientNumberChange}
             />
             <textarea
               className="w-full border p-1 rounded"
@@ -202,16 +213,32 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         {selectedClient && (
           <div>
             {selectedTemplate ? (
-              <div className="flex items-center justify-between mb-2">
-                <div className="font-medium">
-                  Template: {templates.find((t) => t.id === selectedTemplate)?.templateName}
+              <div className="mb-2">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">
+                    Template: {templates.find((t) => t.id === selectedTemplate)?.templateName}
+                  </div>
+                  <button className="text-sm text-blue-500" onClick={() => setSelectedTemplate(null)}>
+                    change
+                  </button>
                 </div>
-                <button className="text-sm text-blue-500" onClick={() => setSelectedTemplate(null)}>
-                  change
-                </button>
+                {(() => {
+                  const t = templates.find((tt) => tt.id === selectedTemplate)
+                  if (!t) return null
+                  return (
+                    <div className="text-sm border rounded p-2 mt-1 space-y-1">
+                      <div>Type: {t.type}</div>
+                      {t.size && <div>Size: {t.size}</div>}
+                      <div>Address: {t.address}</div>
+                      <div>Price: ${t.price.toFixed(2)}</div>
+                      {t.cityStateZip && <div>Notes: {t.cityStateZip}</div>}
+                    </div>
+                  )
+                })()}
               </div>
             ) : showNewTemplate ? (
               <div className="space-y-2 border p-2 rounded">
+                <h3 className="font-medium">New Template</h3>
                 <input
                   className="w-full border p-1 rounded"
                   placeholder="Name"
