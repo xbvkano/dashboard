@@ -1,8 +1,8 @@
 import { Link, Routes, Route } from 'react-router-dom'
 import Home from './pages/home/Home'
-import Calendar from './pages/calendar'
-import Clients from './pages/clients'
-import Employees from './pages/employees'
+import Calendar from './pages/Calendar'
+import Clients from './pages/Clients'
+import Employees from './pages/Employees'
 import Financing from './pages/financing/Financing'
 
 export default function AdminDashboard() {
