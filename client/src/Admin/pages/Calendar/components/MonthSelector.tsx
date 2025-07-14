@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 interface Props {
   selected: Date
@@ -34,7 +34,7 @@ type MonthGridProps = {
 
 function MonthGrid({ days, selected, setSelected, setShow }: MonthGridProps) {
   return (
-    <div className="grid grid-cols-7 text-center flex-shrink-0 w-full">
+    <div className="grid grid-cols-7 text-center flex-shrink-0 w-1/3">
       {days.map((day, idx) =>
         day ? (
           <button
@@ -70,13 +70,20 @@ export default function MonthSelector({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const touchStartX = useRef<number | null>(null)
-  const [dragOffset, setDragOffset] = useState(0)
-  const [translate, setTranslate] = useState(-100)
+
+  // how many pixels we've dragged
+  const [dragDelta, setDragDelta] = useState(0)
+  // base offset (in px) of the 3-panel track
+  const [baseOffset, setBaseOffset] = useState(0)
   const [animating, setAnimating] = useState(false)
 
-  useEffect(() => {
-    // reset position when selected month changes via buttons
-    setTranslate(-100)
+  // center on the "current month" panel whenever selected changes
+  useLayoutEffect(() => {
+    if (!containerRef.current) return
+    const w = containerRef.current.offsetWidth
+    setBaseOffset(-w)
+    setDragDelta(0)
+    setAnimating(false)
   }, [selected])
 
   const prevDate = new Date(selected.getFullYear(), selected.getMonth() - 1, 1)
@@ -88,51 +95,55 @@ export default function MonthSelector({
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX
-    setDragOffset(0)
+    setDragDelta(0)
     setAnimating(false)
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (touchStartX.current == null || !containerRef.current) return
     const diff = e.touches[0].clientX - touchStartX.current
-    const pct = (diff / containerRef.current.offsetWidth) * 100
-    setDragOffset(pct)
+    setDragDelta(diff)
   }
 
   const handleTouchEnd = () => {
     if (touchStartX.current == null || !containerRef.current) return
-    const diffPx = (dragOffset / 100) * containerRef.current.offsetWidth
-    if (Math.abs(diffPx) > 50) {
+    const w = containerRef.current.offsetWidth
+    const threshold = w * 0.25
+    const moved = dragDelta
+
+    if (Math.abs(moved) > threshold) {
+      // proceed to next/prev month
       setAnimating(true)
-      if (diffPx < 0) {
-        // swipe left -> next month
-        setTranslate(-200)
+      setDragDelta(0)
+
+      if (moved < 0) {
+        // swipe left → next month
+        setBaseOffset(-2 * w)
         setTimeout(() => {
-          setAnimating(false)
-          setTranslate(-100)
           nextMonth()
         }, 300)
       } else {
-        setTranslate(0)
+        // swipe right → prev month
+        setBaseOffset(0)
         setTimeout(() => {
-          setAnimating(false)
-          setTranslate(-100)
           prevMonth()
         }, 300)
       }
     } else {
+      // bounce back to center panel
       setAnimating(true)
-      setDragOffset(0)
+      setBaseOffset(-w)
+      setDragDelta(0)
       setTimeout(() => {
         setAnimating(false)
-        setDragOffset(0)
       }, 300)
     }
+
     touchStartX.current = null
   }
 
   const style = {
-    transform: `translateX(calc(${translate}% + ${dragOffset}%))`,
+    transform: `translateX(${baseOffset + dragDelta}px)`,
     transition: animating ? 'transform 0.3s ease' : undefined,
   }
 
@@ -190,7 +201,9 @@ export default function MonthSelector({
         )}
       </div>
       <div
-        className={`border-b overflow-hidden transition-[max-height] duration-300 ${show ? 'max-h-96' : 'max-h-0'}`}
+        className={`border-b overflow-hidden transition-[max-height] duration-300 ${
+          show ? 'max-h-96' : 'max-h-0'
+        }`}
       >
         <div className="grid grid-cols-7 text-center">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
