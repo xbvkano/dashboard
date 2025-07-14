@@ -24,6 +24,24 @@ app.get('/users', async (_req: Request, res: Response) => {
   res.json(users)
 })
 
+app.get('/month-info', (req: Request, res: Response) => {
+  const year = parseInt(String(req.query.year))
+  const month = parseInt(String(req.query.month))
+
+  if (Number.isNaN(year) || Number.isNaN(month)) {
+    return res.status(400).json({ error: 'Invalid year or month' })
+  }
+
+  const first = new Date(year, month - 1, 1)
+  const last = new Date(year, month, 0)
+
+  res.json({
+    startDay: first.getDay(),
+    endDay: last.getDay(),
+    daysInMonth: last.getDate(),
+  })
+})
+
 app.get('/clients', async (req: Request, res: Response) => {
   // 1. Pull and normalize query params
   const searchTerm = String(req.query.search || '').trim()
