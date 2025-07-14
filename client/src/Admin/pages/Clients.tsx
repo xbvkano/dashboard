@@ -29,7 +29,16 @@ function List() {
     fetch(`http://localhost:3000/clients?search=${encodeURIComponent(search)}&skip=${page * 20}&take=20`)
       .then((r) => r.json())
       .then((data: Client[]) => {
-        setItems((prev) => [...prev, ...data])
+        setItems((prev) => {
+          const next = page === 0 ? data : [...prev, ...data]
+          const seen = new Set<number>()
+          return next.filter((c) => {
+            if (c.id === undefined) return false
+            const exists = seen.has(c.id)
+            seen.add(c.id)
+            return !exists
+          })
+        })
         if (data.length < 20) setHasMore(false)
       })
   }
@@ -96,11 +105,16 @@ function Form() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const payload = { name: data.name, number: data.number, notes: data.notes }
-    await fetch(`http://localhost:3000/clients${isNew ? '' : '/' + id}`, {
+    const res = await fetch(`http://localhost:3000/clients${isNew ? '' : '/' + id}`, {
       method: isNew ? 'POST' : 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      alert(err.error || 'Failed to save')
+      return
+    }
     navigate('..')
   }
 
@@ -112,7 +126,14 @@ function Form() {
       </div>
       <div>
         <label className="block text-sm">Number</label>
-        <input name="number" value={data.number} onChange={handleChange} className="w-full border p-2 rounded" />
+        <input
+          name="number"
+          value={data.number}
+          onChange={handleChange}
+          type="tel"
+          pattern="\d{10}"
+          className="w-full border p-2 rounded"
+        />
       </div>
       <div>
         <label className="block text-sm">Notes</label>
