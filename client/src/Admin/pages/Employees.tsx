@@ -2,10 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { Routes, Route, Link, useNavigate, useParams } from 'react-router-dom'
 
 interface Employee {
-  id: number
+  id?: number
   name: string
   number: string
-  address: string
   notes?: string
 }
 
@@ -80,7 +79,7 @@ function Form() {
   const { id } = useParams()
   const navigate = useNavigate()
   const isNew = id === undefined
-  const [data, setData] = useState<Employee>({ id: 0, name: '', number: '', address: '', notes: '' })
+  const [data, setData] = useState<Employee>({ name: '', number: '', notes: '' })
 
   useEffect(() => {
     if (!isNew) {
@@ -96,10 +95,11 @@ function Form() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const payload = { name: data.name, number: data.number, notes: data.notes }
     await fetch(`http://localhost:3000/employees${isNew ? '' : '/' + id}`, {
       method: isNew ? 'POST' : 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     })
     navigate('..')
   }
@@ -113,10 +113,6 @@ function Form() {
       <div>
         <label className="block text-sm">Number</label>
         <input name="number" value={data.number} onChange={handleChange} className="w-full border p-2 rounded" />
-      </div>
-      <div>
-        <label className="block text-sm">Address</label>
-        <input name="address" value={data.address} onChange={handleChange} className="w-full border p-2 rounded" />
       </div>
       <div>
         <label className="block text-sm">Notes</label>

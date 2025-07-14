@@ -57,8 +57,18 @@ app.get('/clients', async (req: Request, res: Response) => {
 
 app.post('/clients', async (req: Request, res: Response) => {
   try {
-    const clientData = req.body
-    const client = await prisma.client.create({ data: clientData })
+    const { name, number, notes } = req.body as {
+      name?: string
+      number?: string
+      notes?: string
+    }
+    if (!name || !number) {
+      return res.status(400).json({ error: 'Name and number are required' })
+    }
+    if (!/^\d{10}$/.test(number)) {
+      return res.status(400).json({ error: 'Number must be 10 digits' })
+    }
+    const client = await prisma.client.create({ data: { name, number, notes } })
     res.json(client)
   } catch (e) {
     res.status(500).json({ error: 'Failed to create client' })
@@ -75,7 +85,21 @@ app.get('/clients/:id', async (req: Request, res: Response) => {
 app.put('/clients/:id', async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10)
   try {
-    const client = await prisma.client.update({ where: { id }, data: req.body })
+    const { name, number, notes } = req.body as {
+      name?: string
+      number?: string
+      notes?: string
+    }
+    const data: Prisma.ClientUpdateInput = {}
+    if (name !== undefined) data.name = name
+    if (number !== undefined) {
+      if (!/^\d{10}$/.test(number)) {
+        return res.status(400).json({ error: 'Number must be 10 digits' })
+      }
+      data.number = number
+    }
+    if (notes !== undefined) data.notes = notes
+    const client = await prisma.client.update({ where: { id }, data })
     res.json(client)
   } catch (e) {
     res.status(500).json({ error: 'Failed to update client' })
@@ -112,7 +136,18 @@ app.get('/employees', async (req: Request, res: Response) => {
 
 app.post('/employees', async (req: Request, res: Response) => {
   try {
-    const employee = await prisma.employee.create({ data: req.body })
+    const { name, number, notes } = req.body as {
+      name?: string
+      number?: string
+      notes?: string
+    }
+    if (!name || !number) {
+      return res.status(400).json({ error: 'Name and number are required' })
+    }
+    if (!/^\d{10}$/.test(number)) {
+      return res.status(400).json({ error: 'Number must be 10 digits' })
+    }
+    const employee = await prisma.employee.create({ data: { name, number, notes } })
     res.json(employee)
   } catch (e) {
     res.status(500).json({ error: 'Failed to create employee' })
@@ -129,7 +164,21 @@ app.get('/employees/:id', async (req: Request, res: Response) => {
 app.put('/employees/:id', async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10)
   try {
-    const employee = await prisma.employee.update({ where: { id }, data: req.body })
+    const { name, number, notes } = req.body as {
+      name?: string
+      number?: string
+      notes?: string
+    }
+    const data: Prisma.EmployeeUpdateInput = {}
+    if (name !== undefined) data.name = name
+    if (number !== undefined) {
+      if (!/^\d{10}$/.test(number)) {
+        return res.status(400).json({ error: 'Number must be 10 digits' })
+      }
+      data.number = number
+    }
+    if (notes !== undefined) data.notes = notes
+    const employee = await prisma.employee.update({ where: { id }, data })
     res.json(employee)
   } catch (e) {
     res.status(500).json({ error: 'Failed to update employee' })
