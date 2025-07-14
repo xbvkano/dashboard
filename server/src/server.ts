@@ -48,7 +48,7 @@ app.get('/clients', async (req: Request, res: Response) => {
   const take = parseInt(String(req.query.take || '20'), 10)
 
   // 2. Build a typed `where` clause
-  const where = searchTerm
+  const where: any = searchTerm
     ? {
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
@@ -128,7 +128,7 @@ app.get('/employees', async (req: Request, res: Response) => {
   const skip = parseInt(String(req.query.skip || '0'), 10)
   const take = parseInt(String(req.query.take || '20'), 10)
 
-  const where = searchTerm
+  const where: any = searchTerm
     ? {
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
@@ -225,7 +225,7 @@ app.post('/appointment-templates', async (req: Request, res: Response) => {
       req.body as {
         clientId?: number
         templateName?: string
-        type?: string
+        type?: any
         size?: string
         address?: string
         price?: number
