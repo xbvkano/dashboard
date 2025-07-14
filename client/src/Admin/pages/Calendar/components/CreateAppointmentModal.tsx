@@ -58,6 +58,13 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
   const [selectedOption, setSelectedOption] = useState<number>(0)
   const [employees, setEmployees] = useState<Employee[]>([])
   const [selectedEmployees, setSelectedEmployees] = useState<number[]>([])
+  const [showTeamModal, setShowTeamModal] = useState(false)
+  const [employeeSearch, setEmployeeSearch] = useState('')
+  const filteredEmployees = employees.filter(
+    (e) =>
+      e.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+      e.number.includes(employeeSearch)
+  )
 
   // Load clients when search changes
   useEffect(() => {
@@ -363,56 +370,11 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
           </div>
         )}
 
-        {/* Staff selection */}
+        {/* Team selection */}
         {selectedTemplate && staffOptions.length > 0 && (
-          <div className="space-y-2 border p-2 rounded">
-            <h4 className="font-medium">Team Options</h4>
-            <div className="flex gap-2">
-              {staffOptions.map((o, idx) => (
-                <button
-                  key={idx}
-                  className={`px-2 py-1 border rounded ${selectedOption === idx ? 'bg-blue-500 text-white' : ''}`}
-                  onClick={() => {
-                    setSelectedOption(idx)
-                    setSelectedEmployees([])
-                  }}
-                >
-                  {o.sem} SEM / {o.com} COM - {o.hours}h
-                </button>
-              ))}
-            </div>
-            {staffOptions[selectedOption] && (
-              <div className="space-y-1">
-                {(() => {
-                  const opt = staffOptions[selectedOption]
-                  const exp = selectedEmployees.filter((id) => employees.find((e) => e.id === id)?.experienced).length
-                  const tot = selectedEmployees.length
-                  const ok = tot >= opt.sem + opt.com && exp >= opt.com
-                  return (
-                    <div className={ok ? 'text-green-600' : 'text-red-600'}>
-                      {tot}/{opt.sem + opt.com} total, {exp}/{opt.com} experienced
-                    </div>
-                  )
-                })()}
-                <div className="max-h-32 overflow-y-auto border rounded p-1 space-y-1">
-                  {employees.map((e) => (
-                    <label key={e.id} className="flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        checked={selectedEmployees.includes(e.id!)}
-                        onChange={() => {
-                          setSelectedEmployees((prev) =>
-                            prev.includes(e.id!) ? prev.filter((id) => id !== e.id) : [...prev, e.id!]
-                          )
-                        }}
-                      />
-                      {e.name} {e.experienced ? '(Exp)' : ''}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <button className="border px-2 py-1 rounded" onClick={() => setShowTeamModal(true)}>
+            Team Options
+          </button>
         )}
 
         {/* Date and time */}
@@ -444,5 +406,72 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         </div>
       </div>
     </div>
+    {showTeamModal && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
+        <div className="bg-white p-4 rounded w-80 max-h-full overflow-y-auto space-y-2">
+          <div className="flex justify-between items-center">
+            <h4 className="font-medium">Team Options</h4>
+            <button onClick={() => setShowTeamModal(false)}>X</button>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {staffOptions.map((o, idx) => (
+              <button
+                key={idx}
+                className={`px-2 py-1 border rounded ${selectedOption === idx ? 'bg-blue-500 text-white' : ''}`}
+                onClick={() => {
+                  setSelectedOption(idx)
+                  setSelectedEmployees([])
+                }}
+              >
+                {o.sem} SEM / {o.com} COM - {o.hours}h
+              </button>
+            ))}
+          </div>
+          {staffOptions[selectedOption] && (
+            <div className="space-y-1">
+              {(() => {
+                const opt = staffOptions[selectedOption]
+                const exp = selectedEmployees.filter((id) => employees.find((e) => e.id === id)?.experienced).length
+                const tot = selectedEmployees.length
+                const ok = tot >= opt.sem + opt.com && exp >= opt.com
+                return (
+                  <div className={ok ? 'text-green-600' : 'text-red-600'}>
+                    {tot}/{opt.sem + opt.com} total, {exp}/{opt.com} experienced
+                  </div>
+                )
+              })()}
+              <input
+                className="w-full border p-1 rounded"
+                placeholder="Search employees"
+                value={employeeSearch}
+                onChange={(e) => setEmployeeSearch(e.target.value)}
+              />
+              <div className="max-h-32 overflow-y-auto border rounded p-1 space-y-1">
+                {filteredEmployees.map((e) => (
+                  <label key={e.id} className="flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedEmployees.includes(e.id!)}
+                      onChange={() => {
+                        setSelectedEmployees((prev) =>
+                          prev.includes(e.id!) ? prev.filter((id) => id !== e.id) : [...prev, e.id!]
+                        )
+                      }}
+                    />
+                    {e.name} {e.experienced ? <span className="font-bold">(Exp)</span> : ''}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="text-right">
+            <button className="px-2 text-blue-600" onClick={() => setShowTeamModal(false)}>
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
   )
 }
