@@ -8,7 +8,7 @@ import Financing from './pages/Financing'
 export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900">
-      <nav className="bg-white shadow mb-4">
+      <nav className="bg-white shadow md:mb-4 fixed bottom-0 w-full md:static">
         <ul className="flex flex-wrap justify-around p-2 text-sm">
           <li><Link className="px-2 py-1" to="/dashboard">Home</Link></li>
           <li><Link className="px-2 py-1" to="/dashboard/calendar">Calendar</Link></li>
@@ -17,7 +17,7 @@ export default function AdminDashboard() {
           <li><Link className="px-2 py-1" to="/dashboard/financing">Financing</Link></li>
         </ul>
       </nav>
-      <main>
+      <main className="flex-1 pb-16 md:pb-0">
         <Routes>
           <Route index element={<Home />} />
           <Route path="calendar" element={<Calendar />} />
