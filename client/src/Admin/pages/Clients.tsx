@@ -101,6 +101,15 @@ function Form() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setData({ ...data, [e.target.name]: e.target.value })
   }
+  // numeric‐only – ignores any non-digit
+  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+
+    // allow up to 10 digits only
+    if (/^\d{0,10}$/.test(value)) {
+      setData({ ...data, [name]: value })
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -121,17 +130,28 @@ function Form() {
   return (
     <form onSubmit={handleSubmit} className="p-4 space-y-3">
       <div>
-        <label className="block text-sm">Name</label>
-        <input name="name" value={data.name} onChange={handleChange} className="w-full border p-2 rounded" />
+        <label className="block text-sm">
+          Name <span className="text-red-500">*</span>
+        </label>
+        <input
+          name="name"
+          value={data.name}
+          onChange={handleChange}
+          required
+          className="w-full border p-2 rounded"
+        />
       </div>
       <div>
-        <label className="block text-sm">Number</label>
+        <label className="block text-sm">
+          Number <span className="text-red-500">*</span>
+        </label>
         <input
           name="number"
           value={data.number}
-          onChange={handleChange}
+          onChange={handleNumberChange}
           type="tel"
           pattern="\d{10}"
+          required
           className="w-full border p-2 rounded"
         />
       </div>
