@@ -6,18 +6,29 @@ export default function EmployeeForm() {
   const { id } = useParams()
   const navigate = useNavigate()
   const isNew = id === undefined
-  const [data, setData] = useState<Employee>({ name: '', number: '', notes: '' })
+  const [data, setData] = useState<Employee>({
+    name: '',
+    number: '',
+    notes: '',
+    experienced: false,
+  })
 
   useEffect(() => {
     if (!isNew) {
       fetch(`http://localhost:3000/employees/${id}`)
         .then((r) => r.json())
-        .then((d) => setData(d))
+        .then((d) => setData({ experienced: false, ...d }))
     }
   }, [id, isNew])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     setData({ ...data, [e.target.name]: e.target.value })
+  }
+
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setData({ ...data, experienced: e.target.checked })
   }
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,7 +40,12 @@ export default function EmployeeForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const payload = { name: data.name, number: data.number, notes: data.notes }
+    const payload = {
+      name: data.name,
+      number: data.number,
+      notes: data.notes,
+      experienced: data.experienced,
+    }
     const res = await fetch(`http://localhost:3000/employees${isNew ? '' : '/' + id}` ,{
       method: isNew ? 'POST' : 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -75,9 +91,27 @@ export default function EmployeeForm() {
         <label className="block text-sm">Notes</label>
         <textarea name="notes" value={data.notes || ''} onChange={handleChange} className="w-full border p-2 rounded" />
       </div>
-      <button className="bg-blue-500 text-white px-4 py-2 rounded" type="submit">
-        Save
-      </button>
+      <div className="flex items-center gap-2">
+        <input
+          id="experienced"
+          type="checkbox"
+          checked={data.experienced ?? false}
+          onChange={handleCheckboxChange}
+        />
+        <label htmlFor="experienced" className="text-sm">Experienced</label>
+      </div>
+      <div className="flex gap-2">
+        <button className="bg-blue-500 text-white px-4 py-2 rounded" type="submit">
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('..')}
+          className="bg-gray-300 px-4 py-2 rounded"
+        >
+          Cancel
+        </button>
+      </div>
     </form>
   )
 }

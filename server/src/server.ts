@@ -162,10 +162,11 @@ app.get('/employees', async (req: Request, res: Response) => {
 
 app.post('/employees', async (req: Request, res: Response) => {
   try {
-    const { name, number, notes } = req.body as {
+    const { name, number, notes, experienced } = req.body as {
       name?: string
       number?: string
       notes?: string
+      experienced?: boolean
     }
     if (!name || !number) {
       return res.status(400).json({ error: 'Name and number are required' })
@@ -173,7 +174,9 @@ app.post('/employees', async (req: Request, res: Response) => {
     if (!/^\d{10}$/.test(number)) {
       return res.status(400).json({ error: 'Number must be 10 digits' })
     }
-    const employee = await prisma.employee.create({ data: { name, number, notes } })
+    const employee = await prisma.employee.create({
+      data: { name, number, notes, experienced: experienced ?? false }
+    })
     res.json(employee)
   } catch (e) {
     res.status(500).json({ error: 'Failed to create employee' })
@@ -190,10 +193,11 @@ app.get('/employees/:id', async (req: Request, res: Response) => {
 app.put('/employees/:id', async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10)
   try {
-    const { name, number, notes } = req.body as {
+    const { name, number, notes, experienced } = req.body as {
       name?: string
       number?: string
       notes?: string
+      experienced?: boolean
     }
     const data: any = {}
     if (name !== undefined) data.name = name
@@ -204,6 +208,7 @@ app.put('/employees/:id', async (req: Request, res: Response) => {
       data.number = number
     }
     if (notes !== undefined) data.notes = notes
+    if (experienced !== undefined) data.experienced = experienced
     const employee = await prisma.employee.update({ where: { id }, data })
     res.json(employee)
   } catch (e) {

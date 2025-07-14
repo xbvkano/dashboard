@@ -19,8 +19,8 @@ async function main() {
 
   await prisma.employee.createMany({
     data: [
-      { name: 'Emp One', number: '5553333333' },
-      { name: 'Emp Two', number: '5554444444' }
+      { name: 'Emp One', number: '5553333333', experienced: true },
+      { name: 'Emp Two', number: '5554444444', experienced: false }
     ]
   })
 }
