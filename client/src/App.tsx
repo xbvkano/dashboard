@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import Login from './Login'
+import Login from './Landing/components/Login'
 import Dashboard from './Landing/Dashboard'
 
 type Role = 'admin' | 'user'
