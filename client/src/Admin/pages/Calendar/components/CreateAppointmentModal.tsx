@@ -183,8 +183,8 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-20">
-        <div className="bg-white p-4 rounded w-96 max-h-full overflow-y-auto space-y-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-20">
+      <div className="bg-white p-4 rounded w-96 max-h-full overflow-y-auto space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold">New Appointment</h2>
           <button onClick={onClose}>X</button>

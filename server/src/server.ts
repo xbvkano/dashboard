@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 import { PrismaClient } from '@prisma/client'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { OAuth2Client } from 'google-auth-library'
+import axios from 'axios'
 import { staffOptionsData } from './data/staffOptions'
 dotenv.config()
 
@@ -367,19 +368,33 @@ app.post('/login', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Missing token' })
   }
   try {
-    const ticket = await client.verifyIdToken({ idToken: token, audience: process.env.GOOGLE_CLIENT_ID })
-    const payload = ticket.getPayload()
-    if (!payload?.email) {
+    let email: string | undefined
+    let name: string | undefined
+
+    if (token.includes('.')) {
+      const ticket = await client.verifyIdToken({ idToken: token, audience: process.env.GOOGLE_CLIENT_ID })
+      const payload = ticket.getPayload()
+      email = payload?.email
+      name = payload?.name || undefined
+    } else {
+      const resp = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      email = resp.data.email
+      name = resp.data.name
+    }
+
+    if (!email) {
       return res.status(400).json({ error: 'Invalid token' })
     }
 
     const user = await prisma.user.upsert({
-      where: { email: payload.email },
-      update: { name: payload.name || undefined },
-      create: { email: payload.email, name: payload.name || undefined }
+      where: { email },
+      update: { name: name || undefined },
+      create: { email, name: name || undefined }
     })
 
-    const role = adminEmails.includes(payload.email) ? 'admin' : 'user'
+    const role = adminEmails.includes(email) ? 'admin' : 'user'
     res.json({ role, user })
   } catch (e) {
     console.error(e)
