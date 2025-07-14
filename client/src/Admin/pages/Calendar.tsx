@@ -23,6 +23,7 @@ export default function Calendar() {
   const weekTouchStart = useRef<number | null>(null)
   const dayTouchStart = useRef<number | null>(null)
   const [dayDragX, setDayDragX] = useState<number | null>(null)
+  const [dragDirection, setDragDirection] = useState<'left' | 'right' | null>(null)
 
   useEffect(() => {
     const year = selected.getFullYear()
@@ -180,10 +181,16 @@ export default function Calendar() {
         onTouchStart={(e) => {
           dayTouchStart.current = e.touches[0].clientX
           setDayDragX(e.touches[0].clientX)
+          setDragDirection(null)
         }}
         onTouchMove={(e) => {
           if (dayTouchStart.current !== null) {
-            setDayDragX(e.touches[0].clientX)
+            const x = e.touches[0].clientX
+            setDayDragX(x)
+            const diff = x - dayTouchStart.current
+            if (diff !== 0) {
+              setDragDirection(diff < 0 ? 'left' : 'right')
+            }
           }
         }}
         onTouchEnd={(e) => {
@@ -195,12 +202,18 @@ export default function Calendar() {
           }
           dayTouchStart.current = null
           setDayDragX(null)
+          setDragDirection(null)
         }}
       >
-        {dayDragX !== null && (
+        {dragDirection && (
           <div
             className="absolute top-0 bottom-0 w-px bg-gray-400"
-            style={{ left: dayDragX }}
+            style={{
+              left:
+                dragDirection === 'left'
+                  ? 'calc(4rem + 0.5rem)'
+                  : 'calc(100% - 1px)',
+            }}
           />
         )}
         {nowOffset !== null && (
