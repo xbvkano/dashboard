@@ -13,7 +13,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Login onLogin={setRole} />} />
         <Route
-          path="/dashboard"
+          path="/dashboard/*"
           element={role ? <Dashboard role={role} /> : <Navigate to="/" />}
         />
       </Routes>
