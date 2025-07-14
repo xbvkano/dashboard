@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { PrismaClient } from '@prisma/client'
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { OAuth2Client } from 'google-auth-library'
 dotenv.config()
 
@@ -87,8 +88,16 @@ app.post('/clients', async (req: Request, res: Response) => {
     }
     const client = await prisma.client.create({ data: { name, number, notes } })
     res.json(client)
-  } catch (e) {
-    res.status(500).json({ error: 'Failed to create client' })
+  } catch (e: any) {
+    if (
+      e instanceof PrismaClientKnownRequestError &&
+      e.code === 'P2002'
+    ) {
+      res.status(400).json({ error: 'Client name must be unique' })
+    } else {
+      console.error(e)
+      res.status(500).json({ error: 'Failed to create client' })
+    }
   }
 })
 
