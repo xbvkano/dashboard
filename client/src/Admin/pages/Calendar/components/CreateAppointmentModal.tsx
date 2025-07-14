@@ -158,19 +158,22 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
           </div>
         ) : showNewClient ? (
           <div className="space-y-2 border p-2 rounded">
-            <h3 className="font-medium">New Client</h3>
+              <h3 className="font-medium">New Client</h3>
+              <h4 className="font-light">Name <span className="text-red-500">*</span></h4>
             <input
               className="w-full border p-1 rounded"
               placeholder="Name"
               value={newClient.name}
               onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
-            />
+              />
+              <h4 className="font-light">Number <span className="text-red-500">*</span></h4>
             <input
               className="w-full border p-1 rounded"
               placeholder="Number"
               value={newClient.number}
               onChange={handleNewClientNumberChange}
-            />
+              />
+              <h4 className="font-light">Notes:</h4>
             <textarea
               className="w-full border p-1 rounded"
               placeholder="Notes"
@@ -238,13 +241,15 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
               </div>
             ) : showNewTemplate ? (
               <div className="space-y-2 border p-2 rounded">
-                <h3 className="font-medium">New Template</h3>
+                  <h3 className="font-medium">New Template</h3>
+                  <h4 className="font-light">Name: <span className="text-red-500">*</span></h4>
                 <input
                   className="w-full border p-1 rounded"
                   placeholder="Name"
                   value={templateForm.templateName}
                   onChange={(e) => setTemplateForm({ ...templateForm, templateName: e.target.value })}
-                />
+                  />
+                  <h4 className="font-light">Type: <span className="text-red-500">*</span></h4>
                 <select
                   className="w-full border p-1 rounded"
                   value={templateForm.type}
@@ -253,7 +258,8 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                   <option value="DEEP">Deep</option>
                   <option value="MOVE_IN_OUT">Move in/out</option>
                   <option value="STANDARD">Standard</option>
-                </select>
+                  </select>
+                  <h4 className="font-light">Size: <span className="text-red-500">*</span></h4>
                 <select
                   className="w-full border p-1 rounded"
                   value={templateForm.size}
@@ -265,20 +271,23 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                       {s}
                     </option>
                   ))}
-                </select>
+                  </select>
+                  <h4 className="font-light">Price: <span className="text-red-500">*</span></h4>
                 <input
                   className="w-full border p-1 rounded"
                   placeholder="Price"
                   type="number"
                   value={templateForm.price}
                   onChange={(e) => setTemplateForm({ ...templateForm, price: e.target.value })}
-                />
+                  />
+                  <h4 className="font-light">Address: <span className="text-red-500">*</span></h4>
                 <input
                   className="w-full border p-1 rounded"
                   placeholder="Address"
                   value={templateForm.address}
                   onChange={(e) => setTemplateForm({ ...templateForm, address: e.target.value })}
-                />
+                  />
+                  <h4 className="font-light">Notes: </h4>
                 <textarea
                   className="w-full border p-1 rounded"
                   placeholder="Notes"
