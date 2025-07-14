@@ -1,6 +1,12 @@
 import AdminDashboard from './AdminDashboard'
 import UserDashboard from './UserDashboard'
 
-export default function Dashboard({ role }) {
+type Role = 'admin' | 'user'
+
+interface DashboardProps {
+  role: Role
+}
+
+export default function Dashboard({ role }: DashboardProps) {
   return role === 'admin' ? <AdminDashboard /> : <UserDashboard />
 }

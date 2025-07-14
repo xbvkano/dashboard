@@ -1,6 +1,6 @@
 # React Dashboard
 
-This project was bootstrapped with [Vite](https://vitejs.dev/) and includes `tailwindcss` and `react-router-dom`.
+This project was bootstrapped with [Vite](https://vitejs.dev/) and includes `tailwindcss` and `react-router-dom`. All code is written in **TypeScript**.
 
 ## Available Scripts
 

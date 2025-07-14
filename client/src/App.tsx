@@ -3,8 +3,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './Login'
 import Dashboard from './Dashboard'
 
+type Role = 'admin' | 'user'
+
 export default function App() {
-  const [role, setRole] = useState(null)
+  const [role, setRole] = useState<Role | null>(null)
 
   return (
     <BrowserRouter>

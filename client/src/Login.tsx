@@ -1,8 +1,14 @@
 import { useNavigate } from 'react-router-dom'
 
-export default function Login({ onLogin }) {
+type Role = 'admin' | 'user'
+
+interface LoginProps {
+  onLogin: (role: Role) => void
+}
+
+export default function Login({ onLogin }: LoginProps) {
   const navigate = useNavigate()
-  const handleLogin = (role) => {
+  const handleLogin = (role: Role) => {
     onLogin(role)
     navigate('/dashboard')
   }
