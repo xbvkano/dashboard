@@ -8,6 +8,7 @@ server/dist
 
 # Env
 server/.env
+client/.env
 
 # Logs
 *.log
