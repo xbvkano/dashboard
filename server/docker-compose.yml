@@ -1,14 +1,17 @@
-version: '3.9'
+# docker-compose.yml
 services:
-  db:
+  dashboardpostgres:
     image: postgres:15
+    container_name: dashboardpostgres
     restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
     ports:
       - '5432:5432'
     volumes:
       - db-data:/var/lib/postgresql/data
+
 volumes:
   db-data:
