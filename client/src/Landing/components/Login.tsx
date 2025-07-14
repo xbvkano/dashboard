@@ -40,7 +40,6 @@ export default function Login({ onLogin }: LoginProps) {
       <GoogleLogin
         onSuccess={handleGoogle}
         ux_mode="redirect"
-        redirect_uri={window.location.origin}
       />
     </div>
   )
