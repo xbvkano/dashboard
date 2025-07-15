@@ -135,16 +135,34 @@ export default function DayTimeline({
         </div>
       ))}
 
-      {appointments.map((a) => {
-        const [h, m] = a.time.split(':').map((n) => parseInt(n, 10))
+      {Object.entries(
+        appointments.reduce<Record<string, Appointment[]>>((acc, appt) => {
+          acc[appt.time] = acc[appt.time] ? [...acc[appt.time], appt] : [appt]
+          return acc
+        }, {})
+      ).map(([time, group]) => {
+        const [h, m] = time.split(':').map((n) => parseInt(n, 10))
         const top = h * 84 + (m / 60) * 84
         return (
           <div
-            key={a.id}
-            className="absolute left-16 right-2 h-8 bg-blue-200 border border-blue-400 rounded px-1 text-xs overflow-hidden"
-            style={{ top }}
+            key={time}
+            className="absolute flex gap-1"
+            style={{
+              top,
+              left: dividerPx,
+              width: `calc((100% - ${dividerPx}px) * 0.7)`,
+              padding: '2px',
+            }}
           >
-            {a.type}
+            {group.map((a, idx) => (
+              <div
+                key={a.id ?? idx}
+                className="flex-1 bg-blue-200 border border-blue-400 rounded px-1 text-xs overflow-hidden"
+                style={{ height: (a.hours || 1) * 84 }}
+              >
+                {a.type}
+              </div>
+            ))}
           </div>
         )
       })}
