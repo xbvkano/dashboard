@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import Login from './Landing/components/Login'
 import Dashboard from './Landing/Dashboard'
 
@@ -24,12 +24,13 @@ interface RoutesProps {
 
 function AppRoutes({ role, onLogin }: RoutesProps) {
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
-    if (role) {
+    if (role && location.pathname === '/') {
       navigate('/dashboard', { replace: true })
     }
-  }, [role, navigate])
+  }, [role, navigate, location.pathname])
 
   return (
     <Routes>
