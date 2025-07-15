@@ -1,6 +1,9 @@
 import express, { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import fs from 'fs'
+import https from 'https'
+import path from 'path'
 import { PrismaClient } from '@prisma/client'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { OAuth2Client } from 'google-auth-library'
@@ -454,6 +457,17 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: 'Internal server error' })
 })
 
-app.listen(port, () => {
-  console.log(`Server listening on port ${port}`)
-})
+const keyPath = process.env.SSL_KEY_PATH
+const certPath = process.env.SSL_CERT_PATH
+
+if (keyPath && certPath) {
+  const key = fs.readFileSync(path.resolve(keyPath))
+  const cert = fs.readFileSync(path.resolve(certPath))
+  https.createServer({ key, cert }, app).listen(port, () => {
+    console.log(`HTTPS server listening on port ${port}`)
+  })
+} else {
+  app.listen(port, () => {
+    console.log(`Server listening on port ${port}`)
+  })
+}
