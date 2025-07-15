@@ -61,6 +61,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
   const [selectedEmployees, setSelectedEmployees] = useState<number[]>([])
   const [showTeamModal, setShowTeamModal] = useState(false)
   const [employeeSearch, setEmployeeSearch] = useState('')
+  const [payRate, setPayRate] = useState<number | null>(null)
   const filteredEmployees = employees.filter(
     (e) =>
       e.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
@@ -108,6 +109,22 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
       .then((d) => setEmployees(d))
       .catch((err) => console.error(err))
   }, [selectedTemplate])
+
+  // calculate pay rate when team changes
+  useEffect(() => {
+    const t = templates.find((tt) => tt.id === selectedTemplate)
+    if (!t || !t.size || selectedEmployees.length === 0) {
+      setPayRate(null)
+      return
+    }
+    fetchJson(
+      `${API_BASE_URL}/pay-rate?type=${t.type}&size=${encodeURIComponent(
+        t.size
+      )}&count=${selectedEmployees.length}`
+    )
+      .then((d) => setPayRate(d.rate))
+      .catch(() => setPayRate(null))
+  }, [selectedEmployees.length, selectedTemplate])
 
   
 
@@ -449,11 +466,11 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
             <h4 className="font-medium">Team Options</h4>
             <button onClick={() => setShowTeamModal(false)}>X</button>
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div className="space-y-2">
             {staffOptions.map((o, idx) => (
               <button
                 key={idx}
-                className={`px-2 py-1 border rounded ${selectedOption === idx ? 'bg-blue-500 text-white' : ''}`}
+                className={`w-full px-2 py-1 border rounded ${selectedOption === idx ? 'bg-blue-500 text-white' : ''}`}
                 onClick={() => {
                   setSelectedOption(idx)
                   setSelectedEmployees([])
@@ -494,7 +511,11 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                         )
                       }}
                     />
-                    {e.name} {e.experienced ? <span className="font-bold">(Exp)</span> : ''}
+                    {e.name}
+                    {e.experienced ? <span className="font-bold">(Exp)</span> : ''}
+                    {selectedEmployees.includes(e.id!) && payRate !== null && (
+                      <span className="ml-1 text-sm text-gray-600">${payRate.toFixed(2)}</span>
+                    )}
                   </label>
                 ))}
               </div>
