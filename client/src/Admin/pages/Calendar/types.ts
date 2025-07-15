@@ -19,4 +19,5 @@ export interface Appointment {
   size?: string
   price?: number
   notes?: string
+  hours?: number
 }
