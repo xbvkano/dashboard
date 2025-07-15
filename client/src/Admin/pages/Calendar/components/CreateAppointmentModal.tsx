@@ -195,12 +195,19 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
 
         {/* Client selection */}
         {selectedClient ? (
-          <div>
-            <div className="flex items-center justify-between mb-2">
+          <div className="mb-2">
+            <div className="flex items-center justify-between">
               <div className="font-medium">Client: {selectedClient.name}</div>
-              <button className="text-sm text-blue-500" onClick={() => setSelectedClient(null)}>
+              <button
+                className="text-sm text-blue-500"
+                onClick={() => setSelectedClient(null)}
+              >
                 change
               </button>
+            </div>
+            <div className="text-sm border rounded p-2 mt-1 space-y-1">
+              <div>Number: {selectedClient.number}</div>
+              {selectedClient.notes && <div>Notes: {selectedClient.notes}</div>}
             </div>
           </div>
         ) : showNewClient ? (
@@ -249,10 +256,15 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                 New
               </button>
             </div>
-            <ul className="max-h-32 overflow-y-auto border rounded">
+            <ul className="max-h-32 overflow-y-auto border rounded divide-y">
               {clients.map((c) => (
-                <li key={c.id} className="p-1 hover:bg-gray-100 cursor-pointer" onClick={() => setSelectedClient(c)}>
-                  {c.name}
+                <li
+                  key={c.id}
+                  className="p-1 hover:bg-gray-100 cursor-pointer"
+                  onClick={() => setSelectedClient(c)}
+                >
+                  <div className="font-medium">{c.name}</div>
+                  <div className="text-sm text-gray-600">{c.number}</div>
                 </li>
               ))}
             </ul>
@@ -376,9 +388,29 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
 
         {/* Team selection */}
         {selectedTemplate && staffOptions.length > 0 && (
-          <button className="border px-2 py-1 rounded" onClick={() => setShowTeamModal(true)}>
-            Team Options
-          </button>
+          <div className="space-y-1">
+            <button
+              className="border px-2 py-1 rounded"
+              onClick={() => setShowTeamModal(true)}
+            >
+              Team Options
+            </button>
+            {selectedEmployees.length > 0 && staffOptions[selectedOption] && (
+              <div className="text-sm border rounded p-2 space-y-1">
+                <div>
+                  Team:{' '}
+                  {selectedEmployees
+                    .map((id) => employees.find((e) => e.id === id)?.name)
+                    .filter(Boolean)
+                    .join(', ')}
+                </div>
+                <div>
+                  {staffOptions[selectedOption].sem} SEM / {staffOptions[selectedOption].com}{' '}
+                  COM - {staffOptions[selectedOption].hours}h
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Date and time */}
