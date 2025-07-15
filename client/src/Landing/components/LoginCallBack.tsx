@@ -1,6 +1,7 @@
 // src/pages/LoginCallback.tsx
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { API_BASE_URL } from '../../api'
 
 export default function LoginCallback() {
   const navigate = useNavigate()
@@ -17,7 +18,7 @@ export default function LoginCallback() {
 
     const login = async () => {
       try {
-        const response = await fetch('http://localhost:3000/login', {
+        const response = await fetch(`${API_BASE_URL}/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: credential }),

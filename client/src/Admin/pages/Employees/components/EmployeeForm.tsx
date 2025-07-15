@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Employee } from './types'
+import { API_BASE_URL } from '../../../../api'
 
 export default function EmployeeForm() {
   const { id } = useParams()
@@ -15,7 +16,7 @@ export default function EmployeeForm() {
 
   useEffect(() => {
     if (!isNew) {
-      fetch(`http://localhost:3000/employees/${id}`)
+      fetch(`${API_BASE_URL}/employees/${id}`)
         .then((r) => r.json())
         .then((d) => setData({ experienced: false, ...d }))
     }
@@ -46,7 +47,7 @@ export default function EmployeeForm() {
       notes: data.notes,
       experienced: data.experienced,
     }
-    const res = await fetch(`http://localhost:3000/employees${isNew ? '' : '/' + id}` ,{
+    const res = await fetch(`${API_BASE_URL}/employees${isNew ? '' : '/' + id}` ,{
       method: isNew ? 'POST' : 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

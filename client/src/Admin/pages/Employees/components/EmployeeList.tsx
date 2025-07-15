@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Employee } from './types'
+import { API_BASE_URL } from '../../../../api'
 
 interface EmployeeListProps {}
 
@@ -22,7 +23,7 @@ export default function EmployeeList(_: EmployeeListProps) {
   }, [page, search])
 
   function load() {
-    fetch(`http://localhost:3000/employees?search=${encodeURIComponent(search)}&skip=${page * 20}&take=20`)
+    fetch(`${API_BASE_URL}/employees?search=${encodeURIComponent(search)}&skip=${page * 20}&take=20`)
       .then((r) => r.json())
       .then((data: Employee[]) => {
         setItems((prev) => {

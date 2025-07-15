@@ -7,4 +7,4 @@ This project was bootstrapped with [Vite](https://vitejs.dev/) and includes `tai
 - `npm install` – install dependencies
 - `npm run dev` – start the development server
 
-The app starts with a login page where you can sign in with Google. To enable Google sign-in provide `VITE_GOOGLE_CLIENT_ID` in an `.env` file.
+The app starts with a login page where you can sign in with Google. To enable Google sign-in provide `VITE_GOOGLE_CLIENT_ID` in an `.env` file. API requests are sent to `VITE_API_BASE_URL`, which defaults to `http://localhost:3000`.

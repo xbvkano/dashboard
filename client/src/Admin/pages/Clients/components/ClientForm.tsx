@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Client } from './types'
+import { API_BASE_URL } from '../../../../api'
 
 export default function ClientForm() {
   const { id } = useParams()
@@ -10,7 +11,7 @@ export default function ClientForm() {
 
   useEffect(() => {
     if (!isNew) {
-      fetch(`http://localhost:3000/clients/${id}`)
+      fetch(`${API_BASE_URL}/clients/${id}`)
         .then((r) => r.json())
         .then((d) => setData(d))
     }
@@ -30,7 +31,7 @@ export default function ClientForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const payload = { name: data.name, number: data.number, notes: data.notes }
-    const res = await fetch(`http://localhost:3000/clients${isNew ? '' : '/' + id}`, {
+    const res = await fetch(`${API_BASE_URL}/clients${isNew ? '' : '/' + id}`, {
       method: isNew ? 'POST' : 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

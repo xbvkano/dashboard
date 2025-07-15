@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Client } from '../../Clients/components/types'
 import type { AppointmentTemplate } from '../types'
 import type { Employee } from '../../Employees/components/types'
+import { API_BASE_URL } from '../../../../api'
 
 interface Props {
   onClose: () => void
@@ -69,7 +70,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
   // Load clients when search changes
   useEffect(() => {
     fetch(
-      `http://localhost:3000/clients?search=${encodeURIComponent(
+      `${API_BASE_URL}/clients?search=${encodeURIComponent(
         clientSearch
       )}&skip=0&take=20`
     )
@@ -84,7 +85,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
       setSelectedTemplate(null)
       return
     }
-    fetch(`http://localhost:3000/appointment-templates?clientId=${selectedClient.id}`)
+    fetch(`${API_BASE_URL}/appointment-templates?clientId=${selectedClient.id}`)
       .then((r) => r.json())
       .then((d) => setTemplates(d))
   }, [selectedClient])
@@ -97,19 +98,19 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     }
     const t = templates.find((tt) => tt.id === selectedTemplate)
     if (!t || !t.size) return
-    fetch(`http://localhost:3000/staff-options?size=${encodeURIComponent(t.size)}&type=${t.type}`)
+    fetch(`${API_BASE_URL}/staff-options?size=${encodeURIComponent(t.size)}&type=${t.type}`)
       .then((r) => r.json())
       .then((d) => {
         setStaffOptions(d)
         setSelectedOption(0)
       })
-    fetch('http://localhost:3000/employees?search=&skip=0&take=1000')
+    fetch(`${API_BASE_URL}/employees?search=&skip=0&take=1000`)
       .then((r) => r.json())
       .then((d) => setEmployees(d))
   }, [selectedTemplate])
 
   const createClient = async () => {
-    const res = await fetch('http://localhost:3000/clients', {
+    const res = await fetch(`${API_BASE_URL}/clients`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newClient),
@@ -136,7 +137,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
       price: parseFloat(templateForm.price),
       notes: templateForm.notes || undefined,
     }
-    const res = await fetch('http://localhost:3000/appointment-templates', {
+    const res = await fetch(`${API_BASE_URL}/appointment-templates`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -162,7 +163,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
 
   const createAppointment = async () => {
     if (!selectedClient || !selectedTemplate) return
-    const res = await fetch('http://localhost:3000/appointments', {
+    const res = await fetch(`${API_BASE_URL}/appointments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
