@@ -75,6 +75,20 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
   const [carpetEmployees, setCarpetEmployees] = useState<number[]>([])
   const [carpetRate, setCarpetRate] = useState<number | null>(null)
 
+  // recurring options
+  const recurringOptions = [
+    'Weekly',
+    'Biweekly',
+    'Thrweekly',
+    'Monthly',
+    'Other',
+  ] as const
+  type RecurringOption = (typeof recurringOptions)[number]
+  const [recurringEnabled, setRecurringEnabled] = useState(false)
+  const [showRecurringModal, setShowRecurringModal] = useState(false)
+  const [recurringOption, setRecurringOption] = useState<RecurringOption>('Weekly')
+  const [recurringMonths, setRecurringMonths] = useState('')
+
   // Load clients when search changes
   useEffect(() => {
     fetchJson(
@@ -236,7 +250,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
   return (
     <>
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-20">
-      <div className="bg-white p-4 rounded w-96 max-h-full overflow-y-auto space-y-4">
+      <div className="bg-white p-4 rounded w-96 max-h-full overflow-y-auto overflow-x-hidden space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold">New Appointment</h2>
           <button onClick={onClose}>X</button>
@@ -472,7 +486,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         )}
 
         {/* Carpet cleaning */}
-        {selectedTemplate && (
+        {selectedTemplate && selectedEmployees.length > 0 && (
           <div className="space-y-1">
             <label className="flex items-center gap-2">
               <span>Carpet Cleaning</span>
@@ -526,6 +540,42 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
           </div>
         )}
 
+        {/* Recurring */}
+        {selectedTemplate && selectedEmployees.length > 0 && (
+          <div className="space-y-1">
+            <label className="flex items-center gap-2">
+              <span>Recurring</span>
+              <input
+                type="checkbox"
+                checked={recurringEnabled}
+                onChange={(e) => {
+                  setRecurringEnabled(e.target.checked)
+                  if (!e.target.checked) {
+                    setRecurringOption('Weekly')
+                    setRecurringMonths('')
+                  }
+                }}
+              />
+            </label>
+            {recurringEnabled && (
+              <>
+                <button
+                  className="border px-2 py-1 rounded"
+                  onClick={() => setShowRecurringModal(true)}
+                >
+                  Recurring Options
+                </button>
+                <div className="text-sm border rounded p-2">
+                  Frequency:{' '}
+                  {recurringOption === 'Other'
+                    ? `${recurringMonths} months`
+                    : recurringOption}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Date and time */}
         {selectedTemplate && (
           <div className="space-y-2">
@@ -567,7 +617,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     </div>
     {showTeamModal && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
-        <div className="bg-white p-4 rounded w-80 max-h-full overflow-y-auto space-y-2">
+        <div className="bg-white p-4 rounded w-80 max-h-full overflow-y-auto overflow-x-hidden space-y-2">
           <div className="flex justify-between items-center">
             <h4 className="font-medium">Team Options</h4>
             <button onClick={() => setShowTeamModal(false)}>X</button>
@@ -643,7 +693,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     )}
     {showCarpetModal && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
-        <div className="bg-white p-4 rounded w-80 max-h-full overflow-y-auto space-y-2">
+        <div className="bg-white p-4 rounded w-80 max-h-full overflow-y-auto overflow-x-hidden space-y-2">
           <div className="flex justify-between items-center">
             <h4 className="font-medium">Carpet Options</h4>
             <button onClick={() => setShowCarpetModal(false)}>X</button>
@@ -687,6 +737,52 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
               disabled={!carpetRooms || carpetEmployees.length === 0}
               onClick={() => {
                 if (carpetRooms && carpetEmployees.length > 0) setShowCarpetModal(false)
+              }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    {showRecurringModal && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
+        <div className="bg-white p-4 rounded w-80 max-h-full overflow-y-auto overflow-x-hidden space-y-2">
+          <div className="flex justify-between items-center">
+            <h4 className="font-medium">Recurring Options</h4>
+            <button onClick={() => setShowRecurringModal(false)}>X</button>
+          </div>
+          <div className="space-y-2">
+            <select
+              className="w-full border p-1 rounded"
+              value={recurringOption}
+              onChange={(e) => setRecurringOption(e.target.value as RecurringOption)}
+            >
+              {recurringOptions.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+            {recurringOption === 'Other' && (
+              <div>
+                <h4 className="font-light">Every how many months?</h4>
+                <input
+                  type="number"
+                  min="1"
+                  className="w-full border p-1 rounded"
+                  value={recurringMonths}
+                  onChange={(e) => setRecurringMonths(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+          <div className="text-right">
+            <button
+              className="px-2 text-blue-600 disabled:text-gray-400"
+              disabled={recurringOption === 'Other' && !recurringMonths}
+              onClick={() => {
+                if (recurringOption !== 'Other' || recurringMonths) setShowRecurringModal(false)
               }}
             >
               Done
