@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Client } from './types'
-import { API_BASE_URL } from '../../../../api'
+import { API_BASE_URL, fetchJson } from '../../../../api'
 
 export default function ClientList() {
   const [items, setItems] = useState<Client[]>([])
@@ -21,8 +21,7 @@ export default function ClientList() {
   }, [page, search])
 
   function load() {
-    fetch(`${API_BASE_URL}/clients?search=${encodeURIComponent(search)}&skip=${page * 20}&take=20`)
-      .then((r) => r.json())
+    fetchJson(`${API_BASE_URL}/clients?search=${encodeURIComponent(search)}&skip=${page * 20}&take=20`)
       .then((data: Client[]) => {
         setItems((prev) => {
           const next = page === 0 ? data : [...prev, ...data]
