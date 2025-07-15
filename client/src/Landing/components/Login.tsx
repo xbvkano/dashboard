@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useGoogleLogin, CodeResponse } from '@react-oauth/google'
+import { API_BASE_URL } from '../../api'
 
 type Role = 'admin' | 'user'
 
@@ -21,7 +22,7 @@ export default function Login({ onLogin }: LoginProps) {
       const code = searchParams.get('code')
       if (!code) return
 
-      const response = await fetch('http://localhost:3000/login', {
+      const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code })
@@ -50,7 +51,7 @@ export default function Login({ onLogin }: LoginProps) {
     redirect_uri: me,
     flow: 'auth-code',
     onSuccess: async (res: CodeResponse) => {
-      const response = await fetch('http://localhost:3000/login', {
+      const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: res.code })

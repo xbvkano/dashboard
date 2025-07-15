@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { API_BASE_URL } from '../../../api'
 import MonthSelector from './components/MonthSelector'
 import WeekSelector from './components/WeekSelector'
 import DayTimeline from './components/DayTimeline'
@@ -29,7 +30,7 @@ export default function Calendar() {
   useEffect(() => {
     const year = selected.getFullYear()
     const month = selected.getMonth() + 1
-    fetch(`http://localhost:3000/month-info?year=${year}&month=${month}`)
+    fetch(`${API_BASE_URL}/month-info?year=${year}&month=${month}`)
       .then((r) => r.json())
       .then((data) => setMonthInfo(data))
       .catch(() => setMonthInfo(null))
@@ -37,7 +38,7 @@ export default function Calendar() {
 
   useEffect(() => {
     const dateStr = selected.toISOString().slice(0, 10)
-    fetch(`http://localhost:3000/appointments?date=${dateStr}`)
+    fetch(`${API_BASE_URL}/appointments?date=${dateStr}`)
       .then((r) => r.json())
       .then((d) => setAppointments(d))
       .catch(() => setAppointments([]))
@@ -95,7 +96,7 @@ export default function Calendar() {
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             const dateStr = selected.toISOString().slice(0, 10)
-            fetch(`http://localhost:3000/appointments?date=${dateStr}`)
+            fetch(`${API_BASE_URL}/appointments?date=${dateStr}`)
               .then((r) => r.json())
               .then((d) => setAppointments(d))
           }}
