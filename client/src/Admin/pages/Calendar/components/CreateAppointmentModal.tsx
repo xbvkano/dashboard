@@ -68,6 +68,13 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
       e.number.includes(employeeSearch)
   )
 
+  // carpet cleaning options
+  const [carpetEnabled, setCarpetEnabled] = useState(false)
+  const [showCarpetModal, setShowCarpetModal] = useState(false)
+  const [carpetRooms, setCarpetRooms] = useState<string>('')
+  const [carpetEmployees, setCarpetEmployees] = useState<number[]>([])
+  const [carpetRate, setCarpetRate] = useState<number | null>(null)
+
   // Load clients when search changes
   useEffect(() => {
     fetchJson(
@@ -126,6 +133,26 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
       .catch(() => setPayRate(null))
   }, [selectedEmployees.length, selectedTemplate])
 
+  // calculate carpet cleaning rate per employee
+  useEffect(() => {
+    if (!carpetEnabled) {
+      setCarpetRate(null)
+      return
+    }
+    const t = templates.find((tt) => tt.id === selectedTemplate)
+    if (!t || !t.size || !carpetRooms || carpetEmployees.length === 0) {
+      setCarpetRate(null)
+      return
+    }
+    fetchJson(
+      `${API_BASE_URL}/carpet-rate?size=${encodeURIComponent(
+        t.size
+      )}&rooms=${carpetRooms}`
+    )
+      .then((d) => setCarpetRate(d.rate / carpetEmployees.length))
+      .catch(() => setCarpetRate(null))
+  }, [carpetEnabled, carpetRooms, carpetEmployees.length, selectedTemplate])
+
   
 
   const createClient = async () => {
@@ -178,6 +205,11 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     const experienced = selectedEmployees.filter((id) => employees.find((e) => e.id === id)?.experienced).length
     const total = selectedEmployees.length
     return total >= opt.sem + opt.com && experienced >= opt.com
+  }
+
+  const isValidCarpet = () => {
+    if (!carpetEnabled) return true
+    return carpetRooms !== '' && carpetEmployees.length > 0
   }
 
   const createAppointment = async () => {
@@ -439,28 +471,93 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
           </div>
         )}
 
+        {/* Carpet cleaning */}
+        {selectedTemplate && (
+          <div className="space-y-1">
+            <label className="flex items-center gap-2">
+              <span>Carpet Cleaning</span>
+              <input
+                type="checkbox"
+                checked={carpetEnabled}
+                onChange={(e) => {
+                  setCarpetEnabled(e.target.checked)
+                  if (!e.target.checked) {
+                    setCarpetEmployees([])
+                    setCarpetRooms('')
+                  }
+                }}
+              />
+            </label>
+            {carpetEnabled && (
+              <>
+                <button
+                  className="border px-2 py-1 rounded"
+                  onClick={() => setShowCarpetModal(true)}
+                >
+                  Carpet Options
+                </button>
+                {carpetEmployees.length > 0 && carpetRate !== null && (
+                  <div className="text-sm border rounded p-2 space-y-1">
+                    <div>Carpet Team:</div>
+                    <ul className="pl-2 list-disc space-y-0.5">
+                      {carpetEmployees.map((id) => {
+                        const emp = employees.find((e) => e.id === id)
+                        if (!emp) return null
+                        return (
+                          <li key={id}>
+                            {emp.name}{' '}
+                            {emp.experienced ? (
+                              <span className="font-bold">(Exp)</span>
+                            ) : (
+                              ''
+                            )}{' '}
+                            <span className="ml-1 text-sm text-gray-600">
+                              ${carpetRate.toFixed(2)}
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                    <div>Rooms: {carpetRooms}</div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {/* Date and time */}
         {selectedTemplate && (
           <div className="space-y-2">
-            <input
-              type="date"
-              className="w-full border p-1 rounded"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-            <input
-              type="time"
-              className="w-full border p-1 rounded"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-            />
+            <div>
+              <h4 className="font-light">
+                Date <span className="text-red-500">*</span>
+              </h4>
+              <input
+                type="date"
+                className="w-full border p-1 rounded"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <h4 className="font-light">
+                Time <span className="text-red-500">*</span>
+              </h4>
+              <input
+                type="time"
+                className="w-full border p-1 rounded"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+              />
+            </div>
           </div>
         )}
 
         <div className="text-right">
           <button
             className="bg-blue-500 text-white px-4 py-1 rounded disabled:opacity-50"
-            disabled={!selectedTemplate || !date || !time || !isValidSelection()}
+            disabled={!selectedTemplate || !date || !time || !isValidSelection() || !isValidCarpet()}
             onClick={createAppointment}
           >
             Create
@@ -536,6 +633,60 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
               disabled={!isValidSelection()}
               onClick={() => {
                 if (isValidSelection()) setShowTeamModal(false)
+              }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    {showCarpetModal && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
+        <div className="bg-white p-4 rounded w-80 max-h-full overflow-y-auto space-y-2">
+          <div className="flex justify-between items-center">
+            <h4 className="font-medium">Carpet Options</h4>
+            <button onClick={() => setShowCarpetModal(false)}>X</button>
+          </div>
+          <div className="space-y-2">
+            <div>
+              <h4 className="font-light">How many rooms?</h4>
+              <input
+                type="number"
+                min="1"
+                className="w-full border p-1 rounded"
+                value={carpetRooms}
+                onChange={(e) => setCarpetRooms(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <div>Employees:</div>
+              <div className="max-h-32 overflow-y-auto border rounded p-1 space-y-1">
+                {employees
+                  .filter((e) => selectedEmployees.includes(e.id!))
+                  .map((e) => (
+                    <label key={e.id} className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={carpetEmployees.includes(e.id!)}
+                        onChange={() => {
+                          setCarpetEmployees((prev) =>
+                            prev.includes(e.id!) ? prev.filter((id) => id !== e.id) : [...prev, e.id!]
+                          )
+                        }}
+                      />
+                      {e.name}
+                    </label>
+                  ))}
+              </div>
+            </div>
+          </div>
+          <div className="text-right">
+            <button
+              className="px-2 text-blue-600 disabled:text-gray-400"
+              disabled={!carpetRooms || carpetEmployees.length === 0}
+              onClick={() => {
+                if (carpetRooms && carpetEmployees.length > 0) setShowCarpetModal(false)
               }}
             >
               Done
