@@ -371,6 +371,48 @@ app.get('/pay-rate', (req: Request, res: Response) => {
   res.json({ rate })
 })
 
+// Carpet cleaning rate lookup
+app.get('/carpet-rate', (req: Request, res: Response) => {
+  const size = String(req.query.size || '')
+  const rooms = parseInt(String(req.query.rooms || '0'), 10)
+
+  if (!size || isNaN(rooms) || rooms <= 0) {
+    return res.status(400).json({ error: 'size and rooms required' })
+  }
+
+  const parseSize = (s: string): number | null => {
+    if (!s) return null
+    const parts = s.split('-')
+    let n = parseInt(parts[1] || parts[0])
+    if (isNaN(n)) {
+      n = parseInt(s)
+    }
+    return isNaN(n) ? null : n
+  }
+
+  const sqft = parseSize(size)
+  if (sqft === null) {
+    return res.status(400).json({ error: 'invalid size' })
+  }
+
+  const isLarge = sqft > 2500
+  let rate = 0
+
+  if (rooms === 1) {
+    rate = isLarge ? 20 : 10
+  } else if (rooms <= 3) {
+    rate = isLarge ? 30 : 20
+  } else if (rooms <= 5) {
+    rate = isLarge ? 40 : 30
+  } else if (rooms <= 8) {
+    rate = isLarge ? 60 : 40
+  } else {
+    rate = (isLarge ? 60 : 40) + 10 * (rooms - 8)
+  }
+
+  res.json({ rate })
+})
+
 // Appointments ------------------------------------
 app.get('/appointments', async (req: Request, res: Response) => {
   const dateStr = String(req.query.date || '')
