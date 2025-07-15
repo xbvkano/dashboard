@@ -21,7 +21,12 @@ const client = new OAuth2Client(
 )
 const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim()).filter(Boolean)
 
-app.use(cors())
+app.use(cors({
+  allowedHeaders: [
+    'Content-Type',
+    'ngrok-skip-browser-warning',  // <- allow it here
+  ],
+}))
 app.use(express.json())
 
 // Basic request/response logging middleware

@@ -49,7 +49,7 @@ export default function EmployeeForm() {
     }
     const res = await fetch(`${API_BASE_URL}/employees${isNew ? '' : '/' + id}` ,{
       method: isNew ? 'POST' : 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
       body: JSON.stringify(payload),
     })
     if (!res.ok) {

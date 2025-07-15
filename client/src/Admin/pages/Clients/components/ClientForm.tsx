@@ -33,7 +33,7 @@ export default function ClientForm() {
     const payload = { name: data.name, number: data.number, notes: data.notes }
     const res = await fetch(`${API_BASE_URL}/clients${isNew ? '' : '/' + id}`, {
       method: isNew ? 'POST' : 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
       body: JSON.stringify(payload),
     })
     if (!res.ok) {

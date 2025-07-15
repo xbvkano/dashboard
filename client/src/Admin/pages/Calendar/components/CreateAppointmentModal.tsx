@@ -109,10 +109,12 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
       .catch((err) => console.error(err))
   }, [selectedTemplate])
 
+  
+
   const createClient = async () => {
     const res = await fetch(`${API_BASE_URL}/clients`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
       body: JSON.stringify(newClient),
     })
     if (res.ok) {
@@ -139,7 +141,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     }
     const res = await fetch(`${API_BASE_URL}/appointment-templates`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
       body: JSON.stringify(payload),
     })
     if (res.ok) {
@@ -165,7 +167,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     if (!selectedClient || !selectedTemplate) return
     const res = await fetch(`${API_BASE_URL}/appointments`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
       body: JSON.stringify({
         clientId: selectedClient.id,
         templateId: selectedTemplate,

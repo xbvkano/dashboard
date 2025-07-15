@@ -24,7 +24,7 @@ export default function Login({ onLogin }: LoginProps) {
 
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
         body: JSON.stringify({ code })
       })
       const data = await response.json()
@@ -45,6 +45,7 @@ export default function Login({ onLogin }: LoginProps) {
   ? window.location.origin
   : window.location.origin + '/'
 
+  console.log("me: " + me)
 
   const login = useGoogleLogin({
     ux_mode: 'redirect',
@@ -53,7 +54,7 @@ export default function Login({ onLogin }: LoginProps) {
     onSuccess: async (res: CodeResponse) => {
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
         body: JSON.stringify({ code: res.code })
       })
       const data = await response.json()
