@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useGoogleLogin, TokenResponse } from '@react-oauth/google'
+import { useGoogleLogin, CodeResponse } from '@react-oauth/google'
 
 type Role = 'admin' | 'user'
 
@@ -9,31 +8,48 @@ interface LoginProps {
 }
 
 export default function Login({ onLogin }: LoginProps) {
-  const navigate = useNavigate()
 
   useEffect(() => {
     const stored = localStorage.getItem('role')
     if (stored === 'admin' || stored === 'user') {
       onLogin(stored as Role)
-      navigate('/dashboard')
+    }
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    if (code) {
+      ;(async () => {
+        const response = await fetch('http://localhost:3000/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        })
+        const data = await response.json()
+        if (data.role) {
+          onLogin(data.role as Role)
+          localStorage.setItem('role', data.role)
+        }
+        // remove code from url
+        params.delete('code')
+        const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`
+        window.history.replaceState({}, '', newUrl)
+      })()
     }
   }, [])
 
   const login = useGoogleLogin({
     ux_mode: 'redirect',
     redirect_uri: window.location.origin,
-    onSuccess: async (res: TokenResponse) => {
-      if (!res.access_token) return
+    flow: 'auth-code',
+    onSuccess: async (res: CodeResponse) => {
       const response = await fetch('http://localhost:3000/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: res.access_token })
+        body: JSON.stringify({ code: res.code })
       })
       const data = await response.json()
       if (data.role) {
         onLogin(data.role as Role)
         localStorage.setItem('role', data.role)
-        navigate('/dashboard')
       }
     },
     onError: () => {
