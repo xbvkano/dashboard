@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Client } from './types'
-import { API_BASE_URL } from '../../../../api'
+import { API_BASE_URL, fetchJson } from '../../../../api'
 
 export default function ClientForm() {
   const { id } = useParams()
@@ -11,8 +11,7 @@ export default function ClientForm() {
 
   useEffect(() => {
     if (!isNew) {
-      fetch(`${API_BASE_URL}/clients/${id}`)
-        .then((r) => r.json())
+      fetchJson(`${API_BASE_URL}/clients/${id}`)
         .then((d) => setData(d))
     }
   }, [id, isNew])

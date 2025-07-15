@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Client } from '../../Clients/components/types'
 import type { AppointmentTemplate } from '../types'
 import type { Employee } from '../../Employees/components/types'
-import { API_BASE_URL } from '../../../../api'
+import { API_BASE_URL, fetchJson } from '../../../../api'
 
 interface Props {
   onClose: () => void
@@ -69,13 +69,11 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
 
   // Load clients when search changes
   useEffect(() => {
-    fetch(
+    fetchJson(
       `${API_BASE_URL}/clients?search=${encodeURIComponent(
         clientSearch
       )}&skip=0&take=20`
-    )
-      .then((r) => r.json())
-      .then((d) => setClients(d))
+    ).then((d) => setClients(d))
   }, [clientSearch])
 
   // Load templates when client selected
@@ -85,8 +83,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
       setSelectedTemplate(null)
       return
     }
-    fetch(`${API_BASE_URL}/appointment-templates?clientId=${selectedClient.id}`)
-      .then((r) => r.json())
+    fetchJson(`${API_BASE_URL}/appointment-templates?clientId=${selectedClient.id}`)
       .then((d) => setTemplates(d))
   }, [selectedClient])
 
@@ -98,14 +95,12 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     }
     const t = templates.find((tt) => tt.id === selectedTemplate)
     if (!t || !t.size) return
-    fetch(`${API_BASE_URL}/staff-options?size=${encodeURIComponent(t.size)}&type=${t.type}`)
-      .then((r) => r.json())
+    fetchJson(`${API_BASE_URL}/staff-options?size=${encodeURIComponent(t.size)}&type=${t.type}`)
       .then((d) => {
         setStaffOptions(d)
         setSelectedOption(0)
       })
-    fetch(`${API_BASE_URL}/employees?search=&skip=0&take=1000`)
-      .then((r) => r.json())
+    fetchJson(`${API_BASE_URL}/employees?search=&skip=0&take=1000`)
       .then((d) => setEmployees(d))
   }, [selectedTemplate])
 
