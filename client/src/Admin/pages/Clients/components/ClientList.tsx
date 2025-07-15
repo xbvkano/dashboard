@@ -35,6 +35,10 @@ export default function ClientList() {
         })
         if (data.length < 20) setHasMore(false)
       })
+      .catch((err) => {
+        console.error(err)
+        setHasMore(false)
+      })
   }
 
   useEffect(() => {

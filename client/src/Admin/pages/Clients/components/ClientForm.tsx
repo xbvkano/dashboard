@@ -13,6 +13,7 @@ export default function ClientForm() {
     if (!isNew) {
       fetchJson(`${API_BASE_URL}/clients/${id}`)
         .then((d) => setData(d))
+        .catch((err) => console.error(err))
     }
   }, [id, isNew])
 
