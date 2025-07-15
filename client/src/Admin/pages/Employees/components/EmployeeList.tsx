@@ -37,6 +37,10 @@ export default function EmployeeList(_: EmployeeListProps) {
         })
         if (data.length < 20) setHasMore(false)
       })
+      .catch((err) => {
+        console.error(err)
+        setHasMore(false)
+      })
   }
 
   useEffect(() => {

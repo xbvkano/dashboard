@@ -73,7 +73,9 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
       `${API_BASE_URL}/clients?search=${encodeURIComponent(
         clientSearch
       )}&skip=0&take=20`
-    ).then((d) => setClients(d))
+    )
+      .then((d) => setClients(d))
+      .catch((err) => console.error(err))
   }, [clientSearch])
 
   // Load templates when client selected
@@ -85,6 +87,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     }
     fetchJson(`${API_BASE_URL}/appointment-templates?clientId=${selectedClient.id}`)
       .then((d) => setTemplates(d))
+      .catch((err) => console.error(err))
   }, [selectedClient])
 
   // Load staff options when template selected
@@ -100,8 +103,10 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         setStaffOptions(d)
         setSelectedOption(0)
       })
+      .catch((err) => console.error(err))
     fetchJson(`${API_BASE_URL}/employees?search=&skip=0&take=1000`)
       .then((d) => setEmployees(d))
+      .catch((err) => console.error(err))
   }, [selectedTemplate])
 
   const createClient = async () => {

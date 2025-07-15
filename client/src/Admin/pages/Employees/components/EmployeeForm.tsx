@@ -18,6 +18,7 @@ export default function EmployeeForm() {
     if (!isNew) {
       fetchJson(`${API_BASE_URL}/employees/${id}`)
         .then((d) => setData({ experienced: false, ...d }))
+        .catch((err) => console.error(err))
     }
   }, [id, isNew])
 
