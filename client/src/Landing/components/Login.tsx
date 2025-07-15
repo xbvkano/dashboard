@@ -8,7 +8,7 @@ interface LoginProps {
 }
 
 export default function Login({ onLogin }: LoginProps) {
-
+  console.log("This iwndow: " + window.location.origin)
   useEffect(() => {
     const stored = localStorage.getItem('role')
     if (stored === 'admin' || stored === 'user') {
@@ -40,9 +40,14 @@ export default function Login({ onLogin }: LoginProps) {
     handleRedirect()
   }, [onLogin])
 
+  const me = window.location.origin.endsWith('/')
+  ? window.location.origin
+  : window.location.origin + '/'
+
+
   const login = useGoogleLogin({
     ux_mode: 'redirect',
-    redirect_uri: window.location.origin,
+    redirect_uri: me,
     flow: 'auth-code',
     onSuccess: async (res: CodeResponse) => {
       const response = await fetch('http://localhost:3000/login', {
