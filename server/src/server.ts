@@ -23,6 +23,7 @@ app.use(express.json())
 
 // Basic request/response logging middleware
 app.use((req: Request, res: Response, next) => {
+  console.log(`got ${req.method} ${req.originalUrl} body: ${JSON.stringify(req.body)}`)
   const originalJson = res.json.bind(res)
   let responseBody: any
   res.json = ((body: any) => {
@@ -31,7 +32,7 @@ app.use((req: Request, res: Response, next) => {
   }) as any
   res.on('finish', () => {
     console.log(
-      `${req.method} ${req.originalUrl} -> ${res.statusCode} ${JSON.stringify(responseBody)}`
+      `Responded ${req.method} ${req.originalUrl} -> ${res.statusCode} ${JSON.stringify(responseBody)}`
     )
   })
   next()
