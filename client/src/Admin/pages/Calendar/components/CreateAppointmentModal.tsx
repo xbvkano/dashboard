@@ -414,13 +414,22 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
             </button>
             {selectedEmployees.length > 0 && staffOptions[selectedOption] && (
               <div className="text-sm border rounded p-2 space-y-1">
-                <div>
-                  Team:{' '}
-                  {selectedEmployees
-                    .map((id) => employees.find((e) => e.id === id)?.name)
-                    .filter(Boolean)
-                    .join(', ')}
-                </div>
+                <div>Team:</div>
+                <ul className="pl-2 list-disc space-y-0.5">
+                  {selectedEmployees.map((id) => {
+                    const emp = employees.find((e) => e.id === id)
+                    if (!emp) return null
+                    return (
+                      <li key={id}>
+                        {emp.name}{' '}
+                        {emp.experienced ? <span className="font-bold">(Exp)</span> : ''}{' '}
+                        {payRate !== null && (
+                          <span className="ml-1 text-sm text-gray-600">${payRate.toFixed(2)}</span>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
                 <div>
                   {staffOptions[selectedOption].sem} SEM / {staffOptions[selectedOption].com}{' '}
                   COM - {staffOptions[selectedOption].hours}h
@@ -522,7 +531,13 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
             </div>
           )}
           <div className="text-right">
-            <button className="px-2 text-blue-600" onClick={() => setShowTeamModal(false)}>
+            <button
+              className="px-2 text-blue-600 disabled:text-gray-400"
+              disabled={!isValidSelection()}
+              onClick={() => {
+                if (isValidSelection()) setShowTeamModal(false)
+              }}
+            >
               Done
             </button>
           </div>
