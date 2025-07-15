@@ -328,6 +328,49 @@ app.get('/staff-options', (req: Request, res: Response) => {
   res.json(options)
 })
 
+// Pay rate calculator
+app.get('/pay-rate', (req: Request, res: Response) => {
+  const type = String(req.query.type || '')
+  const size = String(req.query.size || '')
+  const count = parseInt(String(req.query.count || '0'), 10)
+
+  if (!type || !size || isNaN(count)) {
+    return res.status(400).json({ error: 'type, size and count required' })
+  }
+
+  const parseSize = (s: string): number | null => {
+    if (!s) return null
+    const parts = s.split('-')
+    let n = parseInt(parts[1] || parts[0])
+    if (isNaN(n)) {
+      n = parseInt(s)
+    }
+    return isNaN(n) ? null : n
+  }
+
+  const sqft = parseSize(size)
+  if (sqft === null) {
+    return res.status(400).json({ error: 'invalid size' })
+  }
+
+  const isLarge = sqft > 2500
+  let rate = 0
+
+  if (type === 'STANDARD') {
+    rate = isLarge ? 100 : 80
+  } else if (type === 'DEEP' || type === 'MOVE_IN_OUT') {
+    if (isLarge) {
+      rate = 100
+    } else {
+      rate = count === 1 ? 100 : 90
+    }
+  } else {
+    return res.status(400).json({ error: 'invalid type' })
+  }
+
+  res.json({ rate })
+})
+
 // Appointments ------------------------------------
 app.get('/appointments', async (req: Request, res: Response) => {
   const dateStr = String(req.query.date || '')
