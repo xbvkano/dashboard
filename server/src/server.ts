@@ -21,6 +21,22 @@ const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.tri
 app.use(cors())
 app.use(express.json())
 
+// Basic request/response logging middleware
+app.use((req: Request, res: Response, next) => {
+  const originalJson = res.json.bind(res)
+  let responseBody: any
+  res.json = ((body: any) => {
+    responseBody = body
+    return originalJson(body)
+  }) as any
+  res.on('finish', () => {
+    console.log(
+      `${req.method} ${req.originalUrl} -> ${res.statusCode} ${JSON.stringify(responseBody)}`
+    )
+  })
+  next()
+})
+
 app.get('/', async (_req: Request, res: Response) => {
   res.json({ message: 'Hello from server' })
 })
