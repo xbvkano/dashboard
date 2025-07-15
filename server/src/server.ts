@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express'
+import express, { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { PrismaClient } from '@prisma/client'
@@ -441,6 +441,17 @@ app.post('/login', async (req: Request, res: Response) => {
     console.error(e)
     res.status(500).json({ error: 'Authentication failed' })
   }
+})
+
+// 404 handler for unmatched routes
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({ error: 'Not found' })
+})
+
+// Error handler to ensure JSON responses
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error(err)
+  res.status(500).json({ error: 'Internal server error' })
 })
 
 app.listen(port, () => {
