@@ -17,6 +17,27 @@ export default function Login({ onLogin }: LoginProps) {
       onLogin(stored as Role)
       navigate('/dashboard')
     }
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    if (code) {
+      ;(async () => {
+        const response = await fetch('http://localhost:3000/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        })
+        const data = await response.json()
+        if (data.role) {
+          onLogin(data.role as Role)
+          localStorage.setItem('role', data.role)
+          navigate('/dashboard')
+        }
+        // remove code from url
+        params.delete('code')
+        const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`
+        window.history.replaceState({}, '', newUrl)
+      })()
+    }
   }, [])
 
   const login = useGoogleLogin({
