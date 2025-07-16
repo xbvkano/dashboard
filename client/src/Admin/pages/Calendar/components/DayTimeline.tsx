@@ -26,7 +26,44 @@ export default function DayTimeline({
   const dividerPx = 4 * 16 + 0.5 * 16;
   const LANE_GAP = 8; // space between appointment columns in pixels
   const apptWidth = '40vw';
-  let containerWidth = `calc(${dividerPx}px + 40vw)`;
+  let containerWidth = `calc(${dividerPx}px + 40vw)`
+
+  type Layout = {
+    appt: Appointment
+    start: number
+    end: number
+    lane: number
+  }
+
+  const events: Layout[] = appointments
+    .map((a) => {
+      const [h, m] = a.time.split(':').map((n) => parseInt(n, 10))
+      const start = h * 60 + m
+      const end = start + (a.hours ?? 1) * 60
+      return { appt: a, start, end, lane: 0 }
+    })
+    .sort((a, b) => a.start - b.start)
+
+  const active: Layout[] = []
+  const layout: Layout[] = []
+  let maxLane = 0
+
+  for (const e of events) {
+    // remove ended events
+    for (let i = active.length - 1; i >= 0; i--) {
+      if (active[i].end <= e.start) active.splice(i, 1)
+    }
+
+    let lane = 0
+    while (active.some((a) => a.lane === lane)) lane++
+
+    e.lane = lane
+    if (lane + 1 > maxLane) maxLane = lane + 1
+    active.push(e)
+    layout.push(e)
+  }
+
+  containerWidth = `calc(${dividerPx}px + ${maxLane} * (40vw + ${LANE_GAP}px))`
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const x = e.touches[0].clientX;
@@ -169,65 +206,27 @@ export default function DayTimeline({
         </div>
       ))}
 
-      {(() => {
-        type Layout = {
-          appt: Appointment
-          start: number
-          end: number
-          lane: number
-        }
-        const events: Layout[] = appointments
-          .map((a) => {
-            const [h, m] = a.time.split(':').map((n) => parseInt(n, 10))
-            const start = h * 60 + m
-            const end = start + (a.hours ?? 1) * 60
-            return { appt: a, start, end, lane: 0 }
-          })
-          .sort((a, b) => a.start - b.start)
-
-        const active: Layout[] = []
-        const layout: Layout[] = []
-        let maxLane = 0
-
-        for (const e of events) {
-          // remove ended events
-          for (let i = active.length - 1; i >= 0; i--) {
-            if (active[i].end <= e.start) active.splice(i, 1)
-          }
-
-          let lane = 0
-          while (active.some((a) => a.lane === lane)) lane++
-
-          e.lane = lane
-          if (lane + 1 > maxLane) maxLane = lane + 1
-          active.push(e)
-          layout.push(e)
-        }
-
-        containerWidth = `calc(${dividerPx}px + ${maxLane} * (40vw + ${LANE_GAP}px))`
-
-        return layout.map((l, idx) => {
-          const top = (l.start / 60) * 84
-          const height = ((l.end - l.start) / 60) * 84 - 2
-          const leftStyle = `calc(${dividerPx}px + ${l.lane} * (40vw + ${LANE_GAP}px))`
-          return (
-            <div
-              key={l.appt.id ?? idx}
-              className="absolute bg-blue-200 border border-blue-400 rounded text-xs overflow-hidden cursor-pointer"
-              style={{
-                top,
-                left: leftStyle,
-                width: apptWidth,
-                height,
-                zIndex: 10,
-              }}
-              onClick={() => setSelected(l.appt)}
-            >
-              {l.appt.type}
-            </div>
-          )
-        })
-      })()}
+      {layout.map((l, idx) => {
+        const top = (l.start / 60) * 84
+        const height = ((l.end - l.start) / 60) * 84 - 2
+        const leftStyle = `calc(${dividerPx}px + ${l.lane} * (40vw + ${LANE_GAP}px))`
+        return (
+          <div
+            key={l.appt.id ?? idx}
+            className="absolute bg-blue-200 border border-blue-400 rounded text-xs overflow-hidden cursor-pointer"
+            style={{
+              top,
+              left: leftStyle,
+              width: apptWidth,
+              height,
+              zIndex: 10,
+            }}
+            onClick={() => setSelected(l.appt)}
+          >
+            {l.appt.type}
+          </div>
+        )
+      })}
       </div>
       {selected && (
         <div
