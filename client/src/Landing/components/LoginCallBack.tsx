@@ -25,7 +25,7 @@ export default function LoginCallback() {
         })
 
         const data = await response.json()
-        if (data.role === 'admin' || data.role === 'user') {
+        if (data.role === 'ADMIN' || data.role === 'OWNER' || data.role === 'EMPLOYEE') {
           localStorage.setItem('role', data.role)
           navigate('/dashboard')
         } else {

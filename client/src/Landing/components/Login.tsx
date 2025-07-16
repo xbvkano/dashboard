@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useGoogleLogin, CodeResponse } from '@react-oauth/google'
 import { API_BASE_URL } from '../../api'
 
-type Role = 'admin' | 'user'
+type Role = 'ADMIN' | 'OWNER' | 'EMPLOYEE'
 
 interface LoginProps {
   onLogin: (role: Role) => void
@@ -12,7 +12,7 @@ export default function Login({ onLogin }: LoginProps) {
   console.log("This iwndow: " + window.location.origin)
   useEffect(() => {
     const stored = localStorage.getItem('role')
-    if (stored === 'admin' || stored === 'user') {
+    if (stored === 'ADMIN' || stored === 'OWNER' || stored === 'EMPLOYEE') {
       onLogin(stored as Role)
       return
     }
