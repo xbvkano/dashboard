@@ -448,12 +448,12 @@ app.post('/appointments', async (req: Request, res: Response) => {
       date,
       time,
       hours,
-      employeeIds,
+      employeeIds = [],
       adminId,
-      paid,
-      paymentMethod,
+      paid = false,
+      paymentMethod = 'CASH',
       paymentMethodNote,
-      tip,
+      tip = 0,
     } = req.body as {
       clientId?: number
       templateId?: number
@@ -467,18 +467,23 @@ app.post('/appointments', async (req: Request, res: Response) => {
       paymentMethodNote?: string
       tip?: number
     }
+
+    // required-field guard
     if (!clientId || !templateId || !date || !time || !adminId) {
-      return res.status(400).json({ error: 'Missing fields' })
+      return res.status(400).json({ error: 'Missing required fields' })
     }
 
     const template = await prisma.appointmentTemplate.findUnique({
       where: { id: templateId },
     })
-    if (!template) return res.status(400).json({ error: 'Invalid template' })
+    if (!template) {
+      return res.status(400).json({ error: 'Invalid templateId' })
+    }
 
     const appt = await prisma.appointment.create({
       data: {
-        client: { connect: { id: clientId } },
+        clientId,              // scalar shortcut instead of nested connect
+        adminId,               // same here
         date: new Date(date),
         time,
         type: template.type,
@@ -487,21 +492,24 @@ app.post('/appointments', async (req: Request, res: Response) => {
         size: template.size,
         hours: hours ?? null,
         price: template.price,
-        paid: paid ?? false,
-        tip: tip ?? 0,
-        paymentMethod: (paymentMethod as any) ?? 'CASH',
-        notes: paymentMethodNote ?? template.cityStateZip || undefined,
+        paid,
+        tip,
+        paymentMethod: paymentMethod as any, // or cast to your enum
+        notes: paymentMethodNote || undefined,
         lineage: 'single',
-        admin: { connect: { id: adminId } },
-        ...(employeeIds && employeeIds.length
-          ? { employees: { connect: employeeIds.map((id) => ({ id })) } }
-          : {}),
+        // only include the relation if there are IDs
+        ...(employeeIds.length > 0 && {
+          employees: {
+            connect: employeeIds.map((id) => ({ id })),
+          },
+        }),
       },
     })
-    res.json(appt)
-  } catch (e) {
-    console.error(e)
-    res.status(500).json({ error: 'Failed to create appointment' })
+
+    return res.json(appt)
+  } catch (err) {
+    console.error('Error creating appointment:', err)
+    return res.status(500).json({ error: 'Failed to create appointment' })
   }
 })
 
