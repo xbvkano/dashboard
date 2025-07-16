@@ -282,6 +282,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         templateId: selectedTemplate,
         date,
         time,
+        hours: staffOptions[selectedOption]?.hours,
         employeeIds: selectedEmployees,
       }),
     })

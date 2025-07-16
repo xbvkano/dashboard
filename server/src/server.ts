@@ -435,11 +435,12 @@ app.get('/appointments', async (req: Request, res: Response) => {
 
 app.post('/appointments', async (req: Request, res: Response) => {
   try {
-    const { clientId, templateId, date, time, employeeIds } = req.body as {
+    const { clientId, templateId, date, time, hours, employeeIds } = req.body as {
       clientId?: number
       templateId?: number
       date?: string
       time?: string
+      hours?: number
       employeeIds?: number[]
     }
     if (!clientId || !templateId || !date || !time) {
@@ -460,6 +461,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
         address: template.address,
         cityStateZip: template.cityStateZip,
         size: template.size,
+        hours: hours ?? null,
         price: template.price,
         paymentMethod: 'CASH',
         lineage: 'single',
