@@ -140,47 +140,68 @@ export default function DayTimeline({
         </div>
       ))}
 
-      {Object.entries(
-        appointments.reduce<Record<string, Appointment[]>>((acc, appt) => {
-          acc[appt.time] = acc[appt.time] ? [...acc[appt.time], appt] : [appt]
-          return acc
-        }, {})
-      )
-        .sort(([t1], [t2]) => t1.localeCompare(t2))
-        .map(([time, group]) => {
-        const [h, m] = time.split(':').map((n) => parseInt(n, 10))
-        const top = h * 84 + (m / 60) * 84
-        const sorted = group
-          .slice()
-          .sort((a, b) =>
-            new Date(a.createdAt ?? '').getTime() -
-            new Date(b.createdAt ?? '').getTime()
+      {(() => {
+        type Layout = {
+          appt: Appointment
+          start: number
+          end: number
+          lane: number
+          cols: number
+        }
+        const events: Layout[] = appointments
+          .map((a) => {
+            const [h, m] = a.time.split(':').map((n) => parseInt(n, 10))
+            const start = h * 60 + m
+            const end = start + (a.hours ?? 1) * 60
+            return { appt: a, start, end, lane: 0, cols: 1 }
+          })
+          .sort((a, b) => a.start - b.start)
+
+        const active: Layout[] = []
+        const layout: Layout[] = []
+
+        for (const e of events) {
+          // remove ended events
+          for (let i = active.length - 1; i >= 0; i--) {
+            if (active[i].end <= e.start) active.splice(i, 1)
+          }
+
+          let lane = 0
+          while (active.some((a) => a.lane === lane)) lane++
+
+          e.lane = lane
+          active.push(e)
+          layout.push(e)
+
+          const conc = active.length
+          for (const a of active) {
+            if (a.cols < conc) a.cols = conc
+          }
+        }
+
+        return layout.map((l, idx) => {
+          const top = (l.start / 60) * 84
+          const height = ((l.end - l.start) / 60) * 84 - 2
+          const widthStyle = `calc((100% - ${dividerPx}px) / ${l.cols})`
+          const leftStyle = `calc(${dividerPx}px + ${l.lane} * ((100% - ${dividerPx}px) / ${l.cols}))`
+          return (
+            <div
+              key={l.appt.id ?? idx}
+              className="absolute bg-blue-200 border border-blue-400 rounded px-1 text-xs overflow-hidden cursor-pointer"
+              style={{
+                top,
+                left: leftStyle,
+                width: widthStyle,
+                height,
+                zIndex: 10,
+              }}
+              onClick={() => setSelected(l.appt)}
+            >
+              {l.appt.type}
+            </div>
           )
-        return (
-          <div
-            key={time}
-            className="absolute flex flex-row gap-1 overflow-x-auto flex-nowrap"
-            style={{
-              top,
-              left: dividerPx,
-              width: `calc(100% - ${dividerPx}px)`,
-              padding: '2px',
-              zIndex: 10,
-            }}
-          >
-            {sorted.map((a, idx) => (
-              <div
-                key={a.id ?? idx}
-                className="flex-shrink-0 min-w-full bg-blue-200 border border-blue-400 rounded px-1 text-xs overflow-hidden cursor-pointer"
-                style={{ height: (a.hours || 1) * 84 - 2 }}
-                onClick={() => setSelected(a)}
-              >
-                {a.type}
-              </div>
-            ))}
-          </div>
-        )
-      })}
+        })
+      })()}
       {selected && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-40"
