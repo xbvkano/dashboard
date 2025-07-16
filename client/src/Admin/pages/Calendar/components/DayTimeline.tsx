@@ -47,6 +47,17 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
     setOtherPayment('')
   }, [selected])
 
+  // Disable body scroll when modal is open
+  useEffect(() => {
+    if (selected) {
+      const original = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = original
+      }
+    }
+  }, [selected])
+
   // 4rem + 0.5rem in px (assuming 16px base font-size)
   const dividerPx = 4 * 16 + 0.5 * 16
   const LANE_GAP = 8 // space between appointment columns in pixels
@@ -185,17 +196,16 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center">
-              <h4 className="font-medium">{selected.type}</h4>
+              <h4 className="font-medium">
+                {selected.client ? selected.client.name : 'Client'}
+              </h4>
               <button className="text-red-500" onClick={() => setShowDelete(true)}>
                 Delete
               </button>
             </div>
-            <div className="text-sm">Date: {selected.date.slice(0, 10)}</div>
-            <div className="text-sm">Time: {selected.time}</div>
             <div className="text-sm">Address: {selected.address}</div>
-            {selected.client && (
-              <div className="text-sm">Client: {selected.client.name} ({selected.client.number})</div>
-            )}
+            <div className="text-sm">Type: {selected.type}</div>
+            <div className="text-sm">Date &amp; Time: {selected.date.slice(0, 10)} {selected.time}</div>
             {selected.employees && selected.employees.length > 0 && (
               <div className="text-sm">
                 Team:
@@ -233,6 +243,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
               </label>
               {paid && (
                 <div className="flex flex-col gap-1">
+                  <label className="text-sm">Tip (optional)</label>
                   <input
                     type="number"
                     className="border p-2 rounded text-base"
@@ -240,6 +251,9 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
                     value={tip}
                     onChange={(e) => setTip(e.target.value)}
                   />
+                  <label className="text-sm">
+                    Payment Method <span className="text-red-500">*</span>
+                  </label>
                   <select
                     className="border p-2 rounded text-base"
                     value={paymentMethod}
