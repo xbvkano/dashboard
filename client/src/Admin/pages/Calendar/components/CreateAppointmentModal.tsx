@@ -57,6 +57,8 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
 
   const [admins, setAdmins] = useState<{ id: number; name: string | null; email: string }[]>([])
   const [adminId, setAdminId] = useState<number | ''>('')
+  const [paid, setPaid] = useState(false)
+  const [tip, setTip] = useState('')
 
   // staff options and employee selection
   const [staffOptions, setStaffOptions] = useState<{ sem: number; com: number; hours: number }[]>([])
@@ -127,6 +129,8 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     setShowRecurringModal(false)
     setRecurringOption('Weekly')
     setRecurringMonths('')
+    setPaid(false)
+    setTip('')
   }
 
   const resetAll = () => {
@@ -328,6 +332,8 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         hours: staffOptions[selectedOption]?.hours,
         employeeIds: selectedEmployees,
         adminId: adminId || undefined,
+        paid,
+        tip: paid ? parseFloat(tip) || 0 : 0,
       }),
     })
     if (res.ok) {
@@ -726,6 +732,29 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                 </option>
               ))}
             </select>
+          </div>
+        )}
+
+        {/* Payment details */}
+        {selectedTemplate && (
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={paid}
+                onChange={(e) => setPaid(e.target.checked)}
+              />
+              Paid
+            </label>
+            {paid && (
+              <input
+                type="number"
+                className="border p-2 rounded text-base flex-1"
+                placeholder="Tip"
+                value={tip}
+                onChange={(e) => setTip(e.target.value)}
+              />
+            )}
           </div>
         )}
 
