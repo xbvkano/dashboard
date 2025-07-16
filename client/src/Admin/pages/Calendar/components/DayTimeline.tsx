@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type Ref } from 'react'
+import { useLayoutEffect, useRef, useState, useEffect, type Ref } from 'react'
 import type { Appointment } from '../types'
 
 interface DayProps {
@@ -10,6 +10,19 @@ interface DayProps {
 
 function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
   const [selected, setSelected] = useState<Appointment | null>(null)
+  const [showDelete, setShowDelete] = useState(false)
+  const [paid, setPaid] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState('')
+  const [otherPayment, setOtherPayment] = useState('')
+  const [tip, setTip] = useState('')
+
+  useEffect(() => {
+    if (!selected) return
+    setPaid(Boolean(selected.paid))
+    setPaymentMethod(selected.paymentMethod ?? '')
+    setTip(selected.tip != null ? String(selected.tip) : '')
+    setOtherPayment('')
+  }, [selected])
 
   // 4rem + 0.5rem in px (assuming 16px base font-size)
   const dividerPx = 4 * 16 + 0.5 * 16
@@ -137,20 +150,116 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
       {/* details modal */}
       {selected && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-40"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-40 p-2"
           onClick={() => setSelected(null)}
         >
           <div
-            className="bg-white p-4 rounded space-y-1 max-w-xs"
+            className="bg-white p-4 rounded space-y-2 w-full max-w-md max-h-full overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="font-medium">{selected.type}</div>
-            <div className="text-sm">{selected.address}</div>
+            <div className="flex justify-between items-center">
+              <h4 className="font-medium">{selected.type}</h4>
+              <button className="text-red-500" onClick={() => setShowDelete(true)}>
+                Delete
+              </button>
+            </div>
+            <div className="text-sm">Date: {selected.date.slice(0, 10)}</div>
+            <div className="text-sm">Time: {selected.time}</div>
+            <div className="text-sm">Address: {selected.address}</div>
             {selected.size && <div className="text-sm">Size: {selected.size}</div>}
-            {selected.hours && <div className="text-sm">Hours: {selected.hours}</div>}
-            <button className="mt-2 px-2 text-blue-600" onClick={() => setSelected(null)}>
-              Close
-            </button>
+            {selected.hours != null && (
+              <div className="text-sm">Hours: {selected.hours}</div>
+            )}
+            {selected.price != null && (
+              <div className="text-sm">Price: ${selected.price}</div>
+            )}
+            {selected.notes && (
+              <div className="text-sm">Notes: {selected.notes}</div>
+            )}
+
+            <div className="pt-2 border-t space-y-2">
+              <label className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={paid}
+                  onChange={(e) => setPaid(e.target.checked)}
+                />
+                Paid
+              </label>
+              {paid && (
+                <div className="flex flex-col gap-1">
+                  <input
+                    type="number"
+                    className="border p-2 rounded text-base"
+                    placeholder="Tip"
+                    value={tip}
+                    onChange={(e) => setTip(e.target.value)}
+                  />
+                  <select
+                    className="border p-2 rounded text-base"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                  >
+                    <option value="">Select payment method</option>
+                    <option value="CASH">Cash</option>
+                    <option value="ZELLE">Zelle</option>
+                    <option value="VENMO">Venmo</option>
+                    <option value="PAYPAL">Paypal</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                  {paymentMethod === 'OTHER' && (
+                    <input
+                      className="border p-2 rounded text-base"
+                      placeholder="Payment method"
+                      value={otherPayment}
+                      onChange={(e) => setOtherPayment(e.target.value)}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button className="px-4 py-1 border rounded" onClick={() => setSelected(null)}>
+                Cancel
+              </button>
+              <button
+                className="px-4 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
+                disabled={
+                  paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))
+                }
+              >
+                Book Again
+              </button>
+            </div>
+
+            {showDelete && (
+              <div
+                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                onClick={() => setShowDelete(false)}
+              >
+                <div
+                  className="bg-white p-4 rounded space-y-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div>Delete this appointment?</div>
+                  <div className="flex justify-end gap-2">
+                    <button className="px-4 py-1 border rounded" onClick={() => setShowDelete(false)}>
+                      No
+                    </button>
+                    <button
+                      className="px-4 py-1 bg-red-500 text-white rounded"
+                      onClick={() => {
+                        setShowDelete(false)
+                        setSelected(null)
+                      }}
+                    >
+                      Yes
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
