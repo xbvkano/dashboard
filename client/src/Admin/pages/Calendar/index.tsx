@@ -70,23 +70,23 @@ export default function Calendar() {
 
   return (
     <div className="flex flex-col h-full">
-      <MonthSelector
-        selected={selected}
-        setSelected={setSelected}
-        show={showMonth}
-        setShow={setShowMonth}
-        monthInfo={monthInfo}
-        prevMonth={prevMonth}
-        nextMonth={nextMonth}
-      />
-      <WeekSelector
-        days={days}
-        selected={selected}
-        setSelected={setSelected}
-        showMonth={showMonth}
-        prevWeek={prevWeek}
-        nextWeek={nextWeek}
-      />
+      <div className="sticky top-0 z-10 bg-white">
+        <MonthSelector
+          selected={selected}
+          setSelected={setSelected}
+          show={showMonth}
+          setShow={setShowMonth}
+          monthInfo={monthInfo}
+        />
+        <WeekSelector
+          days={days}
+          selected={selected}
+          setSelected={setSelected}
+          showMonth={showMonth}
+          prevWeek={prevWeek}
+          nextWeek={nextWeek}
+        />
+      </div>
       <DayTimeline
         nowOffset={nowOffset}
         prevDay={prevDay}
