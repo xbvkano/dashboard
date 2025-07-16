@@ -19,6 +19,7 @@ export default function DayTimeline({
   const [isAnimating, setIsAnimating] = useState(false);
   const [animateDirection, setAnimateDirection] = useState<"left" | "right" | null>(null);
   const [snapBack, setSnapBack] = useState(false);
+  const [selected, setSelected] = useState<Appointment | null>(null);
 
   // 4rem + 0.5rem in px (assuming 16px base font-size)
   const dividerPx = 4 * 16 + 0.5 * 16;
@@ -49,7 +50,11 @@ export default function DayTimeline({
 
       if (Math.abs(diff) > half) {
         // crossed threshold → change day, snap to pivot
-        diff < 0 ? nextDay() : prevDay();
+        if (diff < 0) {
+          nextDay();
+        } else {
+          prevDay();
+        }
         setSnapBack(false);
       } else {
         // didn’t cross → snap back
@@ -135,19 +140,58 @@ export default function DayTimeline({
         </div>
       ))}
 
-      {appointments.map((a) => {
-        const [h, m] = a.time.split(':').map((n) => parseInt(n, 10))
+      {Object.entries(
+        appointments.reduce<Record<string, Appointment[]>>((acc, appt) => {
+          acc[appt.time] = acc[appt.time] ? [...acc[appt.time], appt] : [appt]
+          return acc
+        }, {})
+      ).map(([time, group]) => {
+        const [h, m] = time.split(':').map((n) => parseInt(n, 10))
         const top = h * 84 + (m / 60) * 84
         return (
           <div
-            key={a.id}
-            className="absolute left-16 right-2 h-8 bg-blue-200 border border-blue-400 rounded px-1 text-xs overflow-hidden"
-            style={{ top }}
+            key={time}
+            className="absolute flex gap-1"
+            style={{
+              top,
+              left: dividerPx,
+              width: `calc((100% - ${dividerPx}px) * 0.7)`,
+              padding: '2px',
+              zIndex: 10,
+            }}
           >
-            {a.type}
+            {group.map((a, idx) => (
+              <div
+                key={a.id ?? idx}
+                className="flex-1 bg-blue-200 border border-blue-400 rounded px-1 text-xs overflow-hidden cursor-pointer"
+                style={{ height: (a.hours || 1) * 84 - 2 }}
+                onClick={() => setSelected(a)}
+              >
+                {a.type}
+              </div>
+            ))}
           </div>
         )
       })}
+      {selected && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-40"
+          onClick={() => setSelected(null)}
+        >
+          <div
+            className="bg-white p-4 rounded space-y-1 max-w-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="font-medium">{selected.type}</div>
+            <div className="text-sm">{selected.address}</div>
+            {selected.size && <div className="text-sm">Size: {selected.size}</div>}
+            {selected.hours && <div className="text-sm">Hours: {selected.hours}</div>}
+            <button className="mt-2 px-2 text-blue-600" onClick={() => setSelected(null)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

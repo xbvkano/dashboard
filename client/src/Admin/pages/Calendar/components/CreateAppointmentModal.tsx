@@ -89,6 +89,50 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
   const [recurringOption, setRecurringOption] = useState<RecurringOption>('Weekly')
   const [recurringMonths, setRecurringMonths] = useState('')
 
+  const resetCarpet = () => {
+    setCarpetEnabled(false)
+    setShowCarpetModal(false)
+    setCarpetRooms('')
+    setCarpetEmployees([])
+    setCarpetRate(null)
+  }
+
+  const resetTemplateRelated = () => {
+    setSelectedTemplate(null)
+    setShowNewTemplate(false)
+    setTemplateForm({
+      templateName: '',
+      type: 'STANDARD',
+      size: '',
+      address: '',
+      price: '',
+      notes: '',
+    })
+    setDate('')
+    setTime('')
+    setStaffOptions([])
+    setSelectedOption(0)
+    setEmployees([])
+    setSelectedEmployees([])
+    setShowTeamModal(false)
+    setEmployeeSearch('')
+    setPayRate(null)
+    resetCarpet()
+    setRecurringEnabled(false)
+    setShowRecurringModal(false)
+    setRecurringOption('Weekly')
+    setRecurringMonths('')
+  }
+
+  const resetAll = () => {
+    setSelectedClient(null)
+    setClientSearch('')
+    setShowNewClient(false)
+    setNewClient({ name: '', number: '', notes: '' })
+    setTemplates([])
+    resetTemplateRelated()
+  }
+
   // Load clients when search changes
   useEffect(() => {
     fetchJson(
@@ -178,6 +222,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     if (res.ok) {
       const c = await res.json()
       setSelectedClient(c)
+      resetTemplateRelated()
       setShowNewClient(false)
       setClientSearch('')
     } else {
@@ -205,6 +250,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     if (res.ok) {
       const t = await res.json()
       setTemplates((p) => [...p, t])
+      resetTemplateRelated()
       setSelectedTemplate(t.id)
       setShowNewTemplate(false)
     } else {
@@ -263,7 +309,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
               <div className="font-medium">Client: {selectedClient.name}</div>
               <button
                 className="text-sm text-blue-500"
-                onClick={() => setSelectedClient(null)}
+                onClick={resetAll}
               >
                 change
               </button>
@@ -324,7 +370,10 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                 <li
                   key={c.id}
                   className="p-1 hover:bg-gray-100 cursor-pointer"
-                  onClick={() => setSelectedClient(c)}
+                  onClick={() => {
+                    setSelectedClient(c)
+                    resetTemplateRelated()
+                  }}
                 >
                   <div className="font-medium">{c.name}</div>
                   <div className="text-sm text-gray-600">{c.number}</div>
@@ -343,7 +392,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                   <div className="font-medium">
                     Template: {templates.find((t) => t.id === selectedTemplate)?.templateName}
                   </div>
-                  <button className="text-sm text-blue-500" onClick={() => setSelectedTemplate(null)}>
+                  <button className="text-sm text-blue-500" onClick={resetTemplateRelated}>
                     change
                   </button>
                 </div>
@@ -431,7 +480,10 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                   <select
                     className="flex-1 border p-1 rounded"
                     value={selectedTemplate ?? ''}
-                    onChange={(e) => setSelectedTemplate(Number(e.target.value))}
+                    onChange={(e) => {
+                      resetTemplateRelated()
+                      setSelectedTemplate(Number(e.target.value))
+                    }}
                   >
                     <option value="">Select template</option>
                     {templates.map((t) => (
@@ -630,6 +682,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                 onClick={() => {
                   setSelectedOption(idx)
                   setSelectedEmployees([])
+                  resetCarpet()
                 }}
               >
                 {o.sem} SEM / {o.com} COM - {o.hours}h
