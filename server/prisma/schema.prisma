@@ -12,6 +12,9 @@ model User {
   id    Int    @id @default(autoincrement())
   email String @unique
   name  String?
+  role  Role   @default(EMPLOYEE)
+
+  appointments Appointment[] @relation("AdminAppointments")
 }
 
 model Client {
@@ -38,6 +41,8 @@ model Appointment {
   id              Int             @id @default(autoincrement())
   date            DateTime
   time            String
+  adminId        Int
+  admin          User            @relation("AdminAppointments", fields: [adminId], references: [id])
   clientId        Int
   client          Client          @relation(fields: [clientId], references: [id])
   type            AppointmentType
@@ -112,4 +117,10 @@ enum AppointmentType {
   STANDARD
   DEEP
   MOVE_IN_OUT
+}
+
+enum Role {
+  EMPLOYEE
+  ADMIN
+  OWNER
 }

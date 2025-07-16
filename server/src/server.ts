@@ -19,7 +19,6 @@ const client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_SECRET,
   process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173'
 )
-const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim()).filter(Boolean)
 
 app.use(cors({
   allowedHeaders: [
@@ -53,6 +52,14 @@ app.get('/', async (_req: Request, res: Response) => {
 app.get('/users', async (_req: Request, res: Response) => {
   const users = await prisma.user.findMany()
   res.json(users)
+})
+
+app.get('/admins', async (_req: Request, res: Response) => {
+  const admins = await prisma.user.findMany({
+    where: { role: { in: ['ADMIN', 'OWNER'] } },
+    orderBy: { name: 'asc' },
+  })
+  res.json(admins)
 })
 
 app.get('/month-info', (req: Request, res: Response) => {
@@ -435,15 +442,16 @@ app.get('/appointments', async (req: Request, res: Response) => {
 
 app.post('/appointments', async (req: Request, res: Response) => {
   try {
-    const { clientId, templateId, date, time, hours, employeeIds } = req.body as {
+    const { clientId, templateId, date, time, hours, employeeIds, adminId } = req.body as {
       clientId?: number
       templateId?: number
       date?: string
       time?: string
       hours?: number
       employeeIds?: number[]
+      adminId?: number
     }
-    if (!clientId || !templateId || !date || !time) {
+    if (!clientId || !templateId || !date || !time || !adminId) {
       return res.status(400).json({ error: 'Missing fields' })
     }
 
@@ -466,6 +474,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
         paymentMethod: 'CASH',
         lineage: 'single',
         notes: template.cityStateZip || undefined,
+        admin: { connect: { id: adminId } },
         ...(employeeIds && employeeIds.length
           ? { employees: { connect: employeeIds.map((id) => ({ id })) } }
           : {}),
@@ -527,11 +536,10 @@ app.post('/login', async (req: Request, res: Response) => {
     const user = await prisma.user.upsert({
       where: { email },
       update: { name: name || undefined },
-      create: { email, name: name || undefined }
+      create: { email, name: name || undefined, role: 'EMPLOYEE' },
     })
 
-    const role = adminEmails.includes(email) ? 'admin' : 'user'
-    res.json({ role, user })
+    res.json({ role: user.role, user })
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Authentication failed' })

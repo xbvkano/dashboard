@@ -55,6 +55,9 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
 
+  const [admins, setAdmins] = useState<{ id: number; name: string | null; email: string }[]>([])
+  const [adminId, setAdminId] = useState<number | ''>('')
+
   // staff options and employee selection
   const [staffOptions, setStaffOptions] = useState<{ sem: number; com: number; hours: number }[]>([])
   const [selectedOption, setSelectedOption] = useState<number>(0)
@@ -133,7 +136,15 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     setNewClient({ name: '', number: '', notes: '' })
     setTemplates([])
     resetTemplateRelated()
+    setAdminId('')
   }
+
+  // Load admins on mount
+  useEffect(() => {
+    fetchJson(`${API_BASE_URL}/admins`)
+      .then((d) => setAdmins(d))
+      .catch((err) => console.error(err))
+  }, [])
 
   // Load clients when search changes
   useEffect(() => {
@@ -316,6 +327,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         time,
         hours: staffOptions[selectedOption]?.hours,
         employeeIds: selectedEmployees,
+        adminId: adminId || undefined,
       }),
     })
     if (res.ok) {
@@ -539,6 +551,27 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
           </div>
         )}
 
+        {/* Admin selection */}
+        {selectedTemplate && (
+          <div>
+            <h4 className="font-light">
+              Admin <span className="text-red-500">*</span>
+            </h4>
+            <select
+              className="w-full border p-2 rounded text-base"
+              value={adminId}
+              onChange={(e) => setAdminId(Number(e.target.value))}
+            >
+              <option value="">Select admin</option>
+              {admins.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name || a.email}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Team selection */}
         {selectedTemplate && staffOptions.length > 0 && (
           <div className="space-y-1">
@@ -697,7 +730,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         <div className="text-right">
           <button
             className="bg-blue-500 text-white px-6 py-2 rounded disabled:opacity-50"
-            disabled={!selectedTemplate || !date || !time || !isValidSelection() || !isValidCarpet()}
+            disabled={!selectedTemplate || !date || !time || !isValidSelection() || !isValidCarpet() || !adminId}
             onClick={createAppointment}
           >
             Create

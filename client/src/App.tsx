@@ -3,12 +3,14 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from
 import Login from './Landing/components/Login'
 import Dashboard from './Landing/Dashboard'
 
-type Role = 'admin' | 'user'
+type Role = 'ADMIN' | 'OWNER' | 'EMPLOYEE'
 
 export default function App() {
   const [role, setRole] = useState<Role | null>(() => {
     const stored = localStorage.getItem('role')
-    return stored === 'admin' || stored === 'user' ? (stored as Role) : null
+    return stored === 'ADMIN' || stored === 'OWNER' || stored === 'EMPLOYEE'
+      ? (stored as Role)
+      : null
   })
   return (
     <BrowserRouter>
