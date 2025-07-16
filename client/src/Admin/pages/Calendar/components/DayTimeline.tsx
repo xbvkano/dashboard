@@ -205,7 +205,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
         {/* “now” indicator (inside scroll container, forced red) */}
         {nowOffset != null && (
           <div
-          className="absolute left-0 right-0 h-[2px] bg-red-500 border-0 z-50 pointer-events-none"
+          className="absolute left-0 right-0 h-[2px] bg-red-500 border-0 z-30 pointer-events-none"
           style={{ top: nowOffset }}
         />
         )}
@@ -323,19 +323,19 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
                 Cancel
               </button>
               <button
-                className="px-4 py-1 bg-green-500 text-white rounded disabled:opacity-50"
-                disabled={paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))}
-                onClick={handleSave}
-              >
-                Save
-              </button>
-              <button
                 className="px-4 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
                 disabled={
                   paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))
                 }
               >
                 Book Again
+              </button>
+              <button
+                className="px-4 py-1 bg-green-500 text-white rounded disabled:opacity-50"
+                disabled={paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))}
+                onClick={handleSave}
+              >
+                Save
               </button>
             </div>
 
