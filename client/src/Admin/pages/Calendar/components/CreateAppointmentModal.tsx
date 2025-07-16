@@ -59,6 +59,8 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
   const [adminId, setAdminId] = useState<number | ''>('')
   const [paid, setPaid] = useState(false)
   const [tip, setTip] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('')
+  const [otherPayment, setOtherPayment] = useState('')
 
   // staff options and employee selection
   const [staffOptions, setStaffOptions] = useState<{ sem: number; com: number; hours: number }[]>([])
@@ -131,6 +133,8 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     setRecurringMonths('')
     setPaid(false)
     setTip('')
+    setPaymentMethod('')
+    setOtherPayment('')
   }
 
   const resetAll = () => {
@@ -333,6 +337,9 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         employeeIds: selectedEmployees,
         adminId: adminId || undefined,
         paid,
+        paymentMethod: paid ? (paymentMethod || 'CASH') : 'CASH',
+        paymentMethodNote:
+          paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
         tip: paid ? parseFloat(tip) || 0 : 0,
       }),
     })
@@ -737,23 +744,49 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
 
         {/* Payment details */}
         {selectedTemplate && (
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1">
-              <input
-                type="checkbox"
-                checked={paid}
-                onChange={(e) => setPaid(e.target.checked)}
-              />
-              Paid
-            </label>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={paid}
+                  onChange={(e) => setPaid(e.target.checked)}
+                />
+                Paid
+              </label>
+              {paid && (
+                <input
+                  type="number"
+                  className="border p-2 rounded text-base flex-1"
+                  placeholder="Tip"
+                  value={tip}
+                  onChange={(e) => setTip(e.target.value)}
+                />
+              )}
+            </div>
             {paid && (
-              <input
-                type="number"
-                className="border p-2 rounded text-base flex-1"
-                placeholder="Tip"
-                value={tip}
-                onChange={(e) => setTip(e.target.value)}
-              />
+              <div className="flex flex-col gap-1">
+                <select
+                  className="w-full border p-2 rounded text-base"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                >
+                  <option value="">Select payment method</option>
+                  <option value="CASH">Cash</option>
+                  <option value="ZELLE">Zelle</option>
+                  <option value="VENMO">Venmo</option>
+                  <option value="PAYPAL">Paypal</option>
+                  <option value="OTHER">Other</option>
+                </select>
+                {paymentMethod === 'OTHER' && (
+                  <input
+                    className="w-full border p-2 rounded text-base"
+                    placeholder="Payment method"
+                    value={otherPayment}
+                    onChange={(e) => setOtherPayment(e.target.value)}
+                  />
+                )}
+              </div>
             )}
           </div>
         )}
@@ -761,7 +794,15 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         <div className="text-right">
           <button
             className="bg-blue-500 text-white px-6 py-2 rounded disabled:opacity-50"
-            disabled={!selectedTemplate || !date || !time || !isValidSelection() || !isValidCarpet() || !adminId}
+            disabled={
+              !selectedTemplate ||
+              !date ||
+              !time ||
+              !isValidSelection() ||
+              !isValidCarpet() ||
+              !adminId ||
+              (paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment)))
+            }
             onClick={createAppointment}
           >
             Create

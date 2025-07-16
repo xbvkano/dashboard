@@ -451,6 +451,8 @@ app.post('/appointments', async (req: Request, res: Response) => {
       employeeIds,
       adminId,
       paid,
+      paymentMethod,
+      paymentMethodNote,
       tip,
     } = req.body as {
       clientId?: number
@@ -461,6 +463,8 @@ app.post('/appointments', async (req: Request, res: Response) => {
       employeeIds?: number[]
       adminId?: number
       paid?: boolean
+      paymentMethod?: string
+      paymentMethodNote?: string
       tip?: number
     }
     if (!clientId || !templateId || !date || !time || !adminId) {
@@ -485,9 +489,9 @@ app.post('/appointments', async (req: Request, res: Response) => {
         price: template.price,
         paid: paid ?? false,
         tip: tip ?? 0,
-        paymentMethod: 'CASH',
+        paymentMethod: (paymentMethod as any) ?? 'CASH',
+        notes: paymentMethodNote ?? template.cityStateZip || undefined,
         lineage: 'single',
-        notes: template.cityStateZip || undefined,
         admin: { connect: { id: adminId } },
         ...(employeeIds && employeeIds.length
           ? { employees: { connect: employeeIds.map((id) => ({ id })) } }

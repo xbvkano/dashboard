@@ -63,9 +63,14 @@ export default function Calendar() {
   const nextDay = () => setSelected((d) => addDays(d, 1))
 
   useEffect(() => {
-    const now = new Date()
-    const offset = now.getHours() * 84 + (now.getMinutes() / 60) * 84
-    setNowOffset(offset)
+    const update = () => {
+      const now = new Date()
+      const offset = now.getHours() * 84 + (now.getMinutes() / 60) * 84
+      setNowOffset(offset)
+    }
+    update()
+    const id = setInterval(update, 60000)
+    return () => clearInterval(id)
   }, [])
 
   return (
