@@ -16,6 +16,7 @@ export interface Appointment {
   clientId: number
   type: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
   address: string
+  cityStateZip?: string
   size?: string
   price?: number
   notes?: string
@@ -23,5 +24,8 @@ export interface Appointment {
   paid?: boolean
   paymentMethod?: 'CASH' | 'ZELLE' | 'VENMO' | 'PAYPAL' | 'OTHER' | 'CHECK'
   tip?: number
+  reoccurring?: boolean
+  client?: import('../Clients/components/types').Client
+  employees?: import('../Employees/components/types').Employee[]
   createdAt?: string
 }

@@ -31,6 +31,18 @@ export default function Calendar() {
   }>({ prev: [], current: [], next: [] })
   const [showCreate, setShowCreate] = useState(false)
 
+  const refresh = (d = selected) => {
+    const fetchDay = (day: Date) =>
+      fetchJson(`${API_BASE_URL}/appointments?date=${day.toISOString().slice(0, 10)}`)
+        .then((res) => res as Appointment[])
+        .catch(() => [])
+    Promise.all([
+      fetchDay(addDays(d, -1)),
+      fetchDay(d),
+      fetchDay(addDays(d, 1)),
+    ]).then(([prev, current, next]) => setAppointments({ prev, current, next }))
+  }
+
   useEffect(() => {
     const year = selected.getFullYear()
     const month = selected.getMonth() + 1
@@ -40,16 +52,7 @@ export default function Calendar() {
   }, [selected.getFullYear(), selected.getMonth()])
 
   useEffect(() => {
-    const fetchDay = (d: Date) =>
-      fetchJson(`${API_BASE_URL}/appointments?date=${d.toISOString().slice(0, 10)}`)
-        .then((res) => res as Appointment[])
-        .catch(() => [])
-
-    Promise.all([
-      fetchDay(addDays(selected, -1)),
-      fetchDay(selected),
-      fetchDay(addDays(selected, 1)),
-    ]).then(([prev, current, next]) => setAppointments({ prev, current, next }))
+    refresh(selected)
   }, [selected])
 
   const weekStart = startOfWeek(selected)
@@ -99,6 +102,7 @@ export default function Calendar() {
         appointments={appointments.current}
         prevAppointments={appointments.prev}
         nextAppointments={appointments.next}
+        onUpdate={refresh}
       />
       <button
         className="fixed bottom-20 right-6 w-12 h-12 rounded-full bg-black text-white text-2xl flex items-center justify-center"
@@ -110,17 +114,7 @@ export default function Calendar() {
         <CreateAppointmentModal
           onClose={() => setShowCreate(false)}
           onCreated={() => {
-            const fetchDay = (d: Date) =>
-              fetchJson(`${API_BASE_URL}/appointments?date=${d.toISOString().slice(0, 10)}`)
-                .then((res) => res as Appointment[])
-                .catch(() => [])
-            Promise.all([
-              fetchDay(addDays(selected, -1)),
-              fetchDay(selected),
-              fetchDay(addDays(selected, 1)),
-            ]).then(([prev, current, next]) =>
-              setAppointments({ prev, current, next })
-            )
+            refresh()
           }}
         />
       )}

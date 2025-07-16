@@ -433,6 +433,7 @@ app.get('/appointments', async (req: Request, res: Response) => {
     const appts = await prisma.appointment.findMany({
       where: { date: { gte: date, lt: next } },
       orderBy: { time: 'asc' },
+      include: { client: true, employees: true },
     })
     res.json(appts)
   } catch (e) {
@@ -510,6 +511,30 @@ app.post('/appointments', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error creating appointment:', err)
     return res.status(500).json({ error: 'Failed to create appointment' })
+  }
+})
+
+app.put('/appointments/:id', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10)
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
+  try {
+    const { paid, paymentMethod, paymentMethodNote, tip } = req.body as {
+      paid?: boolean
+      paymentMethod?: string
+      paymentMethodNote?: string
+      tip?: number
+    }
+    const data: any = {}
+    if (paid !== undefined) data.paid = paid
+    if (paymentMethod !== undefined) data.paymentMethod = paymentMethod as any
+    if (paymentMethodNote !== undefined) data.notes = paymentMethodNote
+    if (tip !== undefined) data.tip = tip
+
+    const appt = await prisma.appointment.update({ where: { id }, data, include: { client: true, employees: true } })
+    res.json(appt)
+  } catch (e) {
+    console.error('Error updating appointment:', e)
+    res.status(500).json({ error: 'Failed to update appointment' })
   }
 })
 

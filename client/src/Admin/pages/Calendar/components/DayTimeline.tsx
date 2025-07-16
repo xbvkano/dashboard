@@ -1,20 +1,43 @@
 import { useLayoutEffect, useRef, useState, useEffect, type Ref } from 'react'
 import type { Appointment } from '../types'
+import { API_BASE_URL } from '../../../../api'
 
 interface DayProps {
   appointments: Appointment[]
   nowOffset: number | null
   scrollRef?: Ref<HTMLDivElement>
   animating: boolean
+  onUpdate?: (a: Appointment) => void
 }
 
-function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
+function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayProps) {
   const [selected, setSelected] = useState<Appointment | null>(null)
+  const [modalTop, setModalTop] = useState(0)
   const [showDelete, setShowDelete] = useState(false)
   const [paid, setPaid] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('')
   const [otherPayment, setOtherPayment] = useState('')
   const [tip, setTip] = useState('')
+  const handleSave = async () => {
+    if (!selected) return
+    const res = await fetch(`${API_BASE_URL}/appointments/${selected.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+      body: JSON.stringify({
+        paid,
+        paymentMethod: paid ? (paymentMethod || 'CASH') : 'CASH',
+        paymentMethodNote: paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
+        tip: paid ? parseFloat(tip) || 0 : 0,
+      }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setSelected(updated)
+      onUpdate?.(updated)
+    } else {
+      alert('Failed to update appointment')
+    }
+  }
 
   useEffect(() => {
     if (!selected) return
@@ -131,7 +154,10 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
               key={l.appt.id ?? idx}
               className={`absolute border rounded text-xs overflow-hidden cursor-pointer ${bg}`}
               style={{ top, left: leftStyle, width: apptWidth, height, zIndex: 10 }}
-              onClick={() => setSelected(l.appt)}
+              onClick={() => {
+                setModalTop(window.scrollY)
+                setSelected(l.appt)
+              }}
             >
               {l.appt.type}
             </div>
@@ -150,11 +176,12 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
       {/* details modal */}
       {selected && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-40 p-2"
+          className="absolute left-0 right-0 bg-black/50 flex items-center justify-center z-40 p-2"
+          style={{ top: modalTop, height: '100vh' }}
           onClick={() => setSelected(null)}
         >
           <div
-            className="bg-white p-4 rounded space-y-2 w-full max-w-md max-h-full overflow-y-auto"
+            className="bg-white p-4 rounded space-y-2 w-full max-w-md"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center">
@@ -166,6 +193,24 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
             <div className="text-sm">Date: {selected.date.slice(0, 10)}</div>
             <div className="text-sm">Time: {selected.time}</div>
             <div className="text-sm">Address: {selected.address}</div>
+            {selected.client && (
+              <div className="text-sm">Client: {selected.client.name} ({selected.client.number})</div>
+            )}
+            {selected.employees && selected.employees.length > 0 && (
+              <div className="text-sm">
+                Team:
+                <ul className="pl-4 list-disc">
+                  {selected.employees.map((e) => (
+                    <li key={e.id}>
+                      {e.name} {e.experienced ? <span className="font-bold">(Exp)</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {selected.reoccurring && (
+              <div className="text-sm">Recurring</div>
+            )}
             {selected.size && <div className="text-sm">Size: {selected.size}</div>}
             {selected.hours != null && (
               <div className="text-sm">Hours: {selected.hours}</div>
@@ -224,6 +269,13 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
                 Cancel
               </button>
               <button
+                className="px-4 py-1 bg-green-500 text-white rounded disabled:opacity-50"
+                disabled={paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))}
+                onClick={handleSave}
+              >
+                Save
+              </button>
+              <button
                 className="px-4 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
                 disabled={
                   paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))
@@ -274,6 +326,7 @@ interface Props {
   appointments: Appointment[]
   prevAppointments: Appointment[]
   nextAppointments: Appointment[]
+  onUpdate?: (a: Appointment) => void
 }
 
 export default function DayTimeline({
@@ -283,6 +336,7 @@ export default function DayTimeline({
   appointments,
   prevAppointments,
   nextAppointments,
+  onUpdate,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const currentDayRef = useRef<HTMLDivElement | null>(null)
@@ -386,17 +440,20 @@ export default function DayTimeline({
           appointments={prevAppointments}
           nowOffset={nowOffset}
           animating={animating}
+          onUpdate={onUpdate}
         />
         <Day
           appointments={appointments}
           nowOffset={nowOffset}
           scrollRef={currentDayRef}
           animating={animating}
+          onUpdate={onUpdate}
         />
         <Day
           appointments={nextAppointments}
           nowOffset={nowOffset}
           animating={animating}
+          onUpdate={onUpdate}
         />
       </div>
     </div>
