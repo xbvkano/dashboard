@@ -419,36 +419,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         {/* Template selection */}
         {selectedClient && (
           <div>
-            {selectedTemplate ? (
-              <div className="mb-2">
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">
-                    Template: {templates.find((t) => t.id === selectedTemplate)?.templateName}
-                  </div>
-                  <div className="flex gap-2">
-                    <button className="text-sm text-blue-500" onClick={resetTemplateRelated}>
-                      change
-                    </button>
-                    <button className="text-sm text-blue-500" onClick={startEditTemplate}>
-                      edit
-                    </button>
-                  </div>
-                </div>
-                {(() => {
-                  const t = templates.find((tt) => tt.id === selectedTemplate)
-                  if (!t) return null
-                  return (
-                    <div className="text-sm border rounded p-2 mt-1 space-y-1">
-                      <div>Type: {t.type}</div>
-                      {t.size && <div>Size: {t.size}</div>}
-                      <div>Address: {t.address}</div>
-                      <div>Price: ${t.price.toFixed(2)}</div>
-                      {t.cityStateZip && <div>Notes: {t.cityStateZip}</div>}
-                    </div>
-                  )
-                })()}
-              </div>
-            ) : showNewTemplate ? (
+            {showNewTemplate ? (
               <div className="space-y-2 border p-2 rounded">
                   <h3 className="font-medium">{editing ? 'Edit Template' : 'New Template'}</h3>
                   <h4 className="font-light">Name: <span className="text-red-500">*</span></h4>
@@ -511,6 +482,35 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                     Save
                   </button>
                 </div>
+              </div>
+            ) : selectedTemplate ? (
+              <div className="mb-2">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">
+                    Template: {templates.find((t) => t.id === selectedTemplate)?.templateName}
+                  </div>
+                  <div className="flex gap-4">
+                    <button className="text-sm text-blue-500" onClick={resetTemplateRelated}>
+                      change
+                    </button>
+                    <button className="text-sm text-blue-500" onClick={startEditTemplate}>
+                      edit
+                    </button>
+                  </div>
+                </div>
+                {(() => {
+                  const t = templates.find((tt) => tt.id === selectedTemplate)
+                  if (!t) return null
+                  return (
+                    <div className="text-sm border rounded p-2 mt-1 space-y-1">
+                      <div>Type: {t.type}</div>
+                      {t.size && <div>Size: {t.size}</div>}
+                      <div>Address: {t.address}</div>
+                      <div>Price: ${t.price.toFixed(2)}</div>
+                      {t.cityStateZip && <div>Notes: {t.cityStateZip}</div>}
+                    </div>
+                  )
+                })()}
               </div>
             ) : (
               <div>
