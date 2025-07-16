@@ -66,7 +66,7 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
       ref={scrollRef}
       className={`flex-1 relative ${animating ? 'overflow-hidden' : 'overflow-x-auto overflow-y-auto'}`}
     >
-      <div className="relative divide-y" style={{ width: containerWidth }}>
+      <div className="relative divide-y" style={{ width: containerWidth, minWidth: '100%' }}>
         {/* divider line */}
         <div
           className="absolute top-0 bottom-0 w-px bg-gray-300 pointer-events-none"
@@ -82,8 +82,8 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
         {/* “now” indicator */}
         {nowOffset != null && (
           <div
-            className="absolute left-0 right-0 h-px bg-red-500 pointer-events-none"
-            style={{ top: nowOffset, zIndex: 20 }}
+            className="absolute left-0 right-0 h-px pointer-events-none"
+            style={{ top: nowOffset, zIndex: 20, backgroundColor: 'red' }}
           />
         )}
 
