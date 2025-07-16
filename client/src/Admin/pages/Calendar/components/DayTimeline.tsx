@@ -75,14 +75,6 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
           style={layout.length === 0 ? { right: 0 } : { left: rightEdge }}
         />
 
-        {/* “now” indicator */}
-        {nowOffset != null && (
-          <div
-            className="absolute left-0 right-0 h-px pointer-events-none"
-            style={{ top: nowOffset, zIndex: 20, backgroundColor: 'red' }}
-          />
-        )}
-
         {/* hours grid */}
         {Array.from({ length: 24 }).map((_, i) => (
           <div key={i} className="h-[84px] grid grid-cols-[4rem_1fr] px-2">
@@ -96,6 +88,7 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
           </div>
         ))}
 
+        {/* appointment blocks */}
         {layout.map((l, idx) => {
           const top = (l.start / 60) * 84
           const height = ((l.end - l.start) / 60) * 84 - 2
@@ -111,13 +104,26 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
             </div>
           )
         })}
+
+        {/* “now” indicator (inside scroll container, forced red) */}
+        {nowOffset != null && (
+          <div
+          className="absolute left-0 right-0 h-[2px] bg-red-500 border-0 z-50 pointer-events-none"
+          style={{ top: nowOffset }}
+        />
+        )}
       </div>
+
+      {/* details modal */}
       {selected && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-40"
           onClick={() => setSelected(null)}
         >
-          <div className="bg-white p-4 rounded space-y-1 max-w-xs" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="bg-white p-4 rounded space-y-1 max-w-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="font-medium">{selected.type}</div>
             <div className="text-sm">{selected.address}</div>
             {selected.size && <div className="text-sm">Size: {selected.size}</div>}
