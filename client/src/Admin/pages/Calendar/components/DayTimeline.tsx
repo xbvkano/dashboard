@@ -93,16 +93,19 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
           const top = (l.start / 60) * 84
           const height = ((l.end - l.start) / 60) * 84 - 2
           const leftStyle = `calc(${dividerPx}px + ${l.lane} * (40vw + ${LANE_GAP}px))`
-          const apptDate = new Date(l.appt.date)
-          const [sh, sm] = l.appt.time.split(':').map((n) => parseInt(n, 10))
-          const startDate = new Date(
-            apptDate.getFullYear(),
-            apptDate.getMonth(),
-            apptDate.getDate(),
-            sh,
-            sm,
-          )
-          const endDate = new Date(startDate.getTime() + (l.appt.hours ?? 1) * 60 * 60 * 1000)
+          // 1) pull out the YYYY-MM-DD as numbers, ignoring any timezone
+          const [year, month, day] = l.appt.date.slice(0, 10).split('-').map(Number);
+
+          // 2) pull out the hour/minute
+          const [sh, sm] = l.appt.time.split(':').map((n) => parseInt(n, 10));
+
+          // 3) build a Date in LOCAL time for the correct calendar day + time
+          const startDate = new Date(year, month - 1, day, sh, sm);
+
+          // 4) add your hours (default to 1) in milliseconds
+          const durationMs = (l.appt.hours ?? 1) * 60 * 60 * 1000;
+          const endDate = new Date(startDate.getTime() + durationMs);
+
           const now = new Date()
           let bg = 'bg-yellow-200 border-yellow-400'
           if (l.appt.paid) {
