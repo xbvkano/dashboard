@@ -145,13 +145,21 @@ export default function DayTimeline({
           acc[appt.time] = acc[appt.time] ? [...acc[appt.time], appt] : [appt]
           return acc
         }, {})
-      ).map(([time, group]) => {
+      )
+        .sort(([t1], [t2]) => t1.localeCompare(t2))
+        .map(([time, group]) => {
         const [h, m] = time.split(':').map((n) => parseInt(n, 10))
         const top = h * 84 + (m / 60) * 84
+        const sorted = group
+          .slice()
+          .sort((a, b) =>
+            new Date(a.createdAt ?? '').getTime() -
+            new Date(b.createdAt ?? '').getTime()
+          )
         return (
           <div
             key={time}
-            className="absolute flex gap-1"
+            className="absolute flex gap-1 overflow-x-auto"
             style={{
               top,
               left: dividerPx,
@@ -160,10 +168,10 @@ export default function DayTimeline({
               zIndex: 10,
             }}
           >
-            {group.map((a, idx) => (
+            {sorted.map((a, idx) => (
               <div
                 key={a.id ?? idx}
-                className="flex-1 bg-blue-200 border border-blue-400 rounded px-1 text-xs overflow-hidden cursor-pointer"
+                className="flex-shrink-0 w-full bg-blue-200 border border-blue-400 rounded px-1 text-xs overflow-hidden cursor-pointer"
                 style={{ height: (a.hours || 1) * 84 - 2 }}
                 onClick={() => setSelected(a)}
               >
