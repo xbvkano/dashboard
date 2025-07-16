@@ -1,31 +1,18 @@
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { Appointment } from '../types'
 
-interface Props {
-  nowOffset: number | null
-  prevDay: () => void
-  nextDay: () => void
+interface DayProps {
   appointments: Appointment[]
+  nowOffset: number | null
 }
-export default function DayTimeline({
-  nowOffset,
-  prevDay,
-  nextDay,
-  appointments,
-}: Props) {
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const dayTouchStart = useRef<number | null>(null)
-  const [dayDragX, setDayDragX] = useState<number | null>(null);
-  const [dragDirection, setDragDirection] = useState<"left" | "right" | null>(null);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [animateDirection, setAnimateDirection] = useState<"left" | "right" | null>(null);
-  const [snapBack, setSnapBack] = useState(false);
-  const [selected, setSelected] = useState<Appointment | null>(null);
+
+function Day({ appointments, nowOffset }: DayProps) {
+  const [selected, setSelected] = useState<Appointment | null>(null)
 
   // 4rem + 0.5rem in px (assuming 16px base font-size)
-  const dividerPx = 4 * 16 + 0.5 * 16;
-  const LANE_GAP = 8; // space between appointment columns in pixels
-  const apptWidth = '40vw';
+  const dividerPx = 4 * 16 + 0.5 * 16
+  const LANE_GAP = 8 // space between appointment columns in pixels
+  const apptWidth = '40vw'
   let containerWidth = `calc(${dividerPx}px + 40vw)`
 
   type Layout = {
@@ -64,118 +51,11 @@ export default function DayTimeline({
   }
 
   containerWidth = `calc(${dividerPx}px + ${maxLane} * (40vw + ${LANE_GAP}px))`
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    const x = e.touches[0].clientX;
-    dayTouchStart.current = x;
-    setDayDragX(x);
-    setDragDirection(null);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (dayTouchStart.current == null) return
-    const x = e.touches[0].clientX
-    setDayDragX(x)
-    const diff = x - dayTouchStart.current
-    if (diff !== 0) setDragDirection(diff < 0 ? 'left' : 'right')
-  }
-
-  const handleTouchEnd = () => {
-    if (
-      dayTouchStart.current != null &&
-      dayDragX != null &&
-      dragDirection != null
-    ) {
-      const diff = dayDragX - dayTouchStart.current
-      const half = window.innerWidth / 2
-
-      if (
-        Math.abs(diff) > half &&
-        ((diff < 0 && atRightEdge) || (diff > 0 && atLeftEdge))
-      ) {
-        // crossed threshold → change day, snap to pivot
-        if (diff < 0) {
-          nextDay()
-        } else {
-          prevDay()
-        }
-        setSnapBack(false)
-      } else {
-        // didn’t cross → snap back
-        setSnapBack(true)
-      }
-      setAnimateDirection(dragDirection)
-      setIsAnimating(true)
-    }
-
-    // clear touch start so we know dragging ended
-    dayTouchStart.current = null;
-  };
-
-  // compute where the line should be
-  let lineX: number | null = null
-  let transitionStyle: string | undefined
-  const container = containerRef.current
-  const atLeftEdge = container ? container.scrollLeft <= 0 : false
-  const atRightEdge = container
-    ? container.scrollLeft + container.clientWidth >= container.scrollWidth - 1
-    : false
-
-  if (isAnimating && animateDirection) {
-    // during snap animation, go to either pivot or start depending on snapBack
-    const startPivot =
-      animateDirection === "left" ? window.innerWidth : dividerPx;
-    const thresholdPivot =
-      animateDirection === "left" ? dividerPx : window.innerWidth;
-
-    const finalPivot = snapBack ? startPivot : thresholdPivot;
-
-    lineX = finalPivot;
-    transitionStyle = "left 0.3s ease";
-  } else if (
-    dayTouchStart.current != null &&
-    dayDragX != null &&
-    dragDirection &&
-    ((dragDirection === 'left' && atRightEdge) ||
-      (dragDirection === 'right' && atLeftEdge))
-  ) {
-    // while dragging, follow finger from the proper start point
-    const startPivot =
-      dragDirection === 'left' ? window.innerWidth : dividerPx
-    const diff = dayDragX - dayTouchStart.current
-    lineX = Math.min(
-      Math.max(startPivot + diff, dividerPx),
-      window.innerWidth
-    )
-  }
+  const rightEdge = `calc(${dividerPx}px + ${maxLane} * (40vw + ${LANE_GAP}px))`
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 overflow-x-auto overflow-y-auto relative"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
+    <div className="flex-1 overflow-x-auto overflow-y-auto relative">
       <div className="relative divide-y" style={{ width: containerWidth }}>
-        {/* drag line */}
-        {lineX != null && (
-          <div
-            className="absolute top-0 bottom-0 w-px bg-gray-400 pointer-events-none"
-            style={{ left: `${lineX}px`, transition: transitionStyle }}
-            onTransitionEnd={() => {
-              // after snapping (either back or forward), clear everything
-              if (isAnimating) {
-                setIsAnimating(false);
-                setAnimateDirection(null);
-                setSnapBack(false);
-                setDayDragX(null);
-                setDragDirection(null);
-              }
-            }}
-          />
-        )}
-
         {/* divider line */}
         <div
           className="absolute top-0 bottom-0 w-px bg-gray-300 pointer-events-none"
@@ -183,60 +63,54 @@ export default function DayTimeline({
         />
 
         {/* right edge marker */}
-        <div className="absolute top-0 bottom-0 right-0 w-px bg-gray-300 pointer-events-none" />
-
-      {/* “now” indicator */}
-      {nowOffset != null && (
         <div
-          className="absolute left-0 right-0 h-px bg-red-500"
-          style={{ top: nowOffset }}
+          className="absolute top-0 bottom-0 w-px bg-gray-300 pointer-events-none"
+          style={{ left: rightEdge }}
         />
-      )}
 
-      {/* hours grid */}
-      {Array.from({ length: 24 }).map((_, i) => (
-        <div key={i} className="h-[84px] grid grid-cols-[4rem_1fr] px-2">
-          <div className="text-xs text-gray-500 pr-2 flex items-start justify-end">
-            {new Date(0, 0, 0, i).toLocaleString('en-US', {
-              hour: 'numeric',
-              hour12: true,
-            })}
-          </div>
-          <div />
-        </div>
-      ))}
-
-      {layout.map((l, idx) => {
-        const top = (l.start / 60) * 84
-        const height = ((l.end - l.start) / 60) * 84 - 2
-        const leftStyle = `calc(${dividerPx}px + ${l.lane} * (40vw + ${LANE_GAP}px))`
-        return (
+        {/* “now” indicator */}
+        {nowOffset != null && (
           <div
-            key={l.appt.id ?? idx}
-            className="absolute bg-blue-200 border border-blue-400 rounded text-xs overflow-hidden cursor-pointer"
-            style={{
-              top,
-              left: leftStyle,
-              width: apptWidth,
-              height,
-              zIndex: 10,
-            }}
-            onClick={() => setSelected(l.appt)}
-          >
-            {l.appt.type}
+            className="absolute left-0 right-0 h-px bg-red-500 pointer-events-none"
+            style={{ top: nowOffset, zIndex: 20 }}
+          />
+        )}
+
+        {/* hours grid */}
+        {Array.from({ length: 24 }).map((_, i) => (
+          <div key={i} className="h-[84px] grid grid-cols-[4rem_1fr] px-2">
+            <div className="text-xs text-gray-500 pr-2 flex items-start justify-end">
+              {new Date(0, 0, 0, i).toLocaleString('en-US', {
+                hour: 'numeric',
+                hour12: true,
+              })}
+            </div>
+            <div />
           </div>
-        )
-      })}
+        ))}
+
+        {layout.map((l, idx) => {
+          const top = (l.start / 60) * 84
+          const height = ((l.end - l.start) / 60) * 84 - 2
+          const leftStyle = `calc(${dividerPx}px + ${l.lane} * (40vw + ${LANE_GAP}px))`
+          return (
+            <div
+              key={l.appt.id ?? idx}
+              className="absolute bg-blue-200 border border-blue-400 rounded text-xs overflow-hidden cursor-pointer"
+              style={{ top, left: leftStyle, width: apptWidth, height, zIndex: 10 }}
+              onClick={() => setSelected(l.appt)}
+            >
+              {l.appt.type}
+            </div>
+          )
+        })}
       </div>
       {selected && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-40"
           onClick={() => setSelected(null)}
         >
-          <div
-            className="bg-white p-4 rounded space-y-1 max-w-xs"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="bg-white p-4 rounded space-y-1 max-w-xs" onClick={(e) => e.stopPropagation()}>
             <div className="font-medium">{selected.type}</div>
             <div className="text-sm">{selected.address}</div>
             {selected.size && <div className="text-sm">Size: {selected.size}</div>}
@@ -248,5 +122,104 @@ export default function DayTimeline({
         </div>
       )}
     </div>
-  );
+  )
+}
+
+interface Props {
+  nowOffset: number | null
+  prevDay: () => void
+  nextDay: () => void
+  appointments: Appointment[]
+  prevAppointments: Appointment[]
+  nextAppointments: Appointment[]
+}
+
+export default function DayTimeline({
+  nowOffset,
+  prevDay,
+  nextDay,
+  appointments,
+  prevAppointments,
+  nextAppointments,
+}: Props) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const touchStartX = useRef<number | null>(null)
+  const [dragDelta, setDragDelta] = useState(0)
+  const [baseOffset, setBaseOffset] = useState(0)
+  const [animating, setAnimating] = useState(false)
+
+  useLayoutEffect(() => {
+    if (!containerRef.current) return
+    const w = containerRef.current.offsetWidth
+    setBaseOffset(-w)
+    setDragDelta(0)
+    setAnimating(false)
+  }, [appointments, prevAppointments, nextAppointments])
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+    setDragDelta(0)
+    setAnimating(false)
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartX.current == null) return
+    const diff = e.touches[0].clientX - touchStartX.current
+    setDragDelta(diff)
+  }
+
+  const handleTouchEnd = () => {
+    if (touchStartX.current == null || !containerRef.current) return
+    const w = containerRef.current.offsetWidth
+    const threshold = w * 0.25
+    const moved = dragDelta
+
+    if (Math.abs(moved) > threshold) {
+      setAnimating(true)
+      setDragDelta(0)
+      if (moved < 0) {
+        // swipe left → next
+        setBaseOffset(-2 * w)
+        setTimeout(() => {
+          nextDay()
+        }, 300)
+      } else {
+        // swipe right → prev
+        setBaseOffset(0)
+        setTimeout(() => {
+          prevDay()
+        }, 300)
+      }
+    } else {
+      setAnimating(true)
+      setBaseOffset(-w)
+      setDragDelta(0)
+      setTimeout(() => {
+        setAnimating(false)
+      }, 300)
+    }
+
+    touchStartX.current = null
+  }
+
+  const style = {
+    transform: `translateX(${baseOffset + dragDelta}px)`,
+    transition: animating ? 'transform 0.3s ease' : undefined,
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex-1 overflow-hidden relative touch-pan-x"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <div className="flex w-[300%]" style={style}>
+        <Day appointments={prevAppointments} nowOffset={null} />
+        <Day appointments={appointments} nowOffset={nowOffset} />
+        <Day appointments={nextAppointments} nowOffset={null} />
+      </div>
+    </div>
+  )
 }
