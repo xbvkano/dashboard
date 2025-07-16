@@ -1,12 +1,13 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState, type Ref } from 'react'
 import type { Appointment } from '../types'
 
 interface DayProps {
   appointments: Appointment[]
   nowOffset: number | null
+  scrollRef?: Ref<HTMLDivElement>
 }
 
-function Day({ appointments, nowOffset }: DayProps) {
+function Day({ appointments, nowOffset, scrollRef }: DayProps) {
   const [selected, setSelected] = useState<Appointment | null>(null)
 
   // 4rem + 0.5rem in px (assuming 16px base font-size)
@@ -54,7 +55,7 @@ function Day({ appointments, nowOffset }: DayProps) {
   const rightEdge = `calc(${dividerPx}px + ${maxLane} * (40vw + ${LANE_GAP}px))`
 
   return (
-    <div className="flex-1 overflow-x-auto overflow-y-auto relative">
+    <div ref={scrollRef} className="flex-1 overflow-x-auto overflow-y-auto relative">
       <div className="relative divide-y" style={{ width: containerWidth }}>
         {/* divider line */}
         <div
@@ -143,7 +144,9 @@ export default function DayTimeline({
   nextAppointments,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const currentDayRef = useRef<HTMLDivElement | null>(null)
   const touchStartX = useRef<number | null>(null)
+  const isPaging = useRef(false)
   const [dragDelta, setDragDelta] = useState(0)
   const [baseOffset, setBaseOffset] = useState(0)
   const [animating, setAnimating] = useState(false)
@@ -158,6 +161,7 @@ export default function DayTimeline({
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX
+    isPaging.current = false
     setDragDelta(0)
     setAnimating(false)
   }
@@ -165,11 +169,31 @@ export default function DayTimeline({
   const handleTouchMove = (e: React.TouchEvent) => {
     if (touchStartX.current == null) return
     const diff = e.touches[0].clientX - touchStartX.current
+    const dayEl = currentDayRef.current
+    if (!dayEl) return
+    const atLeft = dayEl.scrollLeft <= 0
+    const atRight =
+      dayEl.scrollLeft + dayEl.clientWidth >= dayEl.scrollWidth - 1
+
+    if (!isPaging.current) {
+      if ((diff > 0 && atLeft) || (diff < 0 && atRight)) {
+        isPaging.current = true
+      } else {
+        touchStartX.current = e.touches[0].clientX
+        return
+      }
+    }
+
+    e.preventDefault()
     setDragDelta(diff)
   }
 
   const handleTouchEnd = () => {
-    if (touchStartX.current == null || !containerRef.current) return
+    if (!isPaging.current || touchStartX.current == null || !containerRef.current) {
+      touchStartX.current = null
+      isPaging.current = false
+      return
+    }
     const w = containerRef.current.offsetWidth
     const threshold = w * 0.25
     const moved = dragDelta
@@ -200,6 +224,7 @@ export default function DayTimeline({
     }
 
     touchStartX.current = null
+    isPaging.current = false
   }
 
   const style = {
@@ -217,7 +242,7 @@ export default function DayTimeline({
     >
       <div className="flex w-[300%]" style={style}>
         <Day appointments={prevAppointments} nowOffset={null} />
-        <Day appointments={appointments} nowOffset={nowOffset} />
+        <Day appointments={appointments} nowOffset={nowOffset} scrollRef={currentDayRef} />
         <Day appointments={nextAppointments} nowOffset={null} />
       </div>
     </div>
