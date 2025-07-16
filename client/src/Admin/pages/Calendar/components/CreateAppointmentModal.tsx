@@ -551,26 +551,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
           </div>
         )}
 
-        {/* Admin selection */}
-        {selectedTemplate && (
-          <div>
-            <h4 className="font-light">
-              Admin <span className="text-red-500">*</span>
-            </h4>
-            <select
-              className="w-full border p-2 rounded text-base"
-              value={adminId}
-              onChange={(e) => setAdminId(Number(e.target.value))}
-            >
-              <option value="">Select admin</option>
-              {admins.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name || a.email}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        
 
         {/* Team selection */}
         {selectedTemplate && staffOptions.length > 0 && (
@@ -724,6 +705,27 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                 onChange={(e) => setTime(e.target.value)}
               />
             </div>
+          </div>
+          )}
+          
+          {/* Admin selection */}
+        {selectedTemplate && (
+          <div>
+            <h4 className="font-light">
+              Admin <span className="text-red-500">*</span>
+            </h4>
+            <select
+              className="w-full border p-2 rounded text-base"
+              value={adminId}
+              onChange={(e) => setAdminId(Number(e.target.value))}
+            >
+              <option value="">Select admin</option>
+              {admins.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name || a.email}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
