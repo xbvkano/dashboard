@@ -253,14 +253,22 @@ export default function DayTimeline({
       onTouchEnd={handleTouchEnd}
     >
       <div className="flex w-[300%]" style={style}>
-        <Day appointments={prevAppointments} nowOffset={null} animating={animating} />
+        <Day
+          appointments={prevAppointments}
+          nowOffset={nowOffset}
+          animating={animating}
+        />
         <Day
           appointments={appointments}
           nowOffset={nowOffset}
           scrollRef={currentDayRef}
           animating={animating}
         />
-        <Day appointments={nextAppointments} nowOffset={null} animating={animating} />
+        <Day
+          appointments={nextAppointments}
+          nowOffset={nowOffset}
+          animating={animating}
+        />
       </div>
     </div>
   )
