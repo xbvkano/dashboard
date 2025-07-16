@@ -23,6 +23,9 @@ export default function DayTimeline({
 
   // 4rem + 0.5rem in px (assuming 16px base font-size)
   const dividerPx = 4 * 16 + 0.5 * 16;
+  const LANE_GAP = 8; // space between appointment columns in pixels
+  const apptWidth = '40vw';
+  let containerWidth = `calc(${dividerPx}px + 40vw)`;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const x = e.touches[0].clientX;
@@ -96,28 +99,29 @@ export default function DayTimeline({
 
   return (
     <div
-      className="flex-1 overflow-y-auto relative divide-y"
+      className="flex-1 overflow-x-auto overflow-y-auto relative"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* drag line */}
-      {lineX != null && (
-        <div
-          className="absolute top-0 bottom-0 w-px bg-gray-400 pointer-events-none"
-          style={{ left: `${lineX}px`, transition: transitionStyle }}
-          onTransitionEnd={() => {
-            // after snapping (either back or forward), clear everything
-            if (isAnimating) {
-              setIsAnimating(false);
-              setAnimateDirection(null);
-              setSnapBack(false);
-              setDayDragX(null);
-              setDragDirection(null);
-            }
-          }}
-        />
-      )}
+      <div className="relative divide-y" style={{ width: containerWidth }}>
+        {/* drag line */}
+        {lineX != null && (
+          <div
+            className="absolute top-0 bottom-0 w-px bg-gray-400 pointer-events-none"
+            style={{ left: `${lineX}px`, transition: transitionStyle }}
+            onTransitionEnd={() => {
+              // after snapping (either back or forward), clear everything
+              if (isAnimating) {
+                setIsAnimating(false);
+                setAnimateDirection(null);
+                setSnapBack(false);
+                setDayDragX(null);
+                setDragDirection(null);
+              }
+            }}
+          />
+        )}
 
       {/* “now” indicator */}
       {nowOffset != null && (
@@ -146,19 +150,19 @@ export default function DayTimeline({
           start: number
           end: number
           lane: number
-          cols: number
         }
         const events: Layout[] = appointments
           .map((a) => {
             const [h, m] = a.time.split(':').map((n) => parseInt(n, 10))
             const start = h * 60 + m
             const end = start + (a.hours ?? 1) * 60
-            return { appt: a, start, end, lane: 0, cols: 1 }
+            return { appt: a, start, end, lane: 0 }
           })
           .sort((a, b) => a.start - b.start)
 
         const active: Layout[] = []
         const layout: Layout[] = []
+        let maxLane = 0
 
         for (const e of events) {
           // remove ended events
@@ -170,28 +174,25 @@ export default function DayTimeline({
           while (active.some((a) => a.lane === lane)) lane++
 
           e.lane = lane
+          if (lane + 1 > maxLane) maxLane = lane + 1
           active.push(e)
           layout.push(e)
-
-          const conc = active.length
-          for (const a of active) {
-            if (a.cols < conc) a.cols = conc
-          }
         }
+
+        containerWidth = `calc(${dividerPx}px + ${maxLane} * (40vw + ${LANE_GAP}px))`
 
         return layout.map((l, idx) => {
           const top = (l.start / 60) * 84
           const height = ((l.end - l.start) / 60) * 84 - 2
-          const widthStyle = `calc((100% - ${dividerPx}px) / ${l.cols})`
-          const leftStyle = `calc(${dividerPx}px + ${l.lane} * ((100% - ${dividerPx}px) / ${l.cols}))`
+          const leftStyle = `calc(${dividerPx}px + ${l.lane} * (40vw + ${LANE_GAP}px))`
           return (
             <div
               key={l.appt.id ?? idx}
-              className="absolute bg-blue-200 border border-blue-400 rounded px-1 text-xs overflow-hidden cursor-pointer"
+              className="absolute bg-blue-200 border border-blue-400 rounded text-xs overflow-hidden cursor-pointer"
               style={{
                 top,
                 left: leftStyle,
-                width: widthStyle,
+                width: apptWidth,
                 height,
                 zIndex: 10,
               }}
@@ -202,6 +203,7 @@ export default function DayTimeline({
           )
         })
       })()}
+      </div>
       {selected && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-40"
