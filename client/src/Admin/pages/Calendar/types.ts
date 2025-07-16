@@ -21,6 +21,7 @@ export interface Appointment {
   notes?: string
   hours?: number
   paid?: boolean
+  paymentMethod?: 'CASH' | 'ZELLE' | 'VENMO' | 'PAYPAL' | 'OTHER' | 'CHECK'
   tip?: number
   createdAt?: string
 }

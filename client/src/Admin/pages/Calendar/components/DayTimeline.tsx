@@ -107,7 +107,7 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
           let bg = 'bg-yellow-200 border-yellow-400'
           if (l.appt.paid) {
             bg = 'bg-green-200 border-green-400'
-          } else if (endDate < now) {
+          } else if (endDate <= now) {
             bg = 'bg-red-200 border-red-400'
           }
           return (
