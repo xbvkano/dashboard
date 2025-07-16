@@ -15,7 +15,7 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
   const dividerPx = 4 * 16 + 0.5 * 16
   const LANE_GAP = 8 // space between appointment columns in pixels
   const apptWidth = '40vw'
-  let containerWidth = `calc(${dividerPx}px + 40vw)`
+  let baseWidth = `calc(${dividerPx}px + 40vw)`
 
   type Layout = {
     appt: Appointment
@@ -52,14 +52,10 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
     layout.push(e)
   }
 
-  containerWidth =
-    layout.length === 0
-      ? '100%'
-      : `calc(${dividerPx}px + ${maxLane} * (40vw + ${LANE_GAP}px))`
-  const rightEdge =
-    layout.length === 0
-      ? '100%'
-      : `calc(${dividerPx}px + ${maxLane} * (40vw + ${LANE_GAP}px))`
+  baseWidth = `calc(${dividerPx}px + ${maxLane} * (40vw + ${LANE_GAP}px))`
+  const containerWidth =
+    layout.length === 0 ? '100%' : `max(100%, ${baseWidth})`
+  const rightEdge = containerWidth
 
   return (
     <div
