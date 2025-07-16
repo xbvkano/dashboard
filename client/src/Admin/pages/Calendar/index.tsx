@@ -24,7 +24,11 @@ export default function Calendar() {
   const [showMonth, setShowMonth] = useState(false)
   const [nowOffset, setNowOffset] = useState<number | null>(null)
   const [monthInfo, setMonthInfo] = useState<{ startDay: number; endDay: number; daysInMonth: number } | null>(null)
-  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [appointments, setAppointments] = useState<{
+    prev: Appointment[]
+    current: Appointment[]
+    next: Appointment[]
+  }>({ prev: [], current: [], next: [] })
   const [showCreate, setShowCreate] = useState(false)
 
   useEffect(() => {
@@ -36,10 +40,16 @@ export default function Calendar() {
   }, [selected.getFullYear(), selected.getMonth()])
 
   useEffect(() => {
-    const dateStr = selected.toISOString().slice(0, 10)
-    fetchJson(`${API_BASE_URL}/appointments?date=${dateStr}`)
-      .then((d) => setAppointments(d))
-      .catch(() => setAppointments([]))
+    const fetchDay = (d: Date) =>
+      fetchJson(`${API_BASE_URL}/appointments?date=${d.toISOString().slice(0, 10)}`)
+        .then((res) => res as Appointment[])
+        .catch(() => [])
+
+    Promise.all([
+      fetchDay(addDays(selected, -1)),
+      fetchDay(selected),
+      fetchDay(addDays(selected, 1)),
+    ]).then(([prev, current, next]) => setAppointments({ prev, current, next }))
   }, [selected])
 
   const weekStart = startOfWeek(selected)
@@ -81,7 +91,9 @@ export default function Calendar() {
         nowOffset={nowOffset}
         prevDay={prevDay}
         nextDay={nextDay}
-        appointments={appointments}
+        appointments={appointments.current}
+        prevAppointments={appointments.prev}
+        nextAppointments={appointments.next}
       />
       <button
         className="fixed bottom-20 right-6 w-12 h-12 rounded-full bg-black text-white text-2xl flex items-center justify-center"
@@ -93,9 +105,17 @@ export default function Calendar() {
         <CreateAppointmentModal
           onClose={() => setShowCreate(false)}
           onCreated={() => {
-            const dateStr = selected.toISOString().slice(0, 10)
-            fetchJson(`${API_BASE_URL}/appointments?date=${dateStr}`)
-              .then((d) => setAppointments(d))
+            const fetchDay = (d: Date) =>
+              fetchJson(`${API_BASE_URL}/appointments?date=${d.toISOString().slice(0, 10)}`)
+                .then((res) => res as Appointment[])
+                .catch(() => [])
+            Promise.all([
+              fetchDay(addDays(selected, -1)),
+              fetchDay(selected),
+              fetchDay(addDays(selected, 1)),
+            ]).then(([prev, current, next]) =>
+              setAppointments({ prev, current, next })
+            )
           }}
         />
       )}
