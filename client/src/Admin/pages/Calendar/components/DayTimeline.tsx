@@ -5,9 +5,10 @@ interface DayProps {
   appointments: Appointment[]
   nowOffset: number | null
   scrollRef?: Ref<HTMLDivElement>
+  animating: boolean
 }
 
-function Day({ appointments, nowOffset, scrollRef }: DayProps) {
+function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
   const [selected, setSelected] = useState<Appointment | null>(null)
 
   // 4rem + 0.5rem in px (assuming 16px base font-size)
@@ -51,12 +52,21 @@ function Day({ appointments, nowOffset, scrollRef }: DayProps) {
     layout.push(e)
   }
 
-  containerWidth = `calc(${dividerPx}px + ${maxLane} * (40vw + ${LANE_GAP}px))`
-  const rightEdge = `calc(${dividerPx}px + ${maxLane} * (40vw + ${LANE_GAP}px))`
+  containerWidth =
+    layout.length === 0
+      ? '100%'
+      : `calc(${dividerPx}px + ${maxLane} * (40vw + ${LANE_GAP}px))`
+  const rightEdge =
+    layout.length === 0
+      ? '100%'
+      : `calc(${dividerPx}px + ${maxLane} * (40vw + ${LANE_GAP}px))`
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-x-auto overflow-y-auto relative">
-      <div className="relative divide-y" style={{ width: containerWidth }}>
+    <div
+      ref={scrollRef}
+      className={`flex-1 relative ${animating ? 'overflow-hidden' : 'overflow-x-auto overflow-y-auto'}`}
+    >
+      <div className="relative divide-y" style={{ width: containerWidth, minWidth: '100%' }}>
         {/* divider line */}
         <div
           className="absolute top-0 bottom-0 w-px bg-gray-300 pointer-events-none"
@@ -66,14 +76,14 @@ function Day({ appointments, nowOffset, scrollRef }: DayProps) {
         {/* right edge marker */}
         <div
           className="absolute top-0 bottom-0 w-px bg-gray-300 pointer-events-none"
-          style={{ left: rightEdge }}
+          style={layout.length === 0 ? { right: 0 } : { left: rightEdge }}
         />
 
         {/* “now” indicator */}
         {nowOffset != null && (
           <div
-            className="absolute left-0 right-0 h-px bg-red-500 pointer-events-none"
-            style={{ top: nowOffset, zIndex: 20 }}
+            className="absolute left-0 right-0 h-px pointer-events-none"
+            style={{ top: nowOffset, zIndex: 20, backgroundColor: 'red' }}
           />
         )}
 
@@ -241,9 +251,14 @@ export default function DayTimeline({
       onTouchEnd={handleTouchEnd}
     >
       <div className="flex w-[300%]" style={style}>
-        <Day appointments={prevAppointments} nowOffset={null} />
-        <Day appointments={appointments} nowOffset={nowOffset} scrollRef={currentDayRef} />
-        <Day appointments={nextAppointments} nowOffset={null} />
+        <Day appointments={prevAppointments} nowOffset={null} animating={animating} />
+        <Day
+          appointments={appointments}
+          nowOffset={nowOffset}
+          scrollRef={currentDayRef}
+          animating={animating}
+        />
+        <Day appointments={nextAppointments} nowOffset={null} animating={animating} />
       </div>
     </div>
   )
