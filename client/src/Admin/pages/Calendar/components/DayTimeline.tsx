@@ -14,6 +14,9 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
   const [selected, setSelected] = useState<Appointment | null>(null)
   const [modalTop, setModalTop] = useState(0)
   const [showDelete, setShowDelete] = useState(false)
+  const [showCancel, setShowCancel] = useState(false)
+  const [payRate, setPayRate] = useState<number | null>(null)
+  const [carpetRate, setCarpetRate] = useState<number | null>(null)
   const [paid, setPaid] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('')
   const [otherPayment, setOtherPayment] = useState('')
@@ -55,6 +58,30 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
       return () => {
         document.body.style.overflow = original
       }
+    }
+  }, [selected])
+
+  // calculate pay rates when modal opens
+  useEffect(() => {
+    if (!selected || !selected.size || !selected.employees || selected.employees.length === 0) {
+      setPayRate(null)
+      setCarpetRate(null)
+      return
+    }
+    fetch(`${API_BASE_URL}/pay-rate?type=${selected.type}&size=${encodeURIComponent(selected.size)}&count=${selected.employees.length}`)
+      .then((res) => res.json())
+      .then((d) => setPayRate(d.rate))
+      .catch(() => setPayRate(null))
+
+    const rooms = (selected as any).carpetRooms
+    const carpetIds = (selected as any).carpetEmployees?.length
+    if (rooms && carpetIds) {
+      fetch(`${API_BASE_URL}/carpet-rate?size=${encodeURIComponent(selected.size)}&rooms=${rooms}`)
+        .then((res) => res.json())
+        .then((d) => setCarpetRate(d.rate / carpetIds))
+        .catch(() => setCarpetRate(null))
+    } else {
+      setCarpetRate(null)
     }
   }, [selected])
 
@@ -196,12 +223,15 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center">
-              <h4 className="font-medium">
-                {selected.client ? selected.client.name : 'Client'}
-              </h4>
-              <button className="text-red-500" onClick={() => setShowDelete(true)}>
-                Delete
-              </button>
+              <div>
+                <h4 className="font-medium">
+                  {selected.client ? selected.client.name : 'Client'}
+                </h4>
+                {selected.client?.number && (
+                  <div className="text-sm text-gray-600">{selected.client.number}</div>
+                )}
+              </div>
+              <button onClick={() => setSelected(null)}>X</button>
             </div>
             <div className="text-sm">Address: {selected.address}</div>
             <div className="text-sm">Type: {selected.type}</div>
@@ -212,7 +242,14 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
                 <ul className="pl-4 list-disc">
                   {selected.employees.map((e) => (
                     <li key={e.id}>
-                      {e.name} {e.experienced ? <span className="font-bold">(Exp)</span> : null}
+                      {e.name}{' '}
+                      {e.experienced ? <span className="font-bold">(Exp)</span> : null}
+                      {payRate !== null && (
+                        <span className="ml-1 text-sm text-gray-600">${payRate.toFixed(2)}</span>
+                      )}
+                      {carpetRate !== null && (
+                        <span className="ml-1 text-sm text-gray-600">+ ${carpetRate.toFixed(2)} carpet</span>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -279,7 +316,10 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <button className="px-4 py-1 border rounded" onClick={() => setSelected(null)}>
+              <button className="px-4 py-1 bg-red-500 text-white rounded" onClick={() => setShowDelete(true)}>
+                Delete
+              </button>
+              <button className="px-4 py-1 bg-red-500 text-white rounded" onClick={() => setShowCancel(true)}>
                 Cancel
               </button>
               <button
@@ -317,6 +357,33 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
                       className="px-4 py-1 bg-red-500 text-white rounded"
                       onClick={() => {
                         setShowDelete(false)
+                        setSelected(null)
+                      }}
+                    >
+                      Yes
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {showCancel && (
+              <div
+                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                onClick={() => setShowCancel(false)}
+              >
+                <div
+                  className="bg-white p-4 rounded space-y-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div>Cancel changes?</div>
+                  <div className="flex justify-end gap-2">
+                    <button className="px-4 py-1 border rounded" onClick={() => setShowCancel(false)}>
+                      No
+                    </button>
+                    <button
+                      className="px-4 py-1 bg-red-500 text-white rounded"
+                      onClick={() => {
+                        setShowCancel(false)
                         setSelected(null)
                       }}
                     >
