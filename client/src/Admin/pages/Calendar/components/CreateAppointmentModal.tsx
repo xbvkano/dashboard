@@ -42,6 +42,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
   const [templates, setTemplates] = useState<AppointmentTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
   const [showNewTemplate, setShowNewTemplate] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [templateForm, setTemplateForm] = useState({
     templateName: '',
     type: 'STANDARD',
@@ -100,6 +101,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
   const resetTemplateRelated = () => {
     setSelectedTemplate(null)
     setShowNewTemplate(false)
+    setEditing(false)
     setTemplateForm({
       templateName: '',
       type: 'STANDARD',
@@ -231,6 +233,35 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     }
   }
 
+  const startEditTemplate = () => {
+    if (!selectedTemplate) return
+    const t = templates.find((tt) => tt.id === selectedTemplate)
+    if (!t) return
+    const base = t.templateName.replace(/_\d+$/, '')
+    let max = 0
+    templates
+      .filter((tt) =>
+        tt.templateName === base || tt.templateName.startsWith(base + '_')
+      )
+      .forEach((tt) => {
+        const match = tt.templateName.match(/_(\d+)$/)
+        if (match) {
+          const n = parseInt(match[1], 10)
+          if (n > max) max = n
+        }
+      })
+    setTemplateForm({
+      templateName: `${base}_${max + 1}`,
+      type: t.type,
+      size: t.size || '',
+      address: t.address,
+      price: String(t.price),
+      notes: t.cityStateZip || '',
+    })
+    setEditing(true)
+    setShowNewTemplate(true)
+  }
+
   const createTemplate = async () => {
     if (!selectedClient) return
     const payload = {
@@ -253,6 +284,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
       resetTemplateRelated()
       setSelectedTemplate(t.id)
       setShowNewTemplate(false)
+      setEditing(false)
     } else {
       alert('Failed to create template')
     }
@@ -296,8 +328,8 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
 
   return (
     <>
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-20">
-      <div className="bg-white p-4 rounded w-96 max-h-full overflow-y-auto overflow-x-hidden space-y-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-20 p-2">
+      <div className="bg-white p-4 sm:p-6 rounded w-full max-w-md max-h-full overflow-y-auto overflow-x-hidden space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold">New Appointment</h2>
           <button onClick={onClose}>X</button>
@@ -325,30 +357,30 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
               <h3 className="font-medium">New Client</h3>
               <h4 className="font-light">Name <span className="text-red-500">*</span></h4>
             <input
-              className="w-full border p-1 rounded"
+              className="w-full border p-2 rounded text-base"
               placeholder="Name"
               value={newClient.name}
               onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
               />
               <h4 className="font-light">Number <span className="text-red-500">*</span></h4>
             <input
-              className="w-full border p-1 rounded"
+              className="w-full border p-2 rounded text-base"
               placeholder="Number"
               value={newClient.number}
               onChange={handleNewClientNumberChange}
               />
               <h4 className="font-light">Notes:</h4>
             <textarea
-              className="w-full border p-1 rounded"
+              className="w-full border p-2 rounded text-base"
               placeholder="Notes"
               value={newClient.notes}
               onChange={(e) => setNewClient({ ...newClient, notes: e.target.value })}
             />
             <div className="flex gap-2 justify-end">
-              <button className="px-2" onClick={() => setShowNewClient(false)}>
+              <button className="px-3 py-2" onClick={() => setShowNewClient(false)}>
                 Cancel
               </button>
-              <button className="px-2 text-blue-600" onClick={createClient}>
+              <button className="px-3 py-2 text-blue-600" onClick={createClient}>
                 Save
               </button>
             </div>
@@ -357,12 +389,12 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
           <div>
             <div className="flex gap-2 mb-1">
               <input
-                className="flex-1 border p-1 rounded"
+                className="flex-1 border p-2 rounded text-base"
                 placeholder="Search clients"
                 value={clientSearch}
                 onChange={(e) => setClientSearch(e.target.value)}
               />
-              <button className="px-2 text-sm" onClick={() => setShowNewClient(true)}>
+              <button className="px-3 py-2 text-sm" onClick={() => setShowNewClient(true)}>
                 New
               </button>
             </div>
@@ -393,9 +425,14 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                   <div className="font-medium">
                     Template: {templates.find((t) => t.id === selectedTemplate)?.templateName}
                   </div>
-                  <button className="text-sm text-blue-500" onClick={resetTemplateRelated}>
-                    change
-                  </button>
+                  <div className="flex gap-2">
+                    <button className="text-sm text-blue-500" onClick={resetTemplateRelated}>
+                      change
+                    </button>
+                    <button className="text-sm text-blue-500" onClick={startEditTemplate}>
+                      edit
+                    </button>
+                  </div>
                 </div>
                 {(() => {
                   const t = templates.find((tt) => tt.id === selectedTemplate)
@@ -413,17 +450,17 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
               </div>
             ) : showNewTemplate ? (
               <div className="space-y-2 border p-2 rounded">
-                  <h3 className="font-medium">New Template</h3>
+                  <h3 className="font-medium">{editing ? 'Edit Template' : 'New Template'}</h3>
                   <h4 className="font-light">Name: <span className="text-red-500">*</span></h4>
                 <input
-                  className="w-full border p-1 rounded"
+                  className="w-full border p-2 rounded text-base"
                   placeholder="Name"
                   value={templateForm.templateName}
                   onChange={(e) => setTemplateForm({ ...templateForm, templateName: e.target.value })}
                   />
                   <h4 className="font-light">Type: <span className="text-red-500">*</span></h4>
                 <select
-                  className="w-full border p-1 rounded"
+                  className="w-full border p-2 rounded text-base"
                   value={templateForm.type}
                   onChange={(e) => setTemplateForm({ ...templateForm, type: e.target.value })}
                 >
@@ -433,7 +470,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                   </select>
                   <h4 className="font-light">Size: <span className="text-red-500">*</span></h4>
                 <select
-                  className="w-full border p-1 rounded"
+                  className="w-full border p-2 rounded text-base"
                   value={templateForm.size}
                   onChange={(e) => setTemplateForm({ ...templateForm, size: e.target.value })}
                 >
@@ -446,7 +483,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                   </select>
                   <h4 className="font-light">Price: <span className="text-red-500">*</span></h4>
                 <input
-                  className="w-full border p-1 rounded"
+                  className="w-full border p-2 rounded text-base"
                   placeholder="Price"
                   type="number"
                   value={templateForm.price}
@@ -454,23 +491,23 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                   />
                   <h4 className="font-light">Address: <span className="text-red-500">*</span></h4>
                 <input
-                  className="w-full border p-1 rounded"
+                  className="w-full border p-2 rounded text-base"
                   placeholder="Address"
                   value={templateForm.address}
                   onChange={(e) => setTemplateForm({ ...templateForm, address: e.target.value })}
                   />
                   <h4 className="font-light">Notes: </h4>
                 <textarea
-                  className="w-full border p-1 rounded"
+                  className="w-full border p-2 rounded text-base"
                   placeholder="Notes"
                   value={templateForm.notes}
                   onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })}
                 />
                 <div className="flex gap-2 justify-end">
-                  <button className="px-2" onClick={() => setShowNewTemplate(false)}>
+                  <button className="px-3 py-2" onClick={() => { setShowNewTemplate(false); setEditing(false) }}>
                     Cancel
                   </button>
-                  <button className="px-2 text-blue-600" onClick={createTemplate}>
+                  <button className="px-3 py-2 text-blue-600" onClick={createTemplate}>
                     Save
                   </button>
                 </div>
@@ -479,7 +516,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
               <div>
                 <div className="flex gap-2 mb-1">
                   <select
-                    className="flex-1 border p-1 rounded"
+                    className="flex-1 border p-2 rounded text-base"
                     value={selectedTemplate ?? ''}
                     onChange={(e) => {
                       resetTemplateRelated()
@@ -493,7 +530,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                       </option>
                     ))}
                   </select>
-                  <button className="px-2 text-sm" onClick={() => setShowNewTemplate(true)}>
+                  <button className="px-3 py-2 text-sm" onClick={() => { setEditing(false); setShowNewTemplate(true) }}>
                     New
                   </button>
                 </div>
@@ -506,7 +543,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         {selectedTemplate && staffOptions.length > 0 && (
           <div className="space-y-1">
             <button
-              className="border px-2 py-1 rounded"
+              className="border px-3 py-2 rounded"
               onClick={() => setShowTeamModal(true)}
             >
               Team Options
@@ -558,7 +595,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
             {carpetEnabled && (
               <>
                 <button
-                  className="border px-2 py-1 rounded"
+                  className="border px-3 py-2 rounded"
                   onClick={() => setShowCarpetModal(true)}
                 >
                   Carpet Options
@@ -613,7 +650,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
             {recurringEnabled && (
               <>
                 <button
-                  className="border px-2 py-1 rounded"
+                  className="border px-3 py-2 rounded"
                   onClick={() => setShowRecurringModal(true)}
                 >
                   Recurring Options
@@ -638,7 +675,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
               </h4>
               <input
                 type="date"
-                className="w-full border p-1 rounded"
+                className="w-full border p-2 rounded text-base"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
               />
@@ -649,7 +686,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
               </h4>
               <input
                 type="time"
-                className="w-full border p-1 rounded"
+                className="w-full border p-2 rounded text-base"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
               />
@@ -659,7 +696,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
 
         <div className="text-right">
           <button
-            className="bg-blue-500 text-white px-4 py-1 rounded disabled:opacity-50"
+            className="bg-blue-500 text-white px-6 py-2 rounded disabled:opacity-50"
             disabled={!selectedTemplate || !date || !time || !isValidSelection() || !isValidCarpet()}
             onClick={createAppointment}
           >
@@ -670,7 +707,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     </div>
     {showTeamModal && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
-        <div className="bg-white p-4 rounded w-80 max-h-full overflow-y-auto overflow-x-hidden space-y-2">
+        <div className="bg-white p-4 rounded w-full max-w-xs max-h-full overflow-y-auto overflow-x-hidden space-y-2">
           <div className="flex justify-between items-center">
             <h4 className="font-medium">Team Options</h4>
             <button onClick={() => setShowTeamModal(false)}>X</button>
@@ -679,7 +716,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
             {staffOptions.map((o, idx) => (
               <button
                 key={idx}
-                className={`w-full px-2 py-1 border rounded ${selectedOption === idx ? 'bg-blue-500 text-white' : ''}`}
+              className={`w-full px-3 py-2 border rounded ${selectedOption === idx ? 'bg-blue-500 text-white' : ''}`}
                 onClick={() => {
                   setSelectedOption(idx)
                   setSelectedEmployees([])
@@ -704,7 +741,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                 )
               })()}
               <input
-                className="w-full border p-1 rounded"
+                className="w-full border p-2 rounded text-base"
                 placeholder="Search employees"
                 value={employeeSearch}
                 onChange={(e) => setEmployeeSearch(e.target.value)}
@@ -733,7 +770,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
           )}
           <div className="text-right">
             <button
-              className="px-2 text-blue-600 disabled:text-gray-400"
+              className="px-3 py-2 text-blue-600 disabled:text-gray-400"
               disabled={!isValidSelection()}
               onClick={() => {
                 if (isValidSelection()) setShowTeamModal(false)
@@ -747,7 +784,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     )}
     {showCarpetModal && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
-        <div className="bg-white p-4 rounded w-80 max-h-full overflow-y-auto overflow-x-hidden space-y-2">
+        <div className="bg-white p-4 rounded w-full max-w-xs max-h-full overflow-y-auto overflow-x-hidden space-y-2">
           <div className="flex justify-between items-center">
             <h4 className="font-medium">Carpet Options</h4>
             <button onClick={() => setShowCarpetModal(false)}>X</button>
@@ -758,7 +795,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
               <input
                 type="number"
                 min="1"
-                className="w-full border p-1 rounded"
+                className="w-full border p-2 rounded text-base"
                 value={carpetRooms}
                 onChange={(e) => setCarpetRooms(e.target.value)}
               />
@@ -787,7 +824,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
           </div>
           <div className="text-right">
             <button
-              className="px-2 text-blue-600 disabled:text-gray-400"
+              className="px-3 py-2 text-blue-600 disabled:text-gray-400"
               disabled={!carpetRooms || carpetEmployees.length === 0}
               onClick={() => {
                 if (carpetRooms && carpetEmployees.length > 0) setShowCarpetModal(false)
@@ -801,14 +838,14 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
     )}
     {showRecurringModal && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
-        <div className="bg-white p-4 rounded w-80 max-h-full overflow-y-auto overflow-x-hidden space-y-2">
+        <div className="bg-white p-4 rounded w-full max-w-xs max-h-full overflow-y-auto overflow-x-hidden space-y-2">
           <div className="flex justify-between items-center">
             <h4 className="font-medium">Recurring Options</h4>
             <button onClick={() => setShowRecurringModal(false)}>X</button>
           </div>
           <div className="space-y-2">
             <select
-              className="w-full border p-1 rounded"
+              className="w-full border p-2 rounded text-base"
               value={recurringOption}
               onChange={(e) => setRecurringOption(e.target.value as RecurringOption)}
             >
@@ -824,7 +861,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
                 <input
                   type="number"
                   min="1"
-                  className="w-full border p-1 rounded"
+                  className="w-full border p-2 rounded text-base"
                   value={recurringMonths}
                   onChange={(e) => setRecurringMonths(e.target.value)}
                 />
@@ -833,7 +870,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
           </div>
           <div className="text-right">
             <button
-              className="px-2 text-blue-600 disabled:text-gray-400"
+              className="px-3 py-2 text-blue-600 disabled:text-gray-400"
               disabled={recurringOption === 'Other' && !recurringMonths}
               onClick={() => {
                 if (recurringOption !== 'Other' || recurringMonths) setShowRecurringModal(false)
