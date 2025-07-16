@@ -44,6 +44,7 @@ model Appointment {
   address         String
   cityStateZip    String?
   size            String?
+  hours           Int?
   price           Float?
   paid            Boolean         @default(false)
   paymentMethod   PaymentMethod
