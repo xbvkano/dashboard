@@ -159,11 +159,11 @@ export default function DayTimeline({
         return (
           <div
             key={time}
-            className="absolute flex gap-1 overflow-x-auto"
+            className="absolute flex flex-row gap-1 overflow-x-auto flex-nowrap"
             style={{
               top,
               left: dividerPx,
-              width: `calc((100% - ${dividerPx}px) * 0.7)`,
+              width: `calc(100% - ${dividerPx}px)`,
               padding: '2px',
               zIndex: 10,
             }}
@@ -171,7 +171,7 @@ export default function DayTimeline({
             {sorted.map((a, idx) => (
               <div
                 key={a.id ?? idx}
-                className="flex-shrink-0 w-full bg-blue-200 border border-blue-400 rounded px-1 text-xs overflow-hidden cursor-pointer"
+                className="flex-shrink-0 min-w-full bg-blue-200 border border-blue-400 rounded px-1 text-xs overflow-hidden cursor-pointer"
                 style={{ height: (a.hours || 1) * 84 - 2 }}
                 onClick={() => setSelected(a)}
               >
