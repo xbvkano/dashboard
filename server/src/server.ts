@@ -442,7 +442,17 @@ app.get('/appointments', async (req: Request, res: Response) => {
 
 app.post('/appointments', async (req: Request, res: Response) => {
   try {
-    const { clientId, templateId, date, time, hours, employeeIds, adminId } = req.body as {
+    const {
+      clientId,
+      templateId,
+      date,
+      time,
+      hours,
+      employeeIds,
+      adminId,
+      paid,
+      tip,
+    } = req.body as {
       clientId?: number
       templateId?: number
       date?: string
@@ -450,6 +460,8 @@ app.post('/appointments', async (req: Request, res: Response) => {
       hours?: number
       employeeIds?: number[]
       adminId?: number
+      paid?: boolean
+      tip?: number
     }
     if (!clientId || !templateId || !date || !time || !adminId) {
       return res.status(400).json({ error: 'Missing fields' })
@@ -471,6 +483,8 @@ app.post('/appointments', async (req: Request, res: Response) => {
         size: template.size,
         hours: hours ?? null,
         price: template.price,
+        paid: paid ?? false,
+        tip: tip ?? 0,
         paymentMethod: 'CASH',
         lineage: 'single',
         notes: template.cityStateZip || undefined,

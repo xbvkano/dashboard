@@ -20,5 +20,7 @@ export interface Appointment {
   price?: number
   notes?: string
   hours?: number
+  paid?: boolean
+  tip?: number
   createdAt?: string
 }

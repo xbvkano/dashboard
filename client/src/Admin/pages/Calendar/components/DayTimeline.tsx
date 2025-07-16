@@ -93,10 +93,27 @@ function Day({ appointments, nowOffset, scrollRef, animating }: DayProps) {
           const top = (l.start / 60) * 84
           const height = ((l.end - l.start) / 60) * 84 - 2
           const leftStyle = `calc(${dividerPx}px + ${l.lane} * (40vw + ${LANE_GAP}px))`
+          const apptDate = new Date(l.appt.date)
+          const [sh, sm] = l.appt.time.split(':').map((n) => parseInt(n, 10))
+          const startDate = new Date(
+            apptDate.getFullYear(),
+            apptDate.getMonth(),
+            apptDate.getDate(),
+            sh,
+            sm,
+          )
+          const endDate = new Date(startDate.getTime() + (l.appt.hours ?? 1) * 60 * 60 * 1000)
+          const now = new Date()
+          let bg = 'bg-yellow-200 border-yellow-400'
+          if (l.appt.paid) {
+            bg = 'bg-green-200 border-green-400'
+          } else if (endDate < now) {
+            bg = 'bg-red-200 border-red-400'
+          }
           return (
             <div
               key={l.appt.id ?? idx}
-              className="absolute bg-blue-200 border border-blue-400 rounded text-xs overflow-hidden cursor-pointer"
+              className={`absolute border rounded text-xs overflow-hidden cursor-pointer ${bg}`}
               style={{ top, left: leftStyle, width: apptWidth, height, zIndex: 10 }}
               onClick={() => setSelected(l.appt)}
             >
