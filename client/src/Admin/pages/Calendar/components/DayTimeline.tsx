@@ -354,7 +354,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
               )}
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
               <button className="px-4 py-1 bg-red-500 text-white rounded" onClick={() => setShowDelete(true)}>
                 Delete
               </button>
@@ -367,12 +367,20 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
                 Cancel
               </button>
               {selected?.status === 'OBSERVE' ? (
-                <button
-                  className="px-4 py-1 bg-blue-500 text-white rounded"
-                  onClick={() => updateStatus('RESCHEDULE_OUT')}
-                >
-                  Reschedule
-                </button>
+                <>
+                  <button
+                    className="px-4 py-1 bg-yellow-500 text-white rounded"
+                    onClick={() => updateStatus('APPOINTED')}
+                  >
+                    Unobserve
+                  </button>
+                  <button
+                    className="px-4 py-1 bg-blue-500 text-white rounded"
+                    onClick={() => updateStatus('RESCHEDULE_OUT')}
+                  >
+                    Reschedule
+                  </button>
+                </>
               ) : (
                 <>
                   <button
@@ -380,6 +388,12 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
                     onClick={() => updateStatus('OBSERVE')}
                   >
                     Observe
+                  </button>
+                  <button
+                    className="px-4 py-1 bg-blue-500 text-white rounded"
+                    onClick={() => updateStatus('RESCHEDULE_OUT')}
+                  >
+                    Reschedule
                   </button>
                   <button
                     className="px-4 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
