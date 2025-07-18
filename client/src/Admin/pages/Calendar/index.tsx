@@ -20,7 +20,10 @@ function addMonths(date: Date, months: number) {
 }
 
 export default function Calendar() {
-  const [selected, setSelected] = useState(new Date())
+  const [selected, setSelected] = useState(() => {
+    const stored = localStorage.getItem('calendarSelectedDate')
+    return stored ? new Date(stored) : new Date()
+  })
   const [showMonth, setShowMonth] = useState(false)
   const [nowOffset, setNowOffset] = useState<number | null>(null)
   const [monthInfo, setMonthInfo] = useState<{ startDay: number; endDay: number; daysInMonth: number } | null>(null)
@@ -30,6 +33,24 @@ export default function Calendar() {
     next: Appointment[]
   }>({ prev: [], current: [], next: [] })
   const [showCreate, setShowCreate] = useState(false)
+
+  const handleUpdate = (updated: Appointment) => {
+    setAppointments((appts) => {
+      const replace = (list: Appointment[]) =>
+        list.map((a) => (a.id === updated.id ? updated : a))
+      return {
+        prev: replace(appts.prev),
+        current: replace(appts.current),
+        next: replace(appts.next),
+      }
+    })
+    // keep data in sync
+    refresh(selected)
+  }
+
+  useEffect(() => {
+    localStorage.setItem('calendarSelectedDate', selected.toISOString())
+  }, [selected])
 
   const refresh = (d = selected) => {
     const fetchDay = (day: Date) =>
@@ -102,7 +123,7 @@ export default function Calendar() {
         appointments={appointments.current}
         prevAppointments={appointments.prev}
         nextAppointments={appointments.next}
-        onUpdate={refresh}
+        onUpdate={handleUpdate}
       />
       <button
         className="fixed bottom-20 right-6 w-12 h-12 rounded-full bg-black text-white text-2xl flex items-center justify-center"
