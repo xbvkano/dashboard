@@ -22,7 +22,26 @@ function addMonths(date: Date, months: number) {
 export default function Calendar() {
   const [selected, setSelected] = useState(() => {
     const stored = localStorage.getItem('calendarSelectedDate')
-    return stored ? new Date(stored) : new Date()
+    if (stored) {
+      try {
+        const { value, savedAt } = JSON.parse(stored) as {
+          value: string
+          savedAt: string
+        }
+        const saved = new Date(savedAt)
+        const now = new Date()
+        if (
+          saved.getFullYear() === now.getFullYear() &&
+          saved.getMonth() === now.getMonth() &&
+          saved.getDate() === now.getDate()
+        ) {
+          return new Date(value)
+        }
+      } catch {
+        // ignore parse errors and fall back to today
+      }
+    }
+    return new Date()
   })
   const [showMonth, setShowMonth] = useState(false)
   const [nowOffset, setNowOffset] = useState<number | null>(null)
@@ -49,7 +68,11 @@ export default function Calendar() {
   }
 
   useEffect(() => {
-    localStorage.setItem('calendarSelectedDate', selected.toISOString())
+    const data = {
+      value: selected.toISOString(),
+      savedAt: new Date().toISOString(),
+    }
+    localStorage.setItem('calendarSelectedDate', JSON.stringify(data))
   }, [selected])
 
   const refresh = (d = selected) => {
