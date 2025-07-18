@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Client } from '../../Clients/components/types'
 import type { AppointmentTemplate } from '../types'
 import type { Employee } from '../../Employees/components/types'
