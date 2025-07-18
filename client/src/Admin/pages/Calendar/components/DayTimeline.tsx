@@ -373,7 +373,9 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
               <button
                 className="px-4 py-1 bg-purple-500 text-white rounded"
                 onClick={() =>
-                  selected?.status === 'OBSERVE' ? updateStatus('CANCEL') : setShowCancel(true)
+                  selected?.status === 'OBSERVE'
+                    ? updateStatus('CANCEL')
+                    : setShowCancel(true)
                 }
               >
                 Cancel
@@ -388,7 +390,11 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                   </button>
                   <button
                     className="px-4 py-1 bg-blue-500 text-white rounded"
-                    onClick={() => onCreate?.(selected!, 'RESCHEDULE_NEW')}
+                    onClick={() => {
+                      const appt = selected!
+                      setSelected(null)
+                      onCreate?.(appt, 'RESCHEDULE_NEW')
+                    }}
                   >
                     Reschedule
                   </button>
@@ -412,7 +418,11 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                     disabled={
                       paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))
                     }
-                    onClick={() => onCreate?.(selected!, 'REBOOK')}
+                    onClick={() => {
+                      const appt = selected!
+                      setSelected(null)
+                      onCreate?.(appt, 'REBOOK')
+                    }}
                   >
                     Book Again
                   </button>
@@ -466,7 +476,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                   className="bg-white p-4 rounded space-y-2"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div>Cancel changes?</div>
+                  <div>Cancel appointment?</div>
                   <div className="flex justify-end gap-2">
                     <button className="px-4 py-1 border rounded" onClick={() => setShowCancel(false)}>
                       No
@@ -475,7 +485,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                       className="px-4 py-1 bg-purple-500 text-white rounded"
                       onClick={() => {
                         setShowCancel(false)
-                        setSelected(null)
+                        updateStatus('CANCEL')
                       }}
                     >
                       Yes
