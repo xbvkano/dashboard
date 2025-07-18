@@ -12,8 +12,8 @@ interface DayProps {
 
 function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayProps) {
   const [selected, setSelected] = useState<Appointment | null>(null)
-  const [scrollPos, setScrollPos] = useState(0)
-  const [viewHeight, setViewHeight] = useState(0)
+  const [overlayTop, setOverlayTop] = useState(0)
+  const [overlayHeight, setOverlayHeight] = useState(0)
   const [showDelete, setShowDelete] = useState(false)
   const [showCancel, setShowCancel] = useState(false)
   const [payRate, setPayRate] = useState<number | null>(null)
@@ -62,7 +62,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
     }
   }, [selected])
 
-  // Measure offsets and scroll position when modal opens
+  // Measure offsets for the overlay when modal opens
   useEffect(() => {
     if (!selected) return
     const topEl = document.querySelector('div.sticky.top-0') as HTMLElement | null
@@ -79,16 +79,8 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
     if (bottomEl && getComputedStyle(bottomEl).position === 'fixed') {
       b = bottomEl.offsetHeight
     }
-
-    const ref = scrollRef as React.RefObject<HTMLDivElement>
-    const current = ref?.current
-    if (current) {
-      setScrollPos(current.scrollTop)
-      setViewHeight(current.clientHeight)
-    } else {
-      setScrollPos(window.scrollY)
-      setViewHeight(window.innerHeight - t - b)
-    }
+    setOverlayTop(t)
+    setOverlayHeight(window.innerHeight - t - b)
   }, [selected])
 
   // calculate pay rates when modal opens
@@ -164,7 +156,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
   return (
     <div
       ref={scrollRef}
-      className={`flex-1 relative ${animating ? 'overflow-hidden' : 'overflow-x-auto overflow-y-auto'}`}
+      className={`flex-1 relative ${animating || selected ? 'overflow-hidden' : 'overflow-x-auto overflow-y-auto'}`}
     >
       <div className="relative divide-y" style={{ width: containerWidth, minWidth: '100%' }}>
         {/* divider line */}
@@ -243,8 +235,8 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
       {/* details modal */}
       {selected && (
         <div
-          className="absolute inset-x-0 bg-black/50 flex items-center justify-center z-40 p-2 overflow-hidden"
-          style={{ top: scrollPos, height: viewHeight }}
+          className="fixed inset-x-0 bg-black/50 flex items-center justify-center z-40 p-2 overflow-hidden"
+          style={{ top: overlayTop, height: overlayHeight }}
           onClick={() => setSelected(null)}
         >
           <div
