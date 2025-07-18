@@ -106,6 +106,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   }
 
   const initializedRef = useRef(false)
+  const storedTemplateIdRef = useRef<number | null>(null)
 
   useEffect(() => {
     const stored = sessionStorage.getItem('createAppointmentState')
@@ -116,7 +117,10 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
         if (s.selectedClient) setSelectedClient(s.selectedClient)
         if (s.newClient) setNewClient(s.newClient)
         if (typeof s.showNewClient === 'boolean') setShowNewClient(s.showNewClient)
-        if (typeof s.selectedTemplate !== 'undefined') setSelectedTemplate(s.selectedTemplate)
+        if (typeof s.selectedTemplate !== 'undefined') {
+          setSelectedTemplate(s.selectedTemplate)
+          storedTemplateIdRef.current = s.selectedTemplate
+        }
         if (typeof s.showNewTemplate === 'boolean') setShowNewTemplate(s.showNewTemplate)
         if (typeof s.editing === 'boolean') setEditing(s.editing)
         if (s.templateForm) setTemplateForm({ ...templateForm, ...s.templateForm })
@@ -258,7 +262,14 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     fetchJson(`${API_BASE_URL}/appointment-templates?clientId=${selectedClient.id}`)
       .then((d) => {
         setTemplates(d)
-        if (initialTemplateId) {
+        const storedId = storedTemplateIdRef.current
+        if (storedId) {
+          const match = d.find((t: any) => t.id === storedId)
+          if (match) {
+            setSelectedTemplate(match.id)
+            storedTemplateIdRef.current = null
+          }
+        } else if (initialTemplateId) {
           const match = d.find((t: any) => t.id === initialTemplateId)
           if (match) setSelectedTemplate(match.id)
         }
