@@ -12,8 +12,8 @@ interface DayProps {
 
 function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayProps) {
   const [selected, setSelected] = useState<Appointment | null>(null)
-  const [offsetTop, setOffsetTop] = useState(0)
-  const [offsetBottom, setOffsetBottom] = useState(0)
+  const [scrollPos, setScrollPos] = useState(0)
+  const [viewHeight, setViewHeight] = useState(0)
   const [showDelete, setShowDelete] = useState(false)
   const [showCancel, setShowCancel] = useState(false)
   const [payRate, setPayRate] = useState<number | null>(null)
@@ -62,13 +62,33 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
     }
   }, [selected])
 
-  // Measure top and bottom offsets when modal opens
+  // Measure offsets and scroll position when modal opens
   useEffect(() => {
     if (!selected) return
     const topEl = document.querySelector('div.sticky.top-0') as HTMLElement | null
     const bottomEl = document.querySelector('nav.fixed.bottom-0') as HTMLElement | null
-    setOffsetTop(topEl ? topEl.offsetHeight : 0)
-    setOffsetBottom(bottomEl ? bottomEl.offsetHeight : 0)
+    let t = 0
+    if (topEl) {
+      const pos = getComputedStyle(topEl).position
+      if (pos === 'sticky' || pos === 'fixed') {
+        t = topEl.offsetHeight
+      }
+    }
+
+    let b = 0
+    if (bottomEl && getComputedStyle(bottomEl).position === 'fixed') {
+      b = bottomEl.offsetHeight
+    }
+
+    const ref = scrollRef as React.RefObject<HTMLDivElement>
+    const current = ref?.current
+    if (current) {
+      setScrollPos(current.scrollTop)
+      setViewHeight(current.clientHeight)
+    } else {
+      setScrollPos(window.scrollY)
+      setViewHeight(window.innerHeight - t - b)
+    }
   }, [selected])
 
   // calculate pay rates when modal opens
@@ -223,8 +243,8 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
       {/* details modal */}
       {selected && (
         <div
-          className="fixed inset-x-0 bg-black/50 flex items-center justify-center z-40 p-2 overflow-hidden"
-          style={{ top: offsetTop, bottom: offsetBottom }}
+          className="absolute inset-x-0 bg-black/50 flex items-center justify-center z-40 p-2 overflow-hidden"
+          style={{ top: scrollPos, height: viewHeight }}
           onClick={() => setSelected(null)}
         >
           <div
