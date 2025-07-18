@@ -1,9 +1,14 @@
 import { useNavigate } from 'react-router-dom'
 
-export default function UserDashboard() {
+interface Props {
+  onLogout: () => void
+}
+
+export default function UserDashboard({ onLogout }: Props) {
   const navigate = useNavigate()
   const signOut = () => {
     localStorage.removeItem('role')
+    onLogout()
     navigate('/')
   }
 
