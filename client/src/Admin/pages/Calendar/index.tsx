@@ -55,8 +55,19 @@ export default function Calendar() {
     clientId?: number
     templateId?: number | null
     status?: Appointment['status']
-  } | null>(null)
-  const [rescheduleOldId, setRescheduleOldId] = useState<number | null>(null)
+  } | null>(() => {
+    const stored = sessionStorage.getItem('createParams')
+    if (stored) {
+      try {
+        return JSON.parse(stored)
+      } catch {}
+    }
+    return null
+  })
+  const [rescheduleOldId, setRescheduleOldId] = useState<number | null>(() => {
+    const stored = sessionStorage.getItem('rescheduleOldId')
+    return stored ? Number(stored) : null
+  })
 
   const handleUpdate = (updated: Appointment) => {
     setAppointments((appts) => {
@@ -79,6 +90,22 @@ export default function Calendar() {
     }
     localStorage.setItem('calendarSelectedDate', JSON.stringify(data))
   }, [selected])
+
+  useEffect(() => {
+    if (createParams) {
+      sessionStorage.setItem('createParams', JSON.stringify(createParams))
+    } else {
+      sessionStorage.removeItem('createParams')
+    }
+  }, [createParams])
+
+  useEffect(() => {
+    if (rescheduleOldId === null) {
+      sessionStorage.removeItem('rescheduleOldId')
+    } else {
+      sessionStorage.setItem('rescheduleOldId', String(rescheduleOldId))
+    }
+  }, [rescheduleOldId])
 
   const refresh = (d = selected) => {
     const fetchDay = (day: Date) =>
@@ -191,7 +218,10 @@ export default function Calendar() {
       </button>
       {createParams && (
         <CreateAppointmentModal
-          onClose={() => setCreateParams(null)}
+          onClose={() => {
+            setCreateParams(null)
+            setRescheduleOldId(null)
+          }}
           onCreated={() => {
             if (rescheduleOldId) {
               markOldReschedule(rescheduleOldId).then(() => setRescheduleOldId(null))

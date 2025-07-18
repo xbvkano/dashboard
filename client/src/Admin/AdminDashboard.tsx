@@ -5,10 +5,15 @@ import Clients from './pages/Clients'
 import Employees from './pages/Employees'
 import Financing from './pages/Financing'
 
-export default function AdminDashboard() {
+interface Props {
+  onLogout: () => void
+}
+
+export default function AdminDashboard({ onLogout }: Props) {
   const navigate = useNavigate()
   const signOut = () => {
     localStorage.removeItem('role')
+    onLogout()
     navigate('/')
   }
 

@@ -14,7 +14,7 @@ export default function App() {
   })
   return (
     <BrowserRouter>
-      <AppRoutes role={role} onLogin={setRole} />
+      <AppRoutes role={role} onLogin={setRole} onLogout={() => setRole(null)} />
     </BrowserRouter>
   )
 }
@@ -22,9 +22,10 @@ export default function App() {
 interface RoutesProps {
   role: Role | null
   onLogin: (role: Role) => void
+  onLogout: () => void
 }
 
-function AppRoutes({ role, onLogin }: RoutesProps) {
+function AppRoutes({ role, onLogin, onLogout }: RoutesProps) {
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -39,7 +40,7 @@ function AppRoutes({ role, onLogin }: RoutesProps) {
       <Route path="/" element={<Login onLogin={onLogin} />} />
       <Route
         path="/dashboard/*"
-        element={role ? <Dashboard role={role} /> : <Navigate to="/" replace />}
+        element={role ? <Dashboard role={role} onLogout={onLogout} /> : <Navigate to="/" replace />}
       />
     </Routes>
   )
