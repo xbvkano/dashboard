@@ -7,6 +7,9 @@ import { API_BASE_URL, fetchJson } from '../../../../api'
 interface Props {
   onClose: () => void
   onCreated: () => void
+  initialClientId?: number
+  initialTemplateId?: number
+  newStatus?: import('../types').Appointment['status']
 }
 
 const sizeOptions = [
@@ -23,7 +26,7 @@ const sizeOptions = [
   '6000+',
 ]
 
-export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
+export default function CreateAppointmentModal({ onClose, onCreated, initialClientId, initialTemplateId, newStatus }: Props) {
   const [clientSearch, setClientSearch] = useState('')
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
@@ -154,6 +157,14 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
       .catch((err) => console.error(err))
   }, [])
 
+  // Preload client if provided
+  useEffect(() => {
+    if (!initialClientId) return
+    fetchJson(`${API_BASE_URL}/clients/${initialClientId}`)
+      .then((c) => setSelectedClient(c))
+      .catch(() => {})
+  }, [initialClientId])
+
   // Load clients when search changes
   useEffect(() => {
     fetchJson(
@@ -173,9 +184,15 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
       return
     }
     fetchJson(`${API_BASE_URL}/appointment-templates?clientId=${selectedClient.id}`)
-      .then((d) => setTemplates(d))
+      .then((d) => {
+        setTemplates(d)
+        if (initialTemplateId) {
+          const match = d.find((t: any) => t.id === initialTemplateId)
+          if (match) setSelectedTemplate(match.id)
+        }
+      })
       .catch((err) => console.error(err))
-  }, [selectedClient])
+  }, [selectedClient, initialTemplateId])
 
   // Load staff options when template selected
   useEffect(() => {
@@ -341,6 +358,7 @@ export default function CreateAppointmentModal({ onClose, onCreated }: Props) {
         paymentMethodNote:
           paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
         tip: paid ? parseFloat(tip) || 0 : 0,
+        status: newStatus ?? 'APPOINTED',
       }),
     })
     if (res.ok) {

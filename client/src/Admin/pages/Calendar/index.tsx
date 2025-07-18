@@ -51,7 +51,12 @@ export default function Calendar() {
     current: Appointment[]
     next: Appointment[]
   }>({ prev: [], current: [], next: [] })
-  const [showCreate, setShowCreate] = useState(false)
+  const [createParams, setCreateParams] = useState<{
+    clientId?: number
+    templateId?: number | null
+    status?: Appointment['status']
+  } | null>(null)
+  const [rescheduleOldId, setRescheduleOldId] = useState<number | null>(null)
 
   const handleUpdate = (updated: Appointment) => {
     setAppointments((appts) => {
@@ -87,6 +92,25 @@ export default function Calendar() {
     ]).then(([prev, current, next]) => setAppointments({ prev, current, next }))
   }
 
+  const handleCreateFrom = async (appt: Appointment, status: Appointment['status']) => {
+    if (status === 'RESCHEDULE_NEW') {
+      setRescheduleOldId(appt.id!)
+    } else {
+      setRescheduleOldId(null)
+    }
+    try {
+      const templates = await fetchJson(
+        `${API_BASE_URL}/appointment-templates?clientId=${appt.clientId}`
+      )
+      const match = templates.find(
+        (t: any) => t.address === appt.address && t.type === appt.type && t.size === appt.size
+      )
+      setCreateParams({ clientId: appt.clientId, templateId: match?.id ?? null, status })
+    } catch {
+      setCreateParams({ clientId: appt.clientId, status })
+    }
+  }
+
   useEffect(() => {
     const year = selected.getFullYear()
     const month = selected.getMonth() + 1
@@ -108,6 +132,16 @@ export default function Calendar() {
   const nextWeek = () => setSelected((d) => addDays(d, 7))
   const prevDay = () => setSelected((d) => addDays(d, -1))
   const nextDay = () => setSelected((d) => addDays(d, 1))
+
+  const markOldReschedule = async (id: number) => {
+    try {
+      await fetchJson(`${API_BASE_URL}/appointments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'RESCHEDULE_OLD' }),
+      })
+    } catch {}
+  }
 
   useEffect(() => {
     const update = () => {
@@ -147,19 +181,26 @@ export default function Calendar() {
         prevAppointments={appointments.prev}
         nextAppointments={appointments.next}
         onUpdate={handleUpdate}
+        onCreate={(appt, status) => handleCreateFrom(appt, status)}
       />
       <button
         className="fixed bottom-20 right-6 w-12 h-12 rounded-full bg-black text-white text-2xl flex items-center justify-center"
-        onClick={() => setShowCreate(true)}
+        onClick={() => setCreateParams({})}
       >
         +
       </button>
-      {showCreate && (
+      {createParams && (
         <CreateAppointmentModal
-          onClose={() => setShowCreate(false)}
+          onClose={() => setCreateParams(null)}
           onCreated={() => {
+            if (rescheduleOldId) {
+              markOldReschedule(rescheduleOldId).then(() => setRescheduleOldId(null))
+            }
             refresh()
           }}
+          initialClientId={createParams.clientId}
+          initialTemplateId={createParams.templateId ?? undefined}
+          newStatus={createParams.status}
         />
       )}
     </div>

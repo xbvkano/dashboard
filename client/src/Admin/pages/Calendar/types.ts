@@ -27,12 +27,13 @@ export interface Appointment {
   reoccurring?: boolean
   status?:
     | 'APPOINTED'
-    | 'RESCHEDULE_IN'
-    | 'RESCHEDULE_OUT'
+    | 'RESCHEDULE_NEW'
+    | 'RESCHEDULE_OLD'
     | 'CANCEL'
     | 'OBSERVE'
     | 'REBOOK'
     | 'REOCCURRING'
+    | 'DELETED'
   client?: import('../Clients/components/types').Client
   employees?: import('../Employees/components/types').Employee[]
   createdAt?: string

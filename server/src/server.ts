@@ -431,7 +431,7 @@ app.get('/appointments', async (req: Request, res: Response) => {
   const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)
   try {
     const appts = await prisma.appointment.findMany({
-      where: { date: { gte: date, lt: next } },
+      where: { date: { gte: date, lt: next }, status: { not: 'DELETED' } },
       orderBy: { time: 'asc' },
       include: { client: true, employees: true },
     })
@@ -455,6 +455,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
       paymentMethod = 'CASH',
       paymentMethodNote,
       tip = 0,
+      status = 'APPOINTED',
     } = req.body as {
       clientId?: number
       templateId?: number
@@ -467,6 +468,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
       paymentMethod?: string
       paymentMethodNote?: string
       tip?: number
+      status?: string
     }
 
     // required-field guard
@@ -497,7 +499,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
         tip,
         paymentMethod: paymentMethod as any, // or cast to your enum
         notes: paymentMethodNote || undefined,
-        status: 'APPOINTED',
+        status: status as any,
         lineage: 'single',
         // only include the relation if there are IDs
         ...(employeeIds.length > 0 && {

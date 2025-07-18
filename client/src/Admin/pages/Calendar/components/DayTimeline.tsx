@@ -15,9 +15,10 @@ interface DayProps {
   scrollRef?: Ref<HTMLDivElement>
   animating: boolean
   onUpdate?: (a: Appointment) => void
+  onCreate?: (appt: Appointment, status: Appointment['status']) => void
 }
 
-function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayProps) {
+function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate }: DayProps) {
   const [selected, setSelected] = useState<Appointment | null>(null)
   const [overlayTop, setOverlayTop] = useState(0)
   const [overlayHeight, setOverlayHeight] = useState(0)
@@ -151,6 +152,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
   }
 
   const events: Layout[] = appointments
+    .filter((a) => a.status !== 'DELETED')
     .map((a) => {
       const [h, m] = a.time.split(':').map((n) => parseInt(n, 10))
       const start = h * 60 + m
@@ -232,6 +234,9 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
           }
           if (l.appt.status === 'OBSERVE') {
             bg = 'bg-yellow-200 border-yellow-400'
+          }
+          if (l.appt.status === 'CANCEL') {
+            bg = 'bg-purple-200 border-purple-400'
           }
           return (
             <div
@@ -366,7 +371,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
                 Delete
               </button>
               <button
-                className="px-4 py-1 bg-red-500 text-white rounded"
+                className="px-4 py-1 bg-purple-500 text-white rounded"
                 onClick={() =>
                   selected?.status === 'OBSERVE' ? updateStatus('CANCEL') : setShowCancel(true)
                 }
@@ -383,7 +388,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
                   </button>
                   <button
                     className="px-4 py-1 bg-blue-500 text-white rounded"
-                    onClick={() => updateStatus('RESCHEDULE_OUT')}
+                    onClick={() => onCreate?.(selected!, 'RESCHEDULE_NEW')}
                   >
                     Reschedule
                   </button>
@@ -398,7 +403,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
                   </button>
                   <button
                     className="px-4 py-1 bg-blue-500 text-white rounded"
-                    onClick={() => updateStatus('RESCHEDULE_OUT')}
+                    onClick={() => onCreate?.(selected!, 'RESCHEDULE_NEW')}
                   >
                     Reschedule
                   </button>
@@ -407,6 +412,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
                     disabled={
                       paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))
                     }
+                    onClick={() => onCreate?.(selected!, 'REBOOK')}
                   >
                     Book Again
                   </button>
@@ -438,6 +444,9 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
                     <button
                       className="px-4 py-1 bg-red-500 text-white rounded"
                       onClick={() => {
+                        if (selected) {
+                          updateStatus('DELETED')
+                        }
                         setShowDelete(false)
                         setSelected(null)
                       }}
@@ -463,7 +472,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
                       No
                     </button>
                     <button
-                      className="px-4 py-1 bg-red-500 text-white rounded"
+                      className="px-4 py-1 bg-purple-500 text-white rounded"
                       onClick={() => {
                         setShowCancel(false)
                         setSelected(null)
@@ -491,6 +500,7 @@ interface Props {
   prevAppointments: Appointment[]
   nextAppointments: Appointment[]
   onUpdate?: (a: Appointment) => void
+  onCreate?: (appt: Appointment, status: Appointment['status']) => void
 }
 
 export default function DayTimeline({
@@ -501,6 +511,7 @@ export default function DayTimeline({
   prevAppointments,
   nextAppointments,
   onUpdate,
+  onCreate,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const currentDayRef = useRef<HTMLDivElement | null>(null)
@@ -605,6 +616,7 @@ export default function DayTimeline({
           nowOffset={nowOffset}
           animating={animating}
           onUpdate={onUpdate}
+          onCreate={onCreate}
         />
         <Day
           appointments={appointments}
@@ -612,12 +624,14 @@ export default function DayTimeline({
           scrollRef={currentDayRef}
           animating={animating}
           onUpdate={onUpdate}
+          onCreate={onCreate}
         />
         <Day
           appointments={nextAppointments}
           nowOffset={nowOffset}
           animating={animating}
           onUpdate={onUpdate}
+          onCreate={onCreate}
         />
       </div>
     </div>
