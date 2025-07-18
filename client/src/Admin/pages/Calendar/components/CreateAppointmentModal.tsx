@@ -194,6 +194,17 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     if (selectedTemplate !== null) {
       localStorage.setItem('createAppointmentSelectedTemplateId', String(selectedTemplate))
       console.log('Stored this id:', localStorage.getItem('createAppointmentSelectedTemplateId'))
+    } else {
+      localStorage.removeItem('createAppointmentSelectedTemplateId')
+    }
+
+    const stored = sessionStorage.getItem('createAppointmentState')
+    if (stored) {
+      try {
+        const data = JSON.parse(stored)
+        data.selectedTemplate = selectedTemplate
+        sessionStorage.setItem('createAppointmentState', JSON.stringify(data))
+      } catch {}
     }
   }, [selectedTemplate])
 
