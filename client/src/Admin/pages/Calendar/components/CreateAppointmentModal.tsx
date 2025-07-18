@@ -371,8 +371,14 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
 
   return (
     <>
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-20 p-2">
-      <div className="bg-white p-4 sm:p-6 rounded w-full max-w-md max-h-full overflow-y-auto overflow-x-hidden space-y-4">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-20 p-2"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white p-4 sm:p-6 rounded w-full max-w-md max-h-full overflow-y-auto overflow-x-hidden space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold">New Appointment</h2>
           <button onClick={onClose}>X</button>
