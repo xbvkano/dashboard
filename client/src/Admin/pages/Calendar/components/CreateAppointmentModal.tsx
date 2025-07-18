@@ -98,7 +98,6 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
 
   // carpet cleaning options
   const [carpetEnabled, setCarpetEnabled] = useState(false)
-  const [showCarpetModal, setShowCarpetModal] = useState(false)
   const [carpetRooms, setCarpetRooms] = useState<string>('')
   const [carpetEmployees, setCarpetEmployees] = useState<number[]>([])
   const [carpetRate, setCarpetRate] = useState<number | null>(null)
@@ -230,7 +229,6 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
 
   const resetCarpet = () => {
     setCarpetEnabled(false)
-    setShowCarpetModal(false)
     setCarpetRooms('')
     setCarpetEmployees([])
     setCarpetRate(null)
@@ -490,6 +488,21 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
 
   const createAppointment = async () => {
     if (!selectedClient || !selectedTemplate) return
+    if (!isValidCarpet()) {
+      alert('Please complete carpet cleaning info')
+      return
+    }
+    if (!isValidSelection()) {
+      const proceed = confirm('Team is less than required. Continue?')
+      if (!proceed) return
+    }
+    if (time) {
+      const hour = parseInt(time.split(':')[0], 10)
+      if (hour < 6 || hour >= 18) {
+        const ok = confirm('Selected time is outside 6am-6pm. Continue?')
+        if (!ok) return
+      }
+    }
     const res = await fetch(`${API_BASE_URL}/appointments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
@@ -736,49 +749,10 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
           </div>
         )}
 
-        
-
-        {/* Team selection */}
-        {selectedTemplate && staffOptions.length > 0 && (
-          <div className="space-y-1">
-            <button
-              className="border px-3 py-2 rounded"
-              onClick={() => setShowTeamModal(true)}
-            >
-              Team Options
-            </button>
-            {selectedEmployees.length > 0 && staffOptions[selectedOption] && (
-              <div className="text-sm border rounded p-2 space-y-1">
-                <div>Team:</div>
-                <ul className="pl-2 list-disc space-y-0.5">
-                  {selectedEmployees.map((id) => {
-                    const emp = employees.find((e) => e.id === id)
-                    if (!emp) return null
-                    return (
-                      <li key={id}>
-                        {emp.name}{' '}
-                        {emp.experienced ? <span className="font-bold">(Exp)</span> : ''}{' '}
-                        {payRate !== null && (
-                          <span className="ml-1 text-sm text-gray-600">${payRate.toFixed(2)}</span>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-                <div>
-                  {staffOptions[selectedOption].sem} SEM / {staffOptions[selectedOption].com}{' '}
-                  COM - {staffOptions[selectedOption].hours}h
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Carpet cleaning */}
-        {selectedTemplate && selectedEmployees.length > 0 && (
-          <div className="space-y-1">
+        {/* Carpet in template */}
+        {selectedTemplate && (
+          <div className="space-y-1 mb-2">
             <label className="flex items-center gap-2">
-              <span>Carpet Cleaning</span>
               <input
                 type="checkbox"
                 checked={carpetEnabled}
@@ -790,16 +764,57 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
                   }
                 }}
               />
+              <span>Carpet Cleaning</span>
             </label>
             {carpetEnabled && (
+              <div>
+                <h4 className="font-light">How many rooms?</h4>
+                <input
+                  type="number"
+                  min="1"
+                  className="w-full border p-2 rounded text-base"
+                  value={carpetRooms}
+                  onChange={(e) => setCarpetRooms(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Team selection */}
+        {selectedTemplate && staffOptions.length > 0 && (
+          <div className="space-y-1">
+            <button
+              className="border px-3 py-2 rounded"
+              onClick={() => setShowTeamModal(true)}
+            >
+              Team Options <span className="text-red-500">*</span>
+            </button>
+            {selectedEmployees.length > 0 && staffOptions[selectedOption] && (
               <>
-                <button
-                  className="border px-3 py-2 rounded"
-                  onClick={() => setShowCarpetModal(true)}
-                >
-                  Carpet Options
-                </button>
-                {carpetEmployees.length > 0 && carpetRate !== null && (
+                <div className="text-sm border rounded p-2 space-y-1">
+                  <div>Team:</div>
+                  <ul className="pl-2 list-disc space-y-0.5">
+                    {selectedEmployees.map((id) => {
+                      const emp = employees.find((e) => e.id === id)
+                      if (!emp) return null
+                      return (
+                        <li key={id}>
+                          {emp.name}{' '}
+                          {emp.experienced ? <span className="font-bold">(Exp)</span> : ''}{' '}
+                          {payRate !== null && (
+                            <span className="ml-1 text-sm text-gray-600">${payRate.toFixed(2)}</span>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                  <div>
+                    {staffOptions[selectedOption].sem} SEM / {staffOptions[selectedOption].com}{' '}
+                    COM - {staffOptions[selectedOption].hours}h
+                  </div>
+                </div>
+                {carpetEnabled && carpetEmployees.length > 0 && carpetRate !== null && (
                   <div className="text-sm border rounded p-2 space-y-1">
                     <div>Carpet Team:</div>
                     <ul className="pl-2 list-disc space-y-0.5">
@@ -809,14 +824,8 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
                         return (
                           <li key={id}>
                             {emp.name}{' '}
-                            {emp.experienced ? (
-                              <span className="font-bold">(Exp)</span>
-                            ) : (
-                              ''
-                            )}{' '}
-                            <span className="ml-1 text-sm text-gray-600">
-                              ${carpetRate.toFixed(2)}
-                            </span>
+                            {emp.experienced ? <span className="font-bold">(Exp)</span> : ''}{' '}
+                            <span className="ml-1 text-sm text-gray-600">${carpetRate.toFixed(2)}</span>
                           </li>
                         )
                       })}
@@ -976,7 +985,6 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
               !selectedTemplate ||
               !date ||
               !time ||
-              !isValidSelection() ||
               !isValidCarpet() ||
               !adminId ||
               (paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment)))
@@ -989,8 +997,14 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       </div>
     </div>
     {showTeamModal && (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
-        <div className="bg-white p-4 rounded w-full max-w-xs max-h-full overflow-y-auto overflow-x-hidden space-y-2">
+      <div
+        className="fixed inset-0 bg-black/50 flex items-center justify-center z-30"
+        onClick={() => setShowTeamModal(false)}
+      >
+        <div
+          className="bg-white p-4 rounded w-full max-w-xs max-h-full overflow-y-auto overflow-x-hidden space-y-2"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex justify-between items-center">
             <h4 className="font-medium">Team Options</h4>
             <button onClick={() => setShowTeamModal(false)}>X</button>
@@ -1049,69 +1063,35 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
                   </label>
                 ))}
               </div>
+              {carpetEnabled && (
+                <div className="space-y-1">
+                  <div>Carpet Team:</div>
+                  <div className="max-h-32 overflow-y-auto border rounded p-1 space-y-1">
+                    {employees
+                      .filter((e) => selectedEmployees.includes(e.id!))
+                      .map((e) => (
+                        <label key={e.id} className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={carpetEmployees.includes(e.id!)}
+                            onChange={() => {
+                              setCarpetEmployees((prev) =>
+                                prev.includes(e.id!) ? prev.filter((id) => id !== e.id) : [...prev, e.id!]
+                              )
+                            }}
+                          />
+                          {e.name}
+                        </label>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <div className="text-right">
             <button
-              className="px-3 py-2 text-blue-600 disabled:text-gray-400"
-              disabled={!isValidSelection()}
-              onClick={() => {
-                if (isValidSelection()) setShowTeamModal(false)
-              }}
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-    {showCarpetModal && (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
-        <div className="bg-white p-4 rounded w-full max-w-xs max-h-full overflow-y-auto overflow-x-hidden space-y-2">
-          <div className="flex justify-between items-center">
-            <h4 className="font-medium">Carpet Options</h4>
-            <button onClick={() => setShowCarpetModal(false)}>X</button>
-          </div>
-          <div className="space-y-2">
-            <div>
-              <h4 className="font-light">How many rooms?</h4>
-              <input
-                type="number"
-                min="1"
-                className="w-full border p-2 rounded text-base"
-                value={carpetRooms}
-                onChange={(e) => setCarpetRooms(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <div>Employees:</div>
-              <div className="max-h-32 overflow-y-auto border rounded p-1 space-y-1">
-                {employees
-                  .filter((e) => selectedEmployees.includes(e.id!))
-                  .map((e) => (
-                    <label key={e.id} className="flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        checked={carpetEmployees.includes(e.id!)}
-                        onChange={() => {
-                          setCarpetEmployees((prev) =>
-                            prev.includes(e.id!) ? prev.filter((id) => id !== e.id) : [...prev, e.id!]
-                          )
-                        }}
-                      />
-                      {e.name}
-                    </label>
-                  ))}
-              </div>
-            </div>
-          </div>
-          <div className="text-right">
-            <button
-              className="px-3 py-2 text-blue-600 disabled:text-gray-400"
-              disabled={!carpetRooms || carpetEmployees.length === 0}
-              onClick={() => {
-                if (carpetRooms && carpetEmployees.length > 0) setShowCarpetModal(false)
-              }}
+              className="px-3 py-2 text-blue-600"
+              onClick={() => setShowTeamModal(false)}
             >
               Done
             </button>
