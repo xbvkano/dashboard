@@ -25,6 +25,14 @@ export interface Appointment {
   paymentMethod?: 'CASH' | 'ZELLE' | 'VENMO' | 'PAYPAL' | 'OTHER' | 'CHECK'
   tip?: number
   reoccurring?: boolean
+  status?:
+    | 'APPOINTED'
+    | 'RESCHEDULE_IN'
+    | 'RESCHEDULE_OUT'
+    | 'CANCEL'
+    | 'OBSERVE'
+    | 'REBOOK'
+    | 'REOCCURRING'
   client?: import('../Clients/components/types').Client
   employees?: import('../Employees/components/types').Employee[]
   createdAt?: string

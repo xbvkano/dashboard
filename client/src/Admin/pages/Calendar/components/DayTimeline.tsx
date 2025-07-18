@@ -29,6 +29,22 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
   const [paymentMethod, setPaymentMethod] = useState('')
   const [otherPayment, setOtherPayment] = useState('')
   const [tip, setTip] = useState('')
+
+  const updateStatus = async (status: Appointment['status']) => {
+    if (!selected) return
+    const res = await fetch(`${API_BASE_URL}/appointments/${selected.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+      body: JSON.stringify({ status }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setSelected(updated)
+      onUpdate?.(updated)
+    } else {
+      alert('Failed to update appointment')
+    }
+  }
   const handleSave = async () => {
     if (!selected) return
     const res = await fetch(`${API_BASE_URL}/appointments/${selected.id}`, {
@@ -202,19 +218,13 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
           // 2) pull out the hour/minute
           const [sh, sm] = l.appt.time.split(':').map((n) => parseInt(n, 10));
 
-          // 3) build a Date in LOCAL time for the correct calendar day + time
-          const startDate = new Date(year, month - 1, day, sh, sm);
 
-          // 4) add your hours (default to 1) in milliseconds
-          const durationMs = (l.appt.hours ?? 1) * 60 * 60 * 1000;
-          const endDate = new Date(startDate.getTime() + durationMs);
-
-          const now = new Date()
-          let bg = 'bg-yellow-200 border-yellow-400'
+          let bg = 'bg-red-200 border-red-400'
           if (l.appt.paid) {
             bg = 'bg-green-200 border-green-400'
-          } else if (endDate <= now) {
-            bg = 'bg-red-200 border-red-400'
+          }
+          if (l.appt.status === 'OBSERVE') {
+            bg = 'bg-yellow-200 border-yellow-400'
           }
           return (
             <div
@@ -348,17 +358,39 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
               <button className="px-4 py-1 bg-red-500 text-white rounded" onClick={() => setShowDelete(true)}>
                 Delete
               </button>
-              <button className="px-4 py-1 bg-red-500 text-white rounded" onClick={() => setShowCancel(true)}>
-                Cancel
-              </button>
               <button
-                className="px-4 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
-                disabled={
-                  paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))
+                className="px-4 py-1 bg-red-500 text-white rounded"
+                onClick={() =>
+                  selected?.status === 'OBSERVE' ? updateStatus('CANCEL') : setShowCancel(true)
                 }
               >
-                Book Again
+                Cancel
               </button>
+              {selected?.status === 'OBSERVE' ? (
+                <button
+                  className="px-4 py-1 bg-blue-500 text-white rounded"
+                  onClick={() => updateStatus('RESCHEDULE_OUT')}
+                >
+                  Reschedule
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="px-4 py-1 bg-yellow-500 text-white rounded"
+                    onClick={() => updateStatus('OBSERVE')}
+                  >
+                    Observe
+                  </button>
+                  <button
+                    className="px-4 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
+                    disabled={
+                      paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))
+                    }
+                  >
+                    Book Again
+                  </button>
+                </>
+              )}
               <button
                 className="px-4 py-1 bg-green-500 text-white rounded disabled:opacity-50"
                 disabled={paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))}
