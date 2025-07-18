@@ -42,8 +42,25 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     }
   }
 
+  const getInitialTemplate = () => {
+    const stored = sessionStorage.getItem('createAppointmentState')
+    if (stored) {
+      try {
+        const s = JSON.parse(stored)
+        if (typeof s.selectedTemplate === 'number') return s.selectedTemplate
+      } catch {}
+    }
+    const local = localStorage.getItem('createAppointmentSelectedTemplateId')
+    if (local) {
+      const id = Number(local)
+      if (!isNaN(id)) return id
+    }
+    return null
+  }
+
+  const storedInitialTemplateId = getInitialTemplate()
   const [templates, setTemplates] = useState<AppointmentTemplate[]>([])
-  const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<number | null>(storedInitialTemplateId)
   const [showNewTemplate, setShowNewTemplate] = useState(false)
   const [editing, setEditing] = useState(false)
   const [templateForm, setTemplateForm] = useState({
@@ -111,19 +128,9 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   }
 
   const initializedRef = useRef(false)
-  const storedTemplateIdRef = useRef<number | null>(null)
+  const storedTemplateIdRef = useRef<number | null>(storedInitialTemplateId)
 
   useEffect(() => {
-    const storedTemplateId = localStorage.getItem('createAppointmentSelectedTemplateId')
-    console.log("TEST: " + sessionStorage.getItem('createAppointmentState'))
-    if (!sessionStorage.getItem('createAppointmentState') && storedTemplateId) {
-      console.log("Test 2")
-      const id = Number(storedTemplateId)
-      if (!isNaN(id)) {
-        setSelectedTemplate(id)
-        storedTemplateIdRef.current = id
-      }
-    }
     const stored = sessionStorage.getItem('createAppointmentState')
     if (stored) {
       try {
@@ -190,10 +197,19 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
 
   useEffect(() => {
-    console.log('Stored this id:', localStorage.getItem('createAppointmentSelectedTemplateId'))
     if (selectedTemplate !== null) {
       localStorage.setItem('createAppointmentSelectedTemplateId', String(selectedTemplate))
-      console.log('Stored this id:', localStorage.getItem('createAppointmentSelectedTemplateId'))
+    } else {
+      localStorage.removeItem('createAppointmentSelectedTemplateId')
+    }
+
+    const stored = sessionStorage.getItem('createAppointmentState')
+    if (stored) {
+      try {
+        const data = JSON.parse(stored)
+        data.selectedTemplate = selectedTemplate
+        sessionStorage.setItem('createAppointmentState', JSON.stringify(data))
+      } catch {}
     }
   }, [selectedTemplate])
 
