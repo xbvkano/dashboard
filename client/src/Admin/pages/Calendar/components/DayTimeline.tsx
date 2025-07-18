@@ -67,7 +67,6 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
     if (!selected) return
     const topEl = document.querySelector('div.sticky.top-0') as HTMLElement | null
     const bottomEl = document.querySelector('nav.fixed.bottom-0') as HTMLElement | null
-
     let t = 0
     if (topEl) {
       const pos = getComputedStyle(topEl).position
