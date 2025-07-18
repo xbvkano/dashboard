@@ -1,4 +1,11 @@
-import { useLayoutEffect, useRef, useState, useEffect, type Ref } from 'react'
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  useEffect,
+  type Ref,
+} from 'react'
+import { createPortal } from 'react-dom'
 import type { Appointment } from '../types'
 import { API_BASE_URL } from '../../../../api'
 
@@ -233,16 +240,17 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
       </div>
 
       {/* details modal */}
-      {selected && (
-        <div
-          className="fixed inset-x-0 bg-black/50 flex items-center justify-center z-40 p-2 overflow-hidden"
-          style={{ top: overlayTop, height: overlayHeight }}
-          onClick={() => setSelected(null)}
-        >
+      {selected &&
+        createPortal(
           <div
-            className="bg-white p-4 rounded space-y-2 w-full max-w-md max-h-full overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-x-0 bg-black/50 flex items-center justify-center z-40 p-2 overflow-hidden"
+            style={{ top: overlayTop, height: overlayHeight }}
+            onClick={() => setSelected(null)}
           >
+            <div
+              className="bg-white p-4 rounded space-y-2 w-full max-w-md max-h-full overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
             <div className="flex justify-between items-center">
               <div>
                 <h4 className="font-medium">
@@ -415,7 +423,8 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
