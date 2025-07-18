@@ -102,6 +102,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
 
   const handleClose = () => {
     sessionStorage.removeItem('createAppointmentState')
+    localStorage.removeItem('createAppointmentSelectedTemplateId')
     onClose()
   }
 
@@ -109,6 +110,14 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const storedTemplateIdRef = useRef<number | null>(null)
 
   useEffect(() => {
+    const storedTemplateId = localStorage.getItem('createAppointmentSelectedTemplateId')
+    if (!sessionStorage.getItem('createAppointmentState') && storedTemplateId) {
+      const id = Number(storedTemplateId)
+      if (!isNaN(id)) {
+        setSelectedTemplate(id)
+        storedTemplateIdRef.current = id
+      }
+    }
     const stored = sessionStorage.getItem('createAppointmentState')
     if (stored) {
       try {
@@ -173,6 +182,15 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     }
     sessionStorage.setItem('createAppointmentState', JSON.stringify(data))
   }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
+
+  useEffect(() => {
+    if (selectedTemplate === null) {
+      localStorage.removeItem('createAppointmentSelectedTemplateId')
+      return
+    }
+    localStorage.setItem('createAppointmentSelectedTemplateId', String(selectedTemplate))
+    console.log('Stored this id:', localStorage.getItem('createAppointmentSelectedTemplateId'))
+  }, [selectedTemplate])
 
   const resetCarpet = () => {
     setCarpetEnabled(false)
