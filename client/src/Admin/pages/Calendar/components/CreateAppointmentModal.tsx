@@ -101,7 +101,12 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const [recurringMonths, setRecurringMonths] = useState('')
 
   const handleClose = () => {
+    onClose()
+  }
+
+  const handleCancel = () => {
     sessionStorage.removeItem('createAppointmentState')
+    localStorage.removeItem('createAppointmentSelectedTemplateId')
     onClose()
   }
 
@@ -109,6 +114,14 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const storedTemplateIdRef = useRef<number | null>(null)
 
   useEffect(() => {
+    const storedTemplateId = localStorage.getItem('createAppointmentSelectedTemplateId')
+    if (!sessionStorage.getItem('createAppointmentState') && storedTemplateId) {
+      const id = Number(storedTemplateId)
+      if (!isNaN(id)) {
+        setSelectedTemplate(id)
+        storedTemplateIdRef.current = id
+      }
+    }
     const stored = sessionStorage.getItem('createAppointmentState')
     if (stored) {
       try {
@@ -173,6 +186,13 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     }
     sessionStorage.setItem('createAppointmentState', JSON.stringify(data))
   }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
+
+  useEffect(() => {
+    if (selectedTemplate !== null) {
+      localStorage.setItem('createAppointmentSelectedTemplateId', String(selectedTemplate))
+      console.log('Stored this id:', localStorage.getItem('createAppointmentSelectedTemplateId'))
+    }
+  }, [selectedTemplate])
 
   const resetCarpet = () => {
     setCarpetEnabled(false)
@@ -459,7 +479,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     })
     if (res.ok) {
       onCreated()
-      handleClose()
+      handleCancel()
     } else {
       alert('Failed to create appointment')
     }
@@ -911,7 +931,10 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
           </div>
         )}
 
-        <div className="text-right">
+        <div className="text-right space-x-2">
+          <button className="px-3 py-2" onClick={handleCancel}>
+            Cancel
+          </button>
           <button
             className="bg-blue-500 text-white px-6 py-2 rounded disabled:opacity-50"
             disabled={
