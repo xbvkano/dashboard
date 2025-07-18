@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Client } from '../../Clients/components/types'
 import type { AppointmentTemplate } from '../types'
 import type { Employee } from '../../Employees/components/types'
@@ -105,6 +105,8 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     onClose()
   }
 
+  const initializedRef = useRef(false)
+
   useEffect(() => {
     const stored = sessionStorage.getItem('createAppointmentState')
     if (stored) {
@@ -135,9 +137,11 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
         if (s.recurringMonths) setRecurringMonths(s.recurringMonths)
       } catch {}
     }
+    initializedRef.current = true
   }, [])
 
   useEffect(() => {
+    if (!initializedRef.current) return
     const data = {
       clientSearch,
       selectedClient,
@@ -243,10 +247,12 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   }, [clientSearch])
 
   // Load templates when client selected
+  const prevClientRef = useRef<Client | null>(null)
   useEffect(() => {
     if (!selectedClient) {
       setTemplates([])
-      setSelectedTemplate(null)
+      if (prevClientRef.current) setSelectedTemplate(null)
+      prevClientRef.current = selectedClient
       return
     }
     fetchJson(`${API_BASE_URL}/appointment-templates?clientId=${selectedClient.id}`)
@@ -258,6 +264,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
         }
       })
       .catch((err) => console.error(err))
+    prevClientRef.current = selectedClient
   }, [selectedClient, initialTemplateId])
 
   // Load staff options when template selected
