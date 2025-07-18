@@ -497,6 +497,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
         tip,
         paymentMethod: paymentMethod as any, // or cast to your enum
         notes: paymentMethodNote || undefined,
+        status: 'APPOINTED',
         lineage: 'single',
         // only include the relation if there are IDs
         ...(employeeIds.length > 0 && {
@@ -518,17 +519,19 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10)
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
   try {
-    const { paid, paymentMethod, paymentMethodNote, tip } = req.body as {
+    const { paid, paymentMethod, paymentMethodNote, tip, status } = req.body as {
       paid?: boolean
       paymentMethod?: string
       paymentMethodNote?: string
       tip?: number
+      status?: string
     }
     const data: any = {}
     if (paid !== undefined) data.paid = paid
     if (paymentMethod !== undefined) data.paymentMethod = paymentMethod as any
     if (paymentMethodNote !== undefined) data.notes = paymentMethodNote
     if (tip !== undefined) data.tip = tip
+    if (status !== undefined) data.status = status as any
 
     const appt = await prisma.appointment.update({ where: { id }, data, include: { client: true, employees: true } })
     res.json(appt)

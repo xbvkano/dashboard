@@ -55,6 +55,7 @@ model Appointment {
   paymentMethod   PaymentMethod
   tip             Float           @default(0)
   reoccurring     Boolean         @default(false)
+  status          AppointmentStatus @default(APPOINTED)
   lineage         String
   gateCode        String?
   doorCode        String?
@@ -123,4 +124,14 @@ enum Role {
   EMPLOYEE
   ADMIN
   OWNER
+}
+
+enum AppointmentStatus {
+  APPOINTED
+  RESCHEDULE_IN
+  RESCHEDULE_OUT
+  CANCEL
+  OBSERVE
+  REBOOK
+  REOCCURRING
 }
