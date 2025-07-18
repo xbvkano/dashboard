@@ -12,7 +12,8 @@ interface DayProps {
 
 function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayProps) {
   const [selected, setSelected] = useState<Appointment | null>(null)
-  const [modalTop, setModalTop] = useState(0)
+  const [overlayTop, setOverlayTop] = useState(0)
+  const [overlayHeight, setOverlayHeight] = useState(0)
   const [showDelete, setShowDelete] = useState(false)
   const [showCancel, setShowCancel] = useState(false)
   const [payRate, setPayRate] = useState<number | null>(null)
@@ -59,6 +60,29 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
         document.body.style.overflow = original
       }
     }
+  }, [selected])
+
+  // Measure offsets for the overlay when modal opens
+  useEffect(() => {
+    if (!selected) return
+    const topEl = document.querySelector('div.sticky.top-0') as HTMLElement | null
+    const bottomEl = document.querySelector('nav.fixed.bottom-0') as HTMLElement | null
+
+    let t = 0
+    if (topEl) {
+      const pos = getComputedStyle(topEl).position
+      if (pos === 'sticky' || pos === 'fixed') {
+        t = topEl.offsetHeight
+      }
+    }
+
+    let b = 0
+    if (bottomEl && getComputedStyle(bottomEl).position === 'fixed') {
+      b = bottomEl.offsetHeight
+    }
+
+    setOverlayTop(t)
+    setOverlayHeight(window.innerHeight - t - b)
   }, [selected])
 
   // calculate pay rates when modal opens
@@ -134,7 +158,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
   return (
     <div
       ref={scrollRef}
-      className={`flex-1 relative ${animating ? 'overflow-hidden' : 'overflow-x-auto overflow-y-auto'}`}
+      className={`flex-1 relative ${animating || selected ? 'overflow-hidden' : 'overflow-x-auto overflow-y-auto'}`}
     >
       <div className="relative divide-y" style={{ width: containerWidth, minWidth: '100%' }}>
         {/* divider line */}
@@ -193,7 +217,6 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
               className={`absolute border rounded text-xs overflow-hidden cursor-pointer ${bg}`}
               style={{ top, left: leftStyle, width: apptWidth, height, zIndex: 10 }}
               onClick={() => {
-                setModalTop(window.scrollY)
                 setSelected(l.appt)
               }}
             >
@@ -214,12 +237,12 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
       {/* details modal */}
       {selected && (
         <div
-          className="absolute left-0 right-0 bg-black/50 flex items-center justify-center z-40 p-2"
-          style={{ top: modalTop, height: '100vh' }}
+          className="fixed inset-x-0 bg-black/50 flex items-center justify-center z-40 p-2 overflow-hidden"
+          style={{ top: overlayTop, height: overlayHeight }}
           onClick={() => setSelected(null)}
         >
           <div
-            className="bg-white p-4 rounded space-y-2 w-full max-w-md"
+            className="bg-white p-4 rounded space-y-2 w-full max-w-md max-h-full overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center">
