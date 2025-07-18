@@ -100,6 +100,72 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const [recurringOption, setRecurringOption] = useState<RecurringOption>('Weekly')
   const [recurringMonths, setRecurringMonths] = useState('')
 
+  const handleClose = () => {
+    sessionStorage.removeItem('createAppointmentState')
+    onClose()
+  }
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem('createAppointmentState')
+    if (stored) {
+      try {
+        const s = JSON.parse(stored)
+        if (s.clientSearch) setClientSearch(s.clientSearch)
+        if (s.selectedClient) setSelectedClient(s.selectedClient)
+        if (s.newClient) setNewClient(s.newClient)
+        if (typeof s.showNewClient === 'boolean') setShowNewClient(s.showNewClient)
+        if (typeof s.selectedTemplate !== 'undefined') setSelectedTemplate(s.selectedTemplate)
+        if (typeof s.showNewTemplate === 'boolean') setShowNewTemplate(s.showNewTemplate)
+        if (typeof s.editing === 'boolean') setEditing(s.editing)
+        if (s.templateForm) setTemplateForm({ ...templateForm, ...s.templateForm })
+        if (s.date) setDate(s.date)
+        if (s.time) setTime(s.time)
+        if (typeof s.adminId !== 'undefined') setAdminId(s.adminId)
+        if (typeof s.paid === 'boolean') setPaid(s.paid)
+        if (s.tip) setTip(s.tip)
+        if (s.paymentMethod) setPaymentMethod(s.paymentMethod)
+        if (s.otherPayment) setOtherPayment(s.otherPayment)
+        if (Array.isArray(s.selectedEmployees)) setSelectedEmployees(s.selectedEmployees)
+        if (typeof s.selectedOption === 'number') setSelectedOption(s.selectedOption)
+        if (typeof s.carpetEnabled === 'boolean') setCarpetEnabled(s.carpetEnabled)
+        if (s.carpetRooms) setCarpetRooms(s.carpetRooms)
+        if (Array.isArray(s.carpetEmployees)) setCarpetEmployees(s.carpetEmployees)
+        if (typeof s.recurringEnabled === 'boolean') setRecurringEnabled(s.recurringEnabled)
+        if (s.recurringOption) setRecurringOption(s.recurringOption)
+        if (s.recurringMonths) setRecurringMonths(s.recurringMonths)
+      } catch {}
+    }
+  }, [])
+
+  useEffect(() => {
+    const data = {
+      clientSearch,
+      selectedClient,
+      newClient,
+      showNewClient,
+      selectedTemplate,
+      showNewTemplate,
+      editing,
+      templateForm,
+      date,
+      time,
+      adminId,
+      paid,
+      tip,
+      paymentMethod,
+      otherPayment,
+      selectedEmployees,
+      selectedOption,
+      carpetEnabled,
+      carpetRooms,
+      carpetEmployees,
+      recurringEnabled,
+      recurringOption,
+      recurringMonths,
+    }
+    sessionStorage.setItem('createAppointmentState', JSON.stringify(data))
+  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
+
   const resetCarpet = () => {
     setCarpetEnabled(false)
     setShowCarpetModal(false)
@@ -363,7 +429,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     })
     if (res.ok) {
       onCreated()
-      onClose()
+      handleClose()
     } else {
       alert('Failed to create appointment')
     }
@@ -373,7 +439,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     <>
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-20 p-2"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="bg-white p-4 sm:p-6 rounded w-full max-w-md max-h-full overflow-y-auto overflow-x-hidden space-y-4"
@@ -381,7 +447,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       >
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold">New Appointment</h2>
-          <button onClick={onClose}>X</button>
+          <button onClick={handleClose}>X</button>
         </div>
 
         {/* Client selection */}
