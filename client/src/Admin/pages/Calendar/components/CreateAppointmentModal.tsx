@@ -265,7 +265,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
         const storedId = storedTemplateIdRef.current
         if (storedId !== null) {
           const match = d.find((t: any) => t.id === storedId)
-          if (match) {
+          if (match && match.id !== undefined) {
             setSelectedTemplate(match.id)
             storedTemplateIdRef.current = null
             return
@@ -273,7 +273,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
         }
         if (initialTemplateId) {
           const match = d.find((t: any) => t.id === initialTemplateId)
-          if (match) setSelectedTemplate(match.id)
+          if (match && match.id !== undefined) setSelectedTemplate(match.id)
         }
       })
       .catch((err) => console.error(err))
@@ -285,7 +285,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     const storedId = storedTemplateIdRef.current
     if (storedId !== null) {
       const match = templates.find((t) => t.id === storedId)
-      if (match) setSelectedTemplate(match.id)
+      if (match && match.id !== undefined) setSelectedTemplate(match.id)
       storedTemplateIdRef.current = null
     }
   }, [templates])
