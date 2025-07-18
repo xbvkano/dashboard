@@ -105,6 +105,8 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     onClose()
   }
 
+  const initializedRef = useRef(false)
+
   useEffect(() => {
     const stored = sessionStorage.getItem('createAppointmentState')
     if (stored) {
@@ -135,9 +137,11 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
         if (s.recurringMonths) setRecurringMonths(s.recurringMonths)
       } catch {}
     }
+    initializedRef.current = true
   }, [])
 
   useEffect(() => {
+    if (!initializedRef.current) return
     const data = {
       clientSearch,
       selectedClient,
