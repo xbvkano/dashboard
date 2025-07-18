@@ -42,8 +42,25 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     }
   }
 
+  const getInitialTemplate = () => {
+    const stored = sessionStorage.getItem('createAppointmentState')
+    if (stored) {
+      try {
+        const s = JSON.parse(stored)
+        if (typeof s.selectedTemplate === 'number') return s.selectedTemplate
+      } catch {}
+    }
+    const local = localStorage.getItem('createAppointmentSelectedTemplateId')
+    if (local) {
+      const id = Number(local)
+      if (!isNaN(id)) return id
+    }
+    return null
+  }
+
+  const storedInitialTemplateId = getInitialTemplate()
   const [templates, setTemplates] = useState<AppointmentTemplate[]>([])
-  const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<number | null>(storedInitialTemplateId)
   const [showNewTemplate, setShowNewTemplate] = useState(false)
   const [editing, setEditing] = useState(false)
   const [templateForm, setTemplateForm] = useState({
@@ -111,19 +128,23 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   }
 
   const initializedRef = useRef(false)
-  const storedTemplateIdRef = useRef<number | null>(null)
+  const storedTemplateIdRef = useRef<number | null>(storedInitialTemplateId)
+
+  const loadStaffData = (templateId: number) => {
+    const t = templates.find((tt) => tt.id === templateId)
+    if (!t || !t.size) return
+    fetchJson(`${API_BASE_URL}/staff-options?size=${encodeURIComponent(t.size)}&type=${t.type}`)
+      .then((d) => {
+        setStaffOptions(d)
+        setSelectedOption(0)
+      })
+      .catch((err) => console.error(err))
+    fetchJson(`${API_BASE_URL}/employees?search=&skip=0&take=1000`)
+      .then((d) => setEmployees(d))
+      .catch((err) => console.error(err))
+  }
 
   useEffect(() => {
-    const storedTemplateId = localStorage.getItem('createAppointmentSelectedTemplateId')
-    console.log("TEST: " + sessionStorage.getItem('createAppointmentState'))
-    if (!sessionStorage.getItem('createAppointmentState') && storedTemplateId) {
-      console.log("Test 2")
-      const id = Number(storedTemplateId)
-      if (!isNaN(id)) {
-        setSelectedTemplate(id)
-        storedTemplateIdRef.current = id
-      }
-    }
     const stored = sessionStorage.getItem('createAppointmentState')
     if (stored) {
       try {
@@ -141,7 +162,8 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
         if (s.templateForm) setTemplateForm({ ...templateForm, ...s.templateForm })
         if (s.date) setDate(s.date)
         if (s.time) setTime(s.time)
-        if (typeof s.adminId !== 'undefined') setAdminId(s.adminId)
+        if (typeof s.adminId !== 'undefined')
+          setAdminId(s.adminId === '' ? '' : Number(s.adminId))
         if (typeof s.paid === 'boolean') setPaid(s.paid)
         if (s.tip) setTip(s.tip)
         if (s.paymentMethod) setPaymentMethod(s.paymentMethod)
@@ -190,10 +212,19 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
 
   useEffect(() => {
-    console.log('Stored this id:', localStorage.getItem('createAppointmentSelectedTemplateId'))
     if (selectedTemplate !== null) {
       localStorage.setItem('createAppointmentSelectedTemplateId', String(selectedTemplate))
-      console.log('Stored this id:', localStorage.getItem('createAppointmentSelectedTemplateId'))
+    } else {
+      localStorage.removeItem('createAppointmentSelectedTemplateId')
+    }
+
+    const stored = sessionStorage.getItem('createAppointmentState')
+    if (stored) {
+      try {
+        const data = JSON.parse(stored)
+        data.selectedTemplate = selectedTemplate
+        sessionStorage.setItem('createAppointmentState', JSON.stringify(data))
+      } catch {}
     }
   }, [selectedTemplate])
 
@@ -290,13 +321,17 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
           const match = d.find((t: any) => t.id === storedId)
           if (match && match.id !== undefined) {
             setSelectedTemplate(match.id)
+            loadStaffData(match.id)
             storedTemplateIdRef.current = null
             return
           }
         }
         if (initialTemplateId) {
           const match = d.find((t: any) => t.id === initialTemplateId)
-          if (match && match.id !== undefined) setSelectedTemplate(match.id)
+          if (match && match.id !== undefined) {
+            setSelectedTemplate(match.id)
+            loadStaffData(match.id)
+          }
         }
       })
       .catch((err) => console.error(err))
@@ -308,9 +343,13 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     const storedId = storedTemplateIdRef.current
     if (storedId !== null) {
       const match = templates.find((t) => t.id === storedId)
-      if (match && match.id !== undefined) setSelectedTemplate(match.id)
+      if (match && match.id !== undefined) {
+        setSelectedTemplate(match.id)
+        loadStaffData(match.id)
+      }
       storedTemplateIdRef.current = null
     }
+    if (selectedTemplate) loadStaffData(selectedTemplate)
   }, [templates])
 
   // Load staff options when template selected
@@ -319,17 +358,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       setStaffOptions([])
       return
     }
-    const t = templates.find((tt) => tt.id === selectedTemplate)
-    if (!t || !t.size) return
-    fetchJson(`${API_BASE_URL}/staff-options?size=${encodeURIComponent(t.size)}&type=${t.type}`)
-      .then((d) => {
-        setStaffOptions(d)
-        setSelectedOption(0)
-      })
-      .catch((err) => console.error(err))
-    fetchJson(`${API_BASE_URL}/employees?search=&skip=0&take=1000`)
-      .then((d) => setEmployees(d))
-      .catch((err) => console.error(err))
+    loadStaffData(selectedTemplate)
   }, [selectedTemplate])
 
   // calculate pay rate when team changes
@@ -873,7 +902,10 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
             <select
               className="w-full border p-2 rounded text-base"
               value={adminId}
-              onChange={(e) => setAdminId(Number(e.target.value))}
+              onChange={(e) => {
+                const val = e.target.value
+                setAdminId(val ? Number(val) : '')
+              }}
             >
               <option value="">Select admin</option>
               {admins.map((a) => (
