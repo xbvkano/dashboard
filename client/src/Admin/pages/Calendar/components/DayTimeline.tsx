@@ -34,13 +34,16 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
     if (!selected) return
     const res = await fetch(`${API_BASE_URL}/appointments/${selected.id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '1',
+      },
       body: JSON.stringify({ status }),
     })
     if (res.ok) {
       const updated = await res.json()
-      setSelected(updated)
       onUpdate?.(updated)
+      setSelected(null)
     } else {
       alert('Failed to update appointment')
     }
@@ -49,18 +52,22 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
     if (!selected) return
     const res = await fetch(`${API_BASE_URL}/appointments/${selected.id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '1',
+      },
       body: JSON.stringify({
         paid,
         paymentMethod: paid ? (paymentMethod || 'CASH') : 'CASH',
-        paymentMethodNote: paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
+        paymentMethodNote:
+          paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
         tip: paid ? parseFloat(tip) || 0 : 0,
       }),
     })
     if (res.ok) {
       const updated = await res.json()
-      setSelected(updated)
       onUpdate?.(updated)
+      setSelected(null)
     } else {
       alert('Failed to update appointment')
     }
