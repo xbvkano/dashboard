@@ -67,7 +67,6 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
     if (!selected) return
     const topEl = document.querySelector('div.sticky.top-0') as HTMLElement | null
     const bottomEl = document.querySelector('nav.fixed.bottom-0') as HTMLElement | null
-
     let t = 0
     if (topEl) {
       const pos = getComputedStyle(topEl).position
@@ -80,7 +79,6 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate }: DayPro
     if (bottomEl && getComputedStyle(bottomEl).position === 'fixed') {
       b = bottomEl.offsetHeight
     }
-
     setOverlayTop(t)
     setOverlayHeight(window.innerHeight - t - b)
   }, [selected])
