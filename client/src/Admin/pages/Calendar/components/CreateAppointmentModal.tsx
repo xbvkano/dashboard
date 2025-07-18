@@ -263,13 +263,15 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       .then((d) => {
         setTemplates(d)
         const storedId = storedTemplateIdRef.current
-        if (storedId) {
+        if (storedId !== null) {
           const match = d.find((t: any) => t.id === storedId)
           if (match) {
             setSelectedTemplate(match.id)
             storedTemplateIdRef.current = null
+            return
           }
-        } else if (initialTemplateId) {
+        }
+        if (initialTemplateId) {
           const match = d.find((t: any) => t.id === initialTemplateId)
           if (match) setSelectedTemplate(match.id)
         }
@@ -277,6 +279,16 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       .catch((err) => console.error(err))
     prevClientRef.current = selectedClient
   }, [selectedClient, initialTemplateId])
+
+  useEffect(() => {
+    if (templates.length === 0) return
+    const storedId = storedTemplateIdRef.current
+    if (storedId !== null) {
+      const match = templates.find((t) => t.id === storedId)
+      if (match) setSelectedTemplate(match.id)
+      storedTemplateIdRef.current = null
+    }
+  }, [templates])
 
   // Load staff options when template selected
   useEffect(() => {
