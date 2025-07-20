@@ -64,6 +64,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(storedInitialTemplateId)
   const [showNewTemplate, setShowNewTemplate] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null)
   const [templateForm, setTemplateForm] = useState({
     templateName: '',
     type: 'STANDARD',
@@ -129,8 +130,9 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     onClose()
   }
 
-  const initializedRef = useRef(false)
-  const storedTemplateIdRef = useRef<number | null>(storedInitialTemplateId)
+const initializedRef = useRef(false)
+const storedTemplateIdRef = useRef<number | null>(storedInitialTemplateId)
+const preserveTeamRef = useRef(false)
 
   const loadStaffData = (templateId: number) => {
     const t = templates.find((tt) => tt.id === templateId)
@@ -138,7 +140,6 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     fetchJson(`${API_BASE_URL}/staff-options?size=${encodeURIComponent(t.size)}&type=${t.type}`)
       .then((d) => {
         setStaffOptions(d)
-        setSelectedOption(0)
       })
       .catch((err) => console.error(err))
     fetchJson(`${API_BASE_URL}/employees?search=&skip=0&take=1000`)
@@ -176,6 +177,8 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
           }
           if (typeof s.showNewTemplate === 'boolean') setShowNewTemplate(s.showNewTemplate)
           if (typeof s.editing === 'boolean') setEditing(s.editing)
+          if (typeof s.editingTemplateId === 'number')
+            setEditingTemplateId(s.editingTemplateId)
           if (s.templateForm) setTemplateForm({ ...templateForm, ...s.templateForm })
           if (s.date) setDate(s.date)
           if (s.time) setTime(s.time)
@@ -209,6 +212,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       selectedTemplate,
       showNewTemplate,
       editing,
+      editingTemplateId,
       templateForm,
       date,
       time,
@@ -227,7 +231,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       recurringMonths,
     }
     sessionStorage.setItem('createAppointmentState', JSON.stringify(data))
-  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
+  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
 
   useEffect(() => {
     if (selectedTemplate !== null) {
@@ -241,10 +245,11 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       try {
         const data = JSON.parse(stored)
         data.selectedTemplate = selectedTemplate
+        data.editingTemplateId = editingTemplateId
         sessionStorage.setItem('createAppointmentState', JSON.stringify(data))
       } catch {}
     }
-  }, [selectedTemplate, templates])
+  }, [selectedTemplate, templates, editingTemplateId])
 
   const resetCarpet = () => {
     setCarpetEnabled(false)
@@ -257,6 +262,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     setSelectedTemplate(null)
     setShowNewTemplate(false)
     setEditing(false)
+    setEditingTemplateId(null)
     setTemplateForm({
       templateName: '',
       type: 'STANDARD',
@@ -380,6 +386,11 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       return
     }
     loadStaffData(selectedTemplate)
+    if (preserveTeamRef.current) {
+      preserveTeamRef.current = false
+    } else {
+      setSelectedOption(0)
+    }
     const t = templates.find((tt) => tt.id === selectedTemplate)
     setCarpetEnabled(!!t?.carpetEnabled)
     setCarpetRooms(t?.carpetRooms || '')
@@ -476,6 +487,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       carpetRooms: t.carpetRooms || '',
     })
     setEditing(true)
+    setEditingTemplateId(selectedTemplate)
     setShowNewTemplate(true)
   }
 
@@ -511,18 +523,28 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     })
     if (res.ok) {
       const t = await res.json()
-      setTemplates((p) => [
-        ...p,
-        {
-          ...t,
-          carpetEnabled: templateForm.carpetEnabled,
-          carpetRooms: templateForm.carpetRooms,
-        },
-      ])
-      resetTemplateRelated()
+      setTemplates((p) => {
+        const filtered = editing && editingTemplateId
+          ? p.filter((tt) => tt.id !== editingTemplateId)
+          : p
+        return [
+          ...filtered,
+          {
+            ...t,
+            carpetEnabled: templateForm.carpetEnabled,
+            carpetRooms: templateForm.carpetRooms,
+          },
+        ]
+      })
+      if (editing) {
+        preserveTeamRef.current = true
+      } else {
+        resetTemplateRelated()
+      }
       setSelectedTemplate(t.id)
       setShowNewTemplate(false)
       setEditing(false)
+      setEditingTemplateId(null)
     } else {
       alert('Failed to create template')
     }

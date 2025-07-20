@@ -257,12 +257,14 @@ export default function Calendar() {
               setRescheduleOldId(null)
               setDeleteOldId(null)
             }}
-            onCreated={() => {
+            onCreated={async () => {
               if (rescheduleOldId) {
-                markOldReschedule(rescheduleOldId).then(() => setRescheduleOldId(null))
+                await markOldReschedule(rescheduleOldId)
+                setRescheduleOldId(null)
               }
               if (deleteOldId) {
-                markOldDelete(deleteOldId).then(() => setDeleteOldId(null))
+                await markOldDelete(deleteOldId)
+                setDeleteOldId(null)
               }
               refresh()
             }}
