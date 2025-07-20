@@ -778,8 +778,63 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       data.employees = { set: employeeIds.map((id) => ({ id })) }
     }
     const future = req.query.future === 'true'
-    const current = await prisma.appointment.findUnique({ where: { id }, include: { employees: true } })
+    const current = await prisma.appointment.findUnique({ where: { id }, include: { employees: true, client: true } })
     if (!current) return res.status(404).json({ error: 'Not found' })
+
+    const convertToRecurring =
+      current.lineage === 'single' && (data.status === 'REOCCURRING' || req.body.reoccurring)
+    if (convertToRecurring) {
+      const lineage = crypto.randomUUID()
+      const updated = await prisma.appointment.update({
+        where: { id: current.id },
+        data: { ...data, lineage, reoccurring: true },
+        include: { employees: true, client: true },
+      })
+
+      const frequency: string = req.body.frequency || 'WEEKLY'
+      const months = parseInt(String(req.body.months || 1), 10)
+      const results: any[] = [updated]
+      let last: any = updated
+      for (let i = 1; i < 10; i++) {
+        const nextDate = new Date(last.date)
+        if (frequency === 'BIWEEKLY') nextDate.setDate(nextDate.getDate() + 14)
+        else if (frequency === 'EVERY3') nextDate.setDate(nextDate.getDate() + 21)
+        else if (frequency === 'MONTHLY') nextDate.setMonth(nextDate.getMonth() + 1)
+        else if (frequency === 'CUSTOM') nextDate.setMonth(nextDate.getMonth() + months)
+        else nextDate.setDate(nextDate.getDate() + 7)
+
+        last = await prisma.appointment.create({
+          data: {
+            clientId: last.clientId,
+            adminId: last.adminId,
+            date: nextDate,
+            time: last.time,
+            type: last.type,
+            address: last.address,
+            cityStateZip: last.cityStateZip ?? undefined,
+            size: last.size ?? undefined,
+            hours: last.hours ?? null,
+            price: last.price ?? null,
+            paid: last.paid,
+            tip: last.tip,
+            paymentMethod: last.paymentMethod,
+            notes: last.notes ?? undefined,
+            status: 'REOCCURRING',
+            lineage,
+            reoccurring: true,
+            ...(last.employees.length && {
+              employees: {
+                connect: last.employees.map((e: { id: number }) => ({ id: e.id })),
+              },
+            }),
+          },
+          include: { employees: true },
+        })
+        results.push(last)
+      }
+      return res.json(results)
+    }
+
     if (future && current.lineage !== 'single') {
       function toMinutes(t: string) {
         const [h, m] = t.split(':').map(Number)
