@@ -407,6 +407,13 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   
 
   const createClient = async () => {
+    const missing: string[] = []
+    if (!newClient.name.trim()) missing.push('name')
+    if (!newClient.number.trim()) missing.push('number')
+    if (missing.length > 0) {
+      alert('Please provide: ' + missing.join(', '))
+      return
+    }
     const res = await fetch(`${API_BASE_URL}/clients`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
@@ -457,6 +464,20 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
 
   const createTemplate = async () => {
     if (!selectedClient) return
+    const missing: string[] = []
+    if (!templateForm.templateName.trim()) missing.push('template name')
+    if (!templateForm.address.trim()) missing.push('address')
+    if (templateForm.price === '') missing.push('price')
+    if (templateForm.carpetEnabled) {
+      const rooms = parseInt(templateForm.carpetRooms, 10)
+      if (isNaN(rooms) || rooms < 1) {
+        missing.push('carpet rooms (min 1)')
+      }
+    }
+    if (missing.length > 0) {
+      alert('Please provide: ' + missing.join(', '))
+      return
+    }
     const payload = {
       clientId: selectedClient.id,
       templateName: templateForm.templateName,
@@ -505,7 +526,16 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   }
 
   const createAppointment = async () => {
-    if (!selectedClient || !selectedTemplate) return
+    const missing: string[] = []
+    if (!selectedClient) missing.push('client')
+    if (!selectedTemplate) missing.push('template')
+    if (!date) missing.push('date')
+    if (!time) missing.push('time')
+    if (!adminId) missing.push('admin')
+    if (missing.length > 0) {
+      alert('Please provide: ' + missing.join(', '))
+      return
+    }
     if (!isValidCarpet()) {
       alert('Please complete carpet cleaning info')
       return
