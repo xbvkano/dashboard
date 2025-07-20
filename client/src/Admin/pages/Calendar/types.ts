@@ -27,12 +27,12 @@ export interface Appointment {
   paymentMethod?: 'CASH' | 'ZELLE' | 'VENMO' | 'PAYPAL' | 'OTHER' | 'CHECK'
   tip?: number
   reoccurring?: boolean
+  observe?: boolean
   status?:
     | 'APPOINTED'
     | 'RESCHEDULE_NEW'
     | 'RESCHEDULE_OLD'
     | 'CANCEL'
-    | 'OBSERVE'
     | 'REBOOK'
     | 'REOCCURRING'
     | 'DELETED'

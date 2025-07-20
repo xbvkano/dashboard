@@ -431,7 +431,10 @@ app.get('/appointments', async (req: Request, res: Response) => {
   const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)
   try {
     const appts = await prisma.appointment.findMany({
-      where: { date: { gte: date, lt: next }, status: { not: 'DELETED' } },
+      where: {
+        date: { gte: date, lt: next },
+        status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+      },
       orderBy: { time: 'asc' },
       include: { client: true, employees: true },
     })
@@ -521,12 +524,20 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10)
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
   try {
-    const { paid, paymentMethod, paymentMethodNote, tip, status } = req.body as {
+    const {
+      paid,
+      paymentMethod,
+      paymentMethodNote,
+      tip,
+      status,
+      observe,
+    } = req.body as {
       paid?: boolean
       paymentMethod?: string
       paymentMethodNote?: string
       tip?: number
       status?: string
+      observe?: boolean
     }
     const data: any = {}
     if (paid !== undefined) data.paid = paid
@@ -534,6 +545,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
     if (paymentMethodNote !== undefined) data.notes = paymentMethodNote
     if (tip !== undefined) data.tip = tip
     if (status !== undefined) data.status = status as any
+    if (observe !== undefined) data.observe = observe
 
     const appt = await prisma.appointment.update({ where: { id }, data, include: { client: true, employees: true } })
     res.json(appt)
