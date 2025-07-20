@@ -93,11 +93,11 @@ async function ensureRecurringFuture() {
             },
           }),
         },
-        include: { employees: true },
       })
     }
   }
 }
+
 import { staffOptionsData } from './data/staffOptions'
 dotenv.config()
 
@@ -777,7 +777,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       data.employees = { set: employeeIds.map((id) => ({ id })) }
     }
     const future = req.query.future === 'true'
-    const current = await prisma.appointment.findUnique({ where: { id } })
+    const current = await prisma.appointment.findUnique({ where: { id }, include: { employees: true } })
     if (!current) return res.status(404).json({ error: 'Not found' })
     if (future && current.lineage !== 'single') {
       function toMinutes(t: string) {
@@ -799,23 +799,88 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       const targets = await prisma.appointment.findMany({
         where: { lineage: current.lineage, date: { gte: current.date } },
         orderBy: { date: 'asc' },
+        include: { employees: true },
       })
 
-      for (const appt of targets) {
-        const newDate = data.date ? new Date(appt.date.getTime() + dateDiff) : appt.date
-        const newTime = data.time ? minutesToTime(toMinutes(appt.time) + timeDiff) : appt.time
-        await prisma.appointment.update({
-          where: { id: appt.id },
-          data: { ...base, date: newDate, time: newTime },
+      if (targets.length <= 1) {
+        const prev = await prisma.appointment.findFirst({
+          where: {
+            lineage: current.lineage,
+            status: { notIn: ['DELETED', 'CANCEL'] },
+            date: { lt: current.date },
+          },
+          orderBy: { date: 'desc' },
         })
-      }
 
-      const appts = await prisma.appointment.findMany({
-        where: { lineage: current.lineage, date: { gte: current.date } },
-        include: { client: true, employees: true },
-        orderBy: { date: 'asc' },
-      })
-      res.json(appts)
+        const newLineage = crypto.randomUUID()
+        const updated = await prisma.appointment.update({
+          where: { id: current.id },
+          data: { ...data, lineage: newLineage, reoccurring: true },
+          include: { client: true, employees: true },
+        })
+
+        const results: any[] = [updated]
+        if (prev) {
+          const diffDays = Math.round((updated.date.getTime() - prev.date.getTime()) / 86400000)
+          const diffMonths =
+            updated.date.getMonth() - prev.date.getMonth() +
+            12 * (updated.date.getFullYear() - prev.date.getFullYear())
+          const byMonth = diffDays > 25 || diffMonths > 0
+
+          let last: any = updated
+          for (let i = 1; i < 10; i++) {
+            const nextDate = new Date(last.date)
+            if (byMonth) nextDate.setMonth(nextDate.getMonth() + diffMonths)
+            else nextDate.setDate(nextDate.getDate() + diffDays)
+
+            last = await prisma.appointment.create({
+              data: {
+                clientId: last.clientId,
+                adminId: last.adminId,
+                date: nextDate,
+                time: last.time,
+                type: last.type,
+                address: last.address,
+                cityStateZip: last.cityStateZip ?? undefined,
+                size: last.size ?? undefined,
+                hours: last.hours ?? null,
+                price: last.price ?? null,
+                paid: last.paid,
+                tip: last.tip,
+                paymentMethod: last.paymentMethod,
+                notes: last.notes ?? undefined,
+                status: 'REOCCURRING',
+                lineage: newLineage,
+                reoccurring: true,
+                ...(last.employees.length && {
+                  employees: {
+                    connect: last.employees.map((e: { id: number }) => ({ id: e.id })),
+                  },
+                }),
+              },
+              include: { employees: true },
+            })
+            results.push(last)
+          }
+        }
+        res.json(results)
+      } else {
+        for (const appt of targets) {
+          const newDate = data.date ? new Date(appt.date.getTime() + dateDiff) : appt.date
+          const newTime = data.time ? minutesToTime(toMinutes(appt.time) + timeDiff) : appt.time
+          await prisma.appointment.update({
+            where: { id: appt.id },
+            data: { ...base, date: newDate, time: newTime },
+          })
+        }
+
+        const appts = await prisma.appointment.findMany({
+          where: { lineage: current.lineage, date: { gte: current.date } },
+          include: { client: true, employees: true },
+          orderBy: { date: 'asc' },
+        })
+        res.json(appts)
+      }
     } else {
       const appt = await prisma.appointment.update({
         where: { id },
