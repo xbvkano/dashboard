@@ -235,11 +235,11 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
           if (l.appt.paid) {
             bg = 'bg-green-200 border-green-400'
           }
-          if (l.appt.observe) {
-            bg = 'bg-yellow-200 border-yellow-400'
-          }
           if (l.appt.status === 'CANCEL') {
             bg = 'bg-purple-200 border-purple-400'
+          }
+          if (l.appt.observe) {
+            bg = 'bg-yellow-200 border-yellow-400'
           }
           return (
             <div
