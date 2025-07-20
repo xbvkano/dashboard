@@ -798,8 +798,6 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
           </div>
         )}
 
-
-
         {/* Team selection */}
         {selectedTemplate && staffOptions.length > 0 && (
           <div className="space-y-1">
