@@ -9,6 +9,77 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { OAuth2Client } from 'google-auth-library'
 import axios from 'axios'
 import crypto from 'crypto'
+
+let lastRecurringCheck = ''
+
+async function ensureRecurringFuture() {
+  const todayStr = new Date().toISOString().slice(0, 10)
+  if (lastRecurringCheck === todayStr) return
+  lastRecurringCheck = todayStr
+
+  const lineages = await prisma.appointment.findMany({
+    where: { reoccurring: true, status: { notIn: ['DELETED', 'CANCEL'] } },
+    select: { lineage: true },
+    distinct: ['lineage'],
+  })
+
+  for (const { lineage } of lineages) {
+    const upcoming = await prisma.appointment.findMany({
+      where: {
+        lineage,
+        status: { notIn: ['DELETED', 'CANCEL'] },
+        date: { gte: new Date(todayStr) },
+      },
+      orderBy: { date: 'asc' },
+      include: { employees: true },
+    })
+    if (upcoming.length >= 10 || upcoming.length < 2) continue
+
+    let last = upcoming[upcoming.length - 1]
+    const prev = upcoming[upcoming.length - 2]
+    const diffDays = Math.round(
+      (last.date.getTime() - prev.date.getTime()) / 86400000
+    )
+    const diffMonths =
+      last.date.getMonth() - prev.date.getMonth() +
+      12 * (last.date.getFullYear() - prev.date.getFullYear())
+    const byMonth = diffDays > 25 || diffMonths > 0
+
+    for (let i = upcoming.length; i < 10; i++) {
+      const nextDate = new Date(last.date)
+      if (byMonth) nextDate.setMonth(nextDate.getMonth() + diffMonths)
+      else nextDate.setDate(nextDate.getDate() + diffDays)
+
+      last = await prisma.appointment.create({
+        data: {
+          clientId: last.clientId,
+          adminId: last.adminId,
+          date: nextDate,
+          time: last.time,
+          type: last.type,
+          address: last.address,
+          cityStateZip: last.cityStateZip ?? undefined,
+          size: last.size ?? undefined,
+          hours: last.hours ?? null,
+          price: last.price ?? null,
+          paid: last.paid,
+          tip: last.tip,
+          paymentMethod: last.paymentMethod,
+          notes: last.notes ?? undefined,
+          status: 'REOCCURRING',
+          lineage,
+          reoccurring: true,
+          ...(last.employees.length && {
+            employees: {
+              connect: last.employees.map((e: { id: number }) => ({ id: e.id })),
+            },
+          }),
+        },
+      })
+    }
+  }
+}
+
 import { staffOptionsData } from './data/staffOptions'
 dotenv.config()
 
@@ -423,6 +494,7 @@ app.get('/carpet-rate', (req: Request, res: Response) => {
 
 // Appointments ------------------------------------
 app.get('/appointments', async (req: Request, res: Response) => {
+  await ensureRecurringFuture()
   const dateStr = String(req.query.date || '')
   if (!dateStr) return res.status(400).json({ error: 'date required' })
   const date = new Date(dateStr)
