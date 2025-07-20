@@ -18,12 +18,18 @@ async function ensureRecurringFuture() {
   lastRecurringCheck = todayStr
 
   const lineages = await prisma.appointment.findMany({
-    where: { reoccurring: true, status: { notIn: ['DELETED', 'CANCEL'] } },
+    where: { reoccurring: true },
     select: { lineage: true },
     distinct: ['lineage'],
   })
 
   for (const { lineage } of lineages) {
+    const latest = await prisma.appointment.findFirst({
+      where: { lineage },
+      orderBy: { date: 'desc' },
+    })
+    if (!latest || ['DELETED', 'CANCEL'].includes(latest.status)) continue
+
     const upcoming = await prisma.appointment.findMany({
       where: {
         lineage,
@@ -762,13 +768,40 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
     const current = await prisma.appointment.findUnique({ where: { id } })
     if (!current) return res.status(404).json({ error: 'Not found' })
     if (future && current.lineage !== 'single') {
-      await prisma.appointment.updateMany({
+      function toMinutes(t: string) {
+        const [h, m] = t.split(':').map(Number)
+        return h * 60 + m
+      }
+      function minutesToTime(m: number) {
+        const hh = Math.floor(((m % 1440) + 1440) % 1440 / 60)
+        const mm = Math.floor(((m % 1440) + 1440) % 1440 % 60)
+        return `${hh.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`
+      }
+
+      const dateDiff = data.date ? new Date(data.date).getTime() - current.date.getTime() : 0
+      const timeDiff = data.time ? toMinutes(data.time) - toMinutes(current.time) : 0
+      const base: any = { ...data }
+      delete base.date
+      delete base.time
+
+      const targets = await prisma.appointment.findMany({
         where: { lineage: current.lineage, date: { gte: current.date } },
-        data,
+        orderBy: { date: 'asc' },
       })
+
+      for (const appt of targets) {
+        const newDate = data.date ? new Date(appt.date.getTime() + dateDiff) : appt.date
+        const newTime = data.time ? minutesToTime(toMinutes(appt.time) + timeDiff) : appt.time
+        await prisma.appointment.update({
+          where: { id: appt.id },
+          data: { ...base, date: newDate, time: newTime },
+        })
+      }
+
       const appts = await prisma.appointment.findMany({
         where: { lineage: current.lineage, date: { gte: current.date } },
         include: { client: true, employees: true },
+        orderBy: { date: 'asc' },
       })
       res.json(appts)
     } else {
