@@ -31,7 +31,10 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
   const [otherPayment, setOtherPayment] = useState('')
   const [tip, setTip] = useState('')
 
-  const updateStatus = async (status: Appointment['status']) => {
+  const updateAppointment = async (data: {
+    status?: Appointment['status']
+    observe?: boolean
+  }) => {
     if (!selected) return
     const res = await fetch(`${API_BASE_URL}/appointments/${selected.id}`, {
       method: 'PUT',
@@ -39,7 +42,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': '1',
       },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(data),
     })
     if (res.ok) {
       const updated = await res.json()
@@ -232,7 +235,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
           if (l.appt.paid) {
             bg = 'bg-green-200 border-green-400'
           }
-          if (l.appt.status === 'OBSERVE') {
+          if (l.appt.observe) {
             bg = 'bg-yellow-200 border-yellow-400'
           }
           if (l.appt.status === 'CANCEL') {
@@ -373,18 +376,18 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
               <button
                 className="px-4 py-1 bg-purple-500 text-white rounded"
                 onClick={() =>
-                  selected?.status === 'OBSERVE'
-                    ? updateStatus('CANCEL')
+                  selected?.observe
+                    ? updateAppointment({ status: 'CANCEL' })
                     : setShowCancel(true)
                 }
               >
                 Cancel
               </button>
-              {selected?.status === 'OBSERVE' ? (
+              {selected?.observe ? (
                 <>
                   <button
                     className="px-4 py-1 bg-yellow-500 text-white rounded"
-                    onClick={() => updateStatus('APPOINTED')}
+                    onClick={() => updateAppointment({ observe: false })}
                   >
                     Unobserve
                   </button>
@@ -403,13 +406,17 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                 <>
                   <button
                     className="px-4 py-1 bg-yellow-500 text-white rounded"
-                    onClick={() => updateStatus('OBSERVE')}
+                    onClick={() => updateAppointment({ observe: true })}
                   >
                     Observe
                   </button>
                   <button
                     className="px-4 py-1 bg-blue-500 text-white rounded"
-                    onClick={() => onCreate?.(selected!, 'RESCHEDULE_NEW')}
+                    onClick={() => {
+                      const appt = selected!
+                      setSelected(null)
+                      onCreate?.(appt, 'RESCHEDULE_NEW')
+                    }}
                   >
                     Reschedule
                   </button>
@@ -455,7 +462,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                       className="px-4 py-1 bg-red-500 text-white rounded"
                       onClick={() => {
                         if (selected) {
-                          updateStatus('DELETED')
+                          updateAppointment({ status: 'DELETED' })
                         }
                         setShowDelete(false)
                         setSelected(null)
@@ -485,7 +492,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                       className="px-4 py-1 bg-purple-500 text-white rounded"
                       onClick={() => {
                         setShowCancel(false)
-                        updateStatus('CANCEL')
+                        updateAppointment({ status: 'CANCEL' })
                       }}
                     >
                       Yes
