@@ -93,6 +93,7 @@ async function ensureRecurringFuture() {
             },
           }),
         },
+        include: { employees: true },
       })
     }
   }
