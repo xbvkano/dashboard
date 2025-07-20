@@ -611,7 +611,7 @@ const preserveTeamRef = useRef(false)
       status: recurringEnabled ? 'REOCCURRING' : newStatus ?? 'APPOINTED',
     }
 
-    const url = recurringEnabled ? `${API_BASE_URL}/appointments/recurring` : `${API_BASE_URL}/appointments`
+    let url = recurringEnabled ? `${API_BASE_URL}/appointments/recurring` : `${API_BASE_URL}/appointments`
     const extra: any = {}
     if (recurringEnabled) {
       extra.frequency =
@@ -627,11 +627,20 @@ const preserveTeamRef = useRef(false)
       if (recurringOption === 'Other') extra.months = parseInt(recurringMonths || '1', 10)
       extra.count = 6
     }
+    let method: 'POST' | 'PUT' = 'POST'
+    let payload: any = { ...body, ...extra }
+    if (initialAppointment) {
+      method = 'PUT'
+      const applyAll =
+        initialAppointment.reoccurring &&
+        confirm('Apply changes to all future occurrences?')
+      url = `${API_BASE_URL}/appointments/${initialAppointment.id}${applyAll ? '?future=true' : ''}`
+    }
 
     const res = await fetch(url, {
-      method: 'POST',
+      method,
       headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
-      body: JSON.stringify({ ...body, ...extra }),
+      body: JSON.stringify(payload),
     })
     if (res.ok) {
       onCreated()

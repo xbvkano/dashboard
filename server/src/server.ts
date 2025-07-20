@@ -632,6 +632,13 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
   try {
     const {
+      clientId,
+      templateId,
+      date,
+      time,
+      hours,
+      employeeIds,
+      adminId,
       paid,
       paymentMethod,
       paymentMethodNote,
@@ -639,6 +646,13 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       status,
       observe,
     } = req.body as {
+      clientId?: number
+      templateId?: number
+      date?: string
+      time?: string
+      hours?: number
+      employeeIds?: number[]
+      adminId?: number
       paid?: boolean
       paymentMethod?: string
       paymentMethodNote?: string
@@ -647,12 +661,31 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       observe?: boolean
     }
     const data: any = {}
+    if (clientId !== undefined) data.clientId = clientId
+    if (templateId !== undefined) {
+      const template = await prisma.appointmentTemplate.findUnique({
+        where: { id: templateId },
+      })
+      if (!template) return res.status(400).json({ error: 'Invalid templateId' })
+      data.type = template.type
+      data.address = template.address
+      data.cityStateZip = template.cityStateZip ?? undefined
+      data.size = template.size ?? undefined
+      data.price = template.price
+    }
+    if (date !== undefined) data.date = new Date(date)
+    if (time !== undefined) data.time = time
+    if (hours !== undefined) data.hours = hours
+    if (adminId !== undefined) data.adminId = adminId
     if (paid !== undefined) data.paid = paid
     if (paymentMethod !== undefined) data.paymentMethod = paymentMethod as any
     if (paymentMethodNote !== undefined) data.notes = paymentMethodNote
     if (tip !== undefined) data.tip = tip
     if (status !== undefined) data.status = status as any
     if (observe !== undefined) data.observe = observe
+    if (employeeIds) {
+      data.employees = { set: employeeIds.map((id) => ({ id })) }
+    }
     const future = req.query.future === 'true'
     const current = await prisma.appointment.findUnique({ where: { id } })
     if (!current) return res.status(404).json({ error: 'Not found' })

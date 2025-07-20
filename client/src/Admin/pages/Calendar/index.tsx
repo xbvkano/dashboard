@@ -142,7 +142,8 @@ export default function Calendar() {
 
   const handleEdit = async (appt: Appointment) => {
     sessionStorage.removeItem('createAppointmentState')
-    setDeleteOldId(appt.id!)
+    setDeleteOldId(null)
+    setRescheduleOldId(null)
     try {
       const templates = await fetchJson(
         `${API_BASE_URL}/appointment-templates?clientId=${appt.clientId}`
