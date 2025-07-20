@@ -160,6 +160,7 @@ const preserveTeamRef = useRef(false)
       if (initialAppointment.tip != null) setTip(String(initialAppointment.tip))
       if (initialAppointment.paymentMethod)
         setPaymentMethod(initialAppointment.paymentMethod)
+      if (initialAppointment.reoccurring) setRecurringEnabled(true)
       initializedRef.current = true
       sessionStorage.removeItem('createAppointmentState')
     } else {
@@ -594,24 +595,43 @@ const preserveTeamRef = useRef(false)
         if (!ok) return
       }
     }
-    const res = await fetch(`${API_BASE_URL}/appointments`, {
+    const body = {
+      clientId: selectedClient.id,
+      templateId: selectedTemplate,
+      date,
+      time,
+      hours: staffOptions[selectedOption]?.hours,
+      employeeIds: selectedEmployees,
+      adminId: adminId || undefined,
+      paid,
+      paymentMethod: paid ? (paymentMethod || 'CASH') : 'CASH',
+      paymentMethodNote:
+        paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
+      tip: paid ? parseFloat(tip) || 0 : 0,
+      status: recurringEnabled ? 'REOCCURRING' : newStatus ?? 'APPOINTED',
+    }
+
+    const url = recurringEnabled ? `${API_BASE_URL}/appointments/recurring` : `${API_BASE_URL}/appointments`
+    const extra: any = {}
+    if (recurringEnabled) {
+      extra.frequency =
+        recurringOption === 'Weekly'
+          ? 'WEEKLY'
+          : recurringOption === 'Biweekly'
+          ? 'BIWEEKLY'
+          : recurringOption === 'Thrweekly'
+          ? 'EVERY3'
+          : recurringOption === 'Monthly'
+          ? 'MONTHLY'
+          : 'CUSTOM'
+      if (recurringOption === 'Other') extra.months = parseInt(recurringMonths || '1', 10)
+      extra.count = 6
+    }
+
+    const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
-      body: JSON.stringify({
-        clientId: selectedClient.id,
-        templateId: selectedTemplate,
-        date,
-        time,
-        hours: staffOptions[selectedOption]?.hours,
-        employeeIds: selectedEmployees,
-        adminId: adminId || undefined,
-        paid,
-        paymentMethod: paid ? (paymentMethod || 'CASH') : 'CASH',
-        paymentMethodNote:
-          paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
-        tip: paid ? parseFloat(tip) || 0 : 0,
-        status: newStatus ?? 'APPOINTED',
-      }),
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+      body: JSON.stringify({ ...body, ...extra }),
     })
     if (res.ok) {
       onCreated()

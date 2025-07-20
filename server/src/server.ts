@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { OAuth2Client } from 'google-auth-library'
 import axios from 'axios'
+import crypto from 'crypto'
 import { staffOptionsData } from './data/staffOptions'
 dotenv.config()
 
@@ -444,6 +445,112 @@ app.get('/appointments', async (req: Request, res: Response) => {
   }
 })
 
+app.get('/appointments/lineage/:lineage', async (req: Request, res: Response) => {
+  const { lineage } = req.params
+  try {
+    const appts = await prisma.appointment.findMany({
+      where: { lineage },
+      orderBy: { date: 'asc' },
+      include: { client: true, employees: true },
+    })
+    res.json(appts)
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch lineage appointments' })
+  }
+})
+
+app.post('/appointments/recurring', async (req: Request, res: Response) => {
+  try {
+    const {
+      clientId,
+      templateId,
+      date,
+      time,
+      hours,
+      employeeIds = [],
+      adminId,
+      paid = false,
+      paymentMethod = 'CASH',
+      paymentMethodNote,
+      tip = 0,
+      count = 1,
+      frequency,
+    } = req.body as {
+      clientId?: number
+      templateId?: number
+      date?: string
+      time?: string
+      hours?: number
+      employeeIds?: number[]
+      adminId?: number
+      paid?: boolean
+      paymentMethod?: string
+      paymentMethodNote?: string
+      tip?: number
+      count?: number
+      frequency?: string
+    }
+
+    if (!clientId || !templateId || !date || !time || !adminId || !frequency) {
+      return res.status(400).json({ error: 'Missing required fields' })
+    }
+
+    const template = await prisma.appointmentTemplate.findUnique({
+      where: { id: templateId },
+    })
+    if (!template) {
+      return res.status(400).json({ error: 'Invalid templateId' })
+    }
+
+    const lineage = crypto.randomUUID()
+    const first = new Date(date)
+    const created: any[] = []
+    for (let i = 0; i < count; i++) {
+      const d = new Date(first)
+      if (frequency === 'WEEKLY') d.setDate(d.getDate() + i * 7)
+      else if (frequency === 'BIWEEKLY') d.setDate(d.getDate() + i * 14)
+      else if (frequency === 'EVERY3') d.setDate(d.getDate() + i * 21)
+      else if (frequency === 'MONTHLY') d.setMonth(d.getMonth() + i)
+      else {
+        const m = parseInt(String(req.body.months || 1), 10)
+        d.setMonth(d.getMonth() + i * (isNaN(m) ? 1 : m))
+      }
+      const appt = await prisma.appointment.create({
+        data: {
+          clientId,
+          adminId,
+          date: d,
+          time,
+          type: template.type,
+          address: template.address,
+          cityStateZip: template.cityStateZip,
+          size: template.size,
+          hours: hours ?? null,
+          price: template.price,
+          paid,
+          tip,
+          paymentMethod: paymentMethod as any,
+          notes: paymentMethodNote || undefined,
+          status: 'REOCCURRING',
+          lineage,
+          reoccurring: true,
+          ...(employeeIds.length > 0 && {
+            employees: {
+              connect: employeeIds.map((id) => ({ id })),
+            },
+          }),
+        },
+      })
+      created.push(appt)
+    }
+
+    res.json(created)
+  } catch (err) {
+    console.error('Error creating recurring appointments:', err)
+    res.status(500).json({ error: 'Failed to create recurring appointments' })
+  }
+})
+
 app.post('/appointments', async (req: Request, res: Response) => {
   try {
     const {
@@ -546,9 +653,27 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
     if (tip !== undefined) data.tip = tip
     if (status !== undefined) data.status = status as any
     if (observe !== undefined) data.observe = observe
-
-    const appt = await prisma.appointment.update({ where: { id }, data, include: { client: true, employees: true } })
-    res.json(appt)
+    const future = req.query.future === 'true'
+    const current = await prisma.appointment.findUnique({ where: { id } })
+    if (!current) return res.status(404).json({ error: 'Not found' })
+    if (future && current.lineage !== 'single') {
+      await prisma.appointment.updateMany({
+        where: { lineage: current.lineage, date: { gte: current.date } },
+        data,
+      })
+      const appts = await prisma.appointment.findMany({
+        where: { lineage: current.lineage, date: { gte: current.date } },
+        include: { client: true, employees: true },
+      })
+      res.json(appts)
+    } else {
+      const appt = await prisma.appointment.update({
+        where: { id },
+        data,
+        include: { client: true, employees: true },
+      })
+      res.json(appt)
+    }
   } catch (e) {
     console.error('Error updating appointment:', e)
     res.status(500).json({ error: 'Failed to update appointment' })
