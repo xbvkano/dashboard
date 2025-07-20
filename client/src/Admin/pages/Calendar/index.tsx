@@ -55,6 +55,7 @@ export default function Calendar() {
     clientId?: number
     templateId?: number | null
     status?: Appointment['status']
+    appointment?: Appointment
   } | null>(() => {
     const stored = sessionStorage.getItem('createParams')
     if (stored) {
@@ -68,6 +69,7 @@ export default function Calendar() {
     const stored = sessionStorage.getItem('rescheduleOldId')
     return stored ? Number(stored) : null
   })
+  const [deleteOldId, setDeleteOldId] = useState<number | null>(null)
 
   const handleUpdate = (updated: Appointment) => {
     setAppointments((appts) => {
@@ -138,6 +140,27 @@ export default function Calendar() {
     }
   }
 
+  const handleEdit = async (appt: Appointment) => {
+    sessionStorage.removeItem('createAppointmentState')
+    setDeleteOldId(appt.id!)
+    try {
+      const templates = await fetchJson(
+        `${API_BASE_URL}/appointment-templates?clientId=${appt.clientId}`
+      )
+      const match = templates.find(
+        (t: any) => t.address === appt.address && t.type === appt.type && t.size === appt.size
+      )
+      setCreateParams({
+        clientId: appt.clientId,
+        templateId: match?.id ?? null,
+        status: appt.status,
+        appointment: appt,
+      })
+    } catch {
+      setCreateParams({ clientId: appt.clientId, status: appt.status, appointment: appt })
+    }
+  }
+
   useEffect(() => {
     const year = selected.getFullYear()
     const month = selected.getMonth() + 1
@@ -166,6 +189,16 @@ export default function Calendar() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'RESCHEDULE_OLD' }),
+      })
+    } catch {}
+  }
+
+  const markOldDelete = async (id: number) => {
+    try {
+      await fetchJson(`${API_BASE_URL}/appointments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'DELETED' }),
       })
     } catch {}
   }
@@ -200,39 +233,45 @@ export default function Calendar() {
           nextWeek={nextWeek}
         />
       </div>
-      <DayTimeline
-        nowOffset={nowOffset}
-        prevDay={prevDay}
-        nextDay={nextDay}
-        appointments={appointments.current}
-        prevAppointments={appointments.prev}
-        nextAppointments={appointments.next}
-        onUpdate={handleUpdate}
-        onCreate={(appt, status) => handleCreateFrom(appt, status)}
-      />
+        <DayTimeline
+          nowOffset={nowOffset}
+          prevDay={prevDay}
+          nextDay={nextDay}
+          appointments={appointments.current}
+          prevAppointments={appointments.prev}
+          nextAppointments={appointments.next}
+          onUpdate={handleUpdate}
+          onCreate={(appt, status) => handleCreateFrom(appt, status)}
+          onEdit={handleEdit}
+        />
       <button
         className="fixed bottom-20 right-6 w-12 h-12 rounded-full bg-black text-white text-2xl flex items-center justify-center"
         onClick={() => setCreateParams({})}
       >
         +
       </button>
-      {createParams && (
-        <CreateAppointmentModal
-          onClose={() => {
-            setCreateParams(null)
-            setRescheduleOldId(null)
-          }}
-          onCreated={() => {
-            if (rescheduleOldId) {
-              markOldReschedule(rescheduleOldId).then(() => setRescheduleOldId(null))
-            }
-            refresh()
-          }}
-          initialClientId={createParams.clientId}
-          initialTemplateId={createParams.templateId ?? undefined}
-          newStatus={createParams.status}
-        />
-      )}
+        {createParams && (
+          <CreateAppointmentModal
+            onClose={() => {
+              setCreateParams(null)
+              setRescheduleOldId(null)
+              setDeleteOldId(null)
+            }}
+            onCreated={() => {
+              if (rescheduleOldId) {
+                markOldReschedule(rescheduleOldId).then(() => setRescheduleOldId(null))
+              }
+              if (deleteOldId) {
+                markOldDelete(deleteOldId).then(() => setDeleteOldId(null))
+              }
+              refresh()
+            }}
+            initialClientId={createParams.clientId}
+            initialTemplateId={createParams.templateId ?? undefined}
+            newStatus={createParams.status}
+            initialAppointment={createParams.appointment}
+          />
+        )}
     </div>
   )
 }

@@ -16,9 +16,10 @@ interface DayProps {
   animating: boolean
   onUpdate?: (a: Appointment) => void
   onCreate?: (appt: Appointment, status: Appointment['status']) => void
+  onEdit?: (appt: Appointment) => void
 }
 
-function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate }: DayProps) {
+function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate, onEdit }: DayProps) {
   const [selected, setSelected] = useState<Appointment | null>(null)
   const [overlayTop, setOverlayTop] = useState(0)
   const [overlayHeight, setOverlayHeight] = useState(0)
@@ -285,7 +286,19 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                   <div className="text-sm text-gray-600">{selected.client.number}</div>
                 )}
               </div>
-              <button onClick={() => setSelected(null)}>X</button>
+              <div className="flex gap-2">
+                <button
+                  className="text-sm text-blue-500"
+                  onClick={() => {
+                    const appt = selected!
+                    setSelected(null)
+                    onEdit?.(appt)
+                  }}
+                >
+                  Edit
+                </button>
+                <button onClick={() => setSelected(null)}>X</button>
+              </div>
             </div>
             <div className="text-sm">Address: {selected.address}</div>
             <div className="text-sm">Type: {selected.type}</div>
@@ -518,6 +531,7 @@ interface Props {
   nextAppointments: Appointment[]
   onUpdate?: (a: Appointment) => void
   onCreate?: (appt: Appointment, status: Appointment['status']) => void
+  onEdit?: (appt: Appointment) => void
 }
 
 export default function DayTimeline({
@@ -529,6 +543,7 @@ export default function DayTimeline({
   nextAppointments,
   onUpdate,
   onCreate,
+  onEdit,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const currentDayRef = useRef<HTMLDivElement | null>(null)
@@ -634,6 +649,7 @@ export default function DayTimeline({
           animating={animating}
           onUpdate={onUpdate}
           onCreate={onCreate}
+          onEdit={onEdit}
         />
         <Day
           appointments={appointments}
@@ -642,6 +658,7 @@ export default function DayTimeline({
           animating={animating}
           onUpdate={onUpdate}
           onCreate={onCreate}
+          onEdit={onEdit}
         />
         <Day
           appointments={nextAppointments}
@@ -649,6 +666,7 @@ export default function DayTimeline({
           animating={animating}
           onUpdate={onUpdate}
           onCreate={onCreate}
+          onEdit={onEdit}
         />
       </div>
     </div>
