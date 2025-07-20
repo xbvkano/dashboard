@@ -70,6 +70,8 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     address: '',
     price: '',
     notes: '',
+    carpetEnabled: false,
+    carpetRooms: '',
   })
 
   const [date, setDate] = useState('')
@@ -225,7 +227,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
         sessionStorage.setItem('createAppointmentState', JSON.stringify(data))
       } catch {}
     }
-  }, [selectedTemplate])
+  }, [selectedTemplate, templates])
 
   const resetCarpet = () => {
     setCarpetEnabled(false)
@@ -245,6 +247,8 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       address: '',
       price: '',
       notes: '',
+      carpetEnabled: false,
+      carpetRooms: '',
     })
     setDate('')
     setTime('')
@@ -354,10 +358,15 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   useEffect(() => {
     if (!selectedTemplate) {
       setStaffOptions([])
+      setCarpetEnabled(false)
+      setCarpetRooms('')
       return
     }
     loadStaffData(selectedTemplate)
-  }, [selectedTemplate])
+    const t = templates.find((tt) => tt.id === selectedTemplate)
+    setCarpetEnabled(!!t?.carpetEnabled)
+    setCarpetRooms(t?.carpetRooms || '')
+  }, [selectedTemplate, templates])
 
   // calculate pay rate when team changes
   useEffect(() => {
@@ -439,6 +448,8 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       address: t.address,
       price: String(t.price),
       notes: t.cityStateZip || '',
+      carpetEnabled: !!t.carpetEnabled,
+      carpetRooms: t.carpetRooms || '',
     })
     setEditing(true)
     setShowNewTemplate(true)
@@ -462,7 +473,14 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     })
     if (res.ok) {
       const t = await res.json()
-      setTemplates((p) => [...p, t])
+      setTemplates((p) => [
+        ...p,
+        {
+          ...t,
+          carpetEnabled: templateForm.carpetEnabled,
+          carpetRooms: templateForm.carpetRooms,
+        },
+      ])
       resetTemplateRelated()
       setSelectedTemplate(t.id)
       setShowNewTemplate(false)
@@ -684,6 +702,34 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
                   value={templateForm.notes}
                   onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })}
                 />
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={templateForm.carpetEnabled}
+                    onChange={(e) => {
+                      setTemplateForm({
+                        ...templateForm,
+                        carpetEnabled: e.target.checked,
+                        ...(e.target.checked ? {} : { carpetRooms: '' }),
+                      })
+                    }}
+                  />
+                  <span>Carpet Cleaning</span>
+                </label>
+                {templateForm.carpetEnabled && (
+                  <div>
+                    <h4 className="font-light">How many rooms?</h4>
+                    <input
+                      type="number"
+                      min="1"
+                      className="w-full border p-2 rounded text-base"
+                      value={templateForm.carpetRooms}
+                      onChange={(e) =>
+                        setTemplateForm({ ...templateForm, carpetRooms: e.target.value })
+                      }
+                    />
+                  </div>
+                )}
                 <div className="flex gap-2 justify-end">
                   <button className="px-3 py-2" onClick={() => { setShowNewTemplate(false); setEditing(false) }}>
                     Cancel
@@ -718,6 +764,9 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
                       <div>Address: {t.address}</div>
                       <div>Price: ${t.price.toFixed(2)}</div>
                       {t.cityStateZip && <div>Notes: {t.cityStateZip}</div>}
+                      {t.carpetEnabled && (
+                        <div>Carpet Rooms: {t.carpetRooms}</div>
+                      )}
                     </div>
                   )
                 })()}
@@ -744,38 +793,6 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
                     New
                   </button>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Carpet in template */}
-        {selectedTemplate && (
-          <div className="space-y-1 mb-2">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={carpetEnabled}
-                onChange={(e) => {
-                  setCarpetEnabled(e.target.checked)
-                  if (!e.target.checked) {
-                    setCarpetEmployees([])
-                    setCarpetRooms('')
-                  }
-                }}
-              />
-              <span>Carpet Cleaning</span>
-            </label>
-            {carpetEnabled && (
-              <div>
-                <h4 className="font-light">How many rooms?</h4>
-                <input
-                  type="number"
-                  min="1"
-                  className="w-full border p-2 rounded text-base"
-                  value={carpetRooms}
-                  onChange={(e) => setCarpetRooms(e.target.value)}
-                />
               </div>
             )}
           </div>
