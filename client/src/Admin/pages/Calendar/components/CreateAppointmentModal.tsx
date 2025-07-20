@@ -130,8 +130,9 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     onClose()
   }
 
-  const initializedRef = useRef(false)
-  const storedTemplateIdRef = useRef<number | null>(storedInitialTemplateId)
+const initializedRef = useRef(false)
+const storedTemplateIdRef = useRef<number | null>(storedInitialTemplateId)
+const preserveTeamRef = useRef(false)
 
   const loadStaffData = (templateId: number) => {
     const t = templates.find((tt) => tt.id === templateId)
@@ -139,7 +140,6 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     fetchJson(`${API_BASE_URL}/staff-options?size=${encodeURIComponent(t.size)}&type=${t.type}`)
       .then((d) => {
         setStaffOptions(d)
-        setSelectedOption(0)
       })
       .catch((err) => console.error(err))
     fetchJson(`${API_BASE_URL}/employees?search=&skip=0&take=1000`)
@@ -386,6 +386,11 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       return
     }
     loadStaffData(selectedTemplate)
+    if (preserveTeamRef.current) {
+      preserveTeamRef.current = false
+    } else {
+      setSelectedOption(0)
+    }
     const t = templates.find((tt) => tt.id === selectedTemplate)
     setCarpetEnabled(!!t?.carpetEnabled)
     setCarpetRooms(t?.carpetRooms || '')
@@ -531,7 +536,11 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
           },
         ]
       })
-      resetTemplateRelated()
+      if (editing) {
+        preserveTeamRef.current = true
+      } else {
+        resetTemplateRelated()
+      }
       setSelectedTemplate(t.id)
       setShowNewTemplate(false)
       setEditing(false)
