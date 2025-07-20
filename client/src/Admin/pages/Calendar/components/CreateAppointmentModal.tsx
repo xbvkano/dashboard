@@ -10,6 +10,7 @@ interface Props {
   initialClientId?: number
   initialTemplateId?: number
   newStatus?: import('../types').Appointment['status']
+  initialAppointment?: import('../types').Appointment
 }
 
 const sizeOptions = [
@@ -26,7 +27,7 @@ const sizeOptions = [
   '6000+',
 ]
 
-export default function CreateAppointmentModal({ onClose, onCreated, initialClientId, initialTemplateId, newStatus }: Props) {
+export default function CreateAppointmentModal({ onClose, onCreated, initialClientId, initialTemplateId, newStatus, initialAppointment }: Props) {
   const [clientSearch, setClientSearch] = useState('')
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
@@ -146,40 +147,56 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   }
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('createAppointmentState')
-    if (stored) {
-      try {
-        const s = JSON.parse(stored)
-        if (s.clientSearch) setClientSearch(s.clientSearch)
-        if (s.selectedClient) setSelectedClient(s.selectedClient)
-        if (s.newClient) setNewClient(s.newClient)
-        if (typeof s.showNewClient === 'boolean') setShowNewClient(s.showNewClient)
-        if (typeof s.selectedTemplate !== 'undefined') {
-          setSelectedTemplate(s.selectedTemplate)
-          storedTemplateIdRef.current = s.selectedTemplate
-        }
-        if (typeof s.showNewTemplate === 'boolean') setShowNewTemplate(s.showNewTemplate)
-        if (typeof s.editing === 'boolean') setEditing(s.editing)
-        if (s.templateForm) setTemplateForm({ ...templateForm, ...s.templateForm })
-        if (s.date) setDate(s.date)
-        if (s.time) setTime(s.time)
-        if (typeof s.adminId !== 'undefined')
-          setAdminId(s.adminId === '' ? '' : Number(s.adminId))
-        if (typeof s.paid === 'boolean') setPaid(s.paid)
-        if (s.tip) setTip(s.tip)
-        if (s.paymentMethod) setPaymentMethod(s.paymentMethod)
-        if (s.otherPayment) setOtherPayment(s.otherPayment)
-        if (Array.isArray(s.selectedEmployees)) setSelectedEmployees(s.selectedEmployees)
-        if (typeof s.selectedOption === 'number') setSelectedOption(s.selectedOption)
-        if (typeof s.carpetEnabled === 'boolean') setCarpetEnabled(s.carpetEnabled)
-        if (s.carpetRooms) setCarpetRooms(s.carpetRooms)
-        if (Array.isArray(s.carpetEmployees)) setCarpetEmployees(s.carpetEmployees)
-        if (typeof s.recurringEnabled === 'boolean') setRecurringEnabled(s.recurringEnabled)
-        if (s.recurringOption) setRecurringOption(s.recurringOption)
-        if (s.recurringMonths) setRecurringMonths(s.recurringMonths)
-      } catch {}
+    if (initialAppointment) {
+      if (initialAppointment.client) setSelectedClient(initialAppointment.client)
+      setDate(initialAppointment.date.slice(0, 10))
+      setTime(initialAppointment.time)
+      if (initialAppointment.employees)
+        setSelectedEmployees(initialAppointment.employees.map((e) => e.id))
+      if (initialAppointment.adminId)
+        setAdminId(initialAppointment.adminId)
+      if (initialAppointment.paid !== undefined) setPaid(initialAppointment.paid)
+      if (initialAppointment.tip != null) setTip(String(initialAppointment.tip))
+      if (initialAppointment.paymentMethod)
+        setPaymentMethod(initialAppointment.paymentMethod)
+      initializedRef.current = true
+      sessionStorage.removeItem('createAppointmentState')
+    } else {
+      const stored = sessionStorage.getItem('createAppointmentState')
+      if (stored) {
+        try {
+          const s = JSON.parse(stored)
+          if (s.clientSearch) setClientSearch(s.clientSearch)
+          if (s.selectedClient) setSelectedClient(s.selectedClient)
+          if (s.newClient) setNewClient(s.newClient)
+          if (typeof s.showNewClient === 'boolean') setShowNewClient(s.showNewClient)
+          if (typeof s.selectedTemplate !== 'undefined') {
+            setSelectedTemplate(s.selectedTemplate)
+            storedTemplateIdRef.current = s.selectedTemplate
+          }
+          if (typeof s.showNewTemplate === 'boolean') setShowNewTemplate(s.showNewTemplate)
+          if (typeof s.editing === 'boolean') setEditing(s.editing)
+          if (s.templateForm) setTemplateForm({ ...templateForm, ...s.templateForm })
+          if (s.date) setDate(s.date)
+          if (s.time) setTime(s.time)
+          if (typeof s.adminId !== 'undefined')
+            setAdminId(s.adminId === '' ? '' : Number(s.adminId))
+          if (typeof s.paid === 'boolean') setPaid(s.paid)
+          if (s.tip) setTip(s.tip)
+          if (s.paymentMethod) setPaymentMethod(s.paymentMethod)
+          if (s.otherPayment) setOtherPayment(s.otherPayment)
+          if (Array.isArray(s.selectedEmployees)) setSelectedEmployees(s.selectedEmployees)
+          if (typeof s.selectedOption === 'number') setSelectedOption(s.selectedOption)
+          if (typeof s.carpetEnabled === 'boolean') setCarpetEnabled(s.carpetEnabled)
+          if (s.carpetRooms) setCarpetRooms(s.carpetRooms)
+          if (Array.isArray(s.carpetEmployees)) setCarpetEmployees(s.carpetEmployees)
+          if (typeof s.recurringEnabled === 'boolean') setRecurringEnabled(s.recurringEnabled)
+          if (s.recurringOption) setRecurringOption(s.recurringOption)
+          if (s.recurringMonths) setRecurringMonths(s.recurringMonths)
+        } catch {}
+      }
+      initializedRef.current = true
     }
-    initializedRef.current = true
   }, [])
 
   useEffect(() => {
@@ -540,6 +557,10 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
       alert('Please complete carpet cleaning info')
       return
     }
+    if (selectedEmployees.length < 1) {
+      alert('Team must have at least one member')
+      return
+    }
     if (!isValidSelection()) {
       const proceed = confirm('Team is less than required. Continue?')
       if (!proceed) return
@@ -589,7 +610,9 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center">
-          <h2 className="text-lg font-semibold">New Appointment</h2>
+          <h2 className="text-lg font-semibold">
+            {initialAppointment ? 'Edit Appointment' : 'New Appointment'}
+          </h2>
           <button onClick={handleClose}>X</button>
         </div>
 
