@@ -25,10 +25,11 @@ async function ensureRecurringFuture() {
 
   for (const { lineage } of lineages) {
     const latest = await prisma.appointment.findFirst({
-      where: { lineage },
+      where: { lineage, status: { notIn: ['DELETED', 'CANCEL'] } },
       orderBy: { date: 'desc' },
+      include: { employees: true },
     })
-    if (!latest || ['DELETED', 'CANCEL'].includes(latest.status)) continue
+    if (!latest) continue
 
     const upcoming = await prisma.appointment.findMany({
       where: {
@@ -39,10 +40,21 @@ async function ensureRecurringFuture() {
       orderBy: { date: 'asc' },
       include: { employees: true },
     })
-    if (upcoming.length >= 10 || upcoming.length < 2) continue
+    if (upcoming.length >= 10 || upcoming.length === 0) continue
 
     let last = upcoming[upcoming.length - 1]
-    const prev = upcoming[upcoming.length - 2]
+    let prev =
+      upcoming.length >= 2
+        ? upcoming[upcoming.length - 2]
+        : await prisma.appointment.findFirst({
+            where: {
+              lineage,
+              status: { notIn: ['DELETED', 'CANCEL'] },
+              date: { lt: last.date },
+            },
+            orderBy: { date: 'desc' },
+          })
+    if (!prev) continue
     const diffDays = Math.round(
       (last.date.getTime() - prev.date.getTime()) / 86400000
     )
