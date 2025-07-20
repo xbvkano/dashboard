@@ -37,7 +37,12 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
     observe?: boolean
   }) => {
     if (!selected) return
-    const res = await fetch(`${API_BASE_URL}/appointments/${selected.id}`, {
+    let url = `${API_BASE_URL}/appointments/${selected.id}`
+    if (selected.reoccurring) {
+      const apply = confirm('Apply to all future occurrences?')
+      if (apply) url += '?future=true'
+    }
+    const res = await fetch(url, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -53,14 +58,19 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
       alert('Failed to update appointment')
     }
   }
-  const handleSave = async () => {
-    if (!selected) return
-    const res = await fetch(`${API_BASE_URL}/appointments/${selected.id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': '1',
-      },
+const handleSave = async () => {
+  if (!selected) return
+  let url = `${API_BASE_URL}/appointments/${selected.id}`
+  if (selected.reoccurring) {
+    const apply = confirm('Apply to all future occurrences?')
+    if (apply) url += '?future=true'
+  }
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': '1',
+    },
       body: JSON.stringify({
         paid,
         paymentMethod: paid ? (paymentMethod || 'CASH') : 'CASH',

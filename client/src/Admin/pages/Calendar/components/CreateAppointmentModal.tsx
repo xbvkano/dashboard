@@ -160,6 +160,7 @@ const preserveTeamRef = useRef(false)
       if (initialAppointment.tip != null) setTip(String(initialAppointment.tip))
       if (initialAppointment.paymentMethod)
         setPaymentMethod(initialAppointment.paymentMethod)
+      if (initialAppointment.reoccurring) setRecurringEnabled(true)
       initializedRef.current = true
       sessionStorage.removeItem('createAppointmentState')
     } else {
@@ -594,24 +595,53 @@ const preserveTeamRef = useRef(false)
         if (!ok) return
       }
     }
-    const res = await fetch(`${API_BASE_URL}/appointments`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
-      body: JSON.stringify({
-        clientId: selectedClient.id,
-        templateId: selectedTemplate,
-        date,
-        time,
-        hours: staffOptions[selectedOption]?.hours,
-        employeeIds: selectedEmployees,
-        adminId: adminId || undefined,
-        paid,
-        paymentMethod: paid ? (paymentMethod || 'CASH') : 'CASH',
-        paymentMethodNote:
-          paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
-        tip: paid ? parseFloat(tip) || 0 : 0,
-        status: newStatus ?? 'APPOINTED',
-      }),
+    const body = {
+      clientId: selectedClient.id,
+      templateId: selectedTemplate,
+      date,
+      time,
+      hours: staffOptions[selectedOption]?.hours,
+      employeeIds: selectedEmployees,
+      adminId: adminId || undefined,
+      paid,
+      paymentMethod: paid ? (paymentMethod || 'CASH') : 'CASH',
+      paymentMethodNote:
+        paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
+      tip: paid ? parseFloat(tip) || 0 : 0,
+      status: recurringEnabled ? 'REOCCURRING' : newStatus ?? 'APPOINTED',
+    }
+
+    let url = recurringEnabled ? `${API_BASE_URL}/appointments/recurring` : `${API_BASE_URL}/appointments`
+    const extra: any = {}
+    if (recurringEnabled) {
+      extra.frequency =
+        recurringOption === 'Weekly'
+          ? 'WEEKLY'
+          : recurringOption === 'Biweekly'
+          ? 'BIWEEKLY'
+          : recurringOption === 'Thrweekly'
+          ? 'EVERY3'
+          : recurringOption === 'Monthly'
+          ? 'MONTHLY'
+          : 'CUSTOM'
+      if (recurringOption === 'Other') extra.months = parseInt(recurringMonths || '1', 10)
+      extra.count = 6
+    }
+
+    let method: 'POST' | 'PUT' = 'POST'
+    let payload: any = { ...body, ...extra }
+    if (initialAppointment) {
+      method = 'PUT'
+      const applyAll =
+        initialAppointment.reoccurring &&
+        confirm('Apply changes to all future occurrences?')
+      url = `${API_BASE_URL}/appointments/${initialAppointment.id}${applyAll ? '?future=true' : ''}`
+    }
+
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+      body: JSON.stringify(payload),
     })
     if (res.ok) {
       onCreated()
