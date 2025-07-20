@@ -81,11 +81,11 @@ async function ensureRecurringFuture() {
             },
           }),
         },
+        include: { employees: true },
       })
     }
   }
 }
-
 import { staffOptionsData } from './data/staffOptions'
 dotenv.config()
 
