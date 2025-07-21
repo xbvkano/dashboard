@@ -136,3 +136,19 @@ enum AppointmentStatus {
   REOCCURRING
   DELETED
 }
+
+model Invoice {
+  id          String   @id @default(uuid()) @db.Uuid
+  clientName  String
+  billedTo    String
+  address     String
+  serviceDate DateTime
+  serviceTime String
+  serviceType String
+  price       Float
+  carpetPrice Float?
+  discount    Float?
+  taxPercent  Float?
+  total       Float
+  createdAt   DateTime @default(now())
+}

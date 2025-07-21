@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Appointment } from '../../Calendar/types'
-import { API_BASE_URL } from '../../../api'
+import { API_BASE_URL } from '../../../../api'
 
 interface Props {
   appointment: Appointment

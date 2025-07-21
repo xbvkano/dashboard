@@ -107,26 +107,6 @@ const prisma = new PrismaClient()
 const app = express()
 const port = process.env.PORT || 3000
 
-// Ensure invoice table exists when server starts
-prisma.$executeRawUnsafe(`
-  CREATE TABLE IF NOT EXISTS "Invoice" (
-    id UUID PRIMARY KEY,
-    client_name TEXT NOT NULL,
-    billed_to TEXT NOT NULL,
-    address TEXT NOT NULL,
-    service_date DATE NOT NULL,
-    service_time TEXT NOT NULL,
-    service_type TEXT NOT NULL,
-    price DECIMAL NOT NULL,
-    carpet_price DECIMAL,
-    discount DECIMAL,
-    tax_percent DECIMAL,
-    total DECIMAL NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
-  );
-`).catch((err: any) => {
-  console.error('Failed to ensure Invoice table:', err)
-})
 const client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
@@ -1002,25 +982,24 @@ app.post('/invoices', async (req: Request, res: Response) => {
     if (!clientName || !billedTo || !address || !serviceDate || !serviceTime || !serviceType || price === undefined) {
       return res.status(400).json({ error: 'Missing fields' })
     }
-    const id = crypto.randomUUID()
     const subtotal = price + (carpetPrice || 0) - (discount || 0)
     const total = subtotal + (taxPercent ? subtotal * (taxPercent / 100) : 0)
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO "Invoice" (id, client_name, billed_to, address, service_date, service_time, service_type, price, carpet_price, discount, tax_percent, total) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      id,
-      clientName,
-      billedTo,
-      address,
-      serviceDate,
-      serviceTime,
-      serviceType,
-      price,
-      carpetPrice ?? null,
-      discount ?? null,
-      taxPercent ?? null,
-      total
-    )
-    res.json({ id })
+    const invoice = await prisma.invoice.create({
+      data: {
+        clientName,
+        billedTo,
+        address,
+        serviceDate: new Date(serviceDate),
+        serviceTime,
+        serviceType,
+        price,
+        carpetPrice: carpetPrice ?? null,
+        discount: discount ?? null,
+        taxPercent: taxPercent ?? null,
+        total,
+      },
+    })
+    res.json({ id: invoice.id })
   } catch (err) {
     console.error('Failed to create invoice:', err)
     res.status(500).json({ error: 'Failed to create invoice' })
@@ -1031,11 +1010,7 @@ app.post('/invoices', async (req: Request, res: Response) => {
 app.get('/invoices/:id/pdf', async (req: Request, res: Response) => {
   try {
     const { id } = req.params
-    const rows: any[] = await prisma.$queryRawUnsafe(
-      `SELECT * FROM "Invoice" WHERE id=$1`,
-      id
-    )
-    const inv = rows[0]
+    const inv = await prisma.invoice.findUnique({ where: { id } })
     if (!inv) return res.status(404).json({ error: 'Not found' })
 
     const pdf = await PDFDocument.create()
@@ -1051,14 +1026,14 @@ app.get('/invoices/:id/pdf', async (req: Request, res: Response) => {
     draw(`Invoice #: ${inv.id}`)
     draw(`Date of Issue: ${new Date().toISOString().slice(0, 10)}`)
     y -= 10
-    draw(`Billed to: ${inv.billed_to}`)
-    draw(`Service Date: ${inv.service_date.toISOString().slice(0,10)} ${inv.service_time}`)
-    draw(`Service Type: ${inv.service_type}`)
+    draw(`Billed to: ${inv.billedTo}`)
+    draw(`Service Date: ${inv.serviceDate.toISOString().slice(0,10)} ${inv.serviceTime}`)
+    draw(`Service Type: ${inv.serviceType}`)
     draw(`Price: $${Number(inv.price).toFixed(2)}`)
-    if (inv.carpet_price != null)
-      draw(`Carpet: $${Number(inv.carpet_price).toFixed(2)}`)
+    if (inv.carpetPrice != null)
+      draw(`Carpet: $${Number(inv.carpetPrice).toFixed(2)}`)
     if (inv.discount != null) draw(`Discount: -$${Number(inv.discount).toFixed(2)}`)
-    if (inv.tax_percent != null) draw(`Tax: ${Number(inv.tax_percent).toFixed(2)}%`)
+    if (inv.taxPercent != null) draw(`Tax: ${Number(inv.taxPercent).toFixed(2)}%`)
     y -= 10
     draw(`Total: $${Number(inv.total).toFixed(2)}`, 14)
     const bytes = await pdf.save()
