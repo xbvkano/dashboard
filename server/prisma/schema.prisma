@@ -54,6 +54,7 @@ model Appointment {
   paid            Boolean         @default(false)
   paymentMethod   PaymentMethod
   tip             Float           @default(0)
+  carpetRooms     Int?
   reoccurring     Boolean         @default(false)
   status          AppointmentStatus @default(APPOINTED)
   observe         Boolean         @default(false)
