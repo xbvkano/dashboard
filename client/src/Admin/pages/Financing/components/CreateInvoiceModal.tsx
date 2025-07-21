@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Appointment } from '../../Calendar/types'
 import { API_BASE_URL } from '../../../../api'
 
@@ -19,6 +19,17 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   const [discount, setDiscount] = useState('')
   const [taxEnabled, setTaxEnabled] = useState(false)
   const [taxPercent, setTaxPercent] = useState('')
+
+  useEffect(() => {
+    const rooms = (appointment as any).carpetRooms
+    const size = appointment.size
+    if (rooms && size) {
+      fetch(`${API_BASE_URL}/carpet-rate?size=${encodeURIComponent(size)}&rooms=${rooms}`)
+        .then((res) => res.json())
+        .then((d) => setCarpetPrice(String(d.rate)))
+        .catch(() => {})
+    }
+  }, [appointment])
 
   const subtotal =
     (parseFloat(price) || 0) +
