@@ -9,7 +9,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { OAuth2Client } from 'google-auth-library'
 import axios from 'axios'
 import crypto from 'crypto'
-import { PDFDocument, StandardFonts } from 'pdf-lib'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
 let lastRecurringCheck = ''
 
@@ -1016,26 +1016,52 @@ app.get('/invoices/:id/pdf', async (req: Request, res: Response) => {
     const pdf = await PDFDocument.create()
     const page = pdf.addPage()
     const font = await pdf.embedFont(StandardFonts.Helvetica)
-    let y = page.getHeight() - 40
-    const draw = (text: string, size = 12) => {
-      page.drawText(text, { x: 40, y, size, font })
+
+    const logoPath = path.join(__dirname, '../../client/public/logo.png')
+    if (fs.existsSync(logoPath)) {
+      const imgBytes = fs.readFileSync(logoPath)
+      const png = await pdf.embedPng(imgBytes)
+      const dims = png.scale(0.25)
+      page.drawImage(png, {
+        x: 40,
+        y: page.getHeight() - dims.height - 30,
+        width: dims.width,
+        height: dims.height,
+      })
+    }
+
+    let y = page.getHeight() - 120
+    const draw = (text: string, size = 12, color = rgb(0, 0, 0)) => {
+      page.drawText(text, { x: 40, y, size, font, color })
       y -= size + 8
     }
-    draw('Evidence Cleaning', 16)
+
+    const blue = rgb(0.2, 0.3, 0.6)
+    draw('Evidence Cleaning', 18, blue)
     draw('850 E desert inn rd')
     draw(`Invoice #: ${inv.id}`)
     draw(`Date of Issue: ${new Date().toISOString().slice(0, 10)}`)
     y -= 10
+
+    draw('Billing Information', 14, blue)
     draw(`Billed to: ${inv.billedTo}`)
+    draw(`Address: ${inv.address}`)
+    y -= 6
+
+    draw('Service Details', 14, blue)
     draw(`Service Date: ${inv.serviceDate.toISOString().slice(0,10)} ${inv.serviceTime}`)
     draw(`Service Type: ${inv.serviceType}`)
+    y -= 6
+
+    draw('Charges', 14, blue)
     draw(`Price: $${Number(inv.price).toFixed(2)}`)
-    if (inv.carpetPrice != null)
-      draw(`Carpet: $${Number(inv.carpetPrice).toFixed(2)}`)
+    if (inv.carpetPrice != null) draw(`Carpet: $${Number(inv.carpetPrice).toFixed(2)}`)
     if (inv.discount != null) draw(`Discount: -$${Number(inv.discount).toFixed(2)}`)
     if (inv.taxPercent != null) draw(`Tax: ${Number(inv.taxPercent).toFixed(2)}%`)
-    y -= 10
-    draw(`Total: $${Number(inv.total).toFixed(2)}`, 14)
+    y -= 6
+
+    draw('Total', 14, blue)
+    draw(`$${Number(inv.total).toFixed(2)}`, 14)
     const bytes = await pdf.save()
     res.setHeader('Content-Type', 'application/pdf')
     res.send(Buffer.from(bytes))
