@@ -160,6 +160,10 @@ const preserveTeamRef = useRef(false)
       if (initialAppointment.tip != null) setTip(String(initialAppointment.tip))
       if (initialAppointment.paymentMethod)
         setPaymentMethod(initialAppointment.paymentMethod)
+      if ((initialAppointment as any).carpetRooms) {
+        setCarpetEnabled(true)
+        setCarpetRooms(String((initialAppointment as any).carpetRooms))
+      }
       if (initialAppointment.reoccurring) setRecurringEnabled(true)
       initializedRef.current = true
       sessionStorage.removeItem('createAppointmentState')
@@ -609,6 +613,7 @@ const preserveTeamRef = useRef(false)
         paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
       tip: paid ? parseFloat(tip) || 0 : 0,
       status: recurringEnabled ? 'REOCCURRING' : newStatus ?? 'APPOINTED',
+      ...(carpetEnabled ? { carpetRooms: parseInt(carpetRooms, 10) || 0 } : {}),
     }
 
     let url = recurringEnabled ? `${API_BASE_URL}/appointments/recurring` : `${API_BASE_URL}/appointments`

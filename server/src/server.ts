@@ -83,6 +83,7 @@ async function ensureRecurringFuture() {
           price: last.price ?? null,
           paid: last.paid,
           tip: last.tip,
+          carpetRooms: last.carpetRooms ?? null,
           paymentMethod: last.paymentMethod,
           notes: last.notes ?? undefined,
           status: 'REOCCURRING',
@@ -566,6 +567,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
       paymentMethod = 'CASH',
       paymentMethodNote,
       tip = 0,
+      carpetRooms,
       count = 1,
       frequency,
     } = req.body as {
@@ -580,6 +582,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
       paymentMethod?: string
       paymentMethodNote?: string
       tip?: number
+      carpetRooms?: number
       count?: number
       frequency?: string
     }
@@ -622,6 +625,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
           price: template.price,
           paid,
           tip,
+          carpetRooms: carpetRooms ?? null,
           paymentMethod: paymentMethod as any,
           notes: paymentMethodNote || undefined,
           status: 'REOCCURRING',
@@ -658,6 +662,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
       paymentMethod = 'CASH',
       paymentMethodNote,
       tip = 0,
+      carpetRooms,
       status = 'APPOINTED',
     } = req.body as {
       clientId?: number
@@ -671,6 +676,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
       paymentMethod?: string
       paymentMethodNote?: string
       tip?: number
+      carpetRooms?: number
       status?: string
     }
 
@@ -700,6 +706,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
         price: template.price,
         paid,
         tip,
+        carpetRooms: carpetRooms ?? null,
         paymentMethod: paymentMethod as any, // or cast to your enum
         notes: paymentMethodNote || undefined,
         status: status as any,
@@ -738,6 +745,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       tip,
       status,
       observe,
+      carpetRooms,
     } = req.body as {
       clientId?: number
       templateId?: number
@@ -752,6 +760,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       tip?: number
       status?: string
       observe?: boolean
+      carpetRooms?: number
     }
     const data: any = {}
     if (clientId !== undefined) data.clientId = clientId
@@ -776,6 +785,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
     if (tip !== undefined) data.tip = tip
     if (status !== undefined) data.status = status as any
     if (observe !== undefined) data.observe = observe
+    if (carpetRooms !== undefined) data.carpetRooms = carpetRooms
     if (employeeIds) {
       data.employees = { set: employeeIds.map((id) => ({ id })) }
     }
@@ -819,6 +829,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
             price: last.price ?? null,
             paid: last.paid,
             tip: last.tip,
+            carpetRooms: last.carpetRooms ?? null,
             paymentMethod: last.paymentMethod,
             notes: last.notes ?? undefined,
             status: 'REOCCURRING',
@@ -905,6 +916,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
                 price: last.price ?? null,
                 paid: last.paid,
                 tip: last.tip,
+                carpetRooms: last.carpetRooms ?? null,
                 paymentMethod: last.paymentMethod,
                 notes: last.notes ?? undefined,
                 status: 'REOCCURRING',
@@ -1054,14 +1066,24 @@ app.get('/invoices/:id/pdf', async (req: Request, res: Response) => {
     y -= 6
 
     draw('Charges', 14, blue)
-    draw(`Price: $${Number(inv.price).toFixed(2)}`)
-    if (inv.carpetPrice != null) draw(`Carpet: $${Number(inv.carpetPrice).toFixed(2)}`)
-    if (inv.discount != null) draw(`Discount: -$${Number(inv.discount).toFixed(2)}`)
-    if (inv.taxPercent != null) draw(`Tax: ${Number(inv.taxPercent).toFixed(2)}%`)
-    y -= 6
-
+    const charges: [string, number][] = []
+    charges.push(['Service', Number(inv.price)])
+    if (inv.carpetPrice != null) charges.push(['Carpet', Number(inv.carpetPrice)])
+    if (inv.discount != null) charges.push(['Discount', -Number(inv.discount)])
+    if (inv.taxPercent != null) {
+      const sub = Number(inv.price) + (inv.carpetPrice ?? 0) - (inv.discount ?? 0)
+      charges.push(['Tax', sub * (Number(inv.taxPercent) / 100)])
+    }
+    const columnX = page.getWidth() - 150
+    charges.forEach(([label, val]) => {
+      page.drawRectangle({ x: 40, y: y - 4, width: page.getWidth() - 80, height: 18, color: rgb(0.95, 0.95, 0.95) })
+      page.drawText(label, { x: 44, y, size: 12, font })
+      page.drawText(`$${val.toFixed(2)}`, { x: columnX, y, size: 12, font })
+      y -= 22
+    })
+    y -= 4
     draw('Total', 14, blue)
-    draw(`$${Number(inv.total).toFixed(2)}`, 14)
+    page.drawText(`$${Number(inv.total).toFixed(2)}`, { x: columnX, y, size: 14, font })
     const bytes = await pdf.save()
     res.setHeader('Content-Type', 'application/pdf')
     res.send(Buffer.from(bytes))

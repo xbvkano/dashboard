@@ -32,6 +32,9 @@ export default function Invoice() {
             <div className="font-medium">{a.client?.name}</div>
             <div className="text-sm">{a.client?.number}</div>
             <div className="text-sm">{a.address}</div>
+            {(a as any).carpetRooms && (
+              <div className="text-sm">Carpet Rooms: {(a as any).carpetRooms}</div>
+            )}
           </div>
         ))}
       </div>
