@@ -19,7 +19,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "google-auth-library": "^10.1.0"
+    "google-auth-library": "^10.1.0",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
