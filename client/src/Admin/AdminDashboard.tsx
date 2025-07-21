@@ -35,7 +35,7 @@ export default function AdminDashboard({ onLogout }: Props) {
           <Route path="calendar" element={<Calendar />} />
           <Route path="clients/*" element={<Clients />} />
           <Route path="employees/*" element={<Employees />} />
-          <Route path="financing" element={<Financing />} />
+          <Route path="financing/*" element={<Financing />} />
         </Routes>
       </main>
     </div>
