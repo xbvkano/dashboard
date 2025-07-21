@@ -9,6 +9,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { OAuth2Client } from 'google-auth-library'
 import axios from 'axios'
 import crypto from 'crypto'
+import { PDFDocument, StandardFonts } from 'pdf-lib'
 
 let lastRecurringCheck = ''
 
@@ -105,6 +106,7 @@ dotenv.config()
 const prisma = new PrismaClient()
 const app = express()
 const port = process.env.PORT || 3000
+
 const client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
@@ -948,6 +950,98 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
   } catch (e) {
     console.error('Error updating appointment:', e)
     res.status(500).json({ error: 'Failed to update appointment' })
+  }
+})
+
+// Create invoice entry
+app.post('/invoices', async (req: Request, res: Response) => {
+  try {
+    const {
+      clientName,
+      billedTo,
+      address,
+      serviceDate,
+      serviceTime,
+      serviceType,
+      price,
+      carpetPrice,
+      discount,
+      taxPercent,
+    } = req.body as {
+      clientName?: string
+      billedTo?: string
+      address?: string
+      serviceDate?: string
+      serviceTime?: string
+      serviceType?: string
+      price?: number
+      carpetPrice?: number
+      discount?: number
+      taxPercent?: number
+    }
+    if (!clientName || !billedTo || !address || !serviceDate || !serviceTime || !serviceType || price === undefined) {
+      return res.status(400).json({ error: 'Missing fields' })
+    }
+    const subtotal = price + (carpetPrice || 0) - (discount || 0)
+    const total = subtotal + (taxPercent ? subtotal * (taxPercent / 100) : 0)
+    const invoice = await prisma.invoice.create({
+      data: {
+        clientName,
+        billedTo,
+        address,
+        serviceDate: new Date(serviceDate),
+        serviceTime,
+        serviceType,
+        price,
+        carpetPrice: carpetPrice ?? null,
+        discount: discount ?? null,
+        taxPercent: taxPercent ?? null,
+        total,
+      },
+    })
+    res.json({ id: invoice.id })
+  } catch (err) {
+    console.error('Failed to create invoice:', err)
+    res.status(500).json({ error: 'Failed to create invoice' })
+  }
+})
+
+// Serve invoice PDF
+app.get('/invoices/:id/pdf', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+    const inv = await prisma.invoice.findUnique({ where: { id } })
+    if (!inv) return res.status(404).json({ error: 'Not found' })
+
+    const pdf = await PDFDocument.create()
+    const page = pdf.addPage()
+    const font = await pdf.embedFont(StandardFonts.Helvetica)
+    let y = page.getHeight() - 40
+    const draw = (text: string, size = 12) => {
+      page.drawText(text, { x: 40, y, size, font })
+      y -= size + 8
+    }
+    draw('Evidence Cleaning', 16)
+    draw('850 E desert inn rd')
+    draw(`Invoice #: ${inv.id}`)
+    draw(`Date of Issue: ${new Date().toISOString().slice(0, 10)}`)
+    y -= 10
+    draw(`Billed to: ${inv.billedTo}`)
+    draw(`Service Date: ${inv.serviceDate.toISOString().slice(0,10)} ${inv.serviceTime}`)
+    draw(`Service Type: ${inv.serviceType}`)
+    draw(`Price: $${Number(inv.price).toFixed(2)}`)
+    if (inv.carpetPrice != null)
+      draw(`Carpet: $${Number(inv.carpetPrice).toFixed(2)}`)
+    if (inv.discount != null) draw(`Discount: -$${Number(inv.discount).toFixed(2)}`)
+    if (inv.taxPercent != null) draw(`Tax: ${Number(inv.taxPercent).toFixed(2)}%`)
+    y -= 10
+    draw(`Total: $${Number(inv.total).toFixed(2)}`, 14)
+    const bytes = await pdf.save()
+    res.setHeader('Content-Type', 'application/pdf')
+    res.send(Buffer.from(bytes))
+  } catch (err) {
+    console.error('Failed to generate invoice PDF:', err)
+    res.status(500).json({ error: 'Failed to generate PDF' })
   }
 })
 
