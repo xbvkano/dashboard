@@ -10,6 +10,7 @@ import { OAuth2Client } from 'google-auth-library'
 import axios from 'axios'
 import crypto from 'crypto'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import nodemailer from 'nodemailer'
 
 let lastRecurringCheck = ''
 
@@ -113,6 +114,71 @@ const client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_SECRET,
   process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173'
 )
+
+async function generateInvoicePdf(inv: any): Promise<Buffer> {
+  const pdf = await PDFDocument.create()
+  const page = pdf.addPage()
+  const font = await pdf.embedFont(StandardFonts.Helvetica)
+
+  const logoPath = path.join(__dirname, '../../client/public/logo.png')
+  if (fs.existsSync(logoPath)) {
+    const imgBytes = fs.readFileSync(logoPath)
+    const png = await pdf.embedPng(imgBytes)
+    const dims = png.scale(0.25)
+    page.drawImage(png, {
+      x: 40,
+      y: page.getHeight() - dims.height - 30,
+      width: dims.width,
+      height: dims.height,
+    })
+  }
+
+  let y = page.getHeight() - 120
+  const draw = (text: string, size = 12, color = rgb(0, 0, 0)) => {
+    page.drawText(text, { x: 40, y, size, font, color })
+    y -= size + 8
+  }
+
+  const blue = rgb(0.2, 0.3, 0.6)
+  draw('Evidence Cleaning', 18, blue)
+  draw('850 E desert inn rd')
+  draw(`Invoice #: ${inv.id}`)
+  draw(`Date of Issue: ${new Date().toISOString().slice(0, 10)}`)
+  y -= 10
+
+  draw('Billing Information', 14, blue)
+  draw(`Billed to: ${inv.billedTo}`)
+  draw(`Address: ${inv.address}`)
+  y -= 6
+
+  draw('Service Details', 14, blue)
+  draw(`Service Date: ${inv.serviceDate.toISOString().slice(0, 10)} ${inv.serviceTime}`)
+  draw(`Service Type: ${inv.serviceType}`)
+  y -= 6
+
+  draw('Charges', 14, blue)
+  const charges: [string, number][] = []
+  charges.push(['Service', Number(inv.price)])
+  if (inv.carpetPrice != null) charges.push(['Carpet', Number(inv.carpetPrice)])
+  if (inv.discount != null) charges.push(['Discount', -Number(inv.discount)])
+  if (inv.taxPercent != null) {
+    const sub = Number(inv.price) + (inv.carpetPrice ?? 0) - (inv.discount ?? 0)
+    charges.push(['Tax', sub * (Number(inv.taxPercent) / 100)])
+  }
+  const columnX = page.getWidth() - 150
+  charges.forEach(([label, val]) => {
+    page.drawRectangle({ x: 40, y: y - 4, width: page.getWidth() - 80, height: 18, color: rgb(0.95, 0.95, 0.95) })
+    page.drawText(label, { x: 44, y, size: 12, font })
+    page.drawText(`$${val.toFixed(2)}`, { x: columnX, y, size: 12, font })
+    y -= 22
+  })
+  y -= 4
+  draw('Total', 14, blue)
+  page.drawText(`$${Number(inv.total).toFixed(2)}`, { x: columnX, y, size: 14, font })
+
+  const bytes = await pdf.save()
+  return Buffer.from(bytes)
+}
 
 app.use(cors({
   allowedHeaders: [
@@ -1025,71 +1091,49 @@ app.get('/invoices/:id/pdf', async (req: Request, res: Response) => {
     const inv = await prisma.invoice.findUnique({ where: { id } })
     if (!inv) return res.status(404).json({ error: 'Not found' })
 
-    const pdf = await PDFDocument.create()
-    const page = pdf.addPage()
-    const font = await pdf.embedFont(StandardFonts.Helvetica)
-
-    const logoPath = path.join(__dirname, '../../client/public/logo.png')
-    if (fs.existsSync(logoPath)) {
-      const imgBytes = fs.readFileSync(logoPath)
-      const png = await pdf.embedPng(imgBytes)
-      const dims = png.scale(0.25)
-      page.drawImage(png, {
-        x: 40,
-        y: page.getHeight() - dims.height - 30,
-        width: dims.width,
-        height: dims.height,
-      })
-    }
-
-    let y = page.getHeight() - 120
-    const draw = (text: string, size = 12, color = rgb(0, 0, 0)) => {
-      page.drawText(text, { x: 40, y, size, font, color })
-      y -= size + 8
-    }
-
-    const blue = rgb(0.2, 0.3, 0.6)
-    draw('Evidence Cleaning', 18, blue)
-    draw('850 E desert inn rd')
-    draw(`Invoice #: ${inv.id}`)
-    draw(`Date of Issue: ${new Date().toISOString().slice(0, 10)}`)
-    y -= 10
-
-    draw('Billing Information', 14, blue)
-    draw(`Billed to: ${inv.billedTo}`)
-    draw(`Address: ${inv.address}`)
-    y -= 6
-
-    draw('Service Details', 14, blue)
-    draw(`Service Date: ${inv.serviceDate.toISOString().slice(0,10)} ${inv.serviceTime}`)
-    draw(`Service Type: ${inv.serviceType}`)
-    y -= 6
-
-    draw('Charges', 14, blue)
-    const charges: [string, number][] = []
-    charges.push(['Service', Number(inv.price)])
-    if (inv.carpetPrice != null) charges.push(['Carpet', Number(inv.carpetPrice)])
-    if (inv.discount != null) charges.push(['Discount', -Number(inv.discount)])
-    if (inv.taxPercent != null) {
-      const sub = Number(inv.price) + (inv.carpetPrice ?? 0) - (inv.discount ?? 0)
-      charges.push(['Tax', sub * (Number(inv.taxPercent) / 100)])
-    }
-    const columnX = page.getWidth() - 150
-    charges.forEach(([label, val]) => {
-      page.drawRectangle({ x: 40, y: y - 4, width: page.getWidth() - 80, height: 18, color: rgb(0.95, 0.95, 0.95) })
-      page.drawText(label, { x: 44, y, size: 12, font })
-      page.drawText(`$${val.toFixed(2)}`, { x: columnX, y, size: 12, font })
-      y -= 22
-    })
-    y -= 4
-    draw('Total', 14, blue)
-    page.drawText(`$${Number(inv.total).toFixed(2)}`, { x: columnX, y, size: 14, font })
-    const bytes = await pdf.save()
+    const bytes = await generateInvoicePdf(inv)
     res.setHeader('Content-Type', 'application/pdf')
-    res.send(Buffer.from(bytes))
+    res.send(bytes)
   } catch (err) {
     console.error('Failed to generate invoice PDF:', err)
     res.status(500).json({ error: 'Failed to generate PDF' })
+  }
+})
+
+app.post('/invoices/:id/send', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+    const email = String((req.body as any).email || '').trim()
+    if (!email) return res.status(400).json({ error: 'email required' })
+    const inv = await prisma.invoice.findUnique({ where: { id } })
+    if (!inv) return res.status(404).json({ error: 'Not found' })
+
+    const attachment = await generateInvoicePdf(inv)
+
+    const transport = nodemailer.createTransport({
+      host: process.env.MAILTRAP_HOST,
+      port: Number(process.env.MAILTRAP_PORT),
+      auth: {
+        user: process.env.MAILTRAP_USER,
+        pass: process.env.MAILTRAP_API_KEY,
+      },
+    })
+
+    await transport.sendMail({
+      from: process.env.SMTP_FROM || 'no-reply@example.com',
+      to: email,
+      subject: 'Evidence Cleaning Invoice',
+      text:
+        'Hello,\n\nthis is an automated message from Evidence Cleaning. Attached is you invoice.\n\nPlease feel free to text Cassia at 725-577-4524 if you have any questions.\nBest,\nEvidence Cleaning.',
+      attachments: [
+        { filename: 'invoice.pdf', content: attachment },
+      ],
+    })
+
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('Failed to send invoice email:', err)
+    res.status(500).json({ error: 'Failed to send invoice' })
   }
 })
 

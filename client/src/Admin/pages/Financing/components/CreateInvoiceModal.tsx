@@ -23,7 +23,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   useEffect(() => {
     const rooms = (appointment as any).carpetRooms
     const size = appointment.size
-    if (rooms && size) {
+    if (rooms != null && size) {
       fetch(`${API_BASE_URL}/carpet-rate?size=${encodeURIComponent(size)}&rooms=${rooms}`)
         .then((res) => res.json())
         .then((d) => setCarpetPrice(String(d.rate)))
@@ -58,6 +58,41 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     })
     if (res.ok) {
       const data = await res.json()
+      window.open(`${API_BASE_URL}/invoices/${data.id}/pdf`, '_blank')
+      onClose()
+    } else {
+      alert('Failed to create invoice')
+    }
+  }
+
+  const send = async () => {
+    const payload = {
+      clientName,
+      billedTo,
+      address,
+      serviceDate,
+      serviceTime: time,
+      serviceType,
+      price: parseFloat(price) || 0,
+      carpetPrice: carpetPrice ? parseFloat(carpetPrice) : undefined,
+      discount: discount ? parseFloat(discount) : undefined,
+      taxPercent: taxEnabled ? parseFloat(taxPercent) || 0 : undefined,
+    }
+    const res = await fetch(`${API_BASE_URL}/invoices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+      body: JSON.stringify(payload),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      const email = prompt('Email address to send invoice to:')
+      if (email) {
+        await fetch(`${API_BASE_URL}/invoices/${data.id}/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+          body: JSON.stringify({ email }),
+        })
+      }
       window.open(`${API_BASE_URL}/invoices/${data.id}/pdf`, '_blank')
       onClose()
     } else {
@@ -127,6 +162,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         <div className="flex justify-end gap-2 pt-2">
           <button className="px-4 py-1" onClick={onClose}>Cancel</button>
           <button className="px-4 py-1 bg-blue-500 text-white rounded" onClick={create}>Create</button>
+          <button className="px-4 py-1 bg-green-600 text-white rounded" onClick={send}>Send</button>
         </div>
       </div>
     </div>
