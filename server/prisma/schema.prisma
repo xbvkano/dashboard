@@ -34,6 +34,12 @@ model Employee {
   experienced  Boolean                    @default(false)
   appointments Appointment[]              @relation("AppointmentEmployees")
 
+  prevBalance  Float                      @default(0)
+  lastPaidAt   DateTime?
+
+  payrollItems PayrollItem[]       @relation("EmployeePayrollItems")
+  payments     EmployeePayment[]   @relation("EmployeePayments")
+
   templateLinks EmployeeTemplateEmployee[] @relation("EmployeeOnTemplate")
 }
 
@@ -67,6 +73,7 @@ model Appointment {
   updatedAt       DateTime?       @updatedAt
 
   employees       Employee[]      @relation("AppointmentEmployees")
+  payrollItems   PayrollItem[]
 }
 
 model AppointmentTemplate {
@@ -152,4 +159,27 @@ model Invoice {
   taxPercent  Float?
   total       Float
   createdAt   DateTime @default(now())
+}
+
+model PayrollItem {
+  id            Int          @id @default(autoincrement())
+  appointmentId Int
+  employeeId    Int
+  paid          Boolean      @default(false)
+  paymentId     Int?
+
+  appointment   Appointment  @relation(fields: [appointmentId], references: [id])
+  employee      Employee     @relation("EmployeePayrollItems", fields: [employeeId], references: [id])
+  payment       EmployeePayment? @relation(fields: [paymentId], references: [id])
+}
+
+model EmployeePayment {
+  id         Int       @id @default(autoincrement())
+  employeeId Int
+  amount     Float
+  extra      Float      @default(0)
+  createdAt  DateTime   @default(now())
+
+  employee   Employee   @relation("EmployeePayments", fields: [employeeId], references: [id])
+  items      PayrollItem[]
 }
