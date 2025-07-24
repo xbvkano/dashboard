@@ -73,6 +73,7 @@ model Appointment {
   updatedAt       DateTime?       @updatedAt
 
   employees       Employee[]      @relation("AppointmentEmployees")
+  payrollItems   PayrollItem[]
 }
 
 model AppointmentTemplate {
