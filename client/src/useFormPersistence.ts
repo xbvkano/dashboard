@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, Dispatch, SetStateAction } from 'react'
 
 export function loadFormPersistence<T extends object>(
   key: string,
