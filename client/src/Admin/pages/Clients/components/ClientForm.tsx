@@ -43,7 +43,7 @@ export default function ClientForm() {
       alert(err.error || 'Failed to save')
       return
     }
-    sessionStorage.removeItem(storageKey)
+    localStorage.removeItem(storageKey)
     navigate('..')
   }
 

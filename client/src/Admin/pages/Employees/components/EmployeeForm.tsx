@@ -59,7 +59,7 @@ export default function EmployeeForm() {
       alert(err.error || 'Failed to save')
       return
     }
-    sessionStorage.removeItem(storageKey)
+    localStorage.removeItem(storageKey)
     navigate('..')
   }
 
@@ -111,7 +111,7 @@ export default function EmployeeForm() {
         <button
           type="button"
           onClick={() => {
-            sessionStorage.removeItem(storageKey)
+            localStorage.removeItem(storageKey)
             navigate('..')
           }}
           className="bg-gray-300 px-4 py-2 rounded"
