@@ -57,7 +57,7 @@ export default function Calendar() {
     status?: Appointment['status']
     appointment?: Appointment
   } | null>(() => {
-    const stored = sessionStorage.getItem('createParams')
+    const stored = localStorage.getItem('createParams')
     if (stored) {
       try {
         return JSON.parse(stored)
@@ -66,7 +66,7 @@ export default function Calendar() {
     return null
   })
   const [rescheduleOldId, setRescheduleOldId] = useState<number | null>(() => {
-    const stored = sessionStorage.getItem('rescheduleOldId')
+    const stored = localStorage.getItem('rescheduleOldId')
     return stored ? Number(stored) : null
   })
   const [deleteOldId, setDeleteOldId] = useState<number | null>(null)
@@ -95,17 +95,17 @@ export default function Calendar() {
 
   useEffect(() => {
     if (createParams) {
-      sessionStorage.setItem('createParams', JSON.stringify(createParams))
+      localStorage.setItem('createParams', JSON.stringify(createParams))
     } else {
-      sessionStorage.removeItem('createParams')
+      localStorage.removeItem('createParams')
     }
   }, [createParams])
 
   useEffect(() => {
     if (rescheduleOldId === null) {
-      sessionStorage.removeItem('rescheduleOldId')
+      localStorage.removeItem('rescheduleOldId')
     } else {
-      sessionStorage.setItem('rescheduleOldId', String(rescheduleOldId))
+      localStorage.setItem('rescheduleOldId', String(rescheduleOldId))
     }
   }, [rescheduleOldId])
 
@@ -141,7 +141,7 @@ export default function Calendar() {
   }
 
   const handleEdit = async (appt: Appointment) => {
-    sessionStorage.removeItem('createAppointmentState')
+    localStorage.removeItem('createAppointmentState')
     setDeleteOldId(null)
     setRescheduleOldId(null)
     try {

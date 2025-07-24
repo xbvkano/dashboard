@@ -43,7 +43,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   }
 
   const getInitialTemplate = () => {
-    const stored = sessionStorage.getItem('createAppointmentState')
+    const stored = localStorage.getItem('createAppointmentState')
     if (stored) {
       try {
         const s = JSON.parse(stored)
@@ -124,7 +124,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   }
 
   const handleCancel = () => {
-    sessionStorage.removeItem('createAppointmentState')
+    localStorage.removeItem('createAppointmentState')
     localStorage.removeItem('createAppointmentSelectedTemplateId')
     onClose()
   }
@@ -165,9 +165,9 @@ const preserveTeamRef = useRef(false)
       }
       if (initialAppointment.reoccurring) setRecurringEnabled(true)
       initializedRef.current = true
-      sessionStorage.removeItem('createAppointmentState')
+      localStorage.removeItem('createAppointmentState')
     } else {
-      const stored = sessionStorage.getItem('createAppointmentState')
+      const stored = localStorage.getItem('createAppointmentState')
       if (stored) {
         try {
           const s = JSON.parse(stored)
@@ -234,7 +234,7 @@ const preserveTeamRef = useRef(false)
       recurringOption,
       recurringMonths,
     }
-    sessionStorage.setItem('createAppointmentState', JSON.stringify(data))
+    localStorage.setItem('createAppointmentState', JSON.stringify(data))
   }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
 
   useEffect(() => {
@@ -244,13 +244,13 @@ const preserveTeamRef = useRef(false)
       localStorage.removeItem('createAppointmentSelectedTemplateId')
     }
 
-    const stored = sessionStorage.getItem('createAppointmentState')
+    const stored = localStorage.getItem('createAppointmentState')
     if (stored) {
       try {
         const data = JSON.parse(stored)
         data.selectedTemplate = selectedTemplate
         data.editingTemplateId = editingTemplateId
-        sessionStorage.setItem('createAppointmentState', JSON.stringify(data))
+        localStorage.setItem('createAppointmentState', JSON.stringify(data))
       } catch {}
     }
   }, [selectedTemplate, templates, editingTemplateId])
@@ -693,20 +693,23 @@ const preserveTeamRef = useRef(false)
               <h3 className="font-medium">New Client</h3>
               <h4 className="font-light">Name <span className="text-red-500">*</span></h4>
             <input
+              id="appointment-new-client-name"
               className="w-full border p-2 rounded text-base"
               placeholder="Name"
               value={newClient.name}
               onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
-              />
+            />
               <h4 className="font-light">Number <span className="text-red-500">*</span></h4>
             <input
+              id="appointment-new-client-number"
               className="w-full border p-2 rounded text-base"
               placeholder="Number"
               value={newClient.number}
               onChange={handleNewClientNumberChange}
-              />
+            />
               <h4 className="font-light">Notes:</h4>
             <textarea
+              id="appointment-new-client-notes"
               className="w-full border p-2 rounded text-base"
               placeholder="Notes"
               value={newClient.notes}
@@ -725,6 +728,7 @@ const preserveTeamRef = useRef(false)
           <div>
             <div className="flex gap-2 mb-1">
               <input
+                id="appointment-client-search"
                 className="flex-1 border p-2 rounded text-base"
                 placeholder="Search clients"
                 value={clientSearch}
@@ -760,13 +764,15 @@ const preserveTeamRef = useRef(false)
                   <h3 className="font-medium">{editing ? 'Edit Template' : 'New Template'}</h3>
                   <h4 className="font-light">Name: <span className="text-red-500">*</span></h4>
                 <input
+                  id="appointment-template-name"
                   className="w-full border p-2 rounded text-base"
                   placeholder="Name"
                   value={templateForm.templateName}
                   onChange={(e) => setTemplateForm({ ...templateForm, templateName: e.target.value })}
-                  />
+                />
                   <h4 className="font-light">Type: <span className="text-red-500">*</span></h4>
                 <select
+                  id="appointment-template-type"
                   className="w-full border p-2 rounded text-base"
                   value={templateForm.type}
                   onChange={(e) => setTemplateForm({ ...templateForm, type: e.target.value })}
@@ -777,6 +783,7 @@ const preserveTeamRef = useRef(false)
                   </select>
                   <h4 className="font-light">Size: <span className="text-red-500">*</span></h4>
                 <select
+                  id="appointment-template-size"
                   className="w-full border p-2 rounded text-base"
                   value={templateForm.size}
                   onChange={(e) => setTemplateForm({ ...templateForm, size: e.target.value })}
@@ -790,21 +797,24 @@ const preserveTeamRef = useRef(false)
                   </select>
                   <h4 className="font-light">Price: <span className="text-red-500">*</span></h4>
                 <input
+                  id="appointment-template-price"
                   className="w-full border p-2 rounded text-base"
                   placeholder="Price"
                   type="number"
                   value={templateForm.price}
                   onChange={(e) => setTemplateForm({ ...templateForm, price: e.target.value })}
-                  />
+                />
                   <h4 className="font-light">Address: <span className="text-red-500">*</span></h4>
                 <input
+                  id="appointment-template-address"
                   className="w-full border p-2 rounded text-base"
                   placeholder="Address"
                   value={templateForm.address}
                   onChange={(e) => setTemplateForm({ ...templateForm, address: e.target.value })}
-                  />
+                />
                   <h4 className="font-light">Notes: </h4>
                 <textarea
+                  id="appointment-template-notes"
                   className="w-full border p-2 rounded text-base"
                   placeholder="Notes"
                   value={templateForm.notes}
@@ -828,6 +838,7 @@ const preserveTeamRef = useRef(false)
                   <div>
                     <h4 className="font-light">How many rooms?</h4>
                     <input
+                      id="appointment-template-carpet-rooms"
                       type="number"
                       min="1"
                       className="w-full border p-2 rounded text-base"
@@ -1007,6 +1018,7 @@ const preserveTeamRef = useRef(false)
                 Date <span className="text-red-500">*</span>
               </h4>
               <input
+                id="appointment-date"
                 type="date"
                 className="w-full border p-2 rounded text-base"
                 value={date}
@@ -1018,6 +1030,7 @@ const preserveTeamRef = useRef(false)
                 Time <span className="text-red-500">*</span>
               </h4>
               <input
+                id="appointment-time"
                 type="time"
                 className="w-full border p-2 rounded text-base"
                 value={time}
@@ -1034,6 +1047,7 @@ const preserveTeamRef = useRef(false)
               Admin <span className="text-red-500">*</span>
             </h4>
             <select
+              id="appointment-admin"
               className="w-full border p-2 rounded text-base"
               value={adminId}
               onChange={(e) => {
@@ -1065,6 +1079,7 @@ const preserveTeamRef = useRef(false)
               </label>
               {paid && (
                 <input
+                  id="appointment-tip"
                   type="number"
                   className="border p-2 rounded text-base flex-1"
                   placeholder="Tip"
@@ -1076,6 +1091,7 @@ const preserveTeamRef = useRef(false)
             {paid && (
               <div className="flex flex-col gap-1">
                 <select
+                  id="appointment-payment-method"
                   className="w-full border p-2 rounded text-base"
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
@@ -1089,6 +1105,7 @@ const preserveTeamRef = useRef(false)
                 </select>
                 {paymentMethod === 'OTHER' && (
                   <input
+                    id="appointment-other-payment"
                     className="w-full border p-2 rounded text-base"
                     placeholder="Payment method"
                     value={otherPayment}
