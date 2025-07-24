@@ -6,24 +6,17 @@ export default function useFormPersistence<T>(
   setData: (d: T) => void,
 ) {
   useEffect(() => {
-    const stored = sessionStorage.getItem(key)
+    const stored = localStorage.getItem(key)
     if (stored) {
       try {
         setData(JSON.parse(stored))
       } catch {
-        // ignore
+        // ignore parse errors
       }
-      sessionStorage.removeItem(key)
     }
   }, [key, setData])
 
   useEffect(() => {
-    const handler = () => {
-      sessionStorage.setItem(key, JSON.stringify(data))
-    }
-    window.addEventListener('pagehide', handler)
-    return () => {
-      window.removeEventListener('pagehide', handler)
-    }
+    localStorage.setItem(key, JSON.stringify(data))
   }, [key, data])
 }
