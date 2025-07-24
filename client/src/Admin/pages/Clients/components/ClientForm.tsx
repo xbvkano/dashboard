@@ -20,14 +20,27 @@ export default function ClientForm() {
     }
   }, [id, isNew])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setData({ ...data, [e.target.name]: e.target.value })
+  const persist = (updated: Client) => {
+    Object.entries(updated).forEach(([field, value]) => {
+      localStorage.setItem(`${storageKey}-${field}`, JSON.stringify(value))
+    })
+    localStorage.setItem(storageKey, JSON.stringify(updated))
+  }
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const updated = { ...data, [e.target.name]: e.target.value }
+    persist(updated)
+    setData(updated)
   }
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     const digits = value.replace(/\D/g, '').slice(0, 10)
-    setData({ ...data, [name]: digits })
+    const updated = { ...data, [name]: digits }
+    persist(updated)
+    setData(updated)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

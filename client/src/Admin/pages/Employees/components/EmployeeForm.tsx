@@ -25,20 +25,33 @@ export default function EmployeeForm() {
     }
   }, [id, isNew])
 
+  const persist = (updated: Employee) => {
+    Object.entries(updated).forEach(([field, value]) => {
+      localStorage.setItem(`${storageKey}-${field}`, JSON.stringify(value))
+    })
+    localStorage.setItem(storageKey, JSON.stringify(updated))
+  }
+
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
-    setData({ ...data, [e.target.name]: e.target.value })
+    const updated = { ...data, [e.target.name]: e.target.value }
+    persist(updated)
+    setData(updated)
   }
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setData({ ...data, experienced: e.target.checked })
+    const updated = { ...data, experienced: e.target.checked }
+    persist(updated)
+    setData(updated)
   }
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     const digits = value.replace(/\D/g, '').slice(0, 10)
-    setData({ ...data, [name]: digits })
+    const updated = { ...data, [name]: digits }
+    persist(updated)
+    setData(updated)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
