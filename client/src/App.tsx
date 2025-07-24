@@ -29,6 +29,25 @@ function AppRoutes({ role, onLogin, onLogout }: RoutesProps) {
   const navigate = useNavigate()
   const location = useLocation()
 
+  // Restore last visited path so modals reopen after refresh
+  useEffect(() => {
+    if (role) {
+      const last = localStorage.getItem('lastPath')
+      if (last && last !== location.pathname) {
+        navigate(last, { replace: true })
+      }
+    }
+    // only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Persist current path
+  useEffect(() => {
+    if (role) {
+      localStorage.setItem('lastPath', location.pathname)
+    }
+  }, [role, location.pathname])
+
   useEffect(() => {
     if (role && location.pathname === '/') {
       navigate('/dashboard', { replace: true })
