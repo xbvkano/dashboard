@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import useFormPersistence, { clearFormPersistence } from '../../../../useFormPersistence'
+import useFormPersistence, { clearFormPersistence, loadFormPersistence } from "../../../../useFormPersistence"
 import { useNavigate, useParams } from 'react-router-dom'
 import { Client } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
@@ -8,9 +8,11 @@ export default function ClientForm() {
   const { id } = useParams()
   const navigate = useNavigate()
   const isNew = id === undefined
-  const [data, setData] = useState<Client>({ name: '', number: '', notes: '' })
   const storageKey = `clientForm-${id || 'new'}`
-  useFormPersistence(storageKey, data, setData)
+  const [data, setData] = useState<Client>(() =>
+    loadFormPersistence(storageKey, { name: '', number: '', notes: '' }),
+  )
+  useFormPersistence(storageKey, data)
 
   useEffect(() => {
     if (!isNew) {
