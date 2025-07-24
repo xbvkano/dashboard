@@ -28,11 +28,25 @@ const sizeOptions = [
 ]
 
 export default function CreateAppointmentModal({ onClose, onCreated, initialClientId, initialTemplateId, newStatus, initialAppointment }: Props) {
-  const [clientSearch, setClientSearch] = useState('')
+  const persisted = (() => {
+    const stored = localStorage.getItem('createAppointmentState')
+    if (stored) {
+      try {
+        return JSON.parse(stored) as Record<string, any>
+      } catch {
+        // ignore parse errors
+      }
+    }
+    return {}
+  })()
+
+  const [clientSearch, setClientSearch] = useState<string>(persisted.clientSearch ?? '')
   const [clients, setClients] = useState<Client[]>([])
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
-  const [newClient, setNewClient] = useState({ name: '', number: '', notes: '' })
-  const [showNewClient, setShowNewClient] = useState(false)
+  const [selectedClient, setSelectedClient] = useState<Client | null>(persisted.selectedClient ?? null)
+  const [newClient, setNewClient] = useState<{ name: string; number: string; notes: string }>(
+    persisted.newClient ?? { name: '', number: '', notes: '' },
+  )
+  const [showNewClient, setShowNewClient] = useState<boolean>(persisted.showNewClient ?? false)
 
   const handleNewClientNumberChange = (
     e: React.ChangeEvent<HTMLInputElement>
@@ -61,9 +75,9 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const storedInitialTemplateId = getInitialTemplate()
   const [templates, setTemplates] = useState<AppointmentTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(storedInitialTemplateId)
-  const [showNewTemplate, setShowNewTemplate] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null)
+  const [showNewTemplate, setShowNewTemplate] = useState<boolean>(persisted.showNewTemplate ?? false)
+  const [editing, setEditing] = useState<boolean>(persisted.editing ?? false)
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(persisted.editingTemplateId ?? null)
   const [templateForm, setTemplateForm] = useState({
     templateName: '',
     type: 'STANDARD',
@@ -73,25 +87,26 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     notes: '',
     carpetEnabled: false,
     carpetRooms: '',
+    ...(persisted.templateForm || {}),
   })
 
-  const [date, setDate] = useState('')
-  const [time, setTime] = useState('')
+  const [date, setDate] = useState<string>(persisted.date ?? '')
+  const [time, setTime] = useState<string>(persisted.time ?? '')
 
   const [admins, setAdmins] = useState<{ id: number; name: string | null; email: string }[]>([])
-  const [adminId, setAdminId] = useState<number | ''>('')
-  const [paid, setPaid] = useState(false)
-  const [tip, setTip] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState('')
-  const [otherPayment, setOtherPayment] = useState('')
+  const [adminId, setAdminId] = useState<number | ''>(persisted.adminId ?? '')
+  const [paid, setPaid] = useState<boolean>(persisted.paid ?? false)
+  const [tip, setTip] = useState<string>(persisted.tip ?? '')
+  const [paymentMethod, setPaymentMethod] = useState<string>(persisted.paymentMethod ?? '')
+  const [otherPayment, setOtherPayment] = useState<string>(persisted.otherPayment ?? '')
 
   // staff options and employee selection
   const [staffOptions, setStaffOptions] = useState<{ sem: number; com: number; hours: number }[]>([])
-  const [selectedOption, setSelectedOption] = useState<number>(0)
+  const [selectedOption, setSelectedOption] = useState<number>(persisted.selectedOption ?? 0)
   const [employees, setEmployees] = useState<Employee[]>([])
-  const [selectedEmployees, setSelectedEmployees] = useState<number[]>([])
-  const [showTeamModal, setShowTeamModal] = useState(false)
-  const [employeeSearch, setEmployeeSearch] = useState('')
+  const [selectedEmployees, setSelectedEmployees] = useState<number[]>(persisted.selectedEmployees ?? [])
+  const [showTeamModal, setShowTeamModal] = useState<boolean>(persisted.showTeamModal ?? false)
+  const [employeeSearch, setEmployeeSearch] = useState<string>(persisted.employeeSearch ?? '')
   const [payRate, setPayRate] = useState<number | null>(null)
   const filteredEmployees = employees.filter(
     (e) =>
@@ -100,9 +115,9 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   )
 
   // carpet cleaning options
-  const [carpetEnabled, setCarpetEnabled] = useState(false)
-  const [carpetRooms, setCarpetRooms] = useState<string>('')
-  const [carpetEmployees, setCarpetEmployees] = useState<number[]>([])
+  const [carpetEnabled, setCarpetEnabled] = useState<boolean>(persisted.carpetEnabled ?? false)
+  const [carpetRooms, setCarpetRooms] = useState<string>(persisted.carpetRooms ?? '')
+  const [carpetEmployees, setCarpetEmployees] = useState<number[]>(persisted.carpetEmployees ?? [])
   const [carpetRate, setCarpetRate] = useState<number | null>(null)
 
   // recurring options
@@ -114,10 +129,10 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     'Other',
   ] as const
   type RecurringOption = (typeof recurringOptions)[number]
-  const [recurringEnabled, setRecurringEnabled] = useState(false)
+  const [recurringEnabled, setRecurringEnabled] = useState<boolean>(persisted.recurringEnabled ?? false)
   const [showRecurringModal, setShowRecurringModal] = useState(false)
-  const [recurringOption, setRecurringOption] = useState<RecurringOption>('Weekly')
-  const [recurringMonths, setRecurringMonths] = useState('')
+  const [recurringOption, setRecurringOption] = useState<RecurringOption>(persisted.recurringOption ?? 'Weekly')
+  const [recurringMonths, setRecurringMonths] = useState<string>(persisted.recurringMonths ?? '')
 
   const handleClose = () => {
     onClose()
@@ -225,6 +240,8 @@ const preserveTeamRef = useRef(false)
       tip,
       paymentMethod,
       otherPayment,
+      showTeamModal,
+      employeeSearch,
       selectedEmployees,
       selectedOption,
       carpetEnabled,
@@ -235,7 +252,7 @@ const preserveTeamRef = useRef(false)
       recurringMonths,
     }
     localStorage.setItem('createAppointmentState', JSON.stringify(data))
-  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
+  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, showTeamModal, employeeSearch, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
 
   useEffect(() => {
     if (selectedTemplate !== null) {
