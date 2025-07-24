@@ -38,9 +38,8 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const value = e.target.value
-    if (/^\d{0,10}$/.test(value)) {
-      setNewClient({ ...newClient, number: value })
-    }
+    const digits = value.replace(/\D/g, '').slice(0, 10)
+    setNewClient({ ...newClient, number: digits })
   }
 
   const getInitialTemplate = () => {

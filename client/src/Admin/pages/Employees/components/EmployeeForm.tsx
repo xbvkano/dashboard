@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Employee } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
+import useFormPersistence from '../../../../useFormPersistence'
 
 export default function EmployeeForm() {
   const { id } = useParams()
@@ -13,6 +14,8 @@ export default function EmployeeForm() {
     notes: '',
     experienced: false,
   })
+  const storageKey = `employeeForm-${id || 'new'}`
+  useFormPersistence(storageKey, data, setData)
 
   useEffect(() => {
     if (!isNew) {
@@ -34,9 +37,8 @@ export default function EmployeeForm() {
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    if (/^\d{0,10}$/.test(value)) {
-      setData({ ...data, [name]: value })
-    }
+    const digits = value.replace(/\D/g, '').slice(0, 10)
+    setData({ ...data, [name]: digits })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,6 +59,7 @@ export default function EmployeeForm() {
       alert(err.error || 'Failed to save')
       return
     }
+    sessionStorage.removeItem(storageKey)
     navigate('..')
   }
 
@@ -107,7 +110,10 @@ export default function EmployeeForm() {
         </button>
         <button
           type="button"
-          onClick={() => navigate('..')}
+          onClick={() => {
+            sessionStorage.removeItem(storageKey)
+            navigate('..')
+          }}
           className="bg-gray-300 px-4 py-2 rounded"
         >
           Cancel

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import useFormPersistence from '../../../../useFormPersistence'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Client } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
@@ -8,6 +9,8 @@ export default function ClientForm() {
   const navigate = useNavigate()
   const isNew = id === undefined
   const [data, setData] = useState<Client>({ name: '', number: '', notes: '' })
+  const storageKey = `clientForm-${id || 'new'}`
+  useFormPersistence(storageKey, data, setData)
 
   useEffect(() => {
     if (!isNew) {
@@ -23,9 +26,8 @@ export default function ClientForm() {
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    if (/^\d{0,10}$/.test(value)) {
-      setData({ ...data, [name]: value })
-    }
+    const digits = value.replace(/\D/g, '').slice(0, 10)
+    setData({ ...data, [name]: digits })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,6 +43,7 @@ export default function ClientForm() {
       alert(err.error || 'Failed to save')
       return
     }
+    sessionStorage.removeItem(storageKey)
     navigate('..')
   }
 
