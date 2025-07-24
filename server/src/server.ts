@@ -109,6 +109,37 @@ const prisma = new PrismaClient()
 const app = express()
 const port = process.env.PORT || 3000
 
+function calculatePayRate(type: string, size: string | null, count: number): number {
+  const parseSize = (s: string): number | null => {
+    if (!s) return null
+    const parts = s.split('-')
+    let n = parseInt(parts[1] || parts[0])
+    if (isNaN(n)) n = parseInt(s)
+    return isNaN(n) ? null : n
+  }
+  const sqft = size ? parseSize(size) : null
+  const isLarge = sqft != null && sqft > 2500
+  if (type === 'STANDARD') return isLarge ? 100 : 80
+  if (type === 'DEEP' || type === 'MOVE_IN_OUT') {
+    if (isLarge) return 100
+    return count === 1 ? 100 : 90
+  }
+  return 0
+}
+
+async function syncPayrollItems(apptId: number, employeeIds: number[]) {
+  const existing = await prisma.payrollItem.findMany({ where: { appointmentId: apptId } })
+  const existingIds = existing.map((p: { employeeId: number }) => p.employeeId)
+  const toAdd = employeeIds.filter((id) => !existingIds.includes(id))
+  const toRemove = existing.filter((p: { employeeId: number }) => !employeeIds.includes(p.employeeId))
+  if (toAdd.length) {
+    await prisma.payrollItem.createMany({ data: toAdd.map((id: number) => ({ appointmentId: apptId, employeeId: id })) })
+  }
+  if (toRemove.length) {
+    await prisma.payrollItem.deleteMany({ where: { id: { in: toRemove.map((p: { id: number }) => p.id) } } })
+  }
+}
+
 const client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
@@ -704,6 +735,9 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
           }),
         },
       })
+      if (employeeIds.length) {
+        await syncPayrollItems(appt.id, employeeIds)
+      }
       created.push(appt)
     }
 
@@ -785,6 +819,10 @@ app.post('/appointments', async (req: Request, res: Response) => {
         }),
       },
     })
+
+    if (employeeIds.length) {
+      await syncPayrollItems(appt.id, employeeIds)
+    }
 
     return res.json(appt)
   } catch (err) {
@@ -1023,6 +1061,9 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
         data,
         include: { client: true, employees: true },
       })
+      if (employeeIds) {
+        await syncPayrollItems(appt.id, employeeIds)
+      }
       res.json(appt)
     }
   } catch (e) {
@@ -1135,6 +1176,65 @@ app.post('/invoices/:id/send', async (req: Request, res: Response) => {
     console.error('Failed to send invoice email:', err)
     res.status(500).json({ error: 'Failed to send invoice' })
   }
+})
+
+app.get('/payroll/due', async (_req: Request, res: Response) => {
+  const items = await prisma.payrollItem.findMany({
+    where: { paid: false },
+    include: { appointment: { include: { employees: true } }, employee: true },
+  })
+  const map: Record<number, any> = {}
+  for (const it of items) {
+    const e = it.employee
+    const appt = it.appointment
+    const count = appt.employees.length || 1
+    const pay = calculatePayRate(appt.type, appt.size ?? null, count)
+    const tip = (appt.tip || 0) / count
+    if (!map[e.id]) {
+      map[e.id] = { employee: e, items: [], total: e.prevBalance || 0 }
+      if (e.prevBalance && e.prevBalance > 0) {
+        map[e.id].items.push({ service: 'Previous balance', date: e.lastPaidAt, amount: e.prevBalance, tip: 0 })
+      }
+    }
+    map[e.id].items.push({ service: appt.type, date: appt.date, amount: pay, tip })
+    map[e.id].total += pay + tip
+  }
+  res.json(Object.values(map))
+})
+
+app.get('/payroll/paid', async (_req: Request, res: Response) => {
+  const payments = await prisma.employeePayment.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+    include: { employee: true, items: { include: { appointment: true } } },
+  })
+  res.json(payments)
+})
+
+app.post('/payroll/pay', async (req: Request, res: Response) => {
+  const { employeeId, amount, extra = 0 } = req.body as { employeeId?: number; amount?: number; extra?: number }
+  if (!employeeId || amount == null) {
+    return res.status(400).json({ error: 'employeeId and amount required' })
+  }
+  const employee = await prisma.employee.findUnique({ where: { id: employeeId } })
+  if (!employee) return res.status(404).json({ error: 'employee not found' })
+  const items = await prisma.payrollItem.findMany({
+    where: { employeeId, paid: false },
+    include: { appointment: { include: { employees: true } } },
+  })
+  let totalDue = employee.prevBalance || 0
+  for (const it of items) {
+    const c = it.appointment.employees.length || 1
+    totalDue += calculatePayRate(it.appointment.type, it.appointment.size ?? null, c)
+    totalDue += (it.appointment.tip || 0) / c
+  }
+  const payment = await prisma.employeePayment.create({ data: { employeeId, amount, extra } })
+  if (items.length) {
+    await prisma.payrollItem.updateMany({ where: { id: { in: items.map((i: { id: number }) => i.id) } }, data: { paid: true, paymentId: payment.id } })
+  }
+  const balance = totalDue - amount
+  await prisma.employee.update({ where: { id: employeeId }, data: { prevBalance: balance > 0 ? balance : 0, lastPaidAt: new Date() } })
+  res.json({ id: payment.id })
 })
 
 app.post('/login', async (req: Request, res: Response) => {
