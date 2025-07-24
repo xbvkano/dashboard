@@ -1,29 +1,48 @@
-import { useEffect } from 'react'
+import { useEffect, Dispatch, SetStateAction } from 'react'
 
-export default function useFormPersistence<T>(
+export default function useFormPersistence<T extends object>(
   key: string,
   data: T,
-  setData: (d: T) => void,
+  setData: Dispatch<SetStateAction<T>>,
 ) {
   useEffect(() => {
-    const stored = sessionStorage.getItem(key)
-    if (stored) {
-      try {
-        setData(JSON.parse(stored))
-      } catch {
-        // ignore
+    const merged: Partial<T> = {}
+    Object.keys(data).forEach((field) => {
+      const item = localStorage.getItem(`${key}-${field}`)
+      if (item !== null) {
+        try {
+          ;(merged as Record<string, unknown>)[field] = JSON.parse(item)
+        } catch {
+          ;(merged as Record<string, unknown>)[field] = item
+        }
       }
-      sessionStorage.removeItem(key)
+    })
+    const entire = localStorage.getItem(key)
+    if (entire) {
+      try {
+        Object.assign(merged, JSON.parse(entire))
+      } catch {
+        // ignore parse errors
+      }
     }
-  }, [key, setData])
+    if (Object.keys(merged).length > 0) {
+      setData({ ...data, ...merged })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
-    const handler = () => {
-      sessionStorage.setItem(key, JSON.stringify(data))
-    }
-    window.addEventListener('pagehide', handler)
-    return () => {
-      window.removeEventListener('pagehide', handler)
-    }
+    Object.entries(data).forEach(([field, value]) => {
+      localStorage.setItem(`${key}-${field}`, JSON.stringify(value))
+    })
+    localStorage.setItem(key, JSON.stringify(data))
   }, [key, data])
+}
+
+export function clearFormPersistence(key: string) {
+  Object.keys(localStorage).forEach((k) => {
+    if (k === key || k.startsWith(`${key}-`)) {
+      localStorage.removeItem(k)
+    }
+  })
 }

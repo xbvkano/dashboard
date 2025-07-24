@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import useFormPersistence from '../../../../useFormPersistence'
+import useFormPersistence, { clearFormPersistence } from '../../../../useFormPersistence'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Client } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
@@ -20,14 +20,27 @@ export default function ClientForm() {
     }
   }, [id, isNew])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setData({ ...data, [e.target.name]: e.target.value })
+  const persist = (updated: Client) => {
+    Object.entries(updated).forEach(([field, value]) => {
+      localStorage.setItem(`${storageKey}-${field}`, JSON.stringify(value))
+    })
+    localStorage.setItem(storageKey, JSON.stringify(updated))
+  }
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const updated = { ...data, [e.target.name]: e.target.value }
+    persist(updated)
+    setData(updated)
   }
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     const digits = value.replace(/\D/g, '').slice(0, 10)
-    setData({ ...data, [name]: digits })
+    const updated = { ...data, [name]: digits }
+    persist(updated)
+    setData(updated)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,17 +56,18 @@ export default function ClientForm() {
       alert(err.error || 'Failed to save')
       return
     }
-    sessionStorage.removeItem(storageKey)
+    clearFormPersistence(storageKey)
     navigate('..')
   }
 
   return (
     <form onSubmit={handleSubmit} className="p-4 space-y-3">
       <div>
-        <label className="block text-sm">
+        <label htmlFor="client-name" className="block text-sm">
           Name <span className="text-red-500">*</span>
         </label>
         <input
+          id="client-name"
           name="name"
           value={data.name}
           onChange={handleChange}
@@ -62,10 +76,11 @@ export default function ClientForm() {
         />
       </div>
       <div>
-        <label className="block text-sm">
+        <label htmlFor="client-number" className="block text-sm">
           Number <span className="text-red-500">*</span>
         </label>
         <input
+          id="client-number"
           name="number"
           value={data.number}
           onChange={handleNumberChange}
@@ -76,8 +91,14 @@ export default function ClientForm() {
         />
       </div>
       <div>
-        <label className="block text-sm">Notes</label>
-        <textarea name="notes" value={data.notes || ''} onChange={handleChange} className="w-full border p-2 rounded" />
+        <label htmlFor="client-notes" className="block text-sm">Notes</label>
+        <textarea
+          id="client-notes"
+          name="notes"
+          value={data.notes || ''}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+        />
       </div>
       <button className="bg-blue-500 text-white px-4 py-2 rounded" type="submit">
         Save

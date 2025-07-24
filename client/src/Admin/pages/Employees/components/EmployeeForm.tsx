@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Employee } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
-import useFormPersistence from '../../../../useFormPersistence'
+import useFormPersistence, { clearFormPersistence } from '../../../../useFormPersistence'
 
 export default function EmployeeForm() {
   const { id } = useParams()
@@ -25,20 +25,33 @@ export default function EmployeeForm() {
     }
   }, [id, isNew])
 
+  const persist = (updated: Employee) => {
+    Object.entries(updated).forEach(([field, value]) => {
+      localStorage.setItem(`${storageKey}-${field}`, JSON.stringify(value))
+    })
+    localStorage.setItem(storageKey, JSON.stringify(updated))
+  }
+
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
-    setData({ ...data, [e.target.name]: e.target.value })
+    const updated = { ...data, [e.target.name]: e.target.value }
+    persist(updated)
+    setData(updated)
   }
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setData({ ...data, experienced: e.target.checked })
+    const updated = { ...data, experienced: e.target.checked }
+    persist(updated)
+    setData(updated)
   }
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     const digits = value.replace(/\D/g, '').slice(0, 10)
-    setData({ ...data, [name]: digits })
+    const updated = { ...data, [name]: digits }
+    persist(updated)
+    setData(updated)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,17 +72,18 @@ export default function EmployeeForm() {
       alert(err.error || 'Failed to save')
       return
     }
-    sessionStorage.removeItem(storageKey)
+    clearFormPersistence(storageKey)
     navigate('..')
   }
 
   return (
     <form onSubmit={handleSubmit} className="p-4 space-y-3">
       <div>
-        <label className="block text-sm">
+        <label htmlFor="employee-name" className="block text-sm">
           Name <span className="text-red-500">*</span>
         </label>
         <input
+          id="employee-name"
           name="name"
           value={data.name}
           onChange={handleChange}
@@ -78,10 +92,11 @@ export default function EmployeeForm() {
         />
       </div>
       <div>
-        <label className="block text-sm">
+        <label htmlFor="employee-number" className="block text-sm">
           Number <span className="text-red-500">*</span>
         </label>
         <input
+          id="employee-number"
           name="number"
           value={data.number}
           onChange={handleNumberChange}
@@ -92,8 +107,14 @@ export default function EmployeeForm() {
         />
       </div>
       <div>
-        <label className="block text-sm">Notes</label>
-        <textarea name="notes" value={data.notes || ''} onChange={handleChange} className="w-full border p-2 rounded" />
+        <label htmlFor="employee-notes" className="block text-sm">Notes</label>
+        <textarea
+          id="employee-notes"
+          name="notes"
+          value={data.notes || ''}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+        />
       </div>
       <div className="flex items-center gap-2">
         <input
@@ -111,7 +132,7 @@ export default function EmployeeForm() {
         <button
           type="button"
           onClick={() => {
-            sessionStorage.removeItem(storageKey)
+            clearFormPersistence(storageKey)
             navigate('..')
           }}
           className="bg-gray-300 px-4 py-2 rounded"
