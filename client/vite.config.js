@@ -7,6 +7,10 @@ export default defineConfig(() => {
   if (isNgrok) {
     process.env.VITE_NGROK = 'true'
   }
+  const noAuth = process.argv.includes('--no-auth') || process.argv.includes('-no-auth')
+  if (noAuth) {
+    process.env.VITE_NO_AUTH = 'true'
+  }
   return {
     plugins: [react()],
     server: {

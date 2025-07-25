@@ -7,6 +7,13 @@ type Role = 'ADMIN' | 'OWNER' | 'EMPLOYEE'
 
 export default function App() {
   const [role, setRole] = useState<Role | null>(() => {
+    const noAuth =
+      import.meta.env.VITE_NO_AUTH === 'true' ||
+      import.meta.env.VITE_NO_AUTH === '1'
+    if (noAuth) {
+      localStorage.setItem('role', 'OWNER')
+      return 'OWNER'
+    }
     const stored = localStorage.getItem('role')
     return stored === 'ADMIN' || stored === 'OWNER' || stored === 'EMPLOYEE'
       ? (stored as Role)
@@ -48,15 +55,15 @@ function AppRoutes({ role, onLogin, onLogout }: RoutesProps) {
     }
   }, [role, location.pathname])
 
-  useEffect(() => {
-    if (role && location.pathname === '/') {
-      navigate('/dashboard', { replace: true })
-    }
-  }, [role, navigate, location.pathname])
+  // No dedicated redirect effect is needed when role is restored because
+  // the '/' route conditionally navigates to the dashboard.
 
   return (
     <Routes>
-      <Route path="/" element={<Login onLogin={onLogin} />} />
+      <Route
+        path="/"
+        element={role ? <Navigate to="/dashboard" replace /> : <Login onLogin={onLogin} />}
+      />
       <Route
         path="/dashboard/*"
         element={role ? <Dashboard role={role} onLogout={onLogout} /> : <Navigate to="/" replace />}
