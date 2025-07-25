@@ -12,6 +12,16 @@ export default function App() {
       ? (stored as Role)
       : null
   })
+
+  useEffect(() => {
+    const noAuth =
+      import.meta.env.VITE_NO_AUTH === 'true' ||
+      import.meta.env.VITE_NO_AUTH === '1'
+    if (noAuth) {
+      setRole('OWNER')
+      localStorage.setItem('role', 'OWNER')
+    }
+  }, [])
   return (
     <BrowserRouter>
       <AppRoutes role={role} onLogin={setRole} onLogout={() => setRole(null)} />
