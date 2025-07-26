@@ -549,7 +549,7 @@ const preserveTeamRef = useRef(false)
       notes: t.cityStateZip || '',
       carpetEnabled: !!t.carpetEnabled,
       carpetRooms: t.carpetRooms || '',
-      carpetPrice: '',
+      carpetPrice: t.carpetPrice != null ? String(t.carpetPrice) : '',
     })
     setEditing(true)
     setEditingTemplateId(selectedTemplate)
@@ -583,7 +583,9 @@ const preserveTeamRef = useRef(false)
     }
     if (templateForm.carpetEnabled) {
       payload.carpetRooms = parseInt(templateForm.carpetRooms, 10) || 0
-      payload.carpetPrice = parseFloat(templateForm.carpetPrice) || 0
+      if (editing) {
+        payload.carpetPrice = parseFloat(templateForm.carpetPrice) || 0
+      }
     }
     const res = await fetch(`${API_BASE_URL}/appointment-templates`, {
       method: 'POST',
@@ -602,7 +604,9 @@ const preserveTeamRef = useRef(false)
             ...t,
             carpetEnabled: templateForm.carpetEnabled,
             carpetRooms: templateForm.carpetRooms,
-            carpetPrice: parseFloat(templateForm.carpetPrice),
+            carpetPrice: editing
+              ? parseFloat(templateForm.carpetPrice)
+              : t.carpetPrice,
           },
         ]
       })
@@ -918,7 +922,7 @@ const preserveTeamRef = useRef(false)
                         setTemplateForm({ ...templateForm, carpetRooms: e.target.value })
                       }
                     />
-                    {defaultCarpetPrice !== null && !overrideCarpetPrice ? (
+                    {editing && defaultCarpetPrice !== null && !overrideCarpetPrice && (
                       <div className="mt-2 flex items-center gap-2">
                         <span>
                           Carpet Price: ${defaultCarpetPrice.toFixed(2)}
@@ -931,7 +935,8 @@ const preserveTeamRef = useRef(false)
                           Edit price
                         </button>
                       </div>
-                    ) : (
+                    )}
+                    {editing && overrideCarpetPrice && (
                       <div>
                         <h4 className="font-light mt-2">Carpet Price</h4>
                         <input
