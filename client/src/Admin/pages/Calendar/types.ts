@@ -8,7 +8,8 @@ export interface AppointmentTemplate {
   clientId: number
   cityStateZip?: string // used for notes
   carpetEnabled?: boolean
-  carpetRooms?: string
+  carpetRooms?: number
+  carpetPrice?: number
 }
 
 export interface Appointment {

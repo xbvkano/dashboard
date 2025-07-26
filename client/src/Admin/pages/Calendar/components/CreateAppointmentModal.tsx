@@ -120,6 +120,10 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const [carpetRooms, setCarpetRooms] = useState<string>(persisted.carpetRooms ?? '')
   const [carpetEmployees, setCarpetEmployees] = useState<number[]>(persisted.carpetEmployees ?? [])
   const [carpetRate, setCarpetRate] = useState<number | null>(null)
+  const [defaultCarpetPrice, setDefaultCarpetPrice] = useState<number | null>(null)
+  const [overrideCarpetPrice, setOverrideCarpetPrice] = useState<boolean>(
+    persisted.overrideCarpetPrice ?? false,
+  )
 
   // recurring options
   const recurringOptions = [
@@ -213,6 +217,8 @@ const preserveTeamRef = useRef(false)
           if (typeof s.carpetEnabled === 'boolean') setCarpetEnabled(s.carpetEnabled)
           if (s.carpetRooms) setCarpetRooms(s.carpetRooms)
           if (Array.isArray(s.carpetEmployees)) setCarpetEmployees(s.carpetEmployees)
+          if (typeof s.overrideCarpetPrice === 'boolean')
+            setOverrideCarpetPrice(s.overrideCarpetPrice)
           if (typeof s.recurringEnabled === 'boolean') setRecurringEnabled(s.recurringEnabled)
           if (s.recurringOption) setRecurringOption(s.recurringOption)
           if (s.recurringMonths) setRecurringMonths(s.recurringMonths)
@@ -248,13 +254,14 @@ const preserveTeamRef = useRef(false)
       carpetEnabled,
       carpetRooms,
       carpetPrice: templateForm.carpetPrice,
+      overrideCarpetPrice,
       carpetEmployees,
       recurringEnabled,
       recurringOption,
       recurringMonths,
     }
     localStorage.setItem('createAppointmentState', JSON.stringify(data))
-  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, showTeamModal, employeeSearch, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, templateForm.carpetPrice, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
+  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, showTeamModal, employeeSearch, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, templateForm.carpetPrice, overrideCarpetPrice, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
 
   useEffect(() => {
     if (selectedTemplate !== null) {
@@ -279,6 +286,8 @@ const preserveTeamRef = useRef(false)
     setCarpetRooms('')
     setCarpetEmployees([])
     setCarpetRate(null)
+    setDefaultCarpetPrice(null)
+    setOverrideCarpetPrice(false)
   }
 
   const resetTemplateRelated = () => {
@@ -297,6 +306,8 @@ const preserveTeamRef = useRef(false)
       carpetRooms: '',
       carpetPrice: '',
     })
+    setDefaultCarpetPrice(null)
+    setOverrideCarpetPrice(false)
     setDate('')
     setTime('')
     setStaffOptions([])
@@ -458,8 +469,14 @@ const preserveTeamRef = useRef(false)
 
   // calculate default carpet price
   useEffect(() => {
-    if (!carpetEnabled) return
-    if (!carpetRooms) return
+    if (!carpetEnabled) {
+      setDefaultCarpetPrice(null)
+      return
+    }
+    if (!carpetRooms) {
+      setDefaultCarpetPrice(null)
+      return
+    }
     const size = selectedTemplate
       ? templates.find((tt) => tt.id === selectedTemplate)?.size
       : templateForm.size
@@ -473,10 +490,11 @@ const preserveTeamRef = useRef(false)
     const sqft = parseSize(size)
     if (sqft === null) return
     const price = (parseInt(carpetRooms, 10) || 0) * (sqft >= 4000 ? 40 : 35)
-    if (templateForm.carpetPrice === '') {
+    setDefaultCarpetPrice(price)
+    if (!overrideCarpetPrice) {
       setTemplateForm((f) => ({ ...f, carpetPrice: String(price) }))
     }
-  }, [carpetEnabled, carpetRooms, selectedTemplate, templateForm.size])
+  }, [carpetEnabled, carpetRooms, selectedTemplate, templateForm.size, overrideCarpetPrice])
 
   
 
@@ -554,7 +572,7 @@ const preserveTeamRef = useRef(false)
       alert('Please provide: ' + missing.join(', '))
       return
     }
-    const payload = {
+    const payload: any = {
       clientId: selectedClient.id,
       templateName: templateForm.templateName,
       type: templateForm.type,
@@ -562,6 +580,10 @@ const preserveTeamRef = useRef(false)
       address: templateForm.address,
       price: parseFloat(templateForm.price),
       notes: templateForm.notes || undefined,
+    }
+    if (templateForm.carpetEnabled) {
+      payload.carpetRooms = parseInt(templateForm.carpetRooms, 10) || 0
+      payload.carpetPrice = parseFloat(templateForm.carpetPrice) || 0
     }
     const res = await fetch(`${API_BASE_URL}/appointment-templates`, {
       method: 'POST',
@@ -580,6 +602,7 @@ const preserveTeamRef = useRef(false)
             ...t,
             carpetEnabled: templateForm.carpetEnabled,
             carpetRooms: templateForm.carpetRooms,
+            carpetPrice: parseFloat(templateForm.carpetPrice),
           },
         ]
       })
@@ -895,16 +918,51 @@ const preserveTeamRef = useRef(false)
                         setTemplateForm({ ...templateForm, carpetRooms: e.target.value })
                       }
                     />
-                    <h4 className="font-light mt-2">Carpet Price</h4>
-                    <input
-                      id="appointment-template-carpet-price"
-                      type="number"
-                      className="w-full border p-2 rounded text-base"
-                      value={templateForm.carpetPrice}
-                      onChange={(e) =>
-                        setTemplateForm({ ...templateForm, carpetPrice: e.target.value })
-                      }
-                    />
+                    {defaultCarpetPrice !== null && !overrideCarpetPrice ? (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span>
+                          Carpet Price: ${defaultCarpetPrice.toFixed(2)}
+                        </span>
+                        <button
+                          type="button"
+                          className="text-sm text-blue-500"
+                          onClick={() => setOverrideCarpetPrice(true)}
+                        >
+                          Edit price
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <h4 className="font-light mt-2">Carpet Price</h4>
+                        <input
+                          id="appointment-template-carpet-price"
+                          type="number"
+                          className="w-full border p-2 rounded text-base"
+                          value={templateForm.carpetPrice}
+                          onChange={(e) =>
+                            setTemplateForm({
+                              ...templateForm,
+                              carpetPrice: e.target.value,
+                            })
+                          }
+                        />
+                        {defaultCarpetPrice !== null && (
+                          <button
+                            type="button"
+                            className="text-sm text-blue-500 mt-1"
+                            onClick={() => {
+                              setOverrideCarpetPrice(false)
+                              setTemplateForm({
+                                ...templateForm,
+                                carpetPrice: String(defaultCarpetPrice),
+                              })
+                            }}
+                          >
+                            Use default
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="flex gap-2 justify-end">
