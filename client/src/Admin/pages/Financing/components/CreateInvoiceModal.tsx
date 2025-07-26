@@ -51,6 +51,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       discount: discount ? parseFloat(discount) : undefined,
       taxPercent: taxEnabled ? parseFloat(taxPercent) || 0 : undefined,
     }
+    const newWindow = window.open('', '_blank')
     const res = await fetch(`${API_BASE_URL}/invoices`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
@@ -58,9 +59,15 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     })
     if (res.ok) {
       const data = await res.json()
-      window.open(`${API_BASE_URL}/invoices/${data.id}/pdf`, '_blank')
+      const url = `${API_BASE_URL}/invoices/${data.id}/pdf`
+      if (newWindow) {
+        newWindow.location.href = url
+      } else {
+        window.location.href = url
+      }
       onClose()
     } else {
+      if (newWindow) newWindow.close()
       alert('Failed to create invoice')
     }
   }
@@ -78,6 +85,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       discount: discount ? parseFloat(discount) : undefined,
       taxPercent: taxEnabled ? parseFloat(taxPercent) || 0 : undefined,
     }
+    const newWindow = window.open('', '_blank')
     const res = await fetch(`${API_BASE_URL}/invoices`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
@@ -93,9 +101,15 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
           body: JSON.stringify({ email }),
         })
       }
-      window.open(`${API_BASE_URL}/invoices/${data.id}/pdf`, '_blank')
+      const url = `${API_BASE_URL}/invoices/${data.id}/pdf`
+      if (newWindow) {
+        newWindow.location.href = url
+      } else {
+        window.location.href = url
+      }
       onClose()
     } else {
+      if (newWindow) newWindow.close()
       alert('Failed to create invoice')
     }
   }
