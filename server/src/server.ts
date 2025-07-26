@@ -85,6 +85,7 @@ async function ensureRecurringFuture() {
           paid: last.paid,
           tip: last.tip,
           carpetRooms: last.carpetRooms ?? null,
+          carpetPrice: last.carpetPrice ?? null,
           paymentMethod: last.paymentMethod,
           notes: last.notes ?? undefined,
           status: 'REOCCURRING',
@@ -108,6 +109,14 @@ dotenv.config()
 const prisma = new PrismaClient()
 const app = express()
 const port = process.env.PORT || 3000
+
+function parseSqft(s: string | null | undefined): number | null {
+  if (!s) return null
+  const parts = s.split('-')
+  let n = parseInt(parts[1] || parts[0])
+  if (isNaN(n)) n = parseInt(s)
+  return isNaN(n) ? null : n
+}
 
 function calculatePayRate(type: string, size: string | null, count: number): number {
   const parseSize = (s: string): number | null => {
@@ -665,6 +674,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
       paymentMethodNote,
       tip = 0,
       carpetRooms,
+      carpetPrice,
       count = 1,
       frequency,
     } = req.body as {
@@ -680,6 +690,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
       paymentMethodNote?: string
       tip?: number
       carpetRooms?: number
+      carpetPrice?: number
       count?: number
       frequency?: string
     }
@@ -708,6 +719,13 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
         const m = parseInt(String(req.body.months || 1), 10)
         d.setMonth(d.getMonth() + i * (isNaN(m) ? 1 : m))
       }
+      let finalCarpetPrice = carpetPrice
+      if (finalCarpetPrice === undefined && carpetRooms && template.size) {
+        const sqft = parseSqft(template.size)
+        if (sqft !== null) {
+          finalCarpetPrice = carpetRooms * (sqft >= 4000 ? 40 : 35)
+        }
+      }
       const appt = await prisma.appointment.create({
         data: {
           clientId,
@@ -723,6 +741,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
           paid,
           tip,
           carpetRooms: carpetRooms ?? null,
+          carpetPrice: finalCarpetPrice ?? null,
           paymentMethod: paymentMethod as any,
           notes: paymentMethodNote || undefined,
           status: 'REOCCURRING',
@@ -763,6 +782,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
       paymentMethodNote,
       tip = 0,
       carpetRooms,
+      carpetPrice,
       status = 'APPOINTED',
     } = req.body as {
       clientId?: number
@@ -777,6 +797,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
       paymentMethodNote?: string
       tip?: number
       carpetRooms?: number
+      carpetPrice?: number
       status?: string
     }
 
@@ -790,6 +811,14 @@ app.post('/appointments', async (req: Request, res: Response) => {
     })
     if (!template) {
       return res.status(400).json({ error: 'Invalid templateId' })
+    }
+
+    let finalCarpetPrice = carpetPrice
+    if (finalCarpetPrice === undefined && carpetRooms && template.size) {
+      const sqft = parseSqft(template.size)
+      if (sqft !== null) {
+        finalCarpetPrice = carpetRooms * (sqft >= 4000 ? 40 : 35)
+      }
     }
 
     const appt = await prisma.appointment.create({
@@ -807,6 +836,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
         paid,
         tip,
         carpetRooms: carpetRooms ?? null,
+        carpetPrice: finalCarpetPrice ?? null,
         paymentMethod: paymentMethod as any, // or cast to your enum
         notes: paymentMethodNote || undefined,
         status: status as any,
@@ -850,6 +880,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       status,
       observe,
       carpetRooms,
+      carpetPrice,
     } = req.body as {
       clientId?: number
       templateId?: number
@@ -865,6 +896,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       status?: string
       observe?: boolean
       carpetRooms?: number
+      carpetPrice?: number
     }
     const data: any = {}
     if (clientId !== undefined) data.clientId = clientId
@@ -890,6 +922,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
     if (status !== undefined) data.status = status as any
     if (observe !== undefined) data.observe = observe
     if (carpetRooms !== undefined) data.carpetRooms = carpetRooms
+    if (carpetPrice !== undefined) data.carpetPrice = carpetPrice
     if (employeeIds) {
       data.employees = { set: employeeIds.map((id) => ({ id })) }
     }
@@ -934,6 +967,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
             paid: last.paid,
             tip: last.tip,
             carpetRooms: last.carpetRooms ?? null,
+            carpetPrice: last.carpetPrice ?? null,
             paymentMethod: last.paymentMethod,
             notes: last.notes ?? undefined,
             status: 'REOCCURRING',
@@ -1021,6 +1055,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
                 paid: last.paid,
                 tip: last.tip,
                 carpetRooms: last.carpetRooms ?? null,
+                carpetPrice: last.carpetPrice ?? null,
                 paymentMethod: last.paymentMethod,
                 notes: last.notes ?? undefined,
                 status: 'REOCCURRING',
@@ -1185,7 +1220,7 @@ app.get('/revenue', async (_req: Request, res: Response) => {
       select: { serviceDate: true, total: true, serviceType: true },
     })
     res.json(
-      invoices.map((i) => ({
+      invoices.map((i: any) => ({
         serviceDate: i.serviceDate.toISOString(),
         total: i.total,
         serviceType: i.serviceType,
