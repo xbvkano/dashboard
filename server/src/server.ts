@@ -1178,6 +1178,25 @@ app.post('/invoices/:id/send', async (req: Request, res: Response) => {
   }
 })
 
+app.get('/revenue', async (_req: Request, res: Response) => {
+  try {
+    const invoices = await prisma.invoice.findMany({
+      orderBy: { serviceDate: 'asc' },
+      select: { serviceDate: true, total: true, serviceType: true },
+    })
+    res.json(
+      invoices.map((i) => ({
+        serviceDate: i.serviceDate.toISOString(),
+        total: i.total,
+        serviceType: i.serviceType,
+      }))
+    )
+  } catch (err) {
+    console.error('Failed to fetch revenue:', err)
+    res.status(500).json({ error: 'Failed to fetch revenue' })
+  }
+})
+
 app.get('/payroll/due', async (_req: Request, res: Response) => {
   const items = await prisma.payrollItem.findMany({
     where: { paid: false },
