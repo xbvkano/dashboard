@@ -22,6 +22,7 @@ export default function Payroll() {
   const [selected, setSelected] = useState<number | ''>('')
   const [amount, setAmount] = useState('')
   const [extra, setExtra] = useState('')
+  const [chargebackId, setChargebackId] = useState<number | null>(null)
 
   const load = () => {
     fetchJson(`${API_BASE_URL}/payroll/due`).then(setDue).catch(() => setDue([]))
@@ -54,6 +55,17 @@ export default function Payroll() {
     setSelected('')
     setAmount('')
     setExtra('')
+    load()
+  }
+
+  const handleChargeback = async () => {
+    if (chargebackId == null) return
+    await fetch(`${API_BASE_URL}/payroll/chargeback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+      body: JSON.stringify({ id: chargebackId }),
+    })
+    setChargebackId(null)
     load()
   }
 
@@ -134,10 +146,42 @@ export default function Payroll() {
                 </div>
                 <div className="text-sm text-gray-600">{p.createdAt.slice(0, 10)}</div>
               </div>
+              <div className="text-right mt-2">
+                <button
+                  className="text-blue-500 text-sm"
+                  onClick={() => setChargebackId(p.id)}
+                >
+                  Pay Charge Back
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       </div>
+      {chargebackId != null && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setChargebackId(null)}
+        >
+          <div
+            className="bg-white p-4 rounded space-y-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>Undo this payment?</div>
+            <div className="flex justify-end gap-2">
+              <button className="px-4 py-1 border rounded" onClick={() => setChargebackId(null)}>
+                No
+              </button>
+              <button
+                className="px-4 py-1 bg-red-500 text-white rounded"
+                onClick={handleChargeback}
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

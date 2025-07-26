@@ -1245,6 +1245,46 @@ app.post('/payroll/pay', async (req: Request, res: Response) => {
   res.json({ id: payment.id })
 })
 
+app.post('/payroll/chargeback', async (req: Request, res: Response) => {
+  const { id } = req.body as { id?: number }
+  if (!id) return res.status(400).json({ error: 'id required' })
+  const payment = await prisma.employeePayment.findUnique({
+    where: { id },
+    include: {
+      employee: true,
+      items: { include: { appointment: { include: { employees: true } } } },
+    },
+  })
+  if (!payment) return res.status(404).json({ error: 'payment not found' })
+
+  let itemsTotal = 0
+  for (const it of payment.items) {
+    const c = it.appointment.employees.length || 1
+    itemsTotal += calculatePayRate(it.appointment.type, it.appointment.size ?? null, c)
+    itemsTotal += (it.appointment.tip || 0) / c
+  }
+
+  if (payment.items.length) {
+    await prisma.payrollItem.updateMany({
+      where: { id: { in: payment.items.map((it: { id: number }) => it.id) } },
+      data: { paid: false, paymentId: null },
+    })
+  }
+
+  const prevBalance = Math.max(
+    0,
+    (payment.employee.prevBalance || 0) + payment.amount - itemsTotal,
+  )
+
+  await prisma.employee.update({
+    where: { id: payment.employeeId },
+    data: { prevBalance },
+  })
+
+  await prisma.employeePayment.delete({ where: { id } })
+  res.json({ ok: true })
+})
+
 app.post('/login', async (req: Request, res: Response) => {
   const { token, code } = req.body as { token?: string; code?: string }
   if (!token && !code) {
