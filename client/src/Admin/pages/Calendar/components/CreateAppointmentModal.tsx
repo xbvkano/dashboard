@@ -87,6 +87,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     notes: '',
     carpetEnabled: false,
     carpetRooms: '',
+    carpetPrice: '',
     ...(persisted.templateForm || {}),
   })
 
@@ -246,13 +247,14 @@ const preserveTeamRef = useRef(false)
       selectedOption,
       carpetEnabled,
       carpetRooms,
+      carpetPrice: templateForm.carpetPrice,
       carpetEmployees,
       recurringEnabled,
       recurringOption,
       recurringMonths,
     }
     localStorage.setItem('createAppointmentState', JSON.stringify(data))
-  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, showTeamModal, employeeSearch, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
+  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, showTeamModal, employeeSearch, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, templateForm.carpetPrice, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
 
   useEffect(() => {
     if (selectedTemplate !== null) {
@@ -293,6 +295,7 @@ const preserveTeamRef = useRef(false)
       notes: '',
       carpetEnabled: false,
       carpetRooms: '',
+      carpetPrice: '',
     })
     setDate('')
     setTime('')
@@ -453,6 +456,28 @@ const preserveTeamRef = useRef(false)
       .catch(() => setCarpetRate(null))
   }, [carpetEnabled, carpetRooms, carpetEmployees.length, selectedTemplate])
 
+  // calculate default carpet price
+  useEffect(() => {
+    if (!carpetEnabled) return
+    if (!carpetRooms) return
+    const size = selectedTemplate
+      ? templates.find((tt) => tt.id === selectedTemplate)?.size
+      : templateForm.size
+    if (!size) return
+    const parseSize = (s: string): number | null => {
+      const parts = s.split('-')
+      let n = parseInt(parts[1] || parts[0])
+      if (isNaN(n)) n = parseInt(s)
+      return isNaN(n) ? null : n
+    }
+    const sqft = parseSize(size)
+    if (sqft === null) return
+    const price = (parseInt(carpetRooms, 10) || 0) * (sqft >= 4000 ? 40 : 35)
+    if (templateForm.carpetPrice === '') {
+      setTemplateForm((f) => ({ ...f, carpetPrice: String(price) }))
+    }
+  }, [carpetEnabled, carpetRooms, selectedTemplate, templateForm.size])
+
   
 
   const createClient = async () => {
@@ -506,6 +531,7 @@ const preserveTeamRef = useRef(false)
       notes: t.cityStateZip || '',
       carpetEnabled: !!t.carpetEnabled,
       carpetRooms: t.carpetRooms || '',
+      carpetPrice: '',
     })
     setEditing(true)
     setEditingTemplateId(selectedTemplate)
@@ -629,7 +655,12 @@ const preserveTeamRef = useRef(false)
         paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
       tip: paid ? parseFloat(tip) || 0 : 0,
       status: recurringEnabled ? 'REOCCURRING' : newStatus ?? 'APPOINTED',
-      ...(carpetEnabled ? { carpetRooms: parseInt(carpetRooms, 10) || 0 } : {}),
+      ...(carpetEnabled
+        ? {
+            carpetRooms: parseInt(carpetRooms, 10) || 0,
+            carpetPrice: parseFloat(templateForm.carpetPrice) || undefined,
+          }
+        : {}),
     }
 
     let url = recurringEnabled ? `${API_BASE_URL}/appointments/recurring` : `${API_BASE_URL}/appointments`
@@ -862,6 +893,16 @@ const preserveTeamRef = useRef(false)
                       value={templateForm.carpetRooms}
                       onChange={(e) =>
                         setTemplateForm({ ...templateForm, carpetRooms: e.target.value })
+                      }
+                    />
+                    <h4 className="font-light mt-2">Carpet Price</h4>
+                    <input
+                      id="appointment-template-carpet-price"
+                      type="number"
+                      className="w-full border p-2 rounded text-base"
+                      value={templateForm.carpetPrice}
+                      onChange={(e) =>
+                        setTemplateForm({ ...templateForm, carpetPrice: e.target.value })
                       }
                     />
                   </div>

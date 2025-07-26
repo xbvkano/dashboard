@@ -27,6 +27,7 @@ export interface Appointment {
   paymentMethod?: 'CASH' | 'ZELLE' | 'VENMO' | 'PAYPAL' | 'OTHER' | 'CHECK'
   tip?: number
   carpetRooms?: number
+  carpetPrice?: number
   reoccurring?: boolean
   observe?: boolean
   status?:

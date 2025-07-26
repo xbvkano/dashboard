@@ -15,12 +15,21 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   const [time, setTime] = useState(appointment.time)
   const [serviceType, setServiceType] = useState(appointment.type)
   const [price, setPrice] = useState(String(appointment.price ?? ''))
-  const [carpetPrice, setCarpetPrice] = useState('')
+  const [carpetPrice, setCarpetPrice] = useState(
+    (appointment as any).carpetPrice != null
+      ? String((appointment as any).carpetPrice)
+      : ''
+  )
   const [discount, setDiscount] = useState('')
   const [taxEnabled, setTaxEnabled] = useState(false)
   const [taxPercent, setTaxPercent] = useState('')
 
   useEffect(() => {
+    const cp = (appointment as any).carpetPrice
+    if (cp != null) {
+      setCarpetPrice(String(cp))
+      return
+    }
     const rooms = (appointment as any).carpetRooms
     const size = appointment.size
     if (rooms != null && size) {
