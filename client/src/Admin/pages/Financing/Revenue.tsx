@@ -124,7 +124,8 @@ export default function Revenue() {
       <div className="grid gap-8 md:grid-cols-2">
         <div>
           <h3 className="font-medium mb-2">Daily (last 30 days)</h3>
-          <Line
+          <div className="h-64">
+            <Line
             data={{
               labels: daily.labels,
               datasets: [
@@ -137,11 +138,13 @@ export default function Revenue() {
               ],
             }}
             options={{ responsive: true, maintainAspectRatio: false }}
-          />
+            />
+          </div>
         </div>
         <div>
           <h3 className="font-medium mb-2">Weekly (last 12 weeks)</h3>
-          <Line
+          <div className="h-64">
+            <Line
             data={{
               labels: weekly.labels,
               datasets: [
@@ -154,11 +157,13 @@ export default function Revenue() {
               ],
             }}
             options={{ responsive: true, maintainAspectRatio: false }}
-          />
+            />
+          </div>
         </div>
         <div>
           <h3 className="font-medium mb-2">Monthly (last 12 months)</h3>
-          <Line
+          <div className="h-64">
+            <Line
             data={{
               labels: monthly.labels,
               datasets: [
@@ -171,11 +176,13 @@ export default function Revenue() {
               ],
             }}
             options={{ responsive: true, maintainAspectRatio: false }}
-          />
+            />
+          </div>
         </div>
         <div>
           <h3 className="font-medium mb-2">Quarterly (last 8 quarters)</h3>
-          <Line
+          <div className="h-64">
+            <Line
             data={{
               labels: quarterly.labels,
               datasets: [
@@ -188,11 +195,13 @@ export default function Revenue() {
               ],
             }}
             options={{ responsive: true, maintainAspectRatio: false }}
-          />
+            />
+          </div>
         </div>
         <div>
           <h3 className="font-medium mb-2">Yearly</h3>
-          <Line
+          <div className="h-64">
+            <Line
             data={{
               labels: yearly.labels,
               datasets: [
@@ -205,11 +214,13 @@ export default function Revenue() {
               ],
             }}
             options={{ responsive: true, maintainAspectRatio: false }}
-          />
+            />
+          </div>
         </div>
         <div>
           <h3 className="font-medium mb-2">By Service Type</h3>
-          <Pie
+          <div className="h-64">
+            <Pie
             data={{
               labels: byType.labels,
               datasets: [
@@ -226,7 +237,8 @@ export default function Revenue() {
               ],
             }}
             options={{ responsive: true, maintainAspectRatio: false }}
-          />
+            />
+          </div>
         </div>
       </div>
 
