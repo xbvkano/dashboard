@@ -85,6 +85,8 @@ model AppointmentTemplate {
   address           String
   cityStateZip      String?
   price             Float
+  carpetRooms      Int?
+  carpetPrice      Float?
   clientId          Int
   client            Client             @relation(fields: [clientId], references: [id])
   employeeTemplates EmployeeTemplate[]

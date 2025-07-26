@@ -473,16 +473,27 @@ app.get('/appointment-templates', async (req: Request, res: Response) => {
 
 app.post('/appointment-templates', async (req: Request, res: Response) => {
   try {
-    const { clientId, templateName, type, size, address, price, notes } =
-      req.body as {
-        clientId?: number
-        templateName?: string
-        type?: any
-        size?: string
-        address?: string
-        price?: number
-        notes?: string
-      }
+    const {
+      clientId,
+      templateName,
+      type,
+      size,
+      address,
+      price,
+      notes,
+      carpetRooms,
+      carpetPrice,
+    } = req.body as {
+      clientId?: number
+      templateName?: string
+      type?: any
+      size?: string
+      address?: string
+      price?: number
+      notes?: string
+      carpetRooms?: number
+      carpetPrice?: number
+    }
 
     if (
       !clientId ||
@@ -502,6 +513,8 @@ app.post('/appointment-templates', async (req: Request, res: Response) => {
         address,
         cityStateZip: notes,
         price,
+        carpetRooms: carpetRooms ?? null,
+        carpetPrice: carpetPrice ?? null,
         client: { connect: { id: clientId } },
       },
     })
@@ -719,11 +732,18 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
         const m = parseInt(String(req.body.months || 1), 10)
         d.setMonth(d.getMonth() + i * (isNaN(m) ? 1 : m))
       }
+      const carpetRoomsFinal =
+        carpetRooms !== undefined ? carpetRooms : template.carpetRooms ?? null
       let finalCarpetPrice = carpetPrice
-      if (finalCarpetPrice === undefined && carpetRooms && template.size) {
-        const sqft = parseSqft(template.size)
-        if (sqft !== null) {
-          finalCarpetPrice = carpetRooms * (sqft >= 4000 ? 40 : 35)
+      if (finalCarpetPrice === undefined) {
+        if (template.carpetPrice != null && carpetRoomsFinal) {
+          finalCarpetPrice = template.carpetPrice
+        } else if (carpetRoomsFinal && template.size) {
+          const sqft = parseSqft(template.size)
+          if (sqft !== null) {
+            finalCarpetPrice =
+              carpetRoomsFinal * (sqft >= 4000 ? 40 : 35)
+          }
         }
       }
       const appt = await prisma.appointment.create({
@@ -740,7 +760,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
           price: template.price,
           paid,
           tip,
-          carpetRooms: carpetRooms ?? null,
+          carpetRooms: carpetRoomsFinal,
           carpetPrice: finalCarpetPrice ?? null,
           paymentMethod: paymentMethod as any,
           notes: paymentMethodNote || undefined,
@@ -813,11 +833,17 @@ app.post('/appointments', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid templateId' })
     }
 
+    const carpetRoomsFinal =
+      carpetRooms !== undefined ? carpetRooms : template.carpetRooms ?? null
     let finalCarpetPrice = carpetPrice
-    if (finalCarpetPrice === undefined && carpetRooms && template.size) {
-      const sqft = parseSqft(template.size)
-      if (sqft !== null) {
-        finalCarpetPrice = carpetRooms * (sqft >= 4000 ? 40 : 35)
+    if (finalCarpetPrice === undefined) {
+      if (template.carpetPrice != null && carpetRoomsFinal) {
+        finalCarpetPrice = template.carpetPrice
+      } else if (carpetRoomsFinal && template.size) {
+        const sqft = parseSqft(template.size)
+        if (sqft !== null) {
+          finalCarpetPrice = carpetRoomsFinal * (sqft >= 4000 ? 40 : 35)
+        }
       }
     }
 
@@ -835,7 +861,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
         price: template.price,
         paid,
         tip,
-        carpetRooms: carpetRooms ?? null,
+        carpetRooms: carpetRoomsFinal,
         carpetPrice: finalCarpetPrice ?? null,
         paymentMethod: paymentMethod as any, // or cast to your enum
         notes: paymentMethodNote || undefined,
@@ -910,6 +936,23 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       data.cityStateZip = template.cityStateZip ?? undefined
       data.size = template.size ?? undefined
       data.price = template.price
+      if (carpetRooms === undefined && template.carpetRooms != null) {
+        data.carpetRooms = template.carpetRooms
+      }
+      if (carpetPrice === undefined) {
+        if (template.carpetPrice != null) {
+          data.carpetPrice = template.carpetPrice
+        } else if (
+          (data.carpetRooms ?? template.carpetRooms) != null &&
+          template.size
+        ) {
+          const cr = data.carpetRooms ?? template.carpetRooms
+          const sqft = parseSqft(template.size)
+          if (sqft !== null) {
+            data.carpetPrice = cr * (sqft >= 4000 ? 40 : 35)
+          }
+        }
+      }
     }
     if (date !== undefined) data.date = new Date(date)
     if (time !== undefined) data.time = time
