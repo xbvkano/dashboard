@@ -1199,6 +1199,14 @@ app.get('/payroll/due', async (_req: Request, res: Response) => {
     map[e.id].items.push({ service: appt.type, date: appt.date, amount: pay, tip })
     map[e.id].total += pay + tip
   }
+  // include employees that only have a previous balance
+  const balancedEmployees = await prisma.employee.findMany({ where: { prevBalance: { gt: 0 } } })
+  for (const e of balancedEmployees) {
+    if (!map[e.id]) {
+      map[e.id] = { employee: e, items: [], total: e.prevBalance }
+      map[e.id].items.push({ service: 'Previous balance', date: e.lastPaidAt, amount: e.prevBalance, tip: 0 })
+    }
+  }
   res.json(Object.values(map))
 })
 
