@@ -891,14 +891,6 @@ const preserveTeamRef = useRef(false)
                   value={templateForm.address}
                   onChange={(e) => setTemplateForm({ ...templateForm, address: e.target.value })}
                 />
-                  <h4 className="font-light">Notes: </h4>
-                <textarea
-                  id="appointment-template-notes"
-                  className="w-full border p-2 rounded text-base"
-                  placeholder="Notes"
-                  value={templateForm.notes}
-                  onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })}
-                />
                 <h4 className="font-light">Instructions:</h4>
                 <textarea
                   id="appointment-template-instructions"
@@ -908,6 +900,14 @@ const preserveTeamRef = useRef(false)
                   onChange={(e) =>
                     setTemplateForm({ ...templateForm, instructions: e.target.value })
                   }
+                />
+                <h4 className="font-light">Notes: </h4>
+                <textarea
+                  id="appointment-template-notes"
+                  className="w-full border p-2 rounded text-base"
+                  placeholder="Notes"
+                  value={templateForm.notes}
+                  onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })}
                 />
                 <label className="flex items-center gap-2">
                   <input
