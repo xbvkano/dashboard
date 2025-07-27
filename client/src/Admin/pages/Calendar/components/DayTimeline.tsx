@@ -342,6 +342,9 @@ const handleSave = async () => {
             {selected.price != null && (
               <div className="text-sm">Price: ${selected.price}</div>
             )}
+            {selected.cityStateZip && (
+              <div className="text-sm">Instructions: {selected.cityStateZip}</div>
+            )}
             {selected.notes && (
               <div className="text-sm">Notes: {selected.notes}</div>
             )}
