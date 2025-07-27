@@ -63,6 +63,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
   const [tip, setTip] = useState('')
   const [showSendInfo, setShowSendInfo] = useState(false)
   const [note, setNote] = useState('')
+  const [observation, setObservation] = useState('')
 
   const updateAppointment = async (data: {
     status?: Appointment['status']
@@ -110,6 +111,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
         paymentMethodNote:
           paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
         tip: paid ? parseFloat(tip) || 0 : 0,
+        observation: selected.observe ? observation : undefined,
       }),
     })
     if (res.ok) {
@@ -148,6 +150,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
     setPaymentMethod(selected.paymentMethod ?? '')
     setTip(selected.tip != null ? String(selected.tip) : '')
     setOtherPayment('')
+    setObservation(selected.observation ?? '')
   }, [selected])
 
   // Disable body scroll when modal is open
@@ -470,6 +473,17 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                 </div>
               )}
             </div>
+
+            {selected.observe && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Observation</label>
+                <textarea
+                  className="border p-2 rounded w-full text-base"
+                  value={observation}
+                  onChange={(e) => setObservation(e.target.value)}
+                />
+              </div>
+            )}
 
             <div className="flex flex-wrap justify-end gap-2 pt-2">
               <button className="px-4 py-1 bg-red-500 text-white rounded" onClick={() => setShowDelete(true)}>

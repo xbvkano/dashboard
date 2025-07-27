@@ -830,6 +830,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
       carpetPrice,
       carpetEmployees = [],
       status = 'APPOINTED',
+      observation,
     } = req.body as {
       clientId?: number
       templateId?: number
@@ -846,6 +847,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
       carpetPrice?: number
       carpetEmployees?: number[]
       status?: string
+      observation?: string
     }
 
     // required-field guard
@@ -895,6 +897,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
         notes:
           [template.notes, paymentMethodNote].filter(Boolean).join(' | ') ||
           undefined,
+        observation: observation ?? undefined,
         status: status as any,
         lineage: 'single',
         // only include the relation if there are IDs
@@ -938,6 +941,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       carpetRooms,
       carpetPrice,
       carpetEmployees,
+      observation,
     } = req.body as {
       clientId?: number
       templateId?: number
@@ -955,6 +959,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       carpetRooms?: number
       carpetPrice?: number
       carpetEmployees?: number[]
+      observation?: string | null
     }
     const data: any = {}
     if (clientId !== undefined) data.clientId = clientId
@@ -995,6 +1000,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
     if (paymentMethod !== undefined) data.paymentMethod = paymentMethod as any
     if (paymentMethodNote !== undefined) data.notes = paymentMethodNote
     if (tip !== undefined) data.tip = tip
+    if (observation !== undefined) data.observation = observation
     if (status !== undefined) data.status = status as any
     if (observe !== undefined) data.observe = observe
     if (carpetRooms !== undefined) data.carpetRooms = carpetRooms
@@ -1002,6 +1008,11 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
     if (carpetEmployees !== undefined) data.carpetEmployees = carpetEmployees
     if (employeeIds) {
       data.employees = { set: employeeIds.map((id) => ({ id })) }
+    }
+
+    if (observe === false ||
+        (status && ['CANCEL', 'RESCHEDULE_OLD', 'DELETED'].includes(status))) {
+      data.observation = null
     }
     const future = req.query.future === 'true'
     const current = await prisma.appointment.findUnique({ where: { id }, include: { employees: true, client: true } })
