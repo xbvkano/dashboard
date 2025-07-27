@@ -86,6 +86,7 @@ model AppointmentTemplate {
   cityStateZip      String?
   price             Float
   instructions     String?
+  notes            String?
   carpetRooms      Int?
   carpetPrice      Float?
   clientId          Int

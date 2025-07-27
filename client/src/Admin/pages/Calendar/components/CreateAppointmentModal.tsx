@@ -548,7 +548,7 @@ const preserveTeamRef = useRef(false)
       size: t.size || '',
       address: t.address,
       price: String(t.price),
-      notes: t.cityStateZip || '',
+      notes: t.notes || '',
       instructions: t.instructions || '',
       carpetEnabled: !!t.carpetEnabled,
       carpetRooms: t.carpetRooms || '',
@@ -891,14 +891,6 @@ const preserveTeamRef = useRef(false)
                   value={templateForm.address}
                   onChange={(e) => setTemplateForm({ ...templateForm, address: e.target.value })}
                 />
-                  <h4 className="font-light">Notes: </h4>
-                <textarea
-                  id="appointment-template-notes"
-                  className="w-full border p-2 rounded text-base"
-                  placeholder="Notes"
-                  value={templateForm.notes}
-                  onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })}
-                />
                 <h4 className="font-light">Instructions:</h4>
                 <textarea
                   id="appointment-template-instructions"
@@ -908,6 +900,14 @@ const preserveTeamRef = useRef(false)
                   onChange={(e) =>
                     setTemplateForm({ ...templateForm, instructions: e.target.value })
                   }
+                />
+                <h4 className="font-light">Notes: </h4>
+                <textarea
+                  id="appointment-template-notes"
+                  className="w-full border p-2 rounded text-base"
+                  placeholder="Notes"
+                  value={templateForm.notes}
+                  onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })}
                 />
                 <label className="flex items-center gap-2">
                   <input
@@ -1017,7 +1017,7 @@ const preserveTeamRef = useRef(false)
                       {t.size && <div>Size: {t.size}</div>}
                       <div>Address: {t.address}</div>
                       <div>Price: ${t.price.toFixed(2)}</div>
-                      {t.cityStateZip && <div>Notes: {t.cityStateZip}</div>}
+                      {t.notes && <div>Notes: {t.notes}</div>}
                       {t.instructions && <div>Instructions: {t.instructions}</div>}
                       {t.carpetEnabled && (
                         <div>Carpet Rooms: {t.carpetRooms}</div>
