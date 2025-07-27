@@ -34,6 +34,7 @@ export interface Appointment {
   reoccurring?: boolean
   observe?: boolean
   observation?: string
+  infoSent?: boolean
   status?:
     | 'APPOINTED'
     | 'RESCHEDULE_NEW'
