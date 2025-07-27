@@ -513,9 +513,10 @@ app.post('/appointment-templates', async (req: Request, res: Response) => {
         type,
         size,
         address,
-        cityStateZip: notes,
+        cityStateZip: null,
         price,
         instructions,
+        notes,
         carpetRooms: carpetRooms ?? null,
         carpetPrice: carpetPrice ?? null,
         client: { connect: { id: clientId } },
@@ -757,7 +758,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
           time,
           type: template.type,
           address: template.address,
-          cityStateZip: template.cityStateZip,
+          cityStateZip: template.instructions ?? undefined,
           size: template.size,
           hours: hours ?? null,
           price: template.price,
@@ -766,7 +767,9 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
           carpetRooms: carpetRoomsFinal,
           carpetPrice: finalCarpetPrice ?? null,
           paymentMethod: paymentMethod as any,
-          notes: paymentMethodNote || undefined,
+          notes:
+            [template.notes, paymentMethodNote].filter(Boolean).join(' | ') ||
+            undefined,
           status: 'REOCCURRING',
           lineage,
           reoccurring: true,
@@ -858,7 +861,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
         time,
         type: template.type,
         address: template.address,
-        cityStateZip: template.cityStateZip,
+        cityStateZip: template.instructions ?? undefined,
         size: template.size,
         hours: hours ?? null,
         price: template.price,
@@ -867,7 +870,9 @@ app.post('/appointments', async (req: Request, res: Response) => {
         carpetRooms: carpetRoomsFinal,
         carpetPrice: finalCarpetPrice ?? null,
         paymentMethod: paymentMethod as any, // or cast to your enum
-        notes: paymentMethodNote || undefined,
+        notes:
+          [template.notes, paymentMethodNote].filter(Boolean).join(' | ') ||
+          undefined,
         status: status as any,
         lineage: 'single',
         // only include the relation if there are IDs
@@ -936,9 +941,10 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       if (!template) return res.status(400).json({ error: 'Invalid templateId' })
       data.type = template.type
       data.address = template.address
-      data.cityStateZip = template.cityStateZip ?? undefined
+      data.cityStateZip = template.instructions ?? undefined
       data.size = template.size ?? undefined
       data.price = template.price
+      data.notes = template.notes ?? data.notes
       if (carpetRooms === undefined && template.carpetRooms != null) {
         data.carpetRooms = template.carpetRooms
       }

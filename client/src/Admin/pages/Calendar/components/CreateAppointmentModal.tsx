@@ -548,7 +548,7 @@ const preserveTeamRef = useRef(false)
       size: t.size || '',
       address: t.address,
       price: String(t.price),
-      notes: t.cityStateZip || '',
+      notes: t.notes || '',
       instructions: t.instructions || '',
       carpetEnabled: !!t.carpetEnabled,
       carpetRooms: t.carpetRooms || '',
@@ -1017,7 +1017,7 @@ const preserveTeamRef = useRef(false)
                       {t.size && <div>Size: {t.size}</div>}
                       <div>Address: {t.address}</div>
                       <div>Price: ${t.price.toFixed(2)}</div>
-                      {t.cityStateZip && <div>Notes: {t.cityStateZip}</div>}
+                      {t.notes && <div>Notes: {t.notes}</div>}
                       {t.instructions && <div>Instructions: {t.instructions}</div>}
                       {t.carpetEnabled && (
                         <div>Carpet Rooms: {t.carpetRooms}</div>
