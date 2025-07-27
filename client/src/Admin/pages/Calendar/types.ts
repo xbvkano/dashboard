@@ -33,6 +33,7 @@ export interface Appointment {
   carpetPrice?: number
   reoccurring?: boolean
   observe?: boolean
+  observation?: string
   status?:
     | 'APPOINTED'
     | 'RESCHEDULE_NEW'
