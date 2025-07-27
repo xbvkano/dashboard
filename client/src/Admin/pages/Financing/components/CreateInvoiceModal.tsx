@@ -23,6 +23,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   const [discount, setDiscount] = useState('')
   const [taxEnabled, setTaxEnabled] = useState(false)
   const [taxPercent, setTaxPercent] = useState('')
+  const [comment, setComment] = useState('')
 
   useEffect(() => {
     const cp = (appointment as any).carpetPrice
@@ -59,6 +60,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       carpetPrice: carpetPrice ? parseFloat(carpetPrice) : undefined,
       discount: discount ? parseFloat(discount) : undefined,
       taxPercent: taxEnabled ? parseFloat(taxPercent) || 0 : undefined,
+      comment: comment || undefined,
     }
     const newWindow = window.open('', '_blank')
     const res = await fetch(`${API_BASE_URL}/invoices`, {
@@ -93,6 +95,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       carpetPrice: carpetPrice ? parseFloat(carpetPrice) : undefined,
       discount: discount ? parseFloat(discount) : undefined,
       taxPercent: taxEnabled ? parseFloat(taxPercent) || 0 : undefined,
+      comment: comment || undefined,
     }
     const newWindow = window.open('', '_blank')
     const res = await fetch(`${API_BASE_URL}/invoices`, {
@@ -171,6 +174,15 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         <div>
           <label className="text-sm">Discount (optional)</label>
           <input type="number" className="w-full border p-2 rounded" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-sm">Comments (optional)</label>
+          <textarea
+            className="w-full border p-2 rounded"
+            rows={3}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+          />
         </div>
         <div>
           <label className="flex items-center gap-2 text-sm">

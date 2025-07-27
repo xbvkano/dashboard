@@ -175,129 +175,121 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
   const pdf = await PDFDocument.create()
   const page = pdf.addPage()
   const font = await pdf.embedFont(StandardFonts.Helvetica)
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold)
 
+  const width = page.getWidth()
+  const height = page.getHeight()
   const margin = 40
-  const contentWidth = page.getWidth() - margin * 2
+  const contentWidth = width - margin * 2
 
-  const roundedPath = (
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    r: number,
-  ) =>
-    `M${x + r} ${y}H${x + w - r}Q${x + w} ${y} ${x + w} ${y + r}V${y +
-      h -
-      r}Q${x + w} ${y + h} ${x + w - r} ${y + h}H${x + r}Q${x} ${y + h} ${x} ${y +
-      h -
-      r}V${y + r}Q${x} ${y} ${x + r} ${y}Z`
+  const darkBlue = rgb(0.05, 0.2, 0.45)
+  const lightBlue = rgb(0.3, 0.55, 0.85)
+  const gray = rgb(0.93, 0.93, 0.93)
 
-  const logoPath = path.join(__dirname, '../../client/public/logo.png')
-  if (fs.existsSync(logoPath)) {
-    const imgBytes = fs.readFileSync(logoPath)
-    const png = await pdf.embedPng(imgBytes)
-    const dims = png.scale(0.25)
-    page.drawImage(png, {
-      x: margin,
-      y: page.getHeight() - dims.height - 30,
-      width: dims.width,
-      height: dims.height,
-    })
-  }
+  let y = height - margin
 
-  let y = page.getHeight() - 140
-  const darkBlue = rgb(0.2, 0.3, 0.6)
-  const lightBlue = rgb(0.9, 0.96, 1)
-  page.drawSvgPath(roundedPath(margin, y - 70, contentWidth, 70, 8), { color: darkBlue })
-  page.drawText('Evidence Cleaning', { x: margin + 8, y: y - 26, size: 18, font, color: rgb(1,1,1) })
-  page.drawText('850 E desert inn rd', { x: margin + 8, y: y - 44, size: 12, font, color: rgb(1,1,1) })
-  page.drawText(`Invoice #: ${inv.id}`, { x: margin + 8, y: y - 60, size: 12, font, color: rgb(1,1,1) })
-  page.drawText(`Date of Issue: ${new Date().toISOString().slice(0, 10)}`, { x: margin + 200, y: y - 60, size: 12, font, color: rgb(1,1,1) })
-  y -= 94
-
-  const drawSection = (title: string, lines: string[]) => {
-    const headerHeight = 18
-    const rowHeight = 14
-    const padding = 8
-    const bodyHeight = lines.length * rowHeight + padding * 2
-    const sectionHeight = headerHeight + bodyHeight
-    y -= sectionHeight
-    const bottom = y
-    page.drawSvgPath(roundedPath(margin, bottom, contentWidth, sectionHeight, 8), { color: lightBlue })
-    page.drawRectangle({ x: margin, y: bottom + bodyHeight, width: contentWidth, height: headerHeight, color: darkBlue })
-    page.drawText(title, { x: margin + 8, y: bottom + bodyHeight + headerHeight - 14, size: 12, font, color: rgb(1, 1, 1) })
-    let ty = bottom + bodyHeight - padding - 12
-    lines.forEach((txt) => {
-      page.drawText(txt, { x: margin + 8, y: ty, size: 12, font, color: rgb(0, 0, 0) })
-      ty -= rowHeight
-    })
-    y -= 24
-  }
-
-  drawSection('Business Information', [
-    'Evidence Cleaning',
+  // Section 1 - company / invoice info
+  page.drawText('Evidence Cleaning', { x: margin, y: y - 20, size: 22, font: bold, color: lightBlue })
+  const companyInfo = [
     '850 E desert inn rd',
-    'contact@worldwideevidence.com',
-  ])
+    'Las Vegas, NV, 89109',
+    'Phone: 725-577-4523',
+    'Email: contact@worldwideevidence.com',
+    'Website: www.worldwideevidence.com',
+  ]
+  let infoY = y - 40
+  companyInfo.forEach((l) => {
+    page.drawText(l, { x: margin, y: infoY, size: 10, font })
+    infoY -= 12
+  })
 
-  drawSection('Billing Information', [
-    `Billed to: ${inv.billedTo}`,
-    `Address: ${inv.address}`,
-  ])
+  const idDigits = BigInt('0x' + inv.id.replace(/-/g, '')).toString()
+  page.drawText('INVOICE', { x: width - margin - 120, y: y - 20, size: 26, font: bold, color: rgb(0.5, 0.7, 0.9) })
+  page.drawText(`Date of issue: ${inv.createdAt.toISOString().slice(0, 10)}`, { x: width - margin - 200, y: y - 50, size: 10, font })
+  page.drawText(`Invoice # ${idDigits}`, { x: width - margin - 200, y: y - 62, size: 10, font })
+  page.drawText(`Service date: ${inv.serviceDate.toISOString().slice(0, 10)}`, { x: width - margin - 200, y: y - 74, size: 10, font })
 
-  drawSection('Service Details', [
-    `Service Date: ${inv.serviceDate.toISOString().slice(0, 10)} ${inv.serviceTime}`,
-    `Service Type: ${inv.serviceType}`,
-  ])
+  y = infoY - 20
 
-  const charges: [string, number][] = []
-  charges.push(['Service', Number(inv.price)])
-  if (inv.carpetPrice != null) charges.push(['Carpet', Number(inv.carpetPrice)])
-  if (inv.discount != null) charges.push(['Discount', -Number(inv.discount)])
-  if (inv.taxPercent != null) {
-    const sub = Number(inv.price) + (inv.carpetPrice ?? 0) - (inv.discount ?? 0)
-    charges.push(['Tax', sub * (Number(inv.taxPercent) / 100)])
-  }
-  const columnX = page.getWidth() - 150
-  const drawCharges = () => {
-    const headerHeight = 18
-    const rowHeight = 20
-    const padding = 8
-    const bodyHeight = charges.length * rowHeight + padding * 2
-    const sectionHeight = headerHeight + bodyHeight
-    y -= sectionHeight
-    const bottom = y
-    page.drawSvgPath(roundedPath(margin, bottom, contentWidth, sectionHeight, 8), { color: lightBlue })
-    page.drawRectangle({ x: margin, y: bottom + bodyHeight, width: contentWidth, height: headerHeight, color: darkBlue })
-    page.drawText('Charges', { x: margin + 8, y: bottom + bodyHeight + headerHeight - 14, size: 12, font, color: rgb(1, 1, 1) })
-    let rowY = bottom + bodyHeight - padding - 12
-    charges.forEach(([label, val]) => {
-      page.drawText(label, { x: margin + 8, y: rowY, size: 12, font })
-      page.drawText(`$${val.toFixed(2)}`, { x: columnX, y: rowY, size: 12, font })
-      rowY -= rowHeight
-    })
-    y -= 24
-  }
+  // Section 2 - Bill to
+  const secHeader = 18
+  const secBody = 34
+  page.drawRectangle({ x: margin, y: y - secHeader - secBody, width: contentWidth, height: secHeader + secBody, color: rgb(1, 1, 1) })
+  page.drawRectangle({ x: margin, y: y - secHeader, width: contentWidth, height: secHeader, color: darkBlue })
+  page.drawText('Bill to', { x: margin + 6, y: y - 13, size: 12, font: bold, color: rgb(1, 1, 1) })
+  page.drawText(`Name: ${inv.billedTo}`, { x: margin + 6, y: y - secHeader - 14, size: 11, font })
+  page.drawText(`Address: ${inv.address}`, { x: margin + 6, y: y - secHeader - 26, size: 11, font })
 
-  const drawTotal = () => {
-    const headerHeight = 18
-    const rowHeight = 20
-    const padding = 8
-    const bodyHeight = rowHeight + padding * 2
-    const sectionHeight = headerHeight + bodyHeight
-    y -= sectionHeight
-    const bottom = y
-    page.drawSvgPath(roundedPath(margin, bottom, contentWidth, sectionHeight, 8), { color: lightBlue })
-    page.drawRectangle({ x: margin, y: bottom + bodyHeight, width: contentWidth, height: headerHeight, color: darkBlue })
-    page.drawText('Total', { x: margin + 8, y: bottom + bodyHeight + headerHeight - 14, size: 12, font, color: rgb(1, 1, 1) })
-    const rowY = bottom + bodyHeight - padding - 12
-    page.drawRectangle({ x: margin + 2, y: rowY - 6, width: contentWidth - 4, height: rowHeight, color: darkBlue })
-    page.drawText(`$${Number(inv.total).toFixed(2)}`, { x: columnX, y: rowY, size: 12, font, color: rgb(1, 1, 1) })
-    y -= 24
+  y = y - secHeader - secBody - 20
+
+  // Section 3 - Table
+  const tableHeaderHeight = 20
+  const rowHeight = 18
+  const rows = 16
+  const descWidth = contentWidth * 0.6
+  const taxWidth = contentWidth * 0.1
+  const amtWidth = contentWidth * 0.3
+
+  // header
+  page.drawRectangle({ x: margin, y: y - tableHeaderHeight, width: contentWidth, height: tableHeaderHeight, color: darkBlue })
+  page.drawText('Description', { x: margin + descWidth / 2 - 30, y: y - 14, font: bold, size: 12, color: rgb(1, 1, 1) })
+  page.drawText('Taxed', { x: margin + descWidth + taxWidth / 2 - 15, y: y - 14, font: bold, size: 12, color: rgb(1, 1, 1) })
+  page.drawText('Amount', { x: margin + descWidth + taxWidth + amtWidth / 2 - 20, y: y - 14, font: bold, size: 12, color: rgb(1, 1, 1) })
+
+  // rows background
+  const tableBottom = y - tableHeaderHeight - rowHeight * rows
+  for (let i = 0; i < rows; i++) {
+    const ry = y - tableHeaderHeight - rowHeight * i
+    page.drawRectangle({ x: margin, y: ry - rowHeight, width: contentWidth, height: rowHeight, color: i % 2 ? gray : rgb(1, 1, 1) })
   }
 
-  drawCharges()
-  drawTotal()
+  // column lines (not in header)
+  page.drawLine({ start: { x: margin + descWidth, y: y - tableHeaderHeight }, end: { x: margin + descWidth, y: tableBottom }, thickness: 1, color: rgb(0, 0, 0) })
+  page.drawLine({ start: { x: margin + descWidth + taxWidth, y: y - tableHeaderHeight }, end: { x: margin + descWidth + taxWidth, y: tableBottom }, thickness: 1, color: rgb(0, 0, 0) })
+
+  const services: { d: string; a: number }[] = []
+  services.push({ d: inv.serviceType, a: Number(inv.price) })
+  if (inv.carpetPrice != null) services.push({ d: 'Carpet Cleaning', a: Number(inv.carpetPrice) })
+
+  services.forEach((s, idx) => {
+    const ry = y - tableHeaderHeight - rowHeight * idx - rowHeight + 5
+    page.drawText(s.d, { x: margin + 4, y: ry, font, size: 11 })
+    page.drawText(`$${s.a.toFixed(2)}`, { x: margin + descWidth + taxWidth + 4, y: ry, font, size: 11 })
+  })
+
+  y = tableBottom - 20
+
+  // Section 4 - totals and comments
+  const sub = Number(inv.price) + (inv.carpetPrice ?? 0)
+  const taxable = inv.taxPercent ? sub * (inv.taxPercent / 100) : 0
+  const other = inv.discount ?? 0
+  const texts: [string, string][] = [
+    ['Subtotal:', `$${sub.toFixed(2)}`],
+    ['Taxable:', `$${taxable.toFixed(2)}`],
+    ['Other:', `$${other.toFixed(2)}`],
+    ['Total:', `$${Number(inv.total).toFixed(2)}`],
+  ]
+  let tY = y
+  texts.forEach(([l, v]) => {
+    page.drawText(l, { x: margin + contentWidth * 0.55, y: tY, font: bold, size: 11 })
+    page.drawText(v, { x: margin + contentWidth * 0.55 + 80, y: tY, font, size: 11 })
+    tY -= 14
+  })
+
+  y = tY - 20
+
+  page.drawRectangle({ x: margin, y: y - 60 - secHeader, width: contentWidth, height: 60 + secHeader, color: rgb(1, 1, 1) })
+  page.drawRectangle({ x: margin, y: y - secHeader, width: contentWidth, height: secHeader, color: darkBlue })
+  page.drawText('Other comments', { x: margin + 6, y: y - 13, font: bold, size: 12, color: rgb(1, 1, 1) })
+  if (inv.comment) {
+    page.drawText(String(inv.comment), { x: margin + 6, y: y - secHeader - 14, font, size: 11 })
+  }
+
+  y = y - 60 - secHeader - 30
+
+  page.drawText('If you have any questions about this invoice, please contact', { x: margin, y: y, font, size: 11 })
+  page.drawText('Marcelo Kano, contact@worldwideevidence.com', { x: margin, y: y - 14, font, size: 11 })
+  page.drawText('Thank You For Your Business!', { x: margin, y: y - 28, font: bold, size: 12 })
 
   const bytes = await pdf.save()
   return Buffer.from(bytes)
@@ -1329,6 +1321,7 @@ app.post('/invoices', async (req: Request, res: Response) => {
       carpetPrice,
       discount,
       taxPercent,
+      comment,
     } = req.body as {
       clientName?: string
       billedTo?: string
@@ -1340,6 +1333,7 @@ app.post('/invoices', async (req: Request, res: Response) => {
       carpetPrice?: number
       discount?: number
       taxPercent?: number
+      comment?: string
     }
     if (!clientName || !billedTo || !address || !serviceDate || !serviceTime || !serviceType || price === undefined) {
       return res.status(400).json({ error: 'Missing fields' })
@@ -1358,6 +1352,7 @@ app.post('/invoices', async (req: Request, res: Response) => {
         carpetPrice: carpetPrice ?? null,
         discount: discount ?? null,
         taxPercent: taxPercent ?? null,
+        comment: comment ?? null,
         total,
       },
     })
