@@ -1304,7 +1304,8 @@ const preserveTeamRef = useRef(false)
                 onClick={() => {
                   setSelectedOption(idx)
                   setSelectedEmployees([])
-                  resetCarpet(false)
+                  setCarpetEmployees([])
+                  setCarpetRate(null)
                 }}
               >
                 {o.sem} SEM / {o.com} COM - {o.hours}h
