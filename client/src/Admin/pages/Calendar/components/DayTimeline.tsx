@@ -9,6 +9,36 @@ import { createPortal } from 'react-dom'
 import type { Appointment } from '../types'
 import { API_BASE_URL } from '../../../../api'
 
+function parseSqft(s: string | null | undefined): number | null {
+  if (!s) return null
+  const parts = s.split('-')
+  let n = parseInt(parts[1] || parts[0])
+  if (isNaN(n)) n = parseInt(s)
+  return isNaN(n) ? null : n
+}
+
+function calcPayRate(type: string, size: string | null | undefined, count: number): number {
+  const sqft = parseSqft(size)
+  const isLarge = sqft != null && sqft > 2500
+  if (type === 'STANDARD') return isLarge ? 100 : 80
+  if (type === 'DEEP' || type === 'MOVE_IN_OUT') {
+    if (isLarge) return 100
+    return count === 1 ? 100 : 90
+  }
+  return 0
+}
+
+function calcCarpetRate(size: string | null | undefined, rooms: number): number {
+  const sqft = parseSqft(size)
+  if (sqft === null) return 0
+  const isLarge = sqft > 2500
+  if (rooms === 1) return isLarge ? 20 : 10
+  if (rooms <= 3) return isLarge ? 30 : 20
+  if (rooms <= 5) return isLarge ? 40 : 30
+  if (rooms <= 8) return isLarge ? 60 : 40
+  return (isLarge ? 60 : 40) + 10 * (rooms - 8)
+}
+
 interface DayProps {
   appointments: Appointment[]
   nowOffset: number | null
@@ -154,23 +184,22 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
 
   // calculate pay rates when modal opens
   useEffect(() => {
-    if (!selected || !selected.size || !selected.employees || selected.employees.length === 0) {
+    if (!selected || !selected.employees || selected.employees.length === 0) {
       setPayRate(null)
       setCarpetRate(null)
       return
     }
-    fetch(`${API_BASE_URL}/pay-rate?type=${selected.type}&size=${encodeURIComponent(selected.size)}&count=${selected.employees.length}`)
-      .then((res) => res.json())
-      .then((d) => setPayRate(d.rate))
-      .catch(() => setPayRate(null))
+
+    setPayRate(
+      calcPayRate(selected.type, selected.size ?? null, selected.employees.length),
+    )
 
     const rooms = (selected as any).carpetRooms
     const carpetIds = (selected as any).carpetEmployees?.length
     if (rooms && carpetIds) {
-      fetch(`${API_BASE_URL}/carpet-rate?size=${encodeURIComponent(selected.size)}&rooms=${rooms}`)
-        .then((res) => res.json())
-        .then((d) => setCarpetRate(d.rate / carpetIds))
-        .catch(() => setCarpetRate(null))
+      setCarpetRate(
+        calcCarpetRate(selected.size ?? null, rooms) / carpetIds,
+      )
     } else {
       setCarpetRate(null)
     }
@@ -341,18 +370,41 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
               <div className="text-sm">
                 Team:
                 <ul className="pl-4 list-disc">
-                  {selected.employees.map((e) => (
-                    <li key={e.id}>
-                      {e.name}{' '}
-                      {e.experienced ? <span className="font-bold">(Exp)</span> : null}
-                      {payRate !== null && (
-                        <span className="ml-1 text-sm text-gray-600">${payRate.toFixed(2)}</span>
-                      )}
-                      {carpetRate !== null && (
-                        <span className="ml-1 text-sm text-gray-600">+ ${carpetRate.toFixed(2)} carpet</span>
-                      )}
-                    </li>
-                  ))}
+                  {selected.employees.map((e) => {
+                    const carpetIds = ((selected as any).carpetEmployees || []) as number[]
+                    const onCarpet = carpetIds.includes(e.id!)
+                    const base =
+                      payRate ??
+                      calcPayRate(
+                        selected.type,
+                        selected.size ?? null,
+                        selected.employees.length,
+                      )
+                    const carpet =
+                      onCarpet &&
+                      (carpetRate ??
+                        (calcCarpetRate(
+                          selected.size ?? null,
+                          (selected as any).carpetRooms || 0,
+                        ) /
+                          (carpetIds.length || 1)))
+                    return (
+                      <li key={e.id}>
+                        {e.name}{' '}
+                        {e.experienced ? <span className="font-bold">(Exp)</span> : null}
+                        <span className="ml-1 text-sm text-gray-600">
+                          ${base.toFixed(2)}
+                          {onCarpet && carpet ? (
+                            <>
+                              {' + $'}
+                              {carpet.toFixed(2)} {'= $'}
+                              {(base + carpet).toFixed(2)}
+                            </>
+                          ) : null}
+                        </span>
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
             )}
@@ -569,12 +621,36 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                   <div className="font-medium">Send Appointment Info</div>
                   {selected?.employees && (
                     <ul className="pl-4 list-disc text-sm">
-                      {selected.employees.map((e) => (
-                        <li key={e.id}>
-                          {e.name} - $
-                          {( (payRate || 0) + (carpetRate || 0) ).toFixed(2)}
-                        </li>
-                      ))}
+                      {selected.employees.map((e) => {
+                        const carpetIds = ((selected as any).carpetEmployees || []) as number[]
+                        const onCarpet = carpetIds.includes(e.id!)
+                        const base =
+                          payRate ??
+                          calcPayRate(
+                            selected.type,
+                            selected.size ?? null,
+                            selected.employees.length,
+                          )
+                        const carpet =
+                          onCarpet &&
+                          (carpetRate ??
+                            (calcCarpetRate(
+                              selected.size ?? null,
+                              (selected as any).carpetRooms || 0,
+                            ) /
+                              (carpetIds.length || 1)))
+                        const total = base + (carpet || 0)
+                        return (
+                          <li key={e.id}>
+                            {e.name} - $
+                            {onCarpet && carpet ? (
+                              `${base.toFixed(2)} + ${carpet.toFixed(2)} = ${total.toFixed(2)}`
+                            ) : (
+                              total.toFixed(2)
+                            )}
+                          </li>
+                        )
+                      })}
                     </ul>
                   )}
                   {selected?.cityStateZip && (
