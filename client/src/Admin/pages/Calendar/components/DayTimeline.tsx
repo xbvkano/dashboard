@@ -137,6 +137,9 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
       },
     )
     if (res.ok) {
+      const updated = (await res.json()) as Appointment
+      onUpdate?.(updated)
+      setSelected(updated)
       setShowSendInfo(false)
       setNote('')
     } else {
@@ -317,7 +320,15 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                 setSelected(l.appt)
               }}
             >
-              {l.appt.type}
+              <div className="flex justify-between items-start p-1">
+                <div className="font-medium truncate pr-1">
+                  {l.appt.client?.name || 'Client'}
+                </div>
+                <div
+                  className={`w-3 h-3 rounded-sm ${l.appt.infoSent ? 'bg-green-500' : 'bg-red-500'}`}
+                />
+              </div>
+              <div className="px-1 pb-1">{l.appt.type}</div>
             </div>
           )
         })}

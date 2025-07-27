@@ -67,6 +67,7 @@ model Appointment {
   status          AppointmentStatus @default(APPOINTED)
   observe         Boolean         @default(false)
   observation     String?
+  infoSent        Boolean         @default(false)
   lineage         String
   gateCode        String?
   doorCode        String?

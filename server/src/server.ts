@@ -1235,7 +1235,13 @@ app.post('/appointments/:id/send-info', async (req: Request, res: Response) => {
       })
     }
 
-    res.json({ ok: true })
+    const updated = await prisma.appointment.update({
+      where: { id },
+      data: { infoSent: true },
+      include: { client: true, employees: true },
+    })
+
+    res.json(updated)
   } catch (err) {
     console.error('Failed to send appointment info:', err)
     res.status(500).json({ error: 'Failed to send info' })
