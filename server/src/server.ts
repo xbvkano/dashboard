@@ -176,13 +176,29 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
   const page = pdf.addPage()
   const font = await pdf.embedFont(StandardFonts.Helvetica)
 
+  const margin = 40
+  const contentWidth = page.getWidth() - margin * 2
+
+  const roundedPath = (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number,
+  ) =>
+    `M${x + r} ${y}H${x + w - r}Q${x + w} ${y} ${x + w} ${y + r}V${y +
+      h -
+      r}Q${x + w} ${y + h} ${x + w - r} ${y + h}H${x + r}Q${x} ${y + h} ${x} ${y +
+      h -
+      r}V${y + r}Q${x} ${y} ${x + r} ${y}Z`
+
   const logoPath = path.join(__dirname, '../../client/public/logo.png')
   if (fs.existsSync(logoPath)) {
     const imgBytes = fs.readFileSync(logoPath)
     const png = await pdf.embedPng(imgBytes)
     const dims = png.scale(0.25)
     page.drawImage(png, {
-      x: 40,
+      x: margin,
       y: page.getHeight() - dims.height - 30,
       width: dims.width,
       height: dims.height,
@@ -191,7 +207,7 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
 
   let y = page.getHeight() - 120
   const draw = (text: string, size = 12, color = rgb(0, 0, 0)) => {
-    page.drawText(text, { x: 40, y, size, font, color })
+    page.drawText(text, { x: margin, y, size, font, color })
     y -= size + 8
   }
 
@@ -222,15 +238,25 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
     charges.push(['Tax', sub * (Number(inv.taxPercent) / 100)])
   }
   const columnX = page.getWidth() - 150
+
+  const boxTop = y - 4
+  const rowHeight = 22
+  const boxHeight = charges.length * rowHeight + 24
+  page.drawSvgPath(roundedPath(margin, boxTop - boxHeight + 4, contentWidth, boxHeight, 8), { color: rgb(0.95, 0.95, 0.95) })
+  y -= 12
   charges.forEach(([label, val]) => {
-    page.drawRectangle({ x: 40, y: y - 4, width: page.getWidth() - 80, height: 18, color: rgb(0.95, 0.95, 0.95) })
-    page.drawText(label, { x: 44, y, size: 12, font })
+    page.drawText(label, { x: margin + 8, y, size: 12, font })
     page.drawText(`$${val.toFixed(2)}`, { x: columnX, y, size: 12, font })
-    y -= 22
+    y -= rowHeight
   })
-  y -= 4
-  draw('Total', 14, blue)
-  page.drawText(`$${Number(inv.total).toFixed(2)}`, { x: columnX, y, size: 14, font })
+  y -= 12
+
+  const totalBoxHeight = 28
+  page.drawSvgPath(roundedPath(margin, y - totalBoxHeight + 6, contentWidth, totalBoxHeight, 8), { color: rgb(0.9, 0.96, 1) })
+  y -= 16
+  page.drawText('Total', { x: margin + 8, y, size: 14, font, color: blue })
+  page.drawText(`$${Number(inv.total).toFixed(2)}`, { x: columnX, y, size: 14, font, color: blue })
+  y -= 12
 
   const bytes = await pdf.save()
   return Buffer.from(bytes)
