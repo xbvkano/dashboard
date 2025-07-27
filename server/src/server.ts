@@ -203,7 +203,7 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
     infoY -= 12
   })
 
-  const idDigits = BigInt('0x' + inv.id.replace(/-/g, '')).toString()
+  const idDigits = BigInt('0x' + inv.id.replace(/-/g, '')).toString().slice(-20)
   page.drawText('INVOICE', { x: width - margin - 120, y: y - 20, size: 26, font: bold, color: rgb(0.5, 0.7, 0.9) })
   page.drawText(`Date of issue: ${inv.createdAt.toISOString().slice(0, 10)}`, { x: width - margin - 200, y: y - 50, size: 10, font })
   page.drawText(`Invoice # ${idDigits}`, { x: width - margin - 200, y: y - 62, size: 10, font })
