@@ -914,85 +914,81 @@ const preserveTeamRef = useRef(false)
                   value={templateForm.notes}
                   onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })}
                 />
-                {selectedTemplateData?.carpetRooms != null && (
-                  <>
-                    <label className="flex items-center gap-2">
+                <>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={templateForm.carpetEnabled}
+                      onChange={(e) => {
+                        setTemplateForm({
+                          ...templateForm,
+                          carpetEnabled: e.target.checked,
+                          ...(e.target.checked ? {} : { carpetRooms: '' }),
+                        })
+                      }}
+                    />
+                    <span>Carpet Cleaning</span>
+                  </label>
+                  {templateForm.carpetEnabled && (
+                    <div>
+                      <h4 className="font-light">How many rooms?</h4>
                       <input
-                        type="checkbox"
-                        checked={templateForm.carpetEnabled}
-                        onChange={(e) => {
-                          setTemplateForm({
-                            ...templateForm,
-                            carpetEnabled: e.target.checked,
-                            ...(e.target.checked ? {} : { carpetRooms: '' }),
-                          })
-                        }}
+                        id="appointment-template-carpet-rooms"
+                        type="number"
+                        min="1"
+                        className="w-full border p-2 rounded text-base"
+                        value={templateForm.carpetRooms}
+                        onChange={(e) =>
+                          setTemplateForm({ ...templateForm, carpetRooms: e.target.value })
+                        }
                       />
-                      <span>Carpet Cleaning</span>
-                    </label>
-                    {templateForm.carpetEnabled && (
-                      <div>
-                        <h4 className="font-light">How many rooms?</h4>
-                        <input
-                          id="appointment-template-carpet-rooms"
-                          type="number"
-                          min="1"
-                          className="w-full border p-2 rounded text-base"
-                          value={templateForm.carpetRooms}
-                          onChange={(e) =>
-                            setTemplateForm({ ...templateForm, carpetRooms: e.target.value })
-                          }
-                        />
-                        {editing && defaultCarpetPrice !== null && !overrideCarpetPrice && (
-                          <div className="mt-2 flex items-center gap-2">
-                            <span>
-                              Carpet Price: ${defaultCarpetPrice.toFixed(2)}
-                            </span>
+                      {editing && defaultCarpetPrice !== null && !overrideCarpetPrice && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <span>Carpet Price: ${defaultCarpetPrice.toFixed(2)}</span>
+                          <button
+                            type="button"
+                            className="text-sm text-blue-500"
+                            onClick={() => setOverrideCarpetPrice(true)}
+                          >
+                            Edit price
+                          </button>
+                        </div>
+                      )}
+                      {editing && overrideCarpetPrice && (
+                        <div>
+                          <h4 className="font-light mt-2">Carpet Price</h4>
+                          <input
+                            id="appointment-template-carpet-price"
+                            type="number"
+                            className="w-full border p-2 rounded text-base"
+                            value={templateForm.carpetPrice}
+                            onChange={(e) =>
+                              setTemplateForm({
+                                ...templateForm,
+                                carpetPrice: e.target.value,
+                              })
+                            }
+                          />
+                          {defaultCarpetPrice !== null && (
                             <button
                               type="button"
-                              className="text-sm text-blue-500"
-                              onClick={() => setOverrideCarpetPrice(true)}
-                            >
-                              Edit price
-                            </button>
-                          </div>
-                        )}
-                        {editing && overrideCarpetPrice && (
-                          <div>
-                            <h4 className="font-light mt-2">Carpet Price</h4>
-                            <input
-                              id="appointment-template-carpet-price"
-                              type="number"
-                              className="w-full border p-2 rounded text-base"
-                              value={templateForm.carpetPrice}
-                              onChange={(e) =>
+                              className="text-sm text-blue-500 mt-1"
+                              onClick={() => {
+                                setOverrideCarpetPrice(false)
                                 setTemplateForm({
                                   ...templateForm,
-                                  carpetPrice: e.target.value,
+                                  carpetPrice: String(defaultCarpetPrice),
                                 })
-                              }
-                            />
-                            {defaultCarpetPrice !== null && (
-                              <button
-                                type="button"
-                                className="text-sm text-blue-500 mt-1"
-                                onClick={() => {
-                                  setOverrideCarpetPrice(false)
-                                  setTemplateForm({
-                                    ...templateForm,
-                                    carpetPrice: String(defaultCarpetPrice),
-                                  })
-                                }}
-                              >
-                                Use default
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
+                              }}
+                            >
+                              Use default
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
                 <div className="flex gap-2 justify-end">
                   <button className="px-3 py-2" onClick={() => { setShowNewTemplate(false); setEditing(false) }}>
                     Cancel
