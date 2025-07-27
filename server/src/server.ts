@@ -214,6 +214,7 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
   page.drawText(`Invoice #: ${inv.id}`, { x: margin + 8, y: y - 60, size: 12, font, color: rgb(1,1,1) })
   page.drawText(`Date of Issue: ${new Date().toISOString().slice(0, 10)}`, { x: margin + 200, y: y - 60, size: 12, font, color: rgb(1,1,1) })
   y -= 94
+
   const drawSection = (title: string, lines: string[]) => {
     const headerHeight = 18
     const rowHeight = 14
@@ -232,6 +233,12 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
     })
     y -= 24
   }
+
+  drawSection('Business Information', [
+    'Evidence Cleaning',
+    '850 E desert inn rd',
+    'contact@worldwideevidence.com',
+  ])
 
   drawSection('Billing Information', [
     `Billed to: ${inv.billedTo}`,
@@ -256,7 +263,7 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
     const headerHeight = 18
     const rowHeight = 20
     const padding = 8
-    const bodyHeight = (charges.length + 1) * rowHeight + padding * 2
+    const bodyHeight = charges.length * rowHeight + padding * 2
     const sectionHeight = headerHeight + bodyHeight
     y -= sectionHeight
     const bottom = y
@@ -269,13 +276,28 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
       page.drawText(`$${val.toFixed(2)}`, { x: columnX, y: rowY, size: 12, font })
       rowY -= rowHeight
     })
+    y -= 24
+  }
+
+  const drawTotal = () => {
+    const headerHeight = 18
+    const rowHeight = 20
+    const padding = 8
+    const bodyHeight = rowHeight + padding * 2
+    const sectionHeight = headerHeight + bodyHeight
+    y -= sectionHeight
+    const bottom = y
+    page.drawSvgPath(roundedPath(margin, bottom, contentWidth, sectionHeight, 8), { color: lightBlue })
+    page.drawRectangle({ x: margin, y: bottom + bodyHeight, width: contentWidth, height: headerHeight, color: darkBlue })
+    page.drawText('Total', { x: margin + 8, y: bottom + bodyHeight + headerHeight - 14, size: 12, font, color: rgb(1, 1, 1) })
+    const rowY = bottom + bodyHeight - padding - 12
     page.drawRectangle({ x: margin + 2, y: rowY - 6, width: contentWidth - 4, height: rowHeight, color: darkBlue })
-    page.drawText('Total', { x: margin + 8, y: rowY, size: 12, font, color: rgb(1, 1, 1) })
     page.drawText(`$${Number(inv.total).toFixed(2)}`, { x: columnX, y: rowY, size: 12, font, color: rgb(1, 1, 1) })
     y -= 24
   }
 
   drawCharges()
+  drawTotal()
 
   const bytes = await pdf.save()
   return Buffer.from(bytes)
