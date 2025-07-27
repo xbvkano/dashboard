@@ -429,7 +429,8 @@ const preserveTeamRef = useRef(false)
       setSelectedOption(0)
     }
     const t = templates.find((tt) => tt.id === selectedTemplate)
-    setCarpetEnabled(!!t?.carpetEnabled)
+    const hasCarpet = t?.carpetEnabled ?? (t?.carpetRooms != null && t.carpetRooms > 0)
+    setCarpetEnabled(!!hasCarpet)
     setCarpetRooms(t?.carpetRooms || '')
   }, [selectedTemplate, templates])
 
