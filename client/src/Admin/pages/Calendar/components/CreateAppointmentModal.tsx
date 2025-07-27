@@ -695,6 +695,7 @@ const preserveTeamRef = useRef(false)
         ? {
             carpetRooms: parseInt(carpetRooms, 10) || 0,
             carpetPrice: parseFloat(templateForm.carpetPrice) || undefined,
+            carpetEmployees,
           }
         : {}),
     }

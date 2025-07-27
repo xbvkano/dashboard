@@ -62,6 +62,7 @@ model Appointment {
   tip             Float           @default(0)
   carpetRooms     Int?
   carpetPrice     Float?
+  carpetEmployees Int[]
   reoccurring     Boolean         @default(false)
   status          AppointmentStatus @default(APPOINTED)
   observe         Boolean         @default(false)

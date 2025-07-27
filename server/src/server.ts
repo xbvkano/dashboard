@@ -708,6 +708,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
       tip = 0,
       carpetRooms,
       carpetPrice,
+      carpetEmployees = [],
       count = 1,
       frequency,
     } = req.body as {
@@ -724,6 +725,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
       tip?: number
       carpetRooms?: number
       carpetPrice?: number
+      carpetEmployees?: number[]
       count?: number
       frequency?: string
     }
@@ -782,6 +784,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
           tip,
           carpetRooms: carpetRoomsFinal,
           carpetPrice: finalCarpetPrice ?? null,
+        carpetEmployees,
           paymentMethod: paymentMethod as any,
           notes:
             [template.notes, paymentMethodNote].filter(Boolean).join(' | ') ||
@@ -825,6 +828,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
       tip = 0,
       carpetRooms,
       carpetPrice,
+      carpetEmployees = [],
       status = 'APPOINTED',
     } = req.body as {
       clientId?: number
@@ -840,6 +844,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
       tip?: number
       carpetRooms?: number
       carpetPrice?: number
+      carpetEmployees?: number[]
       status?: string
     }
 
@@ -885,6 +890,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
         tip,
         carpetRooms: carpetRoomsFinal,
         carpetPrice: finalCarpetPrice ?? null,
+        carpetEmployees,
         paymentMethod: paymentMethod as any, // or cast to your enum
         notes:
           [template.notes, paymentMethodNote].filter(Boolean).join(' | ') ||
@@ -931,6 +937,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       observe,
       carpetRooms,
       carpetPrice,
+      carpetEmployees,
     } = req.body as {
       clientId?: number
       templateId?: number
@@ -947,6 +954,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       observe?: boolean
       carpetRooms?: number
       carpetPrice?: number
+      carpetEmployees?: number[]
     }
     const data: any = {}
     if (clientId !== undefined) data.clientId = clientId
@@ -991,6 +999,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
     if (observe !== undefined) data.observe = observe
     if (carpetRooms !== undefined) data.carpetRooms = carpetRooms
     if (carpetPrice !== undefined) data.carpetPrice = carpetPrice
+    if (carpetEmployees !== undefined) data.carpetEmployees = carpetEmployees
     if (employeeIds) {
       data.employees = { set: employeeIds.map((id) => ({ id })) }
     }
@@ -1036,6 +1045,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
             tip: last.tip,
             carpetRooms: last.carpetRooms ?? null,
             carpetPrice: last.carpetPrice ?? null,
+            carpetEmployees: last.carpetEmployees ?? [],
             paymentMethod: last.paymentMethod,
             notes: last.notes ?? undefined,
             status: 'REOCCURRING',
@@ -1124,6 +1134,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
                 tip: last.tip,
                 carpetRooms: last.carpetRooms ?? null,
                 carpetPrice: last.carpetPrice ?? null,
+                carpetEmployees: last.carpetEmployees ?? [],
                 paymentMethod: last.paymentMethod,
                 notes: last.notes ?? undefined,
                 status: 'REOCCURRING',
@@ -1187,19 +1198,18 @@ app.post('/appointments/:id/send-info', async (req: Request, res: Response) => {
     if (!appt) return res.status(404).json({ error: 'Not found' })
 
     const pay = calculatePayRate(appt.type, appt.size ?? null, appt.employees.length || 1)
-    let carpetPerEmp = 0
-    if (appt.carpetRooms && appt.size) {
-      carpetPerEmp =
-        calculateCarpetRate(appt.size, appt.carpetRooms) /
-        (appt.employees.length || 1)
-    }
+    const carpetIds = appt.carpetEmployees || []
+    const carpetPer =
+      appt.carpetRooms && appt.size && carpetIds.length
+        ? calculateCarpetRate(appt.size, appt.carpetRooms) / carpetIds.length
+        : 0
 
     for (const e of appt.employees) {
       const body = [
         `Appointment Date: ${appt.date.toISOString().slice(0, 10)}`,
         `Appointment Time: ${appt.time}`,
         `Address: ${appt.address}`,
-        `Pay: $${(pay + carpetPerEmp).toFixed(2)}`,
+        `Pay: $${(pay + (carpetIds.includes(e.id) ? carpetPer : 0)).toFixed(2)}`,
         appt.cityStateZip ? `Instructions: ${appt.cityStateZip}` : undefined,
         note && `Note: ${note}`,
       ]
@@ -1356,6 +1366,11 @@ app.get('/payroll/due', async (_req: Request, res: Response) => {
     const appt = it.appointment
     const count = appt.employees.length || 1
     const pay = calculatePayRate(appt.type, appt.size ?? null, count)
+    const carpetIds = appt.carpetEmployees || []
+    const carpetShare =
+      appt.carpetRooms && appt.size && carpetIds.length
+        ? calculateCarpetRate(appt.size, appt.carpetRooms) / carpetIds.length
+        : 0
     const tip = (appt.tip || 0) / count
     if (!map[e.id]) {
       map[e.id] = { employee: e, items: [], total: e.prevBalance || 0 }
@@ -1363,8 +1378,9 @@ app.get('/payroll/due', async (_req: Request, res: Response) => {
         map[e.id].items.push({ service: 'Previous balance', date: e.lastPaidAt, amount: e.prevBalance, tip: 0 })
       }
     }
-    map[e.id].items.push({ service: appt.type, date: appt.date, amount: pay, tip })
-    map[e.id].total += pay + tip
+    const amount = pay + (carpetIds.includes(e.id) ? carpetShare : 0)
+    map[e.id].items.push({ service: appt.type, date: appt.date, amount, tip })
+    map[e.id].total += amount + tip
   }
   // include employees that only have a previous balance
   const balancedEmployees = await prisma.employee.findMany({ where: { prevBalance: { gt: 0 } } })
@@ -1401,6 +1417,20 @@ app.post('/payroll/pay', async (req: Request, res: Response) => {
   for (const it of items) {
     const c = it.appointment.employees.length || 1
     totalDue += calculatePayRate(it.appointment.type, it.appointment.size ?? null, c)
+    if (
+      it.appointment.carpetRooms &&
+      it.appointment.size &&
+      it.appointment.carpetEmployees?.length
+    ) {
+      const share =
+        calculateCarpetRate(
+          it.appointment.size,
+          it.appointment.carpetRooms,
+        ) / it.appointment.carpetEmployees.length
+      if (it.appointment.carpetEmployees.includes(employeeId)) {
+        totalDue += share
+      }
+    }
     totalDue += (it.appointment.tip || 0) / c
   }
   const payment = await prisma.employeePayment.create({ data: { employeeId, amount, extra } })
@@ -1428,6 +1458,18 @@ app.post('/payroll/chargeback', async (req: Request, res: Response) => {
   for (const it of payment.items) {
     const c = it.appointment.employees.length || 1
     itemsTotal += calculatePayRate(it.appointment.type, it.appointment.size ?? null, c)
+    if (
+      it.appointment.carpetRooms &&
+      it.appointment.size &&
+      it.appointment.carpetEmployees?.length
+    ) {
+      const share =
+        calculateCarpetRate(it.appointment.size, it.appointment.carpetRooms) /
+        it.appointment.carpetEmployees.length
+      if (it.appointment.carpetEmployees.includes(payment.employeeId)) {
+        itemsTotal += share
+      }
+    }
     itemsTotal += (it.appointment.tip || 0) / c
   }
 
