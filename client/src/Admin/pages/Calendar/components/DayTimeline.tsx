@@ -619,6 +619,14 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="font-medium">Send Appointment Info</div>
+                  {selected && (
+                    <div className="text-sm space-y-1">
+                      <div>Appointment Date: {selected.date.slice(0, 10)}</div>
+                      <div>Appointment Time: {selected.time}</div>
+                      <div>Appointment Type: {selected.type}</div>
+                      <div>Address: {selected.address}</div>
+                    </div>
+                  )}
                   {selected?.employees && (
                     <ul className="pl-4 list-disc text-sm">
                       {selected.employees.map((e) => {

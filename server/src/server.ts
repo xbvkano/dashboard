@@ -1208,6 +1208,7 @@ app.post('/appointments/:id/send-info', async (req: Request, res: Response) => {
       const body = [
         `Appointment Date: ${appt.date.toISOString().slice(0, 10)}`,
         `Appointment Time: ${appt.time}`,
+        `Appointment Type: ${appt.type}`,
         `Address: ${appt.address}`,
         `Pay: $${(pay + (carpetIds.includes(e.id) ? carpetPer : 0)).toFixed(2)}`,
         appt.cityStateZip ? `Instructions: ${appt.cityStateZip}` : undefined,
