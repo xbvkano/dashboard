@@ -11,6 +11,7 @@ import axios from 'axios'
 import crypto from 'crypto'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import nodemailer from 'nodemailer'
+import twilio from 'twilio'
 
 let lastRecurringCheck = ''
 
@@ -109,6 +110,10 @@ dotenv.config()
 const prisma = new PrismaClient()
 const app = express()
 const port = process.env.PORT || 3000
+const smsClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID || '',
+  process.env.TWILIO_AUTH_TOKEN || '',
+)
 
 function parseSqft(s: string | null | undefined): number | null {
   if (!s) return null
@@ -134,6 +139,17 @@ function calculatePayRate(type: string, size: string | null, count: number): num
     return count === 1 ? 100 : 90
   }
   return 0
+}
+
+function calculateCarpetRate(size: string, rooms: number): number {
+  const sqft = parseSqft(size)
+  if (sqft === null) return 0
+  const isLarge = sqft > 2500
+  if (rooms === 1) return isLarge ? 20 : 10
+  if (rooms <= 3) return isLarge ? 30 : 20
+  if (rooms <= 5) return isLarge ? 40 : 30
+  if (rooms <= 8) return isLarge ? 60 : 40
+  return (isLarge ? 60 : 40) + 10 * (rooms - 8)
 }
 
 async function syncPayrollItems(apptId: number, employeeIds: number[]) {
@@ -1156,6 +1172,51 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
   } catch (e) {
     console.error('Error updating appointment:', e)
     res.status(500).json({ error: 'Failed to update appointment' })
+  }
+})
+
+app.post('/appointments/:id/send-info', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10)
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
+  try {
+    const note = String((req.body as any).note || '')
+    const appt = await prisma.appointment.findUnique({
+      where: { id },
+      include: { client: true, employees: true },
+    })
+    if (!appt) return res.status(404).json({ error: 'Not found' })
+
+    const pay = calculatePayRate(appt.type, appt.size ?? null, appt.employees.length || 1)
+    let carpetPerEmp = 0
+    if (appt.carpetRooms && appt.size) {
+      carpetPerEmp =
+        calculateCarpetRate(appt.size, appt.carpetRooms) /
+        (appt.employees.length || 1)
+    }
+
+    for (const e of appt.employees) {
+      const body = [
+        `Appointment Date: ${appt.date.toISOString().slice(0, 10)}`,
+        `Appointment Time: ${appt.time}`,
+        `Address: ${appt.address}`,
+        `Pay: $${(pay + carpetPerEmp).toFixed(2)}`,
+        appt.cityStateZip ? `Instructions: ${appt.cityStateZip}` : undefined,
+        note && `Note: ${note}`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+
+      await smsClient.messages.create({
+        to: e.number,
+        from: process.env.TWILIO_FROM_NUMBER || '',
+        body,
+      })
+    }
+
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('Failed to send appointment info:', err)
+    res.status(500).json({ error: 'Failed to send info' })
   }
 })
 

@@ -31,6 +31,8 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
   const [paymentMethod, setPaymentMethod] = useState('')
   const [otherPayment, setOtherPayment] = useState('')
   const [tip, setTip] = useState('')
+  const [showSendInfo, setShowSendInfo] = useState(false)
+  const [note, setNote] = useState('')
 
   const updateAppointment = async (data: {
     status?: Appointment['status']
@@ -58,19 +60,20 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
       alert('Failed to update appointment')
     }
   }
-const handleSave = async () => {
-  if (!selected) return
-  let url = `${API_BASE_URL}/appointments/${selected.id}`
-  if (selected.reoccurring) {
-    const apply = confirm('Apply to all future occurrences?')
-    if (apply) url += '?future=true'
-  }
-  const res = await fetch(url, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': '1',
-    },
+
+  const handleSave = async () => {
+    if (!selected) return
+    let url = `${API_BASE_URL}/appointments/${selected.id}`
+    if (selected.reoccurring) {
+      const apply = confirm('Apply to all future occurrences?')
+      if (apply) url += '?future=true'
+    }
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '1',
+      },
       body: JSON.stringify({
         paid,
         paymentMethod: paid ? (paymentMethod || 'CASH') : 'CASH',
@@ -85,6 +88,27 @@ const handleSave = async () => {
       setSelected(null)
     } else {
       alert('Failed to update appointment')
+    }
+  }
+
+  const handleSendInfo = async () => {
+    if (!selected) return
+    const res = await fetch(
+      `${API_BASE_URL}/appointments/${selected.id}/send-info`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': '1',
+        },
+        body: JSON.stringify({ note }),
+      },
+    )
+    if (res.ok) {
+      setShowSendInfo(false)
+      setNote('')
+    } else {
+      alert('Failed to send info')
     }
   }
 
@@ -462,6 +486,12 @@ const handleSave = async () => {
                 </>
               )}
               <button
+                className="px-4 py-1 bg-indigo-500 text-white rounded"
+                onClick={() => setShowSendInfo(true)}
+              >
+                Send Info
+              </button>
+              <button
                 className="px-4 py-1 bg-green-500 text-white rounded disabled:opacity-50"
                 disabled={paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))}
                 onClick={handleSave}
@@ -522,6 +552,49 @@ const handleSave = async () => {
                       }}
                     >
                       Yes
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {showSendInfo && (
+              <div
+                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                onClick={() => setShowSendInfo(false)}
+              >
+                <div
+                  className="bg-white p-4 rounded space-y-2 w-full max-w-md"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="font-medium">Send Appointment Info</div>
+                  {selected?.employees && (
+                    <ul className="pl-4 list-disc text-sm">
+                      {selected.employees.map((e) => (
+                        <li key={e.id}>
+                          {e.name} - $
+                          {( (payRate || 0) + (carpetRate || 0) ).toFixed(2)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {selected?.cityStateZip && (
+                    <div className="text-sm">Instructions: {selected.cityStateZip}</div>
+                  )}
+                  <textarea
+                    className="w-full border p-2 rounded text-sm"
+                    placeholder="Message note"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button className="px-4 py-1" onClick={() => setShowSendInfo(false)}>
+                      Cancel
+                    </button>
+                    <button
+                      className="px-4 py-1 bg-indigo-600 text-white rounded"
+                      onClick={handleSendInfo}
+                    >
+                      Send
                     </button>
                   </div>
                 </div>
