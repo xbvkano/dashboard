@@ -282,8 +282,8 @@ const preserveTeamRef = useRef(false)
     }
   }, [selectedTemplate, templates, editingTemplateId])
 
-  const resetCarpet = () => {
-    setCarpetEnabled(false)
+  const resetCarpet = (disable: boolean = true) => {
+    if (disable) setCarpetEnabled(false)
     setCarpetRooms('')
     setCarpetEmployees([])
     setCarpetRate(null)
@@ -1296,7 +1296,7 @@ const preserveTeamRef = useRef(false)
                 onClick={() => {
                   setSelectedOption(idx)
                   setSelectedEmployees([])
-                  resetCarpet()
+                  resetCarpet(false)
                 }}
               >
                 {o.sem} SEM / {o.com} COM - {o.hours}h
