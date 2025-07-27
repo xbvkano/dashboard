@@ -176,43 +176,73 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
   const page = pdf.addPage()
   const font = await pdf.embedFont(StandardFonts.Helvetica)
 
+  const margin = 40
+  const contentWidth = page.getWidth() - margin * 2
+
+  const roundedPath = (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number,
+  ) =>
+    `M${x + r} ${y}H${x + w - r}Q${x + w} ${y} ${x + w} ${y + r}V${y +
+      h -
+      r}Q${x + w} ${y + h} ${x + w - r} ${y + h}H${x + r}Q${x} ${y + h} ${x} ${y +
+      h -
+      r}V${y + r}Q${x} ${y} ${x + r} ${y}Z`
+
   const logoPath = path.join(__dirname, '../../client/public/logo.png')
   if (fs.existsSync(logoPath)) {
     const imgBytes = fs.readFileSync(logoPath)
     const png = await pdf.embedPng(imgBytes)
     const dims = png.scale(0.25)
     page.drawImage(png, {
-      x: 40,
+      x: margin,
       y: page.getHeight() - dims.height - 30,
       width: dims.width,
       height: dims.height,
     })
   }
 
-  let y = page.getHeight() - 120
-  const draw = (text: string, size = 12, color = rgb(0, 0, 0)) => {
-    page.drawText(text, { x: 40, y, size, font, color })
-    y -= size + 8
+  let y = page.getHeight() - 140
+  const darkBlue = rgb(0.2, 0.3, 0.6)
+  const lightBlue = rgb(0.9, 0.96, 1)
+  page.drawSvgPath(roundedPath(margin, y - 70, contentWidth, 70, 8), { color: darkBlue })
+  page.drawText('Evidence Cleaning', { x: margin + 8, y: y - 26, size: 18, font, color: rgb(1,1,1) })
+  page.drawText('850 E desert inn rd', { x: margin + 8, y: y - 44, size: 12, font, color: rgb(1,1,1) })
+  page.drawText(`Invoice #: ${inv.id}`, { x: margin + 8, y: y - 60, size: 12, font, color: rgb(1,1,1) })
+  page.drawText(`Date of Issue: ${new Date().toISOString().slice(0, 10)}`, { x: margin + 200, y: y - 60, size: 12, font, color: rgb(1,1,1) })
+  y -= 94
+  const drawSection = (title: string, lines: string[]) => {
+    const headerHeight = 18
+    const rowHeight = 14
+    const padding = 8
+    const bodyHeight = lines.length * rowHeight + padding * 2
+    const sectionHeight = headerHeight + bodyHeight
+    y -= sectionHeight
+    const bottom = y
+    page.drawSvgPath(roundedPath(margin, bottom, contentWidth, sectionHeight, 8), { color: lightBlue })
+    page.drawRectangle({ x: margin, y: bottom + bodyHeight, width: contentWidth, height: headerHeight, color: darkBlue })
+    page.drawText(title, { x: margin + 8, y: bottom + bodyHeight + headerHeight - 14, size: 12, font, color: rgb(1, 1, 1) })
+    let ty = bottom + bodyHeight - padding - 12
+    lines.forEach((txt) => {
+      page.drawText(txt, { x: margin + 8, y: ty, size: 12, font, color: rgb(0, 0, 0) })
+      ty -= rowHeight
+    })
+    y -= 24
   }
 
-  const blue = rgb(0.2, 0.3, 0.6)
-  draw('Evidence Cleaning', 18, blue)
-  draw('850 E desert inn rd')
-  draw(`Invoice #: ${inv.id}`)
-  draw(`Date of Issue: ${new Date().toISOString().slice(0, 10)}`)
-  y -= 10
+  drawSection('Billing Information', [
+    `Billed to: ${inv.billedTo}`,
+    `Address: ${inv.address}`,
+  ])
 
-  draw('Billing Information', 14, blue)
-  draw(`Billed to: ${inv.billedTo}`)
-  draw(`Address: ${inv.address}`)
-  y -= 6
+  drawSection('Service Details', [
+    `Service Date: ${inv.serviceDate.toISOString().slice(0, 10)} ${inv.serviceTime}`,
+    `Service Type: ${inv.serviceType}`,
+  ])
 
-  draw('Service Details', 14, blue)
-  draw(`Service Date: ${inv.serviceDate.toISOString().slice(0, 10)} ${inv.serviceTime}`)
-  draw(`Service Type: ${inv.serviceType}`)
-  y -= 6
-
-  draw('Charges', 14, blue)
   const charges: [string, number][] = []
   charges.push(['Service', Number(inv.price)])
   if (inv.carpetPrice != null) charges.push(['Carpet', Number(inv.carpetPrice)])
@@ -222,15 +252,30 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
     charges.push(['Tax', sub * (Number(inv.taxPercent) / 100)])
   }
   const columnX = page.getWidth() - 150
-  charges.forEach(([label, val]) => {
-    page.drawRectangle({ x: 40, y: y - 4, width: page.getWidth() - 80, height: 18, color: rgb(0.95, 0.95, 0.95) })
-    page.drawText(label, { x: 44, y, size: 12, font })
-    page.drawText(`$${val.toFixed(2)}`, { x: columnX, y, size: 12, font })
-    y -= 22
-  })
-  y -= 4
-  draw('Total', 14, blue)
-  page.drawText(`$${Number(inv.total).toFixed(2)}`, { x: columnX, y, size: 14, font })
+  const drawCharges = () => {
+    const headerHeight = 18
+    const rowHeight = 20
+    const padding = 8
+    const bodyHeight = (charges.length + 1) * rowHeight + padding * 2
+    const sectionHeight = headerHeight + bodyHeight
+    y -= sectionHeight
+    const bottom = y
+    page.drawSvgPath(roundedPath(margin, bottom, contentWidth, sectionHeight, 8), { color: lightBlue })
+    page.drawRectangle({ x: margin, y: bottom + bodyHeight, width: contentWidth, height: headerHeight, color: darkBlue })
+    page.drawText('Charges', { x: margin + 8, y: bottom + bodyHeight + headerHeight - 14, size: 12, font, color: rgb(1, 1, 1) })
+    let rowY = bottom + bodyHeight - padding - 12
+    charges.forEach(([label, val]) => {
+      page.drawText(label, { x: margin + 8, y: rowY, size: 12, font })
+      page.drawText(`$${val.toFixed(2)}`, { x: columnX, y: rowY, size: 12, font })
+      rowY -= rowHeight
+    })
+    page.drawRectangle({ x: margin + 2, y: rowY - 6, width: contentWidth - 4, height: rowHeight, color: darkBlue })
+    page.drawText('Total', { x: margin + 8, y: rowY, size: 12, font, color: rgb(1, 1, 1) })
+    page.drawText(`$${Number(inv.total).toFixed(2)}`, { x: columnX, y: rowY, size: 12, font, color: rgb(1, 1, 1) })
+    y -= 24
+  }
+
+  drawCharges()
 
   const bytes = await pdf.save()
   return Buffer.from(bytes)
