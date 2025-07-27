@@ -165,6 +165,7 @@ model Invoice {
   carpetPrice Float?
   discount    Float?
   taxPercent  Float?
+  comment     String?
   total       Float
   createdAt   DateTime @default(now())
 }
