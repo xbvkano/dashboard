@@ -481,6 +481,7 @@ app.post('/appointment-templates', async (req: Request, res: Response) => {
       address,
       price,
       notes,
+      instructions,
       carpetRooms,
       carpetPrice,
     } = req.body as {
@@ -491,6 +492,7 @@ app.post('/appointment-templates', async (req: Request, res: Response) => {
       address?: string
       price?: number
       notes?: string
+      instructions?: string
       carpetRooms?: number
       carpetPrice?: number
     }
@@ -513,6 +515,7 @@ app.post('/appointment-templates', async (req: Request, res: Response) => {
         address,
         cityStateZip: notes,
         price,
+        instructions,
         carpetRooms: carpetRooms ?? null,
         carpetPrice: carpetPrice ?? null,
         client: { connect: { id: clientId } },

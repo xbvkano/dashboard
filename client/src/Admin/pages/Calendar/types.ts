@@ -7,6 +7,7 @@ export interface AppointmentTemplate {
   price: number
   clientId: number
   cityStateZip?: string // used for notes
+  instructions?: string
   carpetEnabled?: boolean
   carpetRooms?: number
   carpetPrice?: number

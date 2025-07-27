@@ -85,6 +85,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     address: '',
     price: '',
     notes: '',
+    instructions: '',
     carpetEnabled: false,
     carpetRooms: '',
     carpetPrice: '',
@@ -302,6 +303,7 @@ const preserveTeamRef = useRef(false)
       address: '',
       price: '',
       notes: '',
+      instructions: '',
       carpetEnabled: false,
       carpetRooms: '',
       carpetPrice: '',
@@ -547,6 +549,7 @@ const preserveTeamRef = useRef(false)
       address: t.address,
       price: String(t.price),
       notes: t.cityStateZip || '',
+      instructions: t.instructions || '',
       carpetEnabled: !!t.carpetEnabled,
       carpetRooms: t.carpetRooms || '',
       carpetPrice: t.carpetPrice != null ? String(t.carpetPrice) : '',
@@ -580,6 +583,7 @@ const preserveTeamRef = useRef(false)
       address: templateForm.address,
       price: parseFloat(templateForm.price),
       notes: templateForm.notes || undefined,
+      instructions: templateForm.instructions || undefined,
     }
     if (templateForm.carpetEnabled) {
       payload.carpetRooms = parseInt(templateForm.carpetRooms, 10) || 0
@@ -895,6 +899,16 @@ const preserveTeamRef = useRef(false)
                   value={templateForm.notes}
                   onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })}
                 />
+                <h4 className="font-light">Instructions:</h4>
+                <textarea
+                  id="appointment-template-instructions"
+                  className="w-full border p-2 rounded text-base"
+                  placeholder="Instructions"
+                  value={templateForm.instructions}
+                  onChange={(e) =>
+                    setTemplateForm({ ...templateForm, instructions: e.target.value })
+                  }
+                />
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -1004,6 +1018,7 @@ const preserveTeamRef = useRef(false)
                       <div>Address: {t.address}</div>
                       <div>Price: ${t.price.toFixed(2)}</div>
                       {t.cityStateZip && <div>Notes: {t.cityStateZip}</div>}
+                      {t.instructions && <div>Instructions: {t.instructions}</div>}
                       {t.carpetEnabled && (
                         <div>Carpet Rooms: {t.carpetRooms}</div>
                       )}
