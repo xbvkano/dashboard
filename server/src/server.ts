@@ -9,7 +9,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { OAuth2Client } from 'google-auth-library'
 import axios from 'axios'
 import crypto from 'crypto'
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { PDFDocument, StandardFonts, rgb, PDFFont } from 'pdf-lib'
 import nodemailer from 'nodemailer'
 import twilio from 'twilio'
 
@@ -270,9 +270,11 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
     ['Total:', `$${Number(inv.total).toFixed(2)}`],
   ]
   let tY = y
+  const totalsValX = margin + descWidth + taxWidth + 4
+  const totalsLabelX = totalsValX - 80
   texts.forEach(([l, v]) => {
-    page.drawText(l, { x: margin + contentWidth * 0.55, y: tY, font: bold, size: 11 })
-    page.drawText(v, { x: margin + contentWidth * 0.55 + 80, y: tY, font, size: 11 })
+    page.drawText(l, { x: totalsLabelX, y: tY, font: bold, size: 11 })
+    page.drawText(v, { x: totalsValX, y: tY, font, size: 11 })
     tY -= 14
   })
 
@@ -287,9 +289,14 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
 
   y = y - 60 - secHeader - 30
 
-  page.drawText('If you have any questions about this invoice, please contact', { x: margin, y: y, font, size: 11 })
-  page.drawText('Marcelo Kano, contact@worldwideevidence.com', { x: margin, y: y - 14, font, size: 11 })
-  page.drawText('Thank You For Your Business!', { x: margin, y: y - 28, font: bold, size: 12 })
+  const qText = 'If you have any questions about this invoice, please contact'
+  const cText = 'Marcelo Kano, contact@worldwideevidence.com'
+  const tText = 'Thank You For Your Business!'
+  const centerX = (txt: string, size: number, f: PDFFont) =>
+    margin + contentWidth / 2 - f.widthOfTextAtSize(txt, size) / 2
+  page.drawText(qText, { x: centerX(qText, 11, font), y, font, size: 11 })
+  page.drawText(cText, { x: centerX(cText, 11, font), y: y - 14, font, size: 11 })
+  page.drawText(tText, { x: centerX(tText, 12, bold), y: y - 28, font: bold, size: 12 })
 
   const bytes = await pdf.save()
   return Buffer.from(bytes)
