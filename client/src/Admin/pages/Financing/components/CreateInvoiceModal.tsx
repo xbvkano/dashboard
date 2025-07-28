@@ -137,9 +137,12 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-2 z-30" onClick={onClose}>
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-2 z-30 modal-safe-area"
+      onClick={onClose}
+    >
       <div
-        className="bg-white p-4 rounded w-full max-w-md space-y-3 max-h-[calc(100vh-1rem)] overflow-y-auto"
+        className="bg-white p-4 rounded w-full max-w-md space-y-3 max-h-[calc(100dvh-1rem)] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center">
