@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useModal } from '../../../../ModalProvider'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from "../../../../useFormPersistence"
 import { useNavigate, useParams } from 'react-router-dom'
 import { Client } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 
 export default function ClientForm() {
+  const { alert } = useModal()
   const { id } = useParams()
   const navigate = useNavigate()
   const isNew = id === undefined
@@ -55,7 +57,7 @@ export default function ClientForm() {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      alert(err.error || 'Failed to save')
+      await alert(err.error || 'Failed to save')
       return
     }
     clearFormPersistence(storageKey)

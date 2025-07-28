@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useModal } from '../../../../ModalProvider'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Employee } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from '../../../../useFormPersistence'
 
 export default function EmployeeForm() {
+  const { alert } = useModal()
   const { id } = useParams()
   const navigate = useNavigate()
   const isNew = id === undefined
@@ -71,7 +73,7 @@ export default function EmployeeForm() {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      alert(err.error || 'Failed to save')
+      await alert(err.error || 'Failed to save')
       return
     }
     clearFormPersistence(storageKey)

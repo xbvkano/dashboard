@@ -8,6 +8,7 @@ import {
 import { createPortal } from 'react-dom'
 import type { Appointment } from '../types'
 import { API_BASE_URL } from '../../../../api'
+import { useModal } from '../../../../ModalProvider'
 
 function parseSqft(s: string | null | undefined): number | null {
   if (!s) return null
@@ -50,6 +51,7 @@ interface DayProps {
 }
 
 function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate, onEdit }: DayProps) {
+  const { alert, confirm } = useModal()
   const [selected, setSelected] = useState<Appointment | null>(null)
   const [overlayTop, setOverlayTop] = useState(0)
   const [overlayHeight, setOverlayHeight] = useState(0)
@@ -72,7 +74,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
     if (!selected) return
     let url = `${API_BASE_URL}/appointments/${selected.id}`
     if (selected.reoccurring) {
-      const apply = confirm('Apply to all future occurrences?')
+      const apply = await confirm('Apply to all future occurrences?')
       if (apply) url += '?future=true'
     }
     const res = await fetch(url, {
@@ -88,7 +90,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
       onUpdate?.(updated)
       setSelected(null)
     } else {
-      alert('Failed to update appointment')
+      await alert('Failed to update appointment')
     }
   }
 
@@ -96,7 +98,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
     if (!selected) return
     let url = `${API_BASE_URL}/appointments/${selected.id}`
     if (selected.reoccurring) {
-      const apply = confirm('Apply to all future occurrences?')
+      const apply = await confirm('Apply to all future occurrences?')
       if (apply) url += '?future=true'
     }
     const res = await fetch(url, {
@@ -119,7 +121,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
       onUpdate?.(updated)
       setSelected(null)
     } else {
-      alert('Failed to update appointment')
+      await alert('Failed to update appointment')
     }
   }
 
@@ -143,7 +145,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
       setShowSendInfo(false)
       setNote('')
     } else {
-      alert('Failed to send info')
+      await alert('Failed to send info')
     }
   }
 
