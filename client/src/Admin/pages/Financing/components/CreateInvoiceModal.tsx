@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { Appointment } from '../../Calendar/types'
 import { API_BASE_URL } from '../../../../api'
+import { useModal } from '../../../../ModalProvider'
 
 interface Props {
   appointment: Appointment
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export default function CreateInvoiceModal({ appointment, onClose }: Props) {
+  const { alert } = useModal()
   const [clientName, setClientName] = useState(appointment.client?.name || '')
   const [billedTo, setBilledTo] = useState(appointment.client?.name || '')
   const [address, setAddress] = useState(appointment.address)
@@ -40,6 +42,14 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         .catch(() => {})
     }
   }, [appointment])
+
+  useEffect(() => {
+    const original = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = original
+    }
+  }, [])
 
   const subtotal =
     (parseFloat(price) || 0) +
@@ -79,7 +89,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       onClose()
     } else {
       if (newWindow) newWindow.close()
-      alert('Failed to create invoice')
+      await alert('Failed to create invoice')
     }
   }
 
@@ -122,13 +132,16 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       onClose()
     } else {
       if (newWindow) newWindow.close()
-      alert('Failed to create invoice')
+      await alert('Failed to create invoice')
     }
   }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-2 z-30" onClick={onClose}>
-      <div className="bg-white p-4 rounded w-full max-w-md space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="bg-white p-4 rounded w-full max-w-md space-y-3 max-h-[calc(100vh-1rem)] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold">Create Invoice</h2>
           <button onClick={onClose}>X</button>

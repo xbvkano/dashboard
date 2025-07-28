@@ -3,6 +3,7 @@ import { Client } from '../../Clients/components/types'
 import type { AppointmentTemplate } from '../types'
 import type { Employee } from '../../Employees/components/types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
+import { useModal } from '../../../../ModalProvider'
 
 interface Props {
   onClose: () => void
@@ -28,6 +29,7 @@ const sizeOptions = [
 ]
 
 export default function CreateAppointmentModal({ onClose, onCreated, initialClientId, initialTemplateId, newStatus, initialAppointment }: Props) {
+  const { alert, confirm } = useModal()
   const persisted = (() => {
     const stored = localStorage.getItem('createAppointmentState')
     if (stored) {
@@ -510,7 +512,7 @@ const preserveTeamRef = useRef(false)
     if (!newClient.name.trim()) missing.push('name')
     if (!newClient.number.trim()) missing.push('number')
     if (missing.length > 0) {
-      alert('Please provide: ' + missing.join(', '))
+      await alert('Please provide: ' + missing.join(', '))
       return
     }
     const res = await fetch(`${API_BASE_URL}/clients`, {
@@ -526,7 +528,7 @@ const preserveTeamRef = useRef(false)
       setClientSearch('')
     } else {
       const err = await res.json().catch(() => ({}))
-      alert(err.error || 'Failed to create client')
+      await alert(err.error || 'Failed to create client')
     }
   }
 
@@ -577,7 +579,7 @@ const preserveTeamRef = useRef(false)
       }
     }
     if (missing.length > 0) {
-      alert('Please provide: ' + missing.join(', '))
+      await alert('Please provide: ' + missing.join(', '))
       return
     }
     const payload: any = {
@@ -629,7 +631,7 @@ const preserveTeamRef = useRef(false)
       setEditing(false)
       setEditingTemplateId(null)
     } else {
-      alert('Failed to create template')
+      await alert('Failed to create template')
     }
   }
 
@@ -655,25 +657,25 @@ const preserveTeamRef = useRef(false)
     if (!time) missing.push('time')
     if (!adminId) missing.push('admin')
     if (missing.length > 0) {
-      alert('Please provide: ' + missing.join(', '))
+      await alert('Please provide: ' + missing.join(', '))
       return
     }
     if (!isValidCarpet()) {
-      alert('Please complete carpet cleaning info')
+      await alert('Please complete carpet cleaning info')
       return
     }
     if (selectedEmployees.length < 1) {
-      alert('Team must have at least one member')
+      await alert('Team must have at least one member')
       return
     }
     if (!isValidSelection()) {
-      const proceed = confirm('Team is less than required. Continue?')
+      const proceed = await confirm('Team is less than required. Continue?')
       if (!proceed) return
     }
     if (time) {
       const hour = parseInt(time.split(':')[0], 10)
       if (hour < 6 || hour >= 18) {
-        const ok = confirm('Selected time is outside 6am-6pm. Continue?')
+        const ok = await confirm('Selected time is outside 6am-6pm. Continue?')
         if (!ok) return
       }
     }
@@ -722,7 +724,7 @@ const preserveTeamRef = useRef(false)
       method = 'PUT'
       const applyAll =
         initialAppointment.reoccurring &&
-        confirm('Apply changes to all future occurrences?')
+        (await confirm('Apply changes to all future occurrences?'))
       url = `${API_BASE_URL}/appointments/${initialAppointment.id}${applyAll ? '?future=true' : ''}`
     }
 
@@ -735,7 +737,7 @@ const preserveTeamRef = useRef(false)
       onCreated()
       handleCancel()
     } else {
-      alert('Failed to create appointment')
+      await alert('Failed to create appointment')
     }
   }
 
