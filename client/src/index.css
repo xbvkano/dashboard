@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Ensure modals are not obscured by iOS safe areas */
+.modal-safe-area {
+  padding-top: max(env(safe-area-inset-top), 0.5rem);
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
