@@ -504,13 +504,17 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
               </button>
               <button
                 className="px-4 py-1 bg-purple-500 text-white rounded"
-                onClick={() =>
-                  selected?.observe
-                    ? updateAppointment({ status: 'CANCEL' })
-                    : setShowCancel(true)
-                }
+                onClick={() => {
+                  if (selected?.status === 'CANCEL') {
+                    updateAppointment({ status: 'APPOINTED' })
+                  } else if (selected?.observe) {
+                    updateAppointment({ status: 'CANCEL' })
+                  } else {
+                    setShowCancel(true)
+                  }
+                }}
               >
-                Cancel
+                {selected?.status === 'CANCEL' ? 'Uncancel' : 'Cancel'}
               </button>
               {selected?.observe ? (
                 <>
