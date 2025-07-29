@@ -62,6 +62,7 @@ model Appointment {
   paid            Boolean         @default(false)
   paymentMethod   PaymentMethod
   tip             Float           @default(0)
+  noTeam          Boolean         @default(false)
   carpetRooms     Int?
   carpetPrice     Float?
   carpetEmployees Int[]
