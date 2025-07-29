@@ -1095,11 +1095,11 @@ const preserveTeamRef = useRef(false)
                 >
                   Team Options <span className="text-red-500">*</span>
                 </button>
-            {selectedEmployees.length > 0 && staffOptions[selectedOption] && (
-              <>
-                <div className="text-sm border rounded p-2 space-y-1">
-                  <div>Team:</div>
-                  <ul className="pl-2 list-disc space-y-0.5">
+                {selectedEmployees.length > 0 && staffOptions[selectedOption] && (
+                  <>
+                    <div className="text-sm border rounded p-2 space-y-1">
+                      <div>Team:</div>
+                      <ul className="pl-2 list-disc space-y-0.5">
                     {selectedEmployees.map((id) => {
                       const emp = employees.find((e) => e.id === id)
                       if (!emp) return null
@@ -1137,6 +1137,8 @@ const preserveTeamRef = useRef(false)
                     </ul>
                     <div>Rooms: {carpetRooms}</div>
                   </div>
+                )}
+                  </>
                 )}
               </>
             )}
