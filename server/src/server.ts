@@ -795,6 +795,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
       carpetEmployees = [],
       count = 1,
       frequency,
+      noTeam = false,
     } = req.body as {
       clientId?: number
       templateId?: number
@@ -812,6 +813,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
       carpetEmployees?: number[]
       count?: number
       frequency?: string
+      noTeam?: boolean
     }
 
     if (!clientId || !templateId || !date || !time || !adminId || !frequency) {
@@ -866,9 +868,10 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
           price: template.price,
           paid,
           tip,
+          noTeam,
           carpetRooms: carpetRoomsFinal,
           carpetPrice: finalCarpetPrice ?? null,
-        carpetEmployees,
+          carpetEmployees,
           paymentMethod: paymentMethod as any,
           notes:
             [template.notes, paymentMethodNote].filter(Boolean).join(' | ') ||
@@ -883,7 +886,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
           }),
         },
       })
-      if (employeeIds.length) {
+      if (!noTeam && employeeIds.length) {
         await syncPayrollItems(appt.id, employeeIds)
       }
       created.push(appt)
@@ -915,6 +918,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
       carpetEmployees = [],
       status = 'APPOINTED',
       observation,
+      noTeam = false,
     } = req.body as {
       clientId?: number
       templateId?: number
@@ -932,6 +936,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
       carpetEmployees?: number[]
       status?: string
       observation?: string
+      noTeam?: boolean
     }
 
     // required-field guard
@@ -974,6 +979,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
         price: template.price,
         paid,
         tip,
+        noTeam,
         carpetRooms: carpetRoomsFinal,
         carpetPrice: finalCarpetPrice ?? null,
         carpetEmployees,
@@ -993,7 +999,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
       },
     })
 
-    if (employeeIds.length) {
+    if (!noTeam && employeeIds.length) {
       await syncPayrollItems(appt.id, employeeIds)
     }
 
@@ -1026,6 +1032,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       carpetPrice,
       carpetEmployees,
       observation,
+      noTeam = false,
     } = req.body as {
       clientId?: number
       templateId?: number
@@ -1044,6 +1051,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       carpetPrice?: number
       carpetEmployees?: number[]
       observation?: string | null
+      noTeam?: boolean
     }
     const data: any = {}
     if (clientId !== undefined) data.clientId = clientId
@@ -1084,6 +1092,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
     if (paymentMethod !== undefined) data.paymentMethod = paymentMethod as any
     if (paymentMethodNote !== undefined) data.notes = paymentMethodNote
     if (tip !== undefined) data.tip = tip
+    if (noTeam !== undefined) data.noTeam = noTeam
     if (observation !== undefined) data.observation = observation
     if (status !== undefined) data.status = status as any
     if (observe !== undefined) data.observe = observe
@@ -1138,6 +1147,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
             price: last.price ?? null,
             paid: last.paid,
             tip: last.tip,
+            noTeam: last.noTeam,
             carpetRooms: last.carpetRooms ?? null,
             carpetPrice: last.carpetPrice ?? null,
             carpetEmployees: last.carpetEmployees ?? [],
@@ -1227,6 +1237,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
                 price: last.price ?? null,
                 paid: last.paid,
                 tip: last.tip,
+                noTeam: last.noTeam,
                 carpetRooms: last.carpetRooms ?? null,
                 carpetPrice: last.carpetPrice ?? null,
                 carpetEmployees: last.carpetEmployees ?? [],
@@ -1270,7 +1281,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
         data,
         include: { client: true, employees: true },
       })
-      if (employeeIds) {
+      if (employeeIds && !noTeam) {
         await syncPayrollItems(appt.id, employeeIds)
       }
       res.json(appt)
