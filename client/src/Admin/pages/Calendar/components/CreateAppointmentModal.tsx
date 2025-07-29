@@ -127,6 +127,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const [overrideCarpetPrice, setOverrideCarpetPrice] = useState<boolean>(
     persisted.overrideCarpetPrice ?? false,
   )
+  const [noTeam, setNoTeam] = useState<boolean>(persisted.noTeam ?? false)
 
   const selectedTemplateData = selectedTemplate
     ? templates.find((tt) => tt.id === selectedTemplate)
@@ -191,6 +192,7 @@ const preserveTeamRef = useRef(false)
         setCarpetRooms(String((initialAppointment as any).carpetRooms))
       }
       if (initialAppointment.reoccurring) setRecurringEnabled(true)
+      if (initialAppointment.noTeam) setNoTeam(true)
       initializedRef.current = true
       localStorage.removeItem('createAppointmentState')
     } else {
@@ -229,6 +231,7 @@ const preserveTeamRef = useRef(false)
           if (typeof s.recurringEnabled === 'boolean') setRecurringEnabled(s.recurringEnabled)
           if (s.recurringOption) setRecurringOption(s.recurringOption)
           if (s.recurringMonths) setRecurringMonths(s.recurringMonths)
+          if (typeof s.noTeam === 'boolean') setNoTeam(s.noTeam)
         } catch {}
       }
       initializedRef.current = true
@@ -266,9 +269,10 @@ const preserveTeamRef = useRef(false)
       recurringEnabled,
       recurringOption,
       recurringMonths,
+      noTeam,
     }
     localStorage.setItem('createAppointmentState', JSON.stringify(data))
-  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, showTeamModal, employeeSearch, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, templateForm.carpetPrice, overrideCarpetPrice, carpetEmployees, recurringEnabled, recurringOption, recurringMonths])
+  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, showTeamModal, employeeSearch, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, templateForm.carpetPrice, overrideCarpetPrice, carpetEmployees, recurringEnabled, recurringOption, recurringMonths, noTeam])
 
   useEffect(() => {
     if (selectedTemplate !== null) {
@@ -664,7 +668,7 @@ const preserveTeamRef = useRef(false)
       await alert('Please complete carpet cleaning info')
       return
     }
-    if (selectedEmployees.length < 1) {
+    if (!noTeam && selectedEmployees.length < 1) {
       await alert('Team must have at least one member')
       return
     }
@@ -685,7 +689,7 @@ const preserveTeamRef = useRef(false)
       date,
       time,
       hours: staffOptions[selectedOption]?.hours,
-      employeeIds: selectedEmployees,
+      employeeIds: noTeam ? [] : selectedEmployees,
       adminId: adminId || undefined,
       paid,
       paymentMethod: paid ? (paymentMethod || 'CASH') : 'CASH',
@@ -693,6 +697,7 @@ const preserveTeamRef = useRef(false)
         paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
       tip: paid ? parseFloat(tip) || 0 : 0,
       status: recurringEnabled ? 'REOCCURRING' : newStatus ?? 'APPOINTED',
+      noTeam,
       ...(carpetEnabled
         ? {
             carpetRooms: parseInt(carpetRooms, 10) || 0,
@@ -1064,17 +1069,37 @@ const preserveTeamRef = useRef(false)
         {/* Team selection */}
         {selectedTemplate && staffOptions.length > 0 && (
           <div className="space-y-1">
-            <button
-              className="border px-3 py-2 rounded"
-              onClick={() => setShowTeamModal(true)}
-            >
-              Team Options <span className="text-red-500">*</span>
-            </button>
-            {selectedEmployees.length > 0 && staffOptions[selectedOption] && (
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={noTeam}
+                onChange={async (e) => {
+                  if (e.target.checked) {
+                    const ok = await confirm('Create appointment with no team?')
+                    if (!ok) return
+                  }
+                  setNoTeam(e.target.checked)
+                  if (e.target.checked) {
+                    setSelectedEmployees([])
+                    setCarpetEmployees([])
+                  }
+                }}
+              />
+              <span>No Team</span>
+            </label>
+            {!noTeam && (
               <>
-                <div className="text-sm border rounded p-2 space-y-1">
-                  <div>Team:</div>
-                  <ul className="pl-2 list-disc space-y-0.5">
+                <button
+                  className="border px-3 py-2 rounded"
+                  onClick={() => setShowTeamModal(true)}
+                >
+                  Team Options <span className="text-red-500">*</span>
+                </button>
+                {selectedEmployees.length > 0 && staffOptions[selectedOption] && (
+                  <>
+                    <div className="text-sm border rounded p-2 space-y-1">
+                      <div>Team:</div>
+                      <ul className="pl-2 list-disc space-y-0.5">
                     {selectedEmployees.map((id) => {
                       const emp = employees.find((e) => e.id === id)
                       if (!emp) return null
@@ -1113,13 +1138,15 @@ const preserveTeamRef = useRef(false)
                     <div>Rooms: {carpetRooms}</div>
                   </div>
                 )}
+                  </>
+                )}
               </>
             )}
           </div>
         )}
 
         {/* Recurring */}
-        {selectedTemplate && selectedEmployees.length > 0 && (
+        {selectedTemplate && (selectedEmployees.length > 0 || noTeam) && (
           <div className="space-y-1">
             <label className="flex items-center gap-2">
               <span>Recurring</span>
