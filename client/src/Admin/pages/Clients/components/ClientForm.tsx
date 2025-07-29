@@ -12,7 +12,7 @@ export default function ClientForm() {
   const isNew = id === undefined
   const storageKey = `clientForm-${id || 'new'}`
   const [data, setData] = useState<Client>(() =>
-    loadFormPersistence(storageKey, { name: '', number: '', notes: '' }),
+    loadFormPersistence(storageKey, { name: '', number: '', notes: '', disabled: false }),
   )
   useFormPersistence(storageKey, data)
 
@@ -47,9 +47,20 @@ export default function ClientForm() {
     setData(updated)
   }
 
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const updated = { ...data, [e.target.name]: e.target.checked }
+    persist(updated)
+    setData(updated)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const payload = { name: data.name, number: data.number, notes: data.notes }
+    const payload = {
+      name: data.name,
+      number: data.number,
+      notes: data.notes,
+      disabled: data.disabled ?? false,
+    }
     const res = await fetch(`${API_BASE_URL}/clients${isNew ? '' : '/' + id}`, {
       method: isNew ? 'POST' : 'PUT',
       headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
@@ -103,6 +114,16 @@ export default function ClientForm() {
           onChange={handleChange}
           className="w-full border p-2 rounded"
         />
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          id="disabled"
+          name="disabled"
+          type="checkbox"
+          checked={data.disabled ?? false}
+          onChange={handleCheckboxChange}
+        />
+        <label htmlFor="disabled" className="text-sm">Disable</label>
       </div>
       <button className="bg-blue-500 text-white px-4 py-2 rounded" type="submit">
         Save

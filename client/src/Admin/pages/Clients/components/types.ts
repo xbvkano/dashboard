@@ -3,4 +3,5 @@ export interface Client {
   name: string
   number: string
   notes?: string
+  disabled?: boolean
 }

@@ -17,6 +17,7 @@ export default function EmployeeForm() {
       number: '',
       notes: '',
       experienced: false,
+      disabled: false,
     }),
   )
   useFormPersistence(storageKey, data)
@@ -24,7 +25,7 @@ export default function EmployeeForm() {
   useEffect(() => {
     if (!isNew) {
       fetchJson(`${API_BASE_URL}/employees/${id}`)
-        .then((d) => setData({ experienced: false, ...d }))
+        .then((d) => setData({ experienced: false, disabled: false, ...d }))
         .catch((err) => console.error(err))
     }
   }, [id, isNew])
@@ -45,7 +46,7 @@ export default function EmployeeForm() {
   }
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const updated = { ...data, experienced: e.target.checked }
+    const updated = { ...data, [e.target.name]: e.target.checked }
     persist(updated)
     setData(updated)
   }
@@ -65,6 +66,7 @@ export default function EmployeeForm() {
       number: data.number,
       notes: data.notes,
       experienced: data.experienced,
+      disabled: data.disabled ?? false,
     }
     const res = await fetch(`${API_BASE_URL}/employees${isNew ? '' : '/' + id}` ,{
       method: isNew ? 'POST' : 'PUT',
@@ -123,11 +125,22 @@ export default function EmployeeForm() {
       <div className="flex items-center gap-2">
         <input
           id="experienced"
+          name="experienced"
           type="checkbox"
           checked={data.experienced ?? false}
           onChange={handleCheckboxChange}
         />
         <label htmlFor="experienced" className="text-sm">Experienced</label>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          id="disabled"
+          name="disabled"
+          type="checkbox"
+          checked={data.disabled ?? false}
+          onChange={handleCheckboxChange}
+        />
+        <label htmlFor="disabled" className="text-sm">Disable</label>
       </div>
       <div className="flex gap-2">
         <button className="bg-blue-500 text-white px-4 py-2 rounded" type="submit">

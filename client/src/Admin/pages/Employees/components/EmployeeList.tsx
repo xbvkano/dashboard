@@ -23,7 +23,11 @@ export default function EmployeeList(_: EmployeeListProps) {
   }, [page, search])
 
   function load() {
-    fetchJson(`${API_BASE_URL}/employees?search=${encodeURIComponent(search)}&skip=${page * 20}&take=20`)
+    fetchJson(
+      `${API_BASE_URL}/employees?search=${encodeURIComponent(search)}&skip=${
+        page * 20
+      }&take=20&all=true`,
+    )
       .then((data: Employee[]) => {
         setItems((prev) => {
           const next = page === 0 ? data : [...prev, ...data]

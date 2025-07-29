@@ -22,6 +22,7 @@ model Client {
   name                 String                 @unique
   number               String
   notes                String?
+  disabled             Boolean                @default(false)
   appointments         Appointment[]
   appointmentTemplates AppointmentTemplate[]
 }
@@ -32,6 +33,7 @@ model Employee {
   number       String
   notes        String?
   experienced  Boolean                    @default(false)
+  disabled     Boolean                    @default(false)
   appointments Appointment[]              @relation("AppointmentEmployees")
 
   prevBalance  Float                      @default(0)
