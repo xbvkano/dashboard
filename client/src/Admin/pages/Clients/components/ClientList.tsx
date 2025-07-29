@@ -21,7 +21,11 @@ export default function ClientList() {
   }, [page, search])
 
   function load() {
-    fetchJson(`${API_BASE_URL}/clients?search=${encodeURIComponent(search)}&skip=${page * 20}&take=20`)
+    fetchJson(
+      `${API_BASE_URL}/clients?search=${encodeURIComponent(search)}&skip=${
+        page * 20
+      }&take=20&all=true`,
+    )
       .then((data: Client[]) => {
         setItems((prev) => {
           const next = page === 0 ? data : [...prev, ...data]

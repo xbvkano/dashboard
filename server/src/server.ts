@@ -367,16 +367,18 @@ app.get('/clients', async (req: Request, res: Response) => {
   const searchTerm = String(req.query.search || '').trim()
   const skip = parseInt(String(req.query.skip || '0'), 10)
   const take = parseInt(String(req.query.take || '20'), 10)
+  const includeDisabled = String(req.query.all) === 'true'
 
   // 2. Build a typed `where` clause
   const where: any = searchTerm
     ? {
+        ...(includeDisabled ? {} : { disabled: false }),
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
           { number: { contains: searchTerm, mode: 'insensitive' } },
         ],
       }
-    : {}
+    : includeDisabled ? {} : { disabled: false }
 
   try {
     // 3. Fetch and return
@@ -395,10 +397,11 @@ app.get('/clients', async (req: Request, res: Response) => {
 
 app.post('/clients', async (req: Request, res: Response) => {
   try {
-    const { name, number, notes } = req.body as {
+    const { name, number, notes, disabled } = req.body as {
       name?: string
       number?: string
       notes?: string
+      disabled?: boolean
     }
     if (!name || !number) {
       return res.status(400).json({ error: 'Name and number are required' })
@@ -406,7 +409,9 @@ app.post('/clients', async (req: Request, res: Response) => {
     if (!/^\d{10}$/.test(number)) {
       return res.status(400).json({ error: 'Number must be 10 digits' })
     }
-    const client = await prisma.client.create({ data: { name, number, notes } })
+    const client = await prisma.client.create({
+      data: { name, number, notes, disabled: disabled ?? false },
+    })
     res.json(client)
   } catch (e: any) {
     if (
@@ -431,10 +436,11 @@ app.get('/clients/:id', async (req: Request, res: Response) => {
 app.put('/clients/:id', async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10)
   try {
-    const { name, number, notes } = req.body as {
+    const { name, number, notes, disabled } = req.body as {
       name?: string
       number?: string
       notes?: string
+      disabled?: boolean
     }
     const data: any = {}
     if (name !== undefined) data.name = name
@@ -445,6 +451,7 @@ app.put('/clients/:id', async (req: Request, res: Response) => {
       data.number = number
     }
     if (notes !== undefined) data.notes = notes
+    if (disabled !== undefined) data.disabled = disabled
     const client = await prisma.client.update({ where: { id }, data })
     res.json(client)
   } catch (e) {
@@ -456,15 +463,17 @@ app.get('/employees', async (req: Request, res: Response) => {
   const searchTerm = String(req.query.search || '').trim()
   const skip = parseInt(String(req.query.skip || '0'), 10)
   const take = parseInt(String(req.query.take || '20'), 10)
+  const includeDisabled = String(req.query.all) === 'true'
 
   const where: any = searchTerm
     ? {
+        ...(includeDisabled ? {} : { disabled: false }),
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
           { number: { contains: searchTerm, mode: 'insensitive' } },
         ],
       }
-    : {}
+    : includeDisabled ? {} : { disabled: false }
 
   try {
     const employees = await prisma.employee.findMany({
@@ -482,11 +491,12 @@ app.get('/employees', async (req: Request, res: Response) => {
 
 app.post('/employees', async (req: Request, res: Response) => {
   try {
-    const { name, number, notes, experienced } = req.body as {
+    const { name, number, notes, experienced, disabled } = req.body as {
       name?: string
       number?: string
       notes?: string
       experienced?: boolean
+      disabled?: boolean
     }
     if (!name || !number) {
       return res.status(400).json({ error: 'Name and number are required' })
@@ -495,7 +505,13 @@ app.post('/employees', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Number must be 10 digits' })
     }
     const employee = await prisma.employee.create({
-      data: { name, number, notes, experienced: experienced ?? false }
+      data: {
+        name,
+        number,
+        notes,
+        experienced: experienced ?? false,
+        disabled: disabled ?? false,
+      },
     })
     res.json(employee)
   } catch (e) {
@@ -513,11 +529,12 @@ app.get('/employees/:id', async (req: Request, res: Response) => {
 app.put('/employees/:id', async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10)
   try {
-    const { name, number, notes, experienced } = req.body as {
+    const { name, number, notes, experienced, disabled } = req.body as {
       name?: string
       number?: string
       notes?: string
       experienced?: boolean
+      disabled?: boolean
     }
     const data: any = {}
     if (name !== undefined) data.name = name
@@ -529,6 +546,7 @@ app.put('/employees/:id', async (req: Request, res: Response) => {
     }
     if (notes !== undefined) data.notes = notes
     if (experienced !== undefined) data.experienced = experienced
+    if (disabled !== undefined) data.disabled = disabled
     const employee = await prisma.employee.update({ where: { id }, data })
     res.json(employee)
   } catch (e) {
