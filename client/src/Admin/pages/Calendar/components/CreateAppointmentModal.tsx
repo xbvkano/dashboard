@@ -1074,12 +1074,13 @@ const preserveTeamRef = useRef(false)
                 type="checkbox"
                 checked={noTeam}
                 onChange={async (e) => {
-                  if (e.target.checked) {
+                  const checked = e.target.checked
+                  if (checked) {
                     const ok = await confirm('Create appointment with no team?')
                     if (!ok) return
                   }
-                  setNoTeam(e.target.checked)
-                  if (e.target.checked) {
+                  setNoTeam(checked)
+                  if (checked) {
                     setSelectedEmployees([])
                     setCarpetEmployees([])
                   }
