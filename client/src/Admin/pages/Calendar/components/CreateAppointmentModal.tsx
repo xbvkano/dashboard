@@ -726,10 +726,7 @@ const preserveTeamRef = useRef(false)
     let payload: any = { ...body, ...extra }
     if (initialAppointment) {
       method = 'PUT'
-      const applyAll =
-        initialAppointment.reoccurring &&
-        (await confirm('Apply changes to all future occurrences?'))
-      url = `${API_BASE_URL}/appointments/${initialAppointment.id}${applyAll ? '?future=true' : ''}`
+      url = `${API_BASE_URL}/appointments/${initialAppointment.id}`
     }
 
     const res = await fetch(url, {

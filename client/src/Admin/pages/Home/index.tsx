@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../api'
+import { useModal } from '../../../ModalProvider'
 import type { Appointment } from '../Calendar/types'
 import CreateAppointmentModal from '../Calendar/components/CreateAppointmentModal'
 import HomePanel, { HomePanelCard } from './HomePanel'
 
 export default function Home() {
+  const { confirm } = useModal()
   const [items, setItems] = useState<Appointment[]>([])
   const [upcoming, setUpcoming] = useState<(Appointment & { daysLeft: number })[]>([])
   const [doneUpcoming, setDoneUpcoming] = useState<number[]>([])
@@ -98,6 +100,10 @@ export default function Home() {
         onAction: () => handleEdit(nextAppt),
         done,
         onToggleDone: async (checked: boolean) => {
+          const ok = await confirm(
+            checked ? 'Mark as done?' : 'Unmark as done?'
+          )
+          if (!ok) return
           try {
             await fetchJson(`${API_BASE_URL}/appointments/${a.id}/recurring-done`, {
               method: 'PUT',
@@ -122,7 +128,28 @@ export default function Home() {
       {editParams && (
         <CreateAppointmentModal
           onClose={() => setEditParams(null)}
-          onCreated={load}
+          onCreated={async () => {
+            if (editParams?.appointment?.id) {
+              try {
+                await fetchJson(
+                  `${API_BASE_URL}/appointments/${editParams.appointment.id}/recurring-done`,
+                  {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ done: true }),
+                  },
+                )
+                setDoneUpcoming((prev) =>
+                  prev.includes(editParams.appointment!.id!)
+                    ? prev
+                    : [...prev, editParams.appointment!.id!],
+                )
+              } catch (err) {
+                console.error('Failed to update recurring done state', err)
+              }
+            }
+            load()
+          }}
           initialClientId={editParams.clientId}
           initialTemplateId={editParams.templateId ?? undefined}
           newStatus={editParams.status}
