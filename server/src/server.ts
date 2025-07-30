@@ -776,6 +776,26 @@ app.get('/appointments/lineage/:lineage', async (req: Request, res: Response) =>
   }
 })
 
+app.get('/appointments/no-team', async (_req: Request, res: Response) => {
+  try {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const appts = await prisma.appointment.findMany({
+      where: {
+        noTeam: true,
+        status: { notIn: ['DELETED', 'RESCHEDULE_OLD', 'CANCEL'] },
+        date: { gte: today },
+      },
+      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+      include: { client: true, employees: true },
+    })
+    res.json(appts)
+  } catch (err) {
+    console.error('Failed to fetch no-team appointments:', err)
+    res.status(500).json({ error: 'Failed to fetch appointments' })
+  }
+})
+
 app.post('/appointments/recurring', async (req: Request, res: Response) => {
   try {
     const {
