@@ -1177,6 +1177,7 @@ app.post('/appointments/:id/send-info', async (req: Request, res: Response) => {
 
     for (const e of appt.employees) {
       const body = [
+        `New appointment from Evidence Cleaning`,
         `Appointment Date: ${appt.date.toISOString().slice(0, 10)}`,
         `Appointment Time: ${appt.time}`,
         `Appointment Type: ${appt.type}`,
