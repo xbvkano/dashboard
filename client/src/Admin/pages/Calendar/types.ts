@@ -34,6 +34,7 @@ export interface Appointment {
   carpetPrice?: number
   reoccurring?: boolean
   reocuringDate?: string
+  recurringDone?: boolean
   observe?: boolean
   observation?: string
   infoSent?: boolean

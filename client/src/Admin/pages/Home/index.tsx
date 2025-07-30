@@ -7,6 +7,7 @@ import HomePanel, { HomePanelCard } from './HomePanel'
 export default function Home() {
   const [items, setItems] = useState<Appointment[]>([])
   const [upcoming, setUpcoming] = useState<(Appointment & { daysLeft: number })[]>([])
+  const [doneUpcoming, setDoneUpcoming] = useState<number[]>([])
   const [editParams, setEditParams] = useState<{
     clientId?: number
     templateId?: number | null
@@ -19,8 +20,14 @@ export default function Home() {
       .then((d) => setItems(d))
       .catch(() => setItems([]))
     fetchJson(`${API_BASE_URL}/appointments/upcoming-recurring`)
-      .then((d) => setUpcoming(d))
-      .catch(() => setUpcoming([]))
+      .then((d) => {
+        setUpcoming(d)
+        setDoneUpcoming(d.filter((a: any) => a.recurringDone).map((a: any) => a.id))
+      })
+      .catch(() => {
+        setUpcoming([])
+        setDoneUpcoming([])
+      })
   }
 
   useEffect(() => {
@@ -68,20 +75,44 @@ export default function Home() {
     onAction: () => handleEdit(a),
   }))
 
-  const upcomingCards: HomePanelCard[] = upcoming.map((a) => {
-    const nextAppt = { ...a, date: a.reocuringDate }
-    return {
-      key: a.id!,
-      content: (
-        <div>
-          <div className="font-medium">{a.client?.name}</div>
-          <div className="text-sm text-gray-600">In {a.daysLeft} days</div>
-        </div>
-      ),
-      actionLabel: 'View',
-      onAction: () => handleEdit(nextAppt),
-    }
-  })
+  const upcomingCards: HomePanelCard[] = upcoming
+    .slice()
+    .sort((a1, a2) => {
+      const d1 = doneUpcoming.includes(a1.id!)
+      const d2 = doneUpcoming.includes(a2.id!)
+      if (d1 === d2) return 0
+      return d1 ? 1 : -1
+    })
+    .map((a) => {
+      const nextAppt = { ...a, date: a.reocuringDate }
+      const done = doneUpcoming.includes(a.id!)
+      return {
+        key: a.id!,
+        content: (
+          <div>
+            <div className="font-medium">{a.client?.name}</div>
+            <div className="text-sm text-gray-600">In {a.daysLeft} days</div>
+          </div>
+        ),
+        actionLabel: 'View',
+        onAction: () => handleEdit(nextAppt),
+        done,
+        onToggleDone: async (checked: boolean) => {
+          try {
+            await fetchJson(`${API_BASE_URL}/appointments/${a.id}/recurring-done`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ done: checked }),
+            })
+            setDoneUpcoming((prev) =>
+              checked ? [...prev, a.id!] : prev.filter((id) => id !== a.id!)
+            )
+          } catch (err) {
+            console.error('Failed to update recurring done state', err)
+          }
+        },
+      }
+    })
 
   return (
     <div className="p-4 space-y-4">

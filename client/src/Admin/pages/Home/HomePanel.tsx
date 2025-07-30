@@ -5,6 +5,8 @@ export interface HomePanelCard {
   content: React.ReactNode
   actionLabel?: string
   onAction?: () => void
+  done?: boolean
+  onToggleDone?: (checked: boolean) => void
 }
 
 interface Props {
@@ -25,9 +27,18 @@ export default function HomePanel({ title, cards, className = '' }: Props) {
           {cards.map((c) => (
             <li
               key={c.key}
-              className="bg-white rounded shadow p-3 flex justify-between items-center"
+              className={`bg-white rounded shadow p-3 flex justify-between items-center ${c.done ? 'bg-green-100' : ''}`}
             >
-              <div>{c.content}</div>
+              <div className="flex items-center gap-2">
+                {c.onToggleDone && (
+                  <input
+                    type="checkbox"
+                    checked={!!c.done}
+                    onChange={(e) => c.onToggleDone!(e.target.checked)}
+                  />
+                )}
+                <div>{c.content}</div>
+              </div>
               {c.onAction && (
                 <button
                   className="text-blue-500 text-sm"

@@ -68,6 +68,7 @@ model Appointment {
   carpetEmployees Int[]
   reoccurring     Boolean         @default(false)
   reocuringDate   DateTime?
+  recurringDone   Boolean         @default(false)
   status          AppointmentStatus @default(APPOINTED)
   observe         Boolean         @default(false)
   observation     String?

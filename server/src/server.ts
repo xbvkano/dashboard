@@ -721,7 +721,7 @@ app.get('/appointments/upcoming-recurring', async (_req: Request, res: Response)
       orderBy: { reocuringDate: 'asc' },
       include: { client: true, employees: true },
     })
-    const results = appts.map((a) => ({
+    const results = appts.map((a: any) => ({
       ...a,
       daysLeft: Math.ceil((a.reocuringDate!.getTime() - today.getTime()) / 86400000),
     }))
@@ -729,6 +729,23 @@ app.get('/appointments/upcoming-recurring', async (_req: Request, res: Response)
   } catch (err) {
     console.error('Failed to fetch upcoming recurring appointments:', err)
     res.status(500).json({ error: 'Failed to fetch appointments' })
+  }
+})
+
+app.put('/appointments/:id/recurring-done', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10)
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
+  const done = !!(req.body as any).done
+  try {
+    const appt = await prisma.appointment.update({
+      where: { id },
+      data: { recurringDone: done },
+      include: { client: true, employees: true },
+    })
+    res.json(appt)
+  } catch (err) {
+    console.error('Failed to update recurringDone:', err)
+    res.status(500).json({ error: 'Failed to update appointment' })
   }
 })
 
