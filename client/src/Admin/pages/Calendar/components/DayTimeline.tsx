@@ -327,7 +327,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                   {l.appt.client?.name || 'Client'}
                 </div>
                 <div
-                  className={`w-3 h-3 rounded-sm ${l.appt.infoSent ? 'bg-green-500' : 'bg-red-500'}`}
+                  className={`w-3 h-3 rounded-sm ${l.appt.noTeam ? 'bg-purple-500' : l.appt.infoSent ? 'bg-green-500' : 'bg-red-500'}`}
                 />
               </div>
               <div className="px-1 pb-1">{l.appt.type}</div>
@@ -568,12 +568,14 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                   </button>
                 </>
               )}
-              <button
-                className="px-4 py-1 bg-indigo-500 text-white rounded"
-                onClick={() => setShowSendInfo(true)}
-              >
-                Send Info
-              </button>
+              {!selected?.noTeam && (
+                <button
+                  className="px-4 py-1 bg-indigo-500 text-white rounded"
+                  onClick={() => setShowSendInfo(true)}
+                >
+                  Send Info
+                </button>
+              )}
               <button
                 className="px-4 py-1 bg-green-500 text-white rounded disabled:opacity-50"
                 disabled={paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))}
