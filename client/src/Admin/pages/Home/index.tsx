@@ -15,6 +15,7 @@ export default function Home() {
     templateId?: number | null
     status?: Appointment['status']
     appointment?: Appointment
+    fromRecurring?: boolean
   } | null>(null)
 
   const load = () => {
@@ -36,7 +37,7 @@ export default function Home() {
     load()
   }, [])
 
-  const handleEdit = async (appt: Appointment) => {
+  const handleEdit = async (appt: Appointment, fromRecurring: boolean = false) => {
     localStorage.removeItem('createAppointmentState')
     try {
       const templates = await fetchJson(
@@ -50,9 +51,10 @@ export default function Home() {
         templateId: match?.id ?? null,
         status: appt.status,
         appointment: appt,
+        fromRecurring,
       })
     } catch {
-      setEditParams({ clientId: appt.clientId, status: appt.status, appointment: appt })
+      setEditParams({ clientId: appt.clientId, status: appt.status, appointment: appt, fromRecurring })
     }
   }
 
@@ -74,7 +76,7 @@ export default function Home() {
       </div>
     ),
     actionLabel: 'View',
-    onAction: () => handleEdit(a),
+    onAction: () => handleEdit(a, false),
   }))
 
   const upcomingCards: HomePanelCard[] = upcoming
@@ -97,7 +99,7 @@ export default function Home() {
           </div>
         ),
         actionLabel: 'View',
-        onAction: () => handleEdit(nextAppt),
+        onAction: () => handleEdit(nextAppt, true),
         done,
         onToggleDone: async (checked: boolean) => {
           const ok = await confirm(
@@ -129,7 +131,7 @@ export default function Home() {
         <CreateAppointmentModal
           onClose={() => setEditParams(null)}
           onCreated={async () => {
-            if (editParams?.appointment?.id) {
+            if (editParams?.fromRecurring && editParams.appointment?.id) {
               try {
                 await fetchJson(
                   `${API_BASE_URL}/appointments/${editParams.appointment.id}/recurring-done`,
