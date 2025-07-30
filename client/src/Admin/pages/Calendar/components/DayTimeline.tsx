@@ -72,11 +72,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
     observe?: boolean
   }) => {
     if (!selected) return
-    let url = `${API_BASE_URL}/appointments/${selected.id}`
-    if (selected.reoccurring) {
-      const apply = await confirm('Apply to all future occurrences?')
-      if (apply) url += '?future=true'
-    }
+    const url = `${API_BASE_URL}/appointments/${selected.id}`
     const res = await fetch(url, {
       method: 'PUT',
       headers: {
@@ -96,11 +92,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
 
   const handleSave = async () => {
     if (!selected) return
-    let url = `${API_BASE_URL}/appointments/${selected.id}`
-    if (selected.reoccurring) {
-      const apply = await confirm('Apply to all future occurrences?')
-      if (apply) url += '?future=true'
-    }
+    const url = `${API_BASE_URL}/appointments/${selected.id}`
     const res = await fetch(url, {
       method: 'PUT',
       headers: {
