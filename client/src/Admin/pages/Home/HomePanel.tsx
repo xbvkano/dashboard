@@ -18,12 +18,15 @@ export default function HomePanel({ title, cards, className = '' }: Props) {
     <div className={`bg-white rounded shadow flex flex-col ${className}`}>
       <div className="p-3 font-medium border-b">{title}</div>
       <div
-        className="bg-gray-50 overflow-y-auto"
+        className="bg-gray-50 overflow-y-auto p-3"
         style={{ maxHeight: '20rem', minHeight: '20rem' }}
       >
-        <ul className="divide-y">
+        <ul className="space-y-3">
           {cards.map((c) => (
-            <li key={c.key} className="p-3 flex justify-between items-center">
+            <li
+              key={c.key}
+              className="bg-white rounded shadow p-3 flex justify-between items-center"
+            >
               <div>{c.content}</div>
               {c.onAction && (
                 <button
