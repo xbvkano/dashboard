@@ -13,95 +13,8 @@ import { PDFDocument, StandardFonts, rgb, PDFFont } from 'pdf-lib'
 import nodemailer from 'nodemailer'
 import twilio from 'twilio'
 
-let lastRecurringCheck = ''
-
 async function ensureRecurringFuture() {
-  const todayStr = new Date().toISOString().slice(0, 10)
-  if (lastRecurringCheck === todayStr) return
-  lastRecurringCheck = todayStr
-
-  const lineages = await prisma.appointment.findMany({
-    where: { reoccurring: true },
-    select: { lineage: true },
-    distinct: ['lineage'],
-  })
-
-  for (const { lineage } of lineages) {
-    const latest = await prisma.appointment.findFirst({
-      where: { lineage, status: { notIn: ['DELETED', 'CANCEL'] } },
-      orderBy: { date: 'desc' },
-      include: { employees: true },
-    })
-    if (!latest) continue
-
-    const upcoming = await prisma.appointment.findMany({
-      where: {
-        lineage,
-        status: { notIn: ['DELETED', 'CANCEL'] },
-        date: { gte: new Date(todayStr) },
-      },
-      orderBy: { date: 'asc' },
-      include: { employees: true },
-    })
-    if (upcoming.length >= 10 || upcoming.length === 0) continue
-
-    let last = upcoming[upcoming.length - 1]
-    let prev =
-      upcoming.length >= 2
-        ? upcoming[upcoming.length - 2]
-        : await prisma.appointment.findFirst({
-            where: {
-              lineage,
-              status: { notIn: ['DELETED', 'CANCEL'] },
-              date: { lt: last.date },
-            },
-            orderBy: { date: 'desc' },
-          })
-    if (!prev) continue
-    const diffDays = Math.round(
-      (last.date.getTime() - prev.date.getTime()) / 86400000
-    )
-    const diffMonths =
-      last.date.getMonth() - prev.date.getMonth() +
-      12 * (last.date.getFullYear() - prev.date.getFullYear())
-    const byMonth = diffDays > 25 || diffMonths > 0
-
-    for (let i = upcoming.length; i < 10; i++) {
-      const nextDate = new Date(last.date)
-      if (byMonth) nextDate.setMonth(nextDate.getMonth() + diffMonths)
-      else nextDate.setDate(nextDate.getDate() + diffDays)
-
-      last = await prisma.appointment.create({
-        data: {
-          clientId: last.clientId,
-          adminId: last.adminId,
-          date: nextDate,
-          time: last.time,
-          type: last.type,
-          address: last.address,
-          cityStateZip: last.cityStateZip ?? undefined,
-          size: last.size ?? undefined,
-          hours: last.hours ?? null,
-          price: last.price ?? null,
-          paid: last.paid,
-          tip: last.tip,
-          carpetRooms: last.carpetRooms ?? null,
-          carpetPrice: last.carpetPrice ?? null,
-          paymentMethod: last.paymentMethod,
-          notes: last.notes ?? undefined,
-          status: 'REOCCURRING',
-          lineage,
-          reoccurring: true,
-          ...(last.employees.length && {
-            employees: {
-              connect: last.employees.map((e: { id: number }) => ({ id: e.id })),
-            },
-          }),
-        },
-        include: { employees: true },
-      })
-    }
-  }
+  return
 }
 
 import { staffOptionsData } from './data/staffOptions'
@@ -793,6 +706,32 @@ app.get('/appointments/no-team', async (_req: Request, res: Response) => {
   }
 })
 
+app.get('/appointments/upcoming-recurring', async (_req: Request, res: Response) => {
+  try {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const next = new Date(today)
+    next.setDate(next.getDate() + 7)
+    const appts = await prisma.appointment.findMany({
+      where: {
+        reoccurring: true,
+        reocuringDate: { gte: today, lte: next },
+        status: { notIn: ['DELETED', 'CANCEL'] },
+      },
+      orderBy: { reocuringDate: 'asc' },
+      include: { client: true, employees: true },
+    })
+    const results = appts.map((a) => ({
+      ...a,
+      daysLeft: Math.ceil((a.reocuringDate!.getTime() - today.getTime()) / 86400000),
+    }))
+    res.json(results)
+  } catch (err) {
+    console.error('Failed to fetch upcoming recurring appointments:', err)
+    res.status(500).json({ error: 'Failed to fetch appointments' })
+  }
+})
+
 app.post('/appointments/recurring', async (req: Request, res: Response) => {
   try {
     const {
@@ -846,70 +785,66 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
 
     const lineage = crypto.randomUUID()
     const first = new Date(date)
-    const created: any[] = []
-    for (let i = 0; i < count; i++) {
-      const d = new Date(first)
-      if (frequency === 'WEEKLY') d.setDate(d.getDate() + i * 7)
-      else if (frequency === 'BIWEEKLY') d.setDate(d.getDate() + i * 14)
-      else if (frequency === 'EVERY3') d.setDate(d.getDate() + i * 21)
-      else if (frequency === 'MONTHLY') d.setMonth(d.getMonth() + i)
-      else {
-        const m = parseInt(String(req.body.months || 1), 10)
-        d.setMonth(d.getMonth() + i * (isNaN(m) ? 1 : m))
-      }
-      const carpetRoomsFinal =
-        carpetRooms !== undefined ? carpetRooms : template.carpetRooms ?? null
-      let finalCarpetPrice = carpetPrice
-      if (finalCarpetPrice === undefined) {
-        if (template.carpetPrice != null && carpetRoomsFinal) {
-          finalCarpetPrice = template.carpetPrice
-        } else if (carpetRoomsFinal && template.size) {
-          const sqft = parseSqft(template.size)
-          if (sqft !== null) {
-            finalCarpetPrice =
-              carpetRoomsFinal * (sqft >= 4000 ? 40 : 35)
-          }
+    const nextDate = new Date(first)
+    if (frequency === 'WEEKLY') nextDate.setDate(nextDate.getDate() + 7)
+    else if (frequency === 'BIWEEKLY') nextDate.setDate(nextDate.getDate() + 14)
+    else if (frequency === 'EVERY3') nextDate.setDate(nextDate.getDate() + 21)
+    else if (frequency === 'MONTHLY') nextDate.setMonth(nextDate.getMonth() + 1)
+    else {
+      const m = parseInt(String(req.body.months || 1), 10)
+      nextDate.setMonth(nextDate.getMonth() + (isNaN(m) ? 1 : m))
+    }
+    const carpetRoomsFinal =
+      carpetRooms !== undefined ? carpetRooms : template.carpetRooms ?? null
+    let finalCarpetPrice = carpetPrice
+    if (finalCarpetPrice === undefined) {
+      if (template.carpetPrice != null && carpetRoomsFinal) {
+        finalCarpetPrice = template.carpetPrice
+      } else if (carpetRoomsFinal && template.size) {
+        const sqft = parseSqft(template.size)
+        if (sqft !== null) {
+          finalCarpetPrice = carpetRoomsFinal * (sqft >= 4000 ? 40 : 35)
         }
       }
-      const appt = await prisma.appointment.create({
-        data: {
-          clientId,
-          adminId,
-          date: d,
-          time,
-          type: template.type,
-          address: template.address,
-          cityStateZip: template.instructions ?? undefined,
-          size: template.size,
-          hours: hours ?? null,
-          price: template.price,
-          paid,
-          tip,
-          noTeam,
-          carpetRooms: carpetRoomsFinal,
-          carpetPrice: finalCarpetPrice ?? null,
-          carpetEmployees,
-          paymentMethod: paymentMethod as any,
-          notes:
-            [template.notes, paymentMethodNote].filter(Boolean).join(' | ') ||
-            undefined,
-          status: 'REOCCURRING',
-          lineage,
-          reoccurring: true,
-          ...(employeeIds.length > 0 && {
-            employees: {
-              connect: employeeIds.map((id) => ({ id })),
-            },
-          }),
-        },
-      })
-      if (!noTeam && employeeIds.length) {
-        await syncPayrollItems(appt.id, employeeIds)
-      }
-      created.push(appt)
+    }
+    const appt = await prisma.appointment.create({
+      data: {
+        clientId,
+        adminId,
+        date: first,
+        time,
+        type: template.type,
+        address: template.address,
+        cityStateZip: template.instructions ?? undefined,
+        size: template.size,
+        hours: hours ?? null,
+        price: template.price,
+        paid,
+        tip,
+        noTeam,
+        carpetRooms: carpetRoomsFinal,
+        carpetPrice: finalCarpetPrice ?? null,
+        carpetEmployees,
+        paymentMethod: paymentMethod as any,
+        notes:
+          [template.notes, paymentMethodNote].filter(Boolean).join(' | ') ||
+          undefined,
+        status: 'REOCCURRING',
+        lineage,
+        reoccurring: true,
+        reocuringDate: nextDate,
+        ...(employeeIds.length > 0 && {
+          employees: {
+            connect: employeeIds.map((id) => ({ id })),
+          },
+        }),
+      },
+    })
+    if (!noTeam && employeeIds.length) {
+      await syncPayrollItems(appt.id, employeeIds)
     }
 
-    res.json(created)
+    res.json(appt)
   } catch (err) {
     console.error('Error creating recurring appointments:', err)
     res.status(500).json({ error: 'Failed to create recurring appointments' })
@@ -1132,58 +1067,22 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       current.lineage === 'single' && (data.status === 'REOCCURRING' || req.body.reoccurring)
     if (convertToRecurring) {
       const lineage = crypto.randomUUID()
+      const frequency: string = req.body.frequency || 'WEEKLY'
+      const nextDate = new Date(data.date ? new Date(data.date) : current.date)
+      if (frequency === 'BIWEEKLY') nextDate.setDate(nextDate.getDate() + 14)
+      else if (frequency === 'EVERY3') nextDate.setDate(nextDate.getDate() + 21)
+      else if (frequency === 'MONTHLY') nextDate.setMonth(nextDate.getMonth() + 1)
+      else if (frequency === 'CUSTOM') {
+        const m = parseInt(String(req.body.months || 1), 10)
+        nextDate.setMonth(nextDate.getMonth() + (isNaN(m) ? 1 : m))
+      } else nextDate.setDate(nextDate.getDate() + 7)
+
       const updated = await prisma.appointment.update({
         where: { id: current.id },
-        data: { ...data, lineage, reoccurring: true },
+        data: { ...data, lineage, reoccurring: true, reocuringDate: nextDate },
         include: { employees: true, client: true },
       })
-
-      const frequency: string = req.body.frequency || 'WEEKLY'
-      const months = parseInt(String(req.body.months || 1), 10)
-      const results: any[] = [updated]
-      let last: any = updated
-      for (let i = 1; i < 10; i++) {
-        const nextDate = new Date(last.date)
-        if (frequency === 'BIWEEKLY') nextDate.setDate(nextDate.getDate() + 14)
-        else if (frequency === 'EVERY3') nextDate.setDate(nextDate.getDate() + 21)
-        else if (frequency === 'MONTHLY') nextDate.setMonth(nextDate.getMonth() + 1)
-        else if (frequency === 'CUSTOM') nextDate.setMonth(nextDate.getMonth() + months)
-        else nextDate.setDate(nextDate.getDate() + 7)
-
-        last = await prisma.appointment.create({
-          data: {
-            clientId: last.clientId,
-            adminId: last.adminId,
-            date: nextDate,
-            time: last.time,
-            type: last.type,
-            address: last.address,
-            cityStateZip: last.cityStateZip ?? undefined,
-            size: last.size ?? undefined,
-            hours: last.hours ?? null,
-            price: last.price ?? null,
-            paid: last.paid,
-            tip: last.tip,
-            noTeam: last.noTeam,
-            carpetRooms: last.carpetRooms ?? null,
-            carpetPrice: last.carpetPrice ?? null,
-            carpetEmployees: last.carpetEmployees ?? [],
-            paymentMethod: last.paymentMethod,
-            notes: last.notes ?? undefined,
-            status: 'REOCCURRING',
-            lineage,
-            reoccurring: true,
-            ...(last.employees.length && {
-              employees: {
-                connect: last.employees.map((e: { id: number }) => ({ id: e.id })),
-              },
-            }),
-          },
-          include: { employees: true },
-        })
-        results.push(last)
-      }
-      return res.json(results)
+      return res.json(updated)
     }
 
     if (future && current.lineage !== 'single') {
@@ -1209,89 +1108,21 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
         include: { employees: true },
       })
 
-      if (targets.length <= 1) {
-        const prev = await prisma.appointment.findFirst({
-          where: {
-            lineage: current.lineage,
-            status: { notIn: ['DELETED', 'CANCEL'] },
-            date: { lt: current.date },
-          },
-          orderBy: { date: 'desc' },
+      for (const appt of targets) {
+        const newDate = data.date ? new Date(appt.date.getTime() + dateDiff) : appt.date
+        const newTime = data.time ? minutesToTime(toMinutes(appt.time) + timeDiff) : appt.time
+        await prisma.appointment.update({
+          where: { id: appt.id },
+          data: { ...base, date: newDate, time: newTime },
         })
-
-        const newLineage = crypto.randomUUID()
-        const updated = await prisma.appointment.update({
-          where: { id: current.id },
-          data: { ...data, lineage: newLineage, reoccurring: true },
-          include: { client: true, employees: true },
-        })
-
-        const results: any[] = [updated]
-        if (prev) {
-          const diffDays = Math.round((updated.date.getTime() - prev.date.getTime()) / 86400000)
-          const diffMonths =
-            updated.date.getMonth() - prev.date.getMonth() +
-            12 * (updated.date.getFullYear() - prev.date.getFullYear())
-          const byMonth = diffDays > 25 || diffMonths > 0
-
-          let last: any = updated
-          for (let i = 1; i < 10; i++) {
-            const nextDate = new Date(last.date)
-            if (byMonth) nextDate.setMonth(nextDate.getMonth() + diffMonths)
-            else nextDate.setDate(nextDate.getDate() + diffDays)
-
-            last = await prisma.appointment.create({
-              data: {
-                clientId: last.clientId,
-                adminId: last.adminId,
-                date: nextDate,
-                time: last.time,
-                type: last.type,
-                address: last.address,
-                cityStateZip: last.cityStateZip ?? undefined,
-                size: last.size ?? undefined,
-                hours: last.hours ?? null,
-                price: last.price ?? null,
-                paid: last.paid,
-                tip: last.tip,
-                noTeam: last.noTeam,
-                carpetRooms: last.carpetRooms ?? null,
-                carpetPrice: last.carpetPrice ?? null,
-                carpetEmployees: last.carpetEmployees ?? [],
-                paymentMethod: last.paymentMethod,
-                notes: last.notes ?? undefined,
-                status: 'REOCCURRING',
-                lineage: newLineage,
-                reoccurring: true,
-                ...(last.employees.length && {
-                  employees: {
-                    connect: last.employees.map((e: { id: number }) => ({ id: e.id })),
-                  },
-                }),
-              },
-              include: { employees: true },
-            })
-            results.push(last)
-          }
-        }
-        res.json(results)
-      } else {
-        for (const appt of targets) {
-          const newDate = data.date ? new Date(appt.date.getTime() + dateDiff) : appt.date
-          const newTime = data.time ? minutesToTime(toMinutes(appt.time) + timeDiff) : appt.time
-          await prisma.appointment.update({
-            where: { id: appt.id },
-            data: { ...base, date: newDate, time: newTime },
-          })
-        }
-
-        const appts = await prisma.appointment.findMany({
-          where: { lineage: current.lineage, date: { gte: current.date } },
-          include: { client: true, employees: true },
-          orderBy: { date: 'asc' },
-        })
-        res.json(appts)
       }
+
+      const appts = await prisma.appointment.findMany({
+        where: { lineage: current.lineage, date: { gte: current.date } },
+        include: { client: true, employees: true },
+        orderBy: { date: 'asc' },
+      })
+      res.json(appts)
     } else {
       const appt = await prisma.appointment.update({
         where: { id },

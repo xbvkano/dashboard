@@ -721,7 +721,6 @@ const preserveTeamRef = useRef(false)
           ? 'MONTHLY'
           : 'CUSTOM'
       if (recurringOption === 'Other') extra.months = parseInt(recurringMonths || '1', 10)
-      extra.count = 6
     }
     let method: 'POST' | 'PUT' = 'POST'
     let payload: any = { ...body, ...extra }

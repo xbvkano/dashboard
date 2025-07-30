@@ -67,6 +67,7 @@ model Appointment {
   carpetPrice     Float?
   carpetEmployees Int[]
   reoccurring     Boolean         @default(false)
+  reocuringDate   DateTime?
   status          AppointmentStatus @default(APPOINTED)
   observe         Boolean         @default(false)
   observation     String?
