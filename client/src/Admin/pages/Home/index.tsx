@@ -6,6 +6,7 @@ import HomePanel, { HomePanelCard } from './HomePanel'
 
 export default function Home() {
   const [items, setItems] = useState<Appointment[]>([])
+  const [upcoming, setUpcoming] = useState<(Appointment & { daysLeft: number })[]>([])
   const [editParams, setEditParams] = useState<{
     clientId?: number
     templateId?: number | null
@@ -17,6 +18,9 @@ export default function Home() {
     fetchJson(`${API_BASE_URL}/appointments/no-team`)
       .then((d) => setItems(d))
       .catch(() => setItems([]))
+    fetchJson(`${API_BASE_URL}/appointments/upcoming-recurring`)
+      .then((d) => setUpcoming(d))
+      .catch(() => setUpcoming([]))
   }
 
   useEffect(() => {
@@ -64,9 +68,25 @@ export default function Home() {
     onAction: () => handleEdit(a),
   }))
 
+  const upcomingCards: HomePanelCard[] = upcoming.map((a) => {
+    const nextAppt = { ...a, date: a.reocuringDate }
+    return {
+      key: a.id!,
+      content: (
+        <div>
+          <div className="font-medium">{a.client?.name}</div>
+          <div className="text-sm text-gray-600">In {a.daysLeft} days</div>
+        </div>
+      ),
+      actionLabel: 'View',
+      onAction: () => handleEdit(nextAppt),
+    }
+  })
+
   return (
     <div className="p-4 space-y-4">
       <h2 className="text-xl font-semibold">Home</h2>
+      <HomePanel title="Upcoming Reocurring" cards={upcomingCards} />
       <HomePanel title="Appointments with no teams" cards={cards} />
       {editParams && (
         <CreateAppointmentModal
