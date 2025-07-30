@@ -7,6 +7,7 @@ import HomePanel, { HomePanelCard } from './HomePanel'
 export default function Home() {
   const [items, setItems] = useState<Appointment[]>([])
   const [upcoming, setUpcoming] = useState<(Appointment & { daysLeft: number })[]>([])
+  const [doneUpcoming, setDoneUpcoming] = useState<number[]>([])
   const [editParams, setEditParams] = useState<{
     clientId?: number
     templateId?: number | null
@@ -68,20 +69,35 @@ export default function Home() {
     onAction: () => handleEdit(a),
   }))
 
-  const upcomingCards: HomePanelCard[] = upcoming.map((a) => {
-    const nextAppt = { ...a, date: a.reocuringDate }
-    return {
-      key: a.id!,
-      content: (
-        <div>
-          <div className="font-medium">{a.client?.name}</div>
-          <div className="text-sm text-gray-600">In {a.daysLeft} days</div>
-        </div>
-      ),
-      actionLabel: 'View',
-      onAction: () => handleEdit(nextAppt),
-    }
-  })
+  const upcomingCards: HomePanelCard[] = upcoming
+    .slice()
+    .sort((a1, a2) => {
+      const d1 = doneUpcoming.includes(a1.id!)
+      const d2 = doneUpcoming.includes(a2.id!)
+      if (d1 === d2) return 0
+      return d1 ? 1 : -1
+    })
+    .map((a) => {
+      const nextAppt = { ...a, date: a.reocuringDate }
+      const done = doneUpcoming.includes(a.id!)
+      return {
+        key: a.id!,
+        content: (
+          <div>
+            <div className="font-medium">{a.client?.name}</div>
+            <div className="text-sm text-gray-600">In {a.daysLeft} days</div>
+          </div>
+        ),
+        actionLabel: 'View',
+        onAction: () => handleEdit(nextAppt),
+        done,
+        onToggleDone: (checked: boolean) => {
+          setDoneUpcoming((prev) =>
+            checked ? [...prev, a.id!] : prev.filter((id) => id !== a.id!)
+          )
+        },
+      }
+    })
 
   return (
     <div className="p-4 space-y-4">
