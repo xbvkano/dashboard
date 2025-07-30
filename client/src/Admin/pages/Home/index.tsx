@@ -20,8 +20,14 @@ export default function Home() {
       .then((d) => setItems(d))
       .catch(() => setItems([]))
     fetchJson(`${API_BASE_URL}/appointments/upcoming-recurring`)
-      .then((d) => setUpcoming(d))
-      .catch(() => setUpcoming([]))
+      .then((d) => {
+        setUpcoming(d)
+        setDoneUpcoming(d.filter((a: any) => a.recurringDone).map((a: any) => a.id))
+      })
+      .catch(() => {
+        setUpcoming([])
+        setDoneUpcoming([])
+      })
   }
 
   useEffect(() => {
@@ -91,10 +97,19 @@ export default function Home() {
         actionLabel: 'View',
         onAction: () => handleEdit(nextAppt),
         done,
-        onToggleDone: (checked: boolean) => {
-          setDoneUpcoming((prev) =>
-            checked ? [...prev, a.id!] : prev.filter((id) => id !== a.id!)
-          )
+        onToggleDone: async (checked: boolean) => {
+          try {
+            await fetchJson(`${API_BASE_URL}/appointments/${a.id}/recurring-done`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ done: checked }),
+            })
+            setDoneUpcoming((prev) =>
+              checked ? [...prev, a.id!] : prev.filter((id) => id !== a.id!)
+            )
+          } catch (err) {
+            console.error('Failed to update recurring done state', err)
+          }
         },
       }
     })
