@@ -26,6 +26,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   const [taxEnabled, setTaxEnabled] = useState(false)
   const [taxPercent, setTaxPercent] = useState('')
   const [comment, setComment] = useState('')
+  const [paid, setPaid] = useState(true)
 
   useEffect(() => {
     const cp = (appointment as any).carpetPrice
@@ -71,6 +72,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       discount: discount ? parseFloat(discount) : undefined,
       taxPercent: taxEnabled ? parseFloat(taxPercent) || 0 : undefined,
       comment: comment || undefined,
+      paid,
     }
     const newWindow = window.open('', '_blank')
     const res = await fetch(`${API_BASE_URL}/invoices`, {
@@ -107,11 +109,10 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       taxPercent: taxEnabled ? parseFloat(taxPercent) || 0 : undefined,
       comment: comment || undefined,
     }
-    const newWindow = window.open('', '_blank')
     const res = await fetch(`${API_BASE_URL}/invoices`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, paid }),
     })
     if (res.ok) {
       const data = await res.json()
@@ -123,15 +124,8 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
           body: JSON.stringify({ email }),
         })
       }
-      const url = `${API_BASE_URL}/invoices/${data.id}/pdf`
-      if (newWindow) {
-        newWindow.location.href = url
-      } else {
-        window.location.href = url
-      }
       onClose()
     } else {
-      if (newWindow) newWindow.close()
       await alert('Failed to create invoice')
     }
   }
@@ -208,6 +202,12 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
           {taxEnabled && (
             <input type="number" className="w-full border p-2 rounded mt-1" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} placeholder="Percent" />
           )}
+        </div>
+        <div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={!paid} onChange={(e) => setPaid(!e.target.checked)} />
+            Not Paid
+          </label>
         </div>
         <div className="font-medium">Total: ${total.toFixed(2)}</div>
         <div className="flex justify-end gap-2 pt-2">
