@@ -452,6 +452,16 @@ app.put('/clients/:id', async (req: Request, res: Response) => {
   }
 })
 
+app.delete('/clients/:id', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10)
+  try {
+    await prisma.client.delete({ where: { id } })
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to delete client' })
+  }
+})
+
 app.get('/employees', async (req: Request, res: Response) => {
   const searchTerm = String(req.query.search || '').trim()
   const skip = parseInt(String(req.query.skip || '0'), 10)
@@ -546,6 +556,16 @@ app.put('/employees/:id', async (req: Request, res: Response) => {
     res.json(employee)
   } catch (e) {
     res.status(500).json({ error: 'Failed to update employee' })
+  }
+})
+
+app.delete('/employees/:id', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10)
+  try {
+    await prisma.employee.delete({ where: { id } })
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to delete employee' })
   }
 })
 

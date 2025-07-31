@@ -6,7 +6,7 @@ import { Client } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 
 export default function ClientForm() {
-  const { alert } = useModal()
+  const { alert, confirm } = useModal()
   const { id } = useParams()
   const navigate = useNavigate()
   const isNew = id === undefined
@@ -75,6 +75,23 @@ export default function ClientForm() {
     navigate('..')
   }
 
+  const handleDelete = async () => {
+    if (!id) return
+    const ok = await confirm('Delete this client?')
+    if (!ok) return
+    const res = await fetch(`${API_BASE_URL}/clients/${id}`, {
+      method: 'DELETE',
+      headers: { 'ngrok-skip-browser-warning': '1' },
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      await alert(err.error || 'Failed to delete')
+      return
+    }
+    clearFormPersistence(storageKey)
+    navigate('..')
+  }
+
   return (
     <form onSubmit={handleSubmit} className="p-4 space-y-3">
       <div>
@@ -125,9 +142,20 @@ export default function ClientForm() {
         />
         <label htmlFor="disabled" className="text-sm">Disable</label>
       </div>
-      <button className="bg-blue-500 text-white px-4 py-2 rounded" type="submit">
-        Save
-      </button>
+      <div className="flex gap-2">
+        <button className="bg-blue-500 text-white px-4 py-2 rounded" type="submit">
+          Save
+        </button>
+        {!isNew && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="bg-red-500 text-white px-4 py-2 rounded"
+          >
+            Delete
+          </button>
+        )}
+      </div>
     </form>
   )
 }
