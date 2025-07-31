@@ -10,6 +10,8 @@ interface Props {
 
 export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   const { alert } = useModal()
+  const [sendEmail, setSendEmail] = useState('')
+  const [showEmailModal, setShowEmailModal] = useState(false)
   const [clientName, setClientName] = useState(appointment.client?.name || '')
   const [billedTo, setBilledTo] = useState(appointment.client?.name || '')
   const [address, setAddress] = useState(appointment.address)
@@ -95,7 +97,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     }
   }
 
-  const send = async () => {
+  const sendInvoice = async (email: string) => {
     const payload = {
       clientName,
       billedTo,
@@ -116,14 +118,11 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     })
     if (res.ok) {
       const data = await res.json()
-      const email = prompt('Email address to send invoice to:')
-      if (email) {
-        await fetch(`${API_BASE_URL}/invoices/${data.id}/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
-          body: JSON.stringify({ email }),
-        })
-      }
+      await fetch(`${API_BASE_URL}/invoices/${data.id}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+        body: JSON.stringify({ email }),
+      })
       onClose()
     } else {
       await alert('Failed to create invoice')
@@ -213,9 +212,21 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         <div className="flex justify-end gap-2 pt-2">
           <button className="px-4 py-1" onClick={onClose}>Cancel</button>
           <button className="px-4 py-1 bg-blue-500 text-white rounded" onClick={create}>Create</button>
-          <button className="px-4 py-1 bg-green-600 text-white rounded" onClick={send}>Send</button>
+          <button className="px-4 py-1 bg-green-600 text-white rounded" onClick={() => setShowEmailModal(true)}>Send</button>
         </div>
       </div>
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40" onClick={() => setShowEmailModal(false)}>
+          <div className="bg-white p-4 rounded w-full max-w-xs space-y-2" onClick={(e) => e.stopPropagation()}>
+            <h4 className="font-medium">Send Invoice</h4>
+            <input type="email" className="w-full border p-2 rounded" placeholder="Email" value={sendEmail} onChange={(e) => setSendEmail(e.target.value)} />
+            <div className="flex justify-end gap-2">
+              <button className="px-4 py-1" onClick={() => setShowEmailModal(false)}>Cancel</button>
+              <button className="px-4 py-1 bg-green-600 text-white rounded disabled:opacity-50" disabled={!sendEmail} onClick={() => { sendInvoice(sendEmail); setShowEmailModal(false); }}>Send</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -106,7 +106,7 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
     const logoPath = path.resolve(__dirname, '..', '..', 'client', 'public', 'logo.png')
     const logoBytes = fs.readFileSync(logoPath)
     const logoImg = await pdf.embedPng(logoBytes)
-    const logoWidth = 80
+    const logoWidth = 50
     const scale = logoWidth / logoImg.width
     const logoHeight = logoImg.height * scale
     page.drawImage(logoImg, {
@@ -127,20 +127,6 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
     page.drawText('Evidence Cleaning', { x: margin, y: y - 20, size: 22, font: bold, color: lightBlue })
   }
 
-  if (inv.paid === false) {
-    const wm = 'NOT PAID'
-    const size = 80
-    const wmWidth = bold.widthOfTextAtSize(wm, size)
-    page.drawText(wm, {
-      x: width / 2 - wmWidth / 2,
-      y: height / 2,
-      size,
-      font: bold,
-      color: rgb(1, 0, 0),
-      rotate: degrees(45),
-      opacity: 0.3,
-    })
-  }
 
   // Section 1 - company / invoice info
   const companyInfo = [
@@ -250,6 +236,21 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
   page.drawText(qText, { x: centerX(qText, 11, font), y, font, size: 11 })
   page.drawText(cText, { x: centerX(cText, 11, font), y: y - 14, font, size: 11 })
   page.drawText(tText, { x: centerX(tText, 12, bold), y: y - 28, font: bold, size: 12 })
+
+  if (inv.paid === false) {
+    const wm = 'NOT PAID'
+    const size = 80
+    const wmWidth = bold.widthOfTextAtSize(wm, size)
+    page.drawText(wm, {
+      x: width / 2 - wmWidth / 2,
+      y: height / 2,
+      size,
+      font: bold,
+      color: rgb(1, 0, 0),
+      rotate: degrees(45),
+      opacity: 0.3,
+    })
+  }
 
   const bytes = await pdf.save()
   return Buffer.from(bytes)
@@ -1344,7 +1345,7 @@ app.post('/invoices/:id/send', async (req: Request, res: Response) => {
     })
 
     await transport.sendMail({
-      from: process.env.SMTP_FROM || 'no-reply@example.com',
+      from: process.env.MAILTRAP_FROM || 'no-reply@example.com',
       to: email,
       subject: 'Evidence Cleaning Invoice',
       text:
