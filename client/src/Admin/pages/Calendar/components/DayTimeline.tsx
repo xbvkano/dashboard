@@ -6,6 +6,7 @@ import {
   type Ref,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import type { Appointment } from '../types'
 import { API_BASE_URL } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
@@ -52,6 +53,7 @@ interface DayProps {
 
 function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate, onEdit }: DayProps) {
   const { alert, confirm } = useModal()
+  const navigate = useNavigate()
   const [selected, setSelected] = useState<Appointment | null>(null)
   const [overlayTop, setOverlayTop] = useState(0)
   const [overlayHeight, setOverlayHeight] = useState(0)
@@ -573,6 +575,17 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                   Send Info
                 </button>
               )}
+              <button
+                className="px-4 py-1 bg-green-600 text-white rounded"
+                onClick={() => {
+                  if (!selected) return
+                  navigate(
+                    `/dashboard/financing/invoice?date=${selected.date.slice(0, 10)}&appt=${selected.id}`,
+                  )
+                }}
+              >
+                Invoice
+              </button>
               <button
                 className="px-4 py-1 bg-green-500 text-white rounded disabled:opacity-50"
                 disabled={paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))}

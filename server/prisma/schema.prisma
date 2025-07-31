@@ -13,6 +13,7 @@ model User {
   email String @unique
   name  String?
   role  Role   @default(EMPLOYEE)
+  safe  Boolean @default(false)
 
   appointments Appointment[] @relation("AdminAppointments")
 }

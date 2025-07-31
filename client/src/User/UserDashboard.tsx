@@ -6,8 +6,10 @@ interface Props {
 
 export default function UserDashboard({ onLogout }: Props) {
   const navigate = useNavigate()
+  const isSafe = localStorage.getItem('safe') === 'true'
   const signOut = () => {
     localStorage.removeItem('role')
+    localStorage.removeItem('safe')
     onLogout()
     navigate('/')
   }
@@ -16,7 +18,11 @@ export default function UserDashboard({ onLogout }: Props) {
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">User Dashboard</h2>
-        <button className="px-2 py-1" onClick={signOut}>Sign Out</button>
+        {!isSafe && (
+          <button className="px-2 py-1" onClick={signOut}>
+            Sign Out
+          </button>
+        )}
       </div>
       <p>Welcome, user!</p>
     </div>
