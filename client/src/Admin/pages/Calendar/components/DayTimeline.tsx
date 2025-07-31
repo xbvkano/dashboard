@@ -373,6 +373,11 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
             </div>
             <div className="text-sm">Address: {selected.address}</div>
             <div className="text-sm">Type: {selected.type}</div>
+            {selected.admin && (
+              <div className="text-sm">
+                Admin: {selected.admin.name ?? selected.admin.email}
+              </div>
+            )}
             <div className="text-sm">Date &amp; Time: {selected.date.slice(0, 10)} {selected.time}</div>
             {selected.employees && selected.employees.length > 0 && (
               <div className="text-sm">

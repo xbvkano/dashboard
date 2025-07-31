@@ -32,6 +32,7 @@ export interface Appointment {
   noTeam?: boolean
   carpetRooms?: number
   carpetPrice?: number
+  adminId?: number
   reoccurring?: boolean
   reocuringDate?: string
   recurringDone?: boolean
@@ -48,5 +49,6 @@ export interface Appointment {
     | 'DELETED'
   client?: import('../Clients/components/types').Client
   employees?: import('../Employees/components/types').Employee[]
+  admin?: { id: number; name: string | null; email: string }
   createdAt?: string
 }

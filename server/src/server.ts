@@ -708,7 +708,7 @@ app.get('/appointments', async (req: Request, res: Response) => {
         status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
       },
       orderBy: { time: 'asc' },
-      include: { client: true, employees: true },
+      include: { client: true, employees: true, admin: true },
     })
     res.json(appts)
   } catch (e) {
@@ -722,7 +722,7 @@ app.get('/appointments/lineage/:lineage', async (req: Request, res: Response) =>
     const appts = await prisma.appointment.findMany({
       where: { lineage },
       orderBy: { date: 'asc' },
-      include: { client: true, employees: true },
+      include: { client: true, employees: true, admin: true },
     })
     res.json(appts)
   } catch {
@@ -738,7 +738,7 @@ app.get('/appointments/no-team', async (_req: Request, res: Response) => {
         status: { notIn: ['DELETED', 'RESCHEDULE_OLD', 'CANCEL'] },
       },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
-      include: { client: true, employees: true },
+      include: { client: true, employees: true, admin: true },
     })
     res.json(appts)
   } catch (err) {
@@ -760,7 +760,7 @@ app.get('/appointments/upcoming-recurring', async (_req: Request, res: Response)
         status: { notIn: ['DELETED', 'CANCEL'] },
       },
       orderBy: { reocuringDate: 'asc' },
-      include: { client: true, employees: true },
+      include: { client: true, employees: true, admin: true },
     })
     const results = appts.map((a: any) => ({
       ...a,
@@ -781,7 +781,7 @@ app.put('/appointments/:id/recurring-done', async (req: Request, res: Response) 
     const appt = await prisma.appointment.update({
       where: { id },
       data: { recurringDone: done },
-      include: { client: true, employees: true },
+      include: { client: true, employees: true, admin: true },
     })
     res.json(appt)
   } catch (err) {
@@ -897,6 +897,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
           },
         }),
       },
+      include: { client: true, employees: true, admin: true },
     })
     if (!noTeam && employeeIds.length) {
       await syncPayrollItems(appt.id, employeeIds)
@@ -1007,6 +1008,7 @@ app.post('/appointments', async (req: Request, res: Response) => {
           },
         }),
       },
+      include: { client: true, employees: true, admin: true },
     })
 
     if (!noTeam && employeeIds.length) {
@@ -1118,7 +1120,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       data.observation = null
     }
     const future = req.query.future === 'true'
-    const current = await prisma.appointment.findUnique({ where: { id }, include: { employees: true, client: true } })
+    const current = await prisma.appointment.findUnique({ where: { id }, include: { employees: true, client: true, admin: true } })
     if (!current) return res.status(404).json({ error: 'Not found' })
 
     const convertToRecurring =
@@ -1138,7 +1140,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       const updated = await prisma.appointment.update({
         where: { id: current.id },
         data: { ...data, lineage, reoccurring: true, reocuringDate: nextDate },
-        include: { employees: true, client: true },
+        include: { employees: true, client: true, admin: true },
       })
       return res.json(updated)
     }
@@ -1177,7 +1179,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
 
       const appts = await prisma.appointment.findMany({
         where: { lineage: current.lineage, date: { gte: current.date } },
-        include: { client: true, employees: true },
+        include: { client: true, employees: true, admin: true },
         orderBy: { date: 'asc' },
       })
       res.json(appts)
@@ -1185,7 +1187,7 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       const appt = await prisma.appointment.update({
         where: { id },
         data,
-        include: { client: true, employees: true },
+        include: { client: true, employees: true, admin: true },
       })
       if (employeeIds && !noTeam) {
         await syncPayrollItems(appt.id, employeeIds)
@@ -1205,7 +1207,7 @@ app.post('/appointments/:id/send-info', async (req: Request, res: Response) => {
     const note = String((req.body as any).note || '')
     const appt = await prisma.appointment.findUnique({
       where: { id },
-      include: { client: true, employees: true },
+      include: { client: true, employees: true, admin: true },
     })
     if (!appt) return res.status(404).json({ error: 'Not found' })
 
@@ -1240,7 +1242,7 @@ app.post('/appointments/:id/send-info', async (req: Request, res: Response) => {
     const updated = await prisma.appointment.update({
       where: { id },
       data: { infoSent: true },
-      include: { client: true, employees: true },
+      include: { client: true, employees: true, admin: true },
     })
 
     res.json(updated)

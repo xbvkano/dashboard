@@ -118,12 +118,17 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     })
     if (res.ok) {
       const data = await res.json()
-      await fetch(`${API_BASE_URL}/invoices/${data.id}/send`, {
+      const sendRes = await fetch(`${API_BASE_URL}/invoices/${data.id}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
         body: JSON.stringify({ email }),
       })
-      onClose()
+      if (sendRes.ok) {
+        onClose()
+      } else {
+        const text = await sendRes.text()
+        await alert(text || 'Failed to send invoice')
+      }
     } else {
       await alert('Failed to create invoice')
     }
