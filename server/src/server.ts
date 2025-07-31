@@ -9,7 +9,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { OAuth2Client } from 'google-auth-library'
 import axios from 'axios'
 import crypto from 'crypto'
-import { PDFDocument, StandardFonts, rgb, PDFFont } from 'pdf-lib'
+import { PDFDocument, StandardFonts, rgb, PDFFont, degrees } from 'pdf-lib'
 import nodemailer from 'nodemailer'
 import twilio from 'twilio'
 
@@ -100,9 +100,49 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
   const gray = rgb(0.93, 0.93, 0.93)
 
   let y = height - margin
+  let infoX = margin
+
+  try {
+    const logoPath = path.resolve(__dirname, '..', '..', 'client', 'public', 'logo.png')
+    const logoBytes = fs.readFileSync(logoPath)
+    const logoImg = await pdf.embedPng(logoBytes)
+    const logoWidth = 80
+    const scale = logoWidth / logoImg.width
+    const logoHeight = logoImg.height * scale
+    page.drawImage(logoImg, {
+      x: margin,
+      y: y - logoHeight,
+      width: logoWidth,
+      height: logoHeight,
+    })
+    infoX = margin + logoWidth + 10
+    page.drawText('Evidence Cleaning', {
+      x: infoX,
+      y: y - 20,
+      size: 22,
+      font: bold,
+      color: lightBlue,
+    })
+  } catch (err) {
+    page.drawText('Evidence Cleaning', { x: margin, y: y - 20, size: 22, font: bold, color: lightBlue })
+  }
+
+  if (inv.paid === false) {
+    const wm = 'NOT PAID'
+    const size = 80
+    const wmWidth = bold.widthOfTextAtSize(wm, size)
+    page.drawText(wm, {
+      x: width / 2 - wmWidth / 2,
+      y: height / 2,
+      size,
+      font: bold,
+      color: rgb(1, 0, 0),
+      rotate: degrees(45),
+      opacity: 0.3,
+    })
+  }
 
   // Section 1 - company / invoice info
-  page.drawText('Evidence Cleaning', { x: margin, y: y - 20, size: 22, font: bold, color: lightBlue })
   const companyInfo = [
     '850 E desert inn rd',
     'Las Vegas, NV, 89109',
@@ -112,7 +152,7 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
   ]
   let infoY = y - 40
   companyInfo.forEach((l) => {
-    page.drawText(l, { x: margin, y: infoY, size: 10, font })
+    page.drawText(l, { x: infoX, y: infoY, size: 10, font })
     infoY -= 12
   })
 
@@ -1224,6 +1264,7 @@ app.post('/invoices', async (req: Request, res: Response) => {
       discount,
       taxPercent,
       comment,
+      paid,
     } = req.body as {
       clientName?: string
       billedTo?: string
@@ -1236,6 +1277,7 @@ app.post('/invoices', async (req: Request, res: Response) => {
       discount?: number
       taxPercent?: number
       comment?: string
+      paid?: boolean
     }
     if (!clientName || !billedTo || !address || !serviceDate || !serviceTime || !serviceType || price === undefined) {
       return res.status(400).json({ error: 'Missing fields' })
@@ -1255,6 +1297,7 @@ app.post('/invoices', async (req: Request, res: Response) => {
         discount: discount ?? null,
         taxPercent: taxPercent ?? null,
         comment: comment ?? null,
+        paid: paid ?? true,
         total,
       },
     })

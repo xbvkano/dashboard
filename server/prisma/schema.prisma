@@ -171,6 +171,7 @@ model Invoice {
   discount    Float?
   taxPercent  Float?
   comment     String?
+  paid        Boolean  @default(true)
   total       Float
   createdAt   DateTime @default(now())
 }
