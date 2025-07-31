@@ -160,9 +160,18 @@ export default function Payroll() {
               </div>
               <ul className="text-sm list-disc pl-4">
                 {d.items.map((it, idx) => (
-                  <li key={idx}>
+                  <li key={idx} className="mb-1">
                     {it.service}, {it.date.slice(0, 10)}, ${it.amount.toFixed(2)}
                     {it.tip ? ` + ${it.tip.toFixed(2)} tip` : ''}
+                    {it.extras &&
+                      it.extras.map((ex: any, ei: number) => (
+                        <div key={ei} className="pl-4 flex items-start relative">
+                          <div className="absolute left-0 top-0 w-3 h-3 border-l border-b border-gray-400" />
+                          <span className="ml-3">
+                            {ex.name}: ${ex.amount.toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
                   </li>
                 ))}
               </ul>

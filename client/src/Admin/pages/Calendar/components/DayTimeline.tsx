@@ -68,6 +68,9 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
   const [showSendInfo, setShowSendInfo] = useState(false)
   const [note, setNote] = useState('')
   const [observation, setObservation] = useState('')
+  const [extraFor, setExtraFor] = useState<number | null>(null)
+  const [extraName, setExtraName] = useState('')
+  const [extraAmount, setExtraAmount] = useState('')
 
   const updateAppointment = async (data: {
     status?: Appointment['status']
@@ -141,6 +144,33 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
     } else {
       await alert('Failed to send info')
     }
+  }
+
+  const openExtra = (empId: number) => {
+    setExtraFor(empId)
+    setExtraName('')
+    setExtraAmount('')
+  }
+
+  const saveExtra = async () => {
+    if (!selected || extraFor == null) return
+    const amt = parseFloat(extraAmount) || 0
+    await fetch(`${API_BASE_URL}/payroll/extra`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '1',
+      },
+      body: JSON.stringify({
+        appointmentId: selected.id,
+        employeeId: extraFor,
+        name: extraName || 'Extra',
+        amount: amt,
+      }),
+    })
+    setExtraFor(null)
+    setExtraName('')
+    setExtraAmount('')
   }
 
   useEffect(() => {
@@ -417,6 +447,12 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                             </>
                           ) : null}
                         </span>
+                        <button
+                          className="text-blue-500 text-xs ml-2"
+                          onClick={() => openExtra(e.id!)}
+                        >
+                          Add extra
+                        </button>
                       </li>
                     )
                   })}
@@ -722,6 +758,40 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                       onClick={handleSendInfo}
                     >
                       Send
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {extraFor != null && (
+              <div
+                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                onClick={() => setExtraFor(null)}
+              >
+                <div
+                  className="bg-white p-4 rounded space-y-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="font-medium">Add Extra Item</div>
+                  <input
+                    className="border p-2 rounded w-full"
+                    placeholder="Name"
+                    value={extraName}
+                    onChange={(e) => setExtraName(e.target.value)}
+                  />
+                  <input
+                    type="number"
+                    className="border p-2 rounded w-full"
+                    placeholder="Amount"
+                    value={extraAmount}
+                    onChange={(e) => setExtraAmount(e.target.value)}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button className="px-4 py-1 border rounded" onClick={() => setExtraFor(null)}>
+                      Cancel
+                    </button>
+                    <button className="px-4 py-1 bg-blue-500 text-white rounded" onClick={saveExtra}>
+                      Add
                     </button>
                   </div>
                 </div>
