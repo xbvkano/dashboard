@@ -901,7 +901,7 @@ const preserveTeamRef = useRef(false)
                   value={templateForm.address}
                   onChange={(e) => setTemplateForm({ ...templateForm, address: e.target.value })}
                 />
-                <h4 className="font-light">Instructions:</h4>
+                <h4 className="font-light">Instructions: (Gate code, door code, pets, etc)</h4>
                 <textarea
                   id="appointment-template-instructions"
                   className="w-full border p-2 rounded text-base"
