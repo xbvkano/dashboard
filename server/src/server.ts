@@ -1332,13 +1332,20 @@ app.post('/appointments/:id/send-info', async (req: Request, res: Response) => {
         : 0
 
     for (const e of appt.employees) {
+      const extras =
+        appt.payrollItems.find((p: any) => p.employeeId === e.id)?.extras || []
+      const extrasTotal = extras.reduce(
+        (sum: number, ex: any) => sum + ex.amount,
+        0,
+      )
+      const total = pay + (carpetIds.includes(e.id) ? carpetPer : 0) + extrasTotal
       const body = [
         `New appointment from Evidence Cleaning`,
         `Appointment Date: ${appt.date.toISOString().slice(0, 10)}`,
         `Appointment Time: ${appt.time}`,
         `Appointment Type: ${appt.type}`,
         `Address: ${appt.address}`,
-        `Pay: $${(pay + (carpetIds.includes(e.id) ? carpetPer : 0)).toFixed(2)}`,
+        `Pay: $${total.toFixed(2)}`,
         appt.cityStateZip ? `Instructions: ${appt.cityStateZip}` : undefined,
         note && `Note: ${note}`,
       ]
