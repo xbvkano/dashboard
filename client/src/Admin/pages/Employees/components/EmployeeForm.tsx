@@ -53,7 +53,7 @@ export default function EmployeeForm() {
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    const digits = value.replace(/\D/g, '').slice(0, 10)
+    const digits = value.replace(/\D/g, '').slice(0, 11)
     const updated = { ...data, [name]: digits }
     persist(updated)
     setData(updated)
@@ -63,7 +63,7 @@ export default function EmployeeForm() {
     e.preventDefault()
     const payload = {
       name: data.name,
-      number: data.number,
+      number: data.number.length === 10 ? '1' + data.number : data.number,
       notes: data.notes,
       experienced: data.experienced,
       disabled: data.disabled ?? false,
@@ -99,7 +99,7 @@ export default function EmployeeForm() {
       </div>
       <div>
         <label htmlFor="employee-number" className="block text-sm">
-          Number <span className="text-red-500">*</span>
+          Phone number <span className="text-red-500">*</span>
         </label>
         <input
           id="employee-number"
@@ -107,7 +107,7 @@ export default function EmployeeForm() {
           value={data.number}
           onChange={handleNumberChange}
           type="tel"
-          pattern="\d{10}"
+          pattern="\d{10,11}"
           required
           className="w-full border p-2 rounded"
         />

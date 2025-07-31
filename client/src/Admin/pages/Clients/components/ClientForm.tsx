@@ -41,7 +41,7 @@ export default function ClientForm() {
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    const digits = value.replace(/\D/g, '').slice(0, 10)
+    const digits = value.replace(/\D/g, '').slice(0, 11)
     const updated = { ...data, [name]: digits }
     persist(updated)
     setData(updated)
@@ -57,7 +57,7 @@ export default function ClientForm() {
     e.preventDefault()
     const payload = {
       name: data.name,
-      number: data.number,
+      number: data.number.length === 10 ? '1' + data.number : data.number,
       notes: data.notes,
       disabled: data.disabled ?? false,
     }
@@ -92,7 +92,7 @@ export default function ClientForm() {
       </div>
       <div>
         <label htmlFor="client-number" className="block text-sm">
-          Number <span className="text-red-500">*</span>
+          Phone number <span className="text-red-500">*</span>
         </label>
         <input
           id="client-number"
@@ -100,7 +100,7 @@ export default function ClientForm() {
           value={data.number}
           onChange={handleNumberChange}
           type="tel"
-          pattern="\d{10}"
+          pattern="\d{10,11}"
           required
           className="w-full border p-2 rounded"
         />
