@@ -750,12 +750,17 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                               (selected as any).carpetRooms || 0,
                             ) /
                               (carpetIds.length || 1)))
-                        const total = base + (carpet || 0)
+                        const extras =
+                          selected.payrollItems?.find((p) => p.employeeId === e.id)?.extras || []
+                        const extrasTotal = extras.reduce((sum, ex) => sum + ex.amount, 0)
+                        const total = base + (carpet || 0) + extrasTotal
                         return (
                           <li key={e.id}>
                             {e.name} - $
                             {onCarpet && carpet ? (
-                              `${base.toFixed(2)} + ${carpet.toFixed(2)} = ${total.toFixed(2)}`
+                              `${base.toFixed(2)} + ${carpet.toFixed(2)}$${extrasTotal ? ` + ${extrasTotal.toFixed(2)}` : ''} = ${total.toFixed(2)}`
+                            ) : extrasTotal ? (
+                              `${base.toFixed(2)} + ${extrasTotal.toFixed(2)} = ${total.toFixed(2)}`
                             ) : (
                               total.toFixed(2)
                             )}
