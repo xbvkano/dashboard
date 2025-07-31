@@ -769,7 +769,12 @@ app.get('/appointments', async (req: Request, res: Response) => {
         status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
       },
       orderBy: { time: 'asc' },
-      include: { client: true, employees: true, admin: true },
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
     })
     res.json(appts)
   } catch (e) {
@@ -783,7 +788,12 @@ app.get('/appointments/lineage/:lineage', async (req: Request, res: Response) =>
     const appts = await prisma.appointment.findMany({
       where: { lineage },
       orderBy: { date: 'asc' },
-      include: { client: true, employees: true, admin: true },
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
     })
     res.json(appts)
   } catch {
@@ -799,7 +809,12 @@ app.get('/appointments/no-team', async (_req: Request, res: Response) => {
         status: { notIn: ['DELETED', 'RESCHEDULE_OLD', 'CANCEL'] },
       },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
-      include: { client: true, employees: true, admin: true },
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
     })
     res.json(appts)
   } catch (err) {
@@ -821,7 +836,12 @@ app.get('/appointments/upcoming-recurring', async (_req: Request, res: Response)
         status: { notIn: ['DELETED', 'CANCEL'] },
       },
       orderBy: { reocuringDate: 'asc' },
-      include: { client: true, employees: true, admin: true },
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
     })
     const results = appts.map((a: any) => ({
       ...a,
@@ -842,7 +862,12 @@ app.put('/appointments/:id/recurring-done', async (req: Request, res: Response) 
     const appt = await prisma.appointment.update({
       where: { id },
       data: { recurringDone: done },
-      include: { client: true, employees: true, admin: true },
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
     })
     res.json(appt)
   } catch (err) {
@@ -958,7 +983,12 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
           },
         }),
       },
-      include: { client: true, employees: true, admin: true },
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
     })
     if (!noTeam && employeeIds.length && !['CANCEL', 'DELETED'].includes(status)) {
       await syncPayrollItems(appt.id, employeeIds)
@@ -1069,7 +1099,12 @@ app.post('/appointments', async (req: Request, res: Response) => {
           },
         }),
       },
-      include: { client: true, employees: true, admin: true },
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
     })
 
     if (!noTeam && employeeIds.length) {
@@ -1240,7 +1275,12 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
 
       const appts = await prisma.appointment.findMany({
         where: { lineage: current.lineage, date: { gte: current.date } },
-        include: { client: true, employees: true, admin: true },
+        include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
         orderBy: { date: 'asc' },
       })
       res.json(appts)
@@ -1248,7 +1288,12 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
       const appt = await prisma.appointment.update({
         where: { id },
         data,
-        include: { client: true, employees: true, admin: true },
+        include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
       })
       if (appt.status === 'CANCEL' || appt.status === 'DELETED') {
         await prisma.payrollItem.deleteMany({ where: { appointmentId: appt.id } })
@@ -1270,7 +1315,12 @@ app.post('/appointments/:id/send-info', async (req: Request, res: Response) => {
     const note = String((req.body as any).note || '')
     const appt = await prisma.appointment.findUnique({
       where: { id },
-      include: { client: true, employees: true, admin: true },
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
     })
     if (!appt) return res.status(404).json({ error: 'Not found' })
 
@@ -1305,7 +1355,12 @@ app.post('/appointments/:id/send-info', async (req: Request, res: Response) => {
     const updated = await prisma.appointment.update({
       where: { id },
       data: { infoSent: true },
-      include: { client: true, employees: true, admin: true },
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
     })
 
     res.json(updated)
@@ -1483,7 +1538,7 @@ app.get('/payroll/due', async (_req: Request, res: Response) => {
       }
     }
     const amount = pay + (carpetIds.includes(e.id) ? carpetShare : 0)
-    const extras = it.extras.map((ex) => ({ name: ex.name, amount: ex.amount }))
+    const extras = it.extras.map((ex: any) => ({ name: ex.name, amount: ex.amount }))
     map[e.id].items.push({
       service: appt.type,
       date: appt.date,
@@ -1578,7 +1633,12 @@ app.post('/payroll/extra', async (req: Request, res: Response) => {
       amount,
     },
   })
-  res.json({ id: extra.id })
+  res.json({
+    id: extra.id,
+    employeeId: extra.employeeId,
+    name: extra.name,
+    amount: extra.amount,
+  })
 })
 
 app.get('/payroll/paid', async (_req: Request, res: Response) => {
@@ -1604,7 +1664,7 @@ app.post('/payroll/pay', async (req: Request, res: Response) => {
   const others = await prisma.manualPayrollItem.findMany({
     where: { employeeId, paid: false, payrollItemId: null },
   })
-  const extras = items.flatMap((it) => it.extras)
+  const extras = items.flatMap((it: any) => it.extras)
   let totalDue = employee.prevBalance || 0
   for (const it of items) {
     const c = it.appointment.employees.length || 1

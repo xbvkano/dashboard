@@ -155,7 +155,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
   const saveExtra = async () => {
     if (!selected || extraFor == null) return
     const amt = parseFloat(extraAmount) || 0
-    await fetch(`${API_BASE_URL}/payroll/extra`, {
+    const res = await fetch(`${API_BASE_URL}/payroll/extra`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -168,6 +168,20 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
         amount: amt,
       }),
     })
+    if (res.ok) {
+      const ex = await res.json()
+      setSelected((curr) => {
+        if (!curr) return curr
+        const items = curr.payrollItems ? [...curr.payrollItems] : []
+        let item = items.find((p) => p.employeeId === extraFor)
+        if (!item) {
+          item = { employeeId: extraFor, extras: [] }
+          items.push(item)
+        }
+        item.extras = [...item.extras, { id: ex.id, name: ex.name, amount: ex.amount }]
+        return { ...curr, payrollItems: items }
+      })
+    }
     setExtraFor(null)
     setExtraName('')
     setExtraAmount('')
@@ -433,6 +447,8 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                           (selected as any).carpetRooms || 0,
                         ) /
                           (carpetIds.length || 1)))
+                    const extras =
+                      selected.payrollItems?.find((p) => p.employeeId === e.id)?.extras || []
                     return (
                       <li key={e.id}>
                         {e.name}{' '}
@@ -453,6 +469,14 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
                         >
                           Add extra
                         </button>
+                        {extras.map((ex) => (
+                          <div key={ex.id} className="pl-4 flex items-start relative">
+                            <div className="absolute left-0 top-0 w-3 h-3 border-l border-b border-gray-400" />
+                            <span className="ml-3">
+                              {ex.name}: ${ex.amount.toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
                       </li>
                     )
                   })}
