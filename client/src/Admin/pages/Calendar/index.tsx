@@ -237,6 +237,7 @@ export default function Calendar() {
           showMonth={showMonth}
           prevWeek={prevWeek}
           nextWeek={nextWeek}
+          counts={monthCounts}
         />
       </div>
         <DayTimeline

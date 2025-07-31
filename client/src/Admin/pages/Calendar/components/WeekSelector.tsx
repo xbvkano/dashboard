@@ -7,9 +7,10 @@ interface Props {
   showMonth: boolean
   prevWeek: () => void
   nextWeek: () => void
+  counts: Record<string, number>
 }
 
-export default function WeekSelector({ days, selected, setSelected, showMonth, prevWeek, nextWeek }: Props) {
+export default function WeekSelector({ days, selected, setSelected, showMonth, prevWeek, nextWeek, counts }: Props) {
   const weekTouchStart = useRef<number | null>(null)
 
   return (
@@ -30,6 +31,7 @@ export default function WeekSelector({ days, selected, setSelected, showMonth, p
     >
       {days.map((day) => {
         const isSelected = day.toDateString() === selected.toDateString()
+        const count = counts[day.toISOString().slice(0, 10)]
         return (
           <button
             key={day.toDateString()}
@@ -39,7 +41,14 @@ export default function WeekSelector({ days, selected, setSelected, showMonth, p
             <div className="text-xs">
               {day.toLocaleDateString('default', { weekday: 'short' })}
             </div>
-            <div className="text-sm font-medium">{day.getDate()}</div>
+            <div className="text-sm font-medium flex flex-col items-center">
+              {day.getDate()}
+              {count ? (
+                <span className="mt-1 inline-flex items-center justify-center w-4 h-4 text-[10px] bg-blue-600 text-white rounded-full">
+                  {count}
+                </span>
+              ) : null}
+            </div>
           </button>
         )
       })}

@@ -43,7 +43,7 @@ function MonthGrid({ days, selected, setSelected, setShow, counts }: MonthGridPr
               setSelected(day)
               setShow(false)
             }}
-            className={`p-1 flex flex-col items-center ${
+            className={`relative p-1 flex flex-col items-center ${
               day.toDateString() === selected.toDateString()
                 ? 'bg-blue-500 text-white'
                 : 'hover:bg-gray-200'
@@ -51,7 +51,7 @@ function MonthGrid({ days, selected, setSelected, setShow, counts }: MonthGridPr
           >
             {day.getDate()}
             {counts[day.toISOString().slice(0, 10)] ? (
-              <span className="mt-1 inline-flex items-center justify-center w-4 h-4 text-[10px] bg-blue-600 text-white rounded-full">
+              <span className="absolute bottom-1 right-1 inline-flex items-center justify-center w-4 h-4 text-[10px] bg-blue-600 text-white rounded-full">
                 {counts[day.toISOString().slice(0, 10)]}
               </span>
             ) : null}
