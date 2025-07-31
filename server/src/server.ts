@@ -130,7 +130,7 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
 
   // Section 1 - company / invoice info
   const companyInfo = [
-    '850 E desert inn rd',
+    '850 E Desert Inn Rd',
     'Las Vegas, NV, 89109',
     'Phone: 725-577-4523',
     'Email: contact@worldwideevidence.com',
