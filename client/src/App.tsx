@@ -16,7 +16,7 @@ export default function App() {
     }
     const stored = localStorage.getItem('role')
     return stored === 'ADMIN' || stored === 'OWNER' || stored === 'EMPLOYEE'
-      ? (stored as Role)
+      ? (stored as Role) 
       : null
   })
 
