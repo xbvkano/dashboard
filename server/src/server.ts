@@ -28,6 +28,13 @@ const smsClient = twilio(
   process.env.TWILIO_AUTH_TOKEN || '',
 )
 
+function normalizePhone(num: string): string | null {
+  const digits = num.replace(/\D/g, '')
+  if (digits.length === 10) return '1' + digits
+  if (digits.length === 11) return digits
+  return null
+}
+
 function parseSqft(s: string | null | undefined): number | null {
   if (!s) return null
   const parts = s.split('-')
@@ -390,11 +397,12 @@ app.post('/clients', async (req: Request, res: Response) => {
     if (!name || !number) {
       return res.status(400).json({ error: 'Name and number are required' })
     }
-    if (!/^\d{10}$/.test(number)) {
-      return res.status(400).json({ error: 'Number must be 10 digits' })
+    const normalized = normalizePhone(number)
+    if (!normalized) {
+      return res.status(400).json({ error: 'Number must be 10 or 11 digits' })
     }
     const client = await prisma.client.create({
-      data: { name, number, notes, disabled: disabled ?? false },
+      data: { name, number: normalized, notes, disabled: disabled ?? false },
     })
     res.json(client)
   } catch (e: any) {
@@ -429,10 +437,11 @@ app.put('/clients/:id', async (req: Request, res: Response) => {
     const data: any = {}
     if (name !== undefined) data.name = name
     if (number !== undefined) {
-      if (!/^\d{10}$/.test(number)) {
-        return res.status(400).json({ error: 'Number must be 10 digits' })
+      const normalized = normalizePhone(number)
+      if (!normalized) {
+        return res.status(400).json({ error: 'Number must be 10 or 11 digits' })
       }
-      data.number = number
+      data.number = normalized
     }
     if (notes !== undefined) data.notes = notes
     if (disabled !== undefined) data.disabled = disabled
@@ -485,13 +494,14 @@ app.post('/employees', async (req: Request, res: Response) => {
     if (!name || !number) {
       return res.status(400).json({ error: 'Name and number are required' })
     }
-    if (!/^\d{10}$/.test(number)) {
-      return res.status(400).json({ error: 'Number must be 10 digits' })
+    const normalized = normalizePhone(number)
+    if (!normalized) {
+      return res.status(400).json({ error: 'Number must be 10 or 11 digits' })
     }
     const employee = await prisma.employee.create({
       data: {
         name,
-        number,
+        number: normalized,
         notes,
         experienced: experienced ?? false,
         disabled: disabled ?? false,
@@ -523,10 +533,11 @@ app.put('/employees/:id', async (req: Request, res: Response) => {
     const data: any = {}
     if (name !== undefined) data.name = name
     if (number !== undefined) {
-      if (!/^\d{10}$/.test(number)) {
-        return res.status(400).json({ error: 'Number must be 10 digits' })
+      const normalized = normalizePhone(number)
+      if (!normalized) {
+        return res.status(400).json({ error: 'Number must be 10 or 11 digits' })
       }
-      data.number = number
+      data.number = normalized
     }
     if (notes !== undefined) data.notes = notes
     if (experienced !== undefined) data.experienced = experienced
@@ -1263,7 +1274,7 @@ app.post('/appointments/:id/send-info', async (req: Request, res: Response) => {
         .join('\n')
 
       await smsClient.messages.create({
-        to: e.number,
+        to: e.number.startsWith('+') ? e.number : `+${e.number}`,
         from: process.env.TWILIO_FROM_NUMBER || '',
         body,
       })
