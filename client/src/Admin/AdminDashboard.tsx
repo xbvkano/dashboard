@@ -11,8 +11,10 @@ interface Props {
 
 export default function AdminDashboard({ onLogout }: Props) {
   const navigate = useNavigate()
+  const isSafe = localStorage.getItem('safe') === 'true'
   const signOut = () => {
     localStorage.removeItem('role')
+    localStorage.removeItem('safe')
     onLogout()
     navigate('/')
   }
@@ -26,7 +28,13 @@ export default function AdminDashboard({ onLogout }: Props) {
           <li><Link className="px-2 py-1" to="/dashboard/clients">Clients</Link></li>
           <li><Link className="px-2 py-1" to="/dashboard/employees">Employees</Link></li>
           <li><Link className="px-2 py-1" to="/dashboard/financing">Financing</Link></li>
-          <li><button className="px-2 py-1" onClick={signOut}>Sign Out</button></li>
+          {!isSafe && (
+            <li>
+              <button className="px-2 py-1" onClick={signOut}>
+                Sign Out
+              </button>
+            </li>
+          )}
         </ul>
       </nav>
       <main className="flex-1 pb-16 md:pb-0">

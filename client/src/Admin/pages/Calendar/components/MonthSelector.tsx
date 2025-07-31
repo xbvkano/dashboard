@@ -6,6 +6,7 @@ interface Props {
   show: boolean
   setShow: (v: boolean) => void
   monthInfo: { startDay: number; endDay: number; daysInMonth: number } | null
+  counts: Record<string, number>
 }
 
 function getPaddedMonthDays(date: Date) {
@@ -28,9 +29,10 @@ type MonthGridProps = {
   selected: Date
   setSelected: (d: Date) => void
   setShow: (v: boolean) => void
+  counts: Record<string, number>
 }
 
-function MonthGrid({ days, selected, setSelected, setShow }: MonthGridProps) {
+function MonthGrid({ days, selected, setSelected, setShow, counts }: MonthGridProps) {
   return (
     <div className="grid grid-cols-7 text-center flex-shrink-0 w-1/3">
       {days.map((day, idx) =>
@@ -41,13 +43,18 @@ function MonthGrid({ days, selected, setSelected, setShow }: MonthGridProps) {
               setSelected(day)
               setShow(false)
             }}
-            className={`p-1 ${
+            className={`p-1 flex flex-col items-center ${
               day.toDateString() === selected.toDateString()
                 ? 'bg-blue-500 text-white'
                 : 'hover:bg-gray-200'
             }`}
           >
             {day.getDate()}
+            {counts[day.toISOString().slice(0, 10)] ? (
+              <span className="mt-1 inline-flex items-center justify-center w-4 h-4 text-[10px] bg-blue-600 text-white rounded-full">
+                {counts[day.toISOString().slice(0, 10)]}
+              </span>
+            ) : null}
           </button>
         ) : (
           <div key={idx} className="p-1" />
@@ -63,6 +70,7 @@ export default function MonthSelector({
   show,
   setShow,
   monthInfo,
+  counts,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const touchStartX = useRef<number | null>(null)
@@ -250,18 +258,21 @@ export default function MonthSelector({
               selected={selected}
               setSelected={setSelected}
               setShow={setShow}
+              counts={counts}
             />
             <MonthGrid
               days={paddedCurrent}
               selected={selected}
               setSelected={setSelected}
               setShow={setShow}
+              counts={counts}
             />
             <MonthGrid
               days={nextDays}
               selected={selected}
               setSelected={setSelected}
               setShow={setShow}
+              counts={counts}
             />
           </div>
         </div>

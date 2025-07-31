@@ -316,6 +316,36 @@ app.get('/month-info', (req: Request, res: Response) => {
   })
 })
 
+app.get('/appointments/month-counts', async (req: Request, res: Response) => {
+  const year = parseInt(String(req.query.year))
+  const month = parseInt(String(req.query.month))
+
+  if (Number.isNaN(year) || Number.isNaN(month)) {
+    return res.status(400).json({ error: 'Invalid year or month' })
+  }
+
+  const start = new Date(year, month - 1, 1)
+  const end = new Date(year, month, 1)
+  try {
+    const appts = await prisma.appointment.findMany({
+      where: {
+        date: { gte: start, lt: end },
+        status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+      },
+      select: { date: true },
+    })
+    const counts: Record<string, number> = {}
+    for (const a of appts) {
+      const key = a.date.toISOString().slice(0, 10)
+      counts[key] = (counts[key] || 0) + 1
+    }
+    res.json(counts)
+  } catch (err) {
+    console.error('Failed to fetch month counts:', err)
+    res.status(500).json({ error: 'Failed to fetch counts' })
+  }
+})
+
 app.get('/clients', async (req: Request, res: Response) => {
   // 1. Pull and normalize query params
   const searchTerm = String(req.query.search || '').trim()
@@ -1402,8 +1432,13 @@ app.get('/payroll/due', async (_req: Request, res: Response) => {
     const tip = (appt.tip || 0) / count
     if (!map[e.id]) {
       map[e.id] = { employee: e, items: [], total: e.prevBalance || 0 }
-      if (e.prevBalance && e.prevBalance > 0) {
-        map[e.id].items.push({ service: 'Previous balance', date: e.lastPaidAt, amount: e.prevBalance, tip: 0 })
+      if (e.prevBalance && e.prevBalance !== 0) {
+        map[e.id].items.push({
+          service: e.prevBalance > 0 ? 'Previous balance' : 'Credit',
+          date: e.lastPaidAt,
+          amount: e.prevBalance,
+          tip: 0,
+        })
       }
     }
     const amount = pay + (carpetIds.includes(e.id) ? carpetShare : 0)
@@ -1411,11 +1446,16 @@ app.get('/payroll/due', async (_req: Request, res: Response) => {
     map[e.id].total += amount + tip
   }
   // include employees that only have a previous balance
-  const balancedEmployees = await prisma.employee.findMany({ where: { prevBalance: { gt: 0 } } })
+  const balancedEmployees = await prisma.employee.findMany({ where: { prevBalance: { not: 0 } } })
   for (const e of balancedEmployees) {
     if (!map[e.id]) {
       map[e.id] = { employee: e, items: [], total: e.prevBalance }
-      map[e.id].items.push({ service: 'Previous balance', date: e.lastPaidAt, amount: e.prevBalance, tip: 0 })
+      map[e.id].items.push({
+        service: e.prevBalance > 0 ? 'Previous balance' : 'Credit',
+        date: e.lastPaidAt,
+        amount: e.prevBalance,
+        tip: 0,
+      })
     }
   }
   res.json(Object.values(map))
@@ -1466,7 +1506,7 @@ app.post('/payroll/pay', async (req: Request, res: Response) => {
     await prisma.payrollItem.updateMany({ where: { id: { in: items.map((i: { id: number }) => i.id) } }, data: { paid: true, paymentId: payment.id } })
   }
   const balance = totalDue - amount
-  await prisma.employee.update({ where: { id: employeeId }, data: { prevBalance: balance > 0 ? balance : 0, lastPaidAt: new Date() } })
+  await prisma.employee.update({ where: { id: employeeId }, data: { prevBalance: balance, lastPaidAt: new Date() } })
   res.json({ id: payment.id })
 })
 
@@ -1508,10 +1548,8 @@ app.post('/payroll/chargeback', async (req: Request, res: Response) => {
     })
   }
 
-  const prevBalance = Math.max(
-    0,
-    (payment.employee.prevBalance || 0) + payment.amount - itemsTotal,
-  )
+  const prevBalance =
+    (payment.employee.prevBalance || 0) + payment.amount - itemsTotal
 
   await prisma.employee.update({
     where: { id: payment.employeeId },

@@ -46,6 +46,7 @@ export default function Calendar() {
   const [showMonth, setShowMonth] = useState(false)
   const [nowOffset, setNowOffset] = useState<number | null>(null)
   const [monthInfo, setMonthInfo] = useState<{ startDay: number; endDay: number; daysInMonth: number } | null>(null)
+  const [monthCounts, setMonthCounts] = useState<Record<string, number>>({})
   const [appointments, setAppointments] = useState<{
     prev: Appointment[]
     current: Appointment[]
@@ -168,6 +169,9 @@ export default function Calendar() {
     fetchJson(`${API_BASE_URL}/month-info?year=${year}&month=${month}`)
       .then((data) => setMonthInfo(data))
       .catch(() => setMonthInfo(null))
+    fetchJson(`${API_BASE_URL}/appointments/month-counts?year=${year}&month=${month}`)
+      .then((data) => setMonthCounts(data as Record<string, number>))
+      .catch(() => setMonthCounts({}))
   }, [selected.getFullYear(), selected.getMonth()])
 
   useEffect(() => {
@@ -224,6 +228,7 @@ export default function Calendar() {
           show={showMonth}
           setShow={setShowMonth}
           monthInfo={monthInfo}
+          counts={monthCounts}
         />
         <WeekSelector
           days={days}

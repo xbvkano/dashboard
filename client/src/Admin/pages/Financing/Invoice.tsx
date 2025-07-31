@@ -1,19 +1,33 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { API_BASE_URL, fetchJson } from '../../../api'
 import type { Appointment } from '../Calendar/types'
 import CreateInvoiceModal from './components/CreateInvoiceModal'
 
 export default function Invoice() {
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const location = useLocation()
+  const params = new URLSearchParams(location.search)
+  const [date, setDate] = useState(() =>
+    params.get('date') || new Date().toISOString().slice(0, 10),
+  )
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [selected, setSelected] = useState<Appointment | null>(null)
+  const initialAppt = params.get('appt')
 
   useEffect(() => {
     fetchJson(`${API_BASE_URL}/appointments?date=${date}`)
       .then((d) => setAppointments(d))
       .catch(() => setAppointments([]))
   }, [date])
+
+  useEffect(() => {
+    if (initialAppt && appointments.length) {
+      const match = appointments.find((a) => String(a.id) === initialAppt)
+      if (match) {
+        setSelected(match)
+      }
+    }
+  }, [initialAppt, appointments])
 
   return (
     <div className="p-4 pb-16">
