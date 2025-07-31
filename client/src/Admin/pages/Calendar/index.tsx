@@ -72,6 +72,14 @@ export default function Calendar() {
   })
   const [deleteOldId, setDeleteOldId] = useState<number | null>(null)
 
+  const refreshMonthCounts = (d = selected) => {
+    const year = d.getFullYear()
+    const month = d.getMonth() + 1
+    fetchJson(`${API_BASE_URL}/appointments/month-counts?year=${year}&month=${month}`)
+      .then((data) => setMonthCounts(data as Record<string, number>))
+      .catch(() => {})
+  }
+
   const handleUpdate = (updated: Appointment) => {
     setAppointments((appts) => {
       const replace = (list: Appointment[]) =>
@@ -84,6 +92,7 @@ export default function Calendar() {
     })
     // keep data in sync
     refresh(selected)
+    refreshMonthCounts(new Date(updated.date))
   }
 
   useEffect(() => {
@@ -169,9 +178,7 @@ export default function Calendar() {
     fetchJson(`${API_BASE_URL}/month-info?year=${year}&month=${month}`)
       .then((data) => setMonthInfo(data))
       .catch(() => setMonthInfo(null))
-    fetchJson(`${API_BASE_URL}/appointments/month-counts?year=${year}&month=${month}`)
-      .then((data) => setMonthCounts(data as Record<string, number>))
-      .catch(() => setMonthCounts({}))
+    refreshMonthCounts(new Date(year, month - 1, 1))
   }, [selected.getFullYear(), selected.getMonth()])
 
   useEffect(() => {
@@ -264,7 +271,7 @@ export default function Calendar() {
               setRescheduleOldId(null)
               setDeleteOldId(null)
             }}
-            onCreated={async () => {
+            onCreated={async (appt) => {
               if (rescheduleOldId) {
                 await markOldReschedule(rescheduleOldId)
                 setRescheduleOldId(null)
@@ -274,6 +281,7 @@ export default function Calendar() {
                 setDeleteOldId(null)
               }
               refresh()
+              refreshMonthCounts(new Date(appt.date))
             }}
             initialClientId={createParams.clientId}
             initialTemplateId={createParams.templateId ?? undefined}

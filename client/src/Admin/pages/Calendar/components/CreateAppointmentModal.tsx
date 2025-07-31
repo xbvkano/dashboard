@@ -7,7 +7,7 @@ import { useModal } from '../../../../ModalProvider'
 
 interface Props {
   onClose: () => void
-  onCreated: () => void
+  onCreated: (appt: import('../types').Appointment) => void
   initialClientId?: number
   initialTemplateId?: number
   newStatus?: import('../types').Appointment['status']
@@ -735,7 +735,8 @@ const preserveTeamRef = useRef(false)
       body: JSON.stringify(payload),
     })
     if (res.ok) {
-      onCreated()
+      const appt = await res.json()
+      onCreated(appt)
       handleCancel()
     } else {
       await alert('Failed to create appointment')

@@ -130,7 +130,7 @@ export default function Home() {
       {editParams && (
         <CreateAppointmentModal
           onClose={() => setEditParams(null)}
-          onCreated={async () => {
+          onCreated={async (appt) => {
             if (editParams?.fromRecurring && editParams.appointment?.id) {
               try {
                 await fetchJson(
