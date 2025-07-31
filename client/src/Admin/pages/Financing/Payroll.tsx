@@ -23,6 +23,9 @@ export default function Payroll() {
   const [amount, setAmount] = useState('')
   const [extra, setExtra] = useState('')
   const [chargebackId, setChargebackId] = useState<number | null>(null)
+  const [otherFor, setOtherFor] = useState<number | null>(null)
+  const [otherName, setOtherName] = useState('')
+  const [otherAmount, setOtherAmount] = useState('')
 
   const load = () => {
     fetchJson(`${API_BASE_URL}/payroll/due`).then(setDue).catch(() => setDue([]))
@@ -67,6 +70,40 @@ export default function Payroll() {
     })
     setChargebackId(null)
     load()
+  }
+
+  const saveOther = async () => {
+    if (otherFor == null) return
+    const name = otherName.trim() || 'Other'
+    const amt = parseFloat(otherAmount) || 0
+    await fetch(`${API_BASE_URL}/payroll/manual`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+      body: JSON.stringify({ employeeId: otherFor, name, amount: amt }),
+    })
+    setDue((curr) =>
+      curr.map((d) => {
+        if (d.employee.id !== otherFor) return d
+        const newItem = {
+          service: name,
+          date: new Date().toISOString(),
+          amount: amt,
+          tip: 0,
+        }
+        return {
+          ...d,
+          items: [...d.items, newItem],
+          total: d.total + amt,
+        }
+      }),
+    )
+    setOtherFor(null)
+  }
+
+  const openOther = (id: number) => {
+    setOtherFor(id)
+    setOtherName('')
+    setOtherAmount('')
   }
 
   return (
@@ -129,6 +166,14 @@ export default function Payroll() {
                   </li>
                 ))}
               </ul>
+              <div className="text-right mt-1">
+                <button
+                  className="text-blue-500 text-xs"
+                  onClick={() => openOther(d.employee.id)}
+                >
+                  Add other
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -158,6 +203,40 @@ export default function Payroll() {
           ))}
         </ul>
       </div>
+      {otherFor != null && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setOtherFor(null)}
+        >
+          <div
+            className="bg-white p-4 rounded space-y-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="font-medium">Add Other Item</div>
+            <input
+              className="border p-2 rounded w-full"
+              placeholder="Name"
+              value={otherName}
+              onChange={(e) => setOtherName(e.target.value)}
+            />
+            <input
+              type="number"
+              className="border p-2 rounded w-full"
+              placeholder="Amount"
+              value={otherAmount}
+              onChange={(e) => setOtherAmount(e.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <button className="px-4 py-1 border rounded" onClick={() => setOtherFor(null)}>
+                Cancel
+              </button>
+              <button className="px-4 py-1 bg-blue-500 text-white rounded" onClick={saveOther}>
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {chargebackId != null && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
