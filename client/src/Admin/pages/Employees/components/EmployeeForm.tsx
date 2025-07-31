@@ -6,7 +6,7 @@ import { API_BASE_URL, fetchJson } from '../../../../api'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from '../../../../useFormPersistence'
 
 export default function EmployeeForm() {
-  const { alert } = useModal()
+  const { alert, confirm } = useModal()
   const { id } = useParams()
   const navigate = useNavigate()
   const isNew = id === undefined
@@ -76,6 +76,23 @@ export default function EmployeeForm() {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       await alert(err.error || 'Failed to save')
+      return
+    }
+    clearFormPersistence(storageKey)
+    navigate('..')
+  }
+
+  const handleDelete = async () => {
+    if (!id) return
+    const ok = await confirm('Delete this employee?')
+    if (!ok) return
+    const res = await fetch(`${API_BASE_URL}/employees/${id}`, {
+      method: 'DELETE',
+      headers: { 'ngrok-skip-browser-warning': '1' },
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      await alert(err.error || 'Failed to delete')
       return
     }
     clearFormPersistence(storageKey)
@@ -156,6 +173,15 @@ export default function EmployeeForm() {
         >
           Cancel
         </button>
+        {!isNew && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="bg-red-500 text-white px-4 py-2 rounded"
+          >
+            Delete
+          </button>
+        )}
       </div>
     </form>
   )
