@@ -10,6 +10,7 @@ interface LoginProps {
 
 export default function Login({ onLogin }: LoginProps) {
   console.log("This iwndow: " + window.location.origin)
+  console.log("This is the API base: " + API_BASE_URL)
   useEffect(() => {
     const stored = localStorage.getItem('role')
     if (stored === 'ADMIN' || stored === 'OWNER' || stored === 'EMPLOYEE') {
