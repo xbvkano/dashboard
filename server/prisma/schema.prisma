@@ -54,7 +54,7 @@ model Appointment {
   adminId        Int
   admin          User            @relation("AdminAppointments", fields: [adminId], references: [id])
   clientId        Int
-  client          Client          @relation(fields: [clientId], references: [id])
+  client          Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
   type            AppointmentType
   address         String
   cityStateZip    String?
@@ -100,7 +100,7 @@ model AppointmentTemplate {
   carpetRooms      Int?
   carpetPrice      Float?
   clientId          Int
-  client            Client             @relation(fields: [clientId], references: [id])
+  client            Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
   employeeTemplates EmployeeTemplate[]
   createdAt         DateTime?          @default(now())
   updatedAt         DateTime?          @updatedAt
@@ -126,7 +126,7 @@ model EmployeeTemplateEmployee {
   employeeTemplateId Int
   employeeTemplate   EmployeeTemplate @relation(fields: [employeeTemplateId], references: [id])
 
-  employee           Employee @relation("EmployeeOnTemplate", fields: [employeeId], references: [id])
+  employee           Employee @relation("EmployeeOnTemplate", fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 enum PaymentMethod {
@@ -185,8 +185,8 @@ model PayrollItem {
   paid          Boolean      @default(false)
   paymentId     Int?
 
-  appointment   Appointment  @relation(fields: [appointmentId], references: [id])
-  employee      Employee     @relation("EmployeePayrollItems", fields: [employeeId], references: [id])
+  appointment   Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  employee      Employee     @relation("EmployeePayrollItems", fields: [employeeId], references: [id], onDelete: Cascade)
   payment       EmployeePayment? @relation(fields: [paymentId], references: [id])
 }
 
@@ -197,7 +197,7 @@ model EmployeePayment {
   extra      Float      @default(0)
   createdAt  DateTime   @default(now())
 
-  employee   Employee   @relation("EmployeePayments", fields: [employeeId], references: [id])
+  employee   Employee   @relation("EmployeePayments", fields: [employeeId], references: [id], onDelete: Cascade)
   items      PayrollItem[]
   manualItems ManualPayrollItem[]
 }
@@ -211,6 +211,6 @@ model ManualPayrollItem {
   paymentId  Int?
   createdAt  DateTime  @default(now())
 
-  employee  Employee        @relation(fields: [employeeId], references: [id])
+  employee  Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   payment   EmployeePayment? @relation(fields: [paymentId], references: [id])
 }

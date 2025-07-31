@@ -960,7 +960,7 @@ app.post('/appointments/recurring', async (req: Request, res: Response) => {
       },
       include: { client: true, employees: true, admin: true },
     })
-    if (!noTeam && employeeIds.length) {
+    if (!noTeam && employeeIds.length && !['CANCEL', 'DELETED'].includes(status)) {
       await syncPayrollItems(appt.id, employeeIds)
     }
 
@@ -1250,7 +1250,9 @@ app.put('/appointments/:id', async (req: Request, res: Response) => {
         data,
         include: { client: true, employees: true, admin: true },
       })
-      if (employeeIds && !noTeam) {
+      if (appt.status === 'CANCEL' || appt.status === 'DELETED') {
+        await prisma.payrollItem.deleteMany({ where: { appointmentId: appt.id } })
+      } else if (employeeIds && !noTeam) {
         await syncPayrollItems(appt.id, employeeIds)
       }
       res.json(appt)
