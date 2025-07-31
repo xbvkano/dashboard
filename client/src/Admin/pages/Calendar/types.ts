@@ -51,4 +51,8 @@ export interface Appointment {
   employees?: import('../Employees/components/types').Employee[]
   admin?: { id: number; name: string | null; email: string }
   createdAt?: string
+  payrollItems?: {
+    employeeId: number
+    extras: { id: number; name: string; amount: number }[]
+  }[]
 }
