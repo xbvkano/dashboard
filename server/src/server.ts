@@ -1418,6 +1418,10 @@ app.get('/payroll/due', async (_req: Request, res: Response) => {
     where: { paid: false },
     include: { appointment: { include: { employees: true } }, employee: true },
   })
+  const others = await prisma.manualPayrollItem.findMany({
+    where: { paid: false },
+    include: { employee: true },
+  })
   const map: Record<number, any> = {}
   for (const it of items) {
     const e = it.employee
@@ -1445,6 +1449,27 @@ app.get('/payroll/due', async (_req: Request, res: Response) => {
     map[e.id].items.push({ service: appt.type, date: appt.date, amount, tip })
     map[e.id].total += amount + tip
   }
+  for (const ot of others) {
+    const e = ot.employee
+    if (!map[e.id]) {
+      map[e.id] = { employee: e, items: [], total: e.prevBalance || 0 }
+      if (e.prevBalance && e.prevBalance !== 0) {
+        map[e.id].items.push({
+          service: e.prevBalance > 0 ? 'Previous balance' : 'Credit',
+          date: e.lastPaidAt,
+          amount: e.prevBalance,
+          tip: 0,
+        })
+      }
+    }
+    map[e.id].items.push({
+      service: ot.name,
+      date: ot.createdAt,
+      amount: ot.amount,
+      tip: 0,
+    })
+    map[e.id].total += ot.amount
+  }
   // include employees that only have a previous balance
   const balancedEmployees = await prisma.employee.findMany({ where: { prevBalance: { not: 0 } } })
   for (const e of balancedEmployees) {
@@ -1461,11 +1486,30 @@ app.get('/payroll/due', async (_req: Request, res: Response) => {
   res.json(Object.values(map))
 })
 
+app.post('/payroll/manual', async (req: Request, res: Response) => {
+  const { employeeId, name, amount } = req.body as {
+    employeeId?: number
+    name?: string
+    amount?: number
+  }
+  if (!employeeId || amount == null) {
+    return res.status(400).json({ error: 'employeeId and amount required' })
+  }
+  const item = await prisma.manualPayrollItem.create({
+    data: {
+      employeeId,
+      name: name || 'Other',
+      amount,
+    },
+  })
+  res.json({ id: item.id })
+})
+
 app.get('/payroll/paid', async (_req: Request, res: Response) => {
   const payments = await prisma.employeePayment.findMany({
     orderBy: { createdAt: 'desc' },
     take: 20,
-    include: { employee: true, items: { include: { appointment: true } } },
+    include: { employee: true, items: { include: { appointment: true } }, manualItems: true },
   })
   res.json(payments)
 })
@@ -1480,6 +1524,9 @@ app.post('/payroll/pay', async (req: Request, res: Response) => {
   const items = await prisma.payrollItem.findMany({
     where: { employeeId, paid: false },
     include: { appointment: { include: { employees: true } } },
+  })
+  const others = await prisma.manualPayrollItem.findMany({
+    where: { employeeId, paid: false },
   })
   let totalDue = employee.prevBalance || 0
   for (const it of items) {
@@ -1501,9 +1548,15 @@ app.post('/payroll/pay', async (req: Request, res: Response) => {
     }
     totalDue += (it.appointment.tip || 0) / c
   }
+  for (const ot of others) {
+    totalDue += ot.amount
+  }
   const payment = await prisma.employeePayment.create({ data: { employeeId, amount, extra } })
   if (items.length) {
     await prisma.payrollItem.updateMany({ where: { id: { in: items.map((i: { id: number }) => i.id) } }, data: { paid: true, paymentId: payment.id } })
+  }
+  if (others.length) {
+    await prisma.manualPayrollItem.updateMany({ where: { id: { in: others.map((o: { id: number }) => o.id) } }, data: { paid: true, paymentId: payment.id } })
   }
   const balance = totalDue - amount
   await prisma.employee.update({ where: { id: employeeId }, data: { prevBalance: balance, lastPaidAt: new Date() } })
@@ -1518,6 +1571,7 @@ app.post('/payroll/chargeback', async (req: Request, res: Response) => {
     include: {
       employee: true,
       items: { include: { appointment: { include: { employees: true } } } },
+      manualItems: true,
     },
   })
   if (!payment) return res.status(404).json({ error: 'payment not found' })
@@ -1540,10 +1594,19 @@ app.post('/payroll/chargeback', async (req: Request, res: Response) => {
     }
     itemsTotal += (it.appointment.tip || 0) / c
   }
+  for (const ot of payment.manualItems) {
+    itemsTotal += ot.amount
+  }
 
   if (payment.items.length) {
     await prisma.payrollItem.updateMany({
       where: { id: { in: payment.items.map((it: { id: number }) => it.id) } },
+      data: { paid: false, paymentId: null },
+    })
+  }
+  if (payment.manualItems.length) {
+    await prisma.manualPayrollItem.updateMany({
+      where: { id: { in: payment.manualItems.map((o: { id: number }) => o.id) } },
       data: { paid: false, paymentId: null },
     })
   }

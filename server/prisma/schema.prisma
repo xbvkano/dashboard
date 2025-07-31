@@ -42,6 +42,7 @@ model Employee {
 
   payrollItems PayrollItem[]       @relation("EmployeePayrollItems")
   payments     EmployeePayment[]   @relation("EmployeePayments")
+  manualItems  ManualPayrollItem[]
 
   templateLinks EmployeeTemplateEmployee[] @relation("EmployeeOnTemplate")
 }
@@ -198,4 +199,18 @@ model EmployeePayment {
 
   employee   Employee   @relation("EmployeePayments", fields: [employeeId], references: [id])
   items      PayrollItem[]
+  manualItems ManualPayrollItem[]
+}
+
+model ManualPayrollItem {
+  id         Int       @id @default(autoincrement())
+  employeeId Int
+  name       String
+  amount     Float
+  paid       Boolean   @default(false)
+  paymentId  Int?
+  createdAt  DateTime  @default(now())
+
+  employee  Employee        @relation(fields: [employeeId], references: [id])
+  payment   EmployeePayment? @relation(fields: [paymentId], references: [id])
 }
