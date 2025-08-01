@@ -332,8 +332,8 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
         {/* appointment blocks */}
         {layout.map((l, idx) => {
           const top = (l.start / 60) * 84
-          const height = ((l.end - l.start) / 60) * 84 - 2
-          const leftStyle = `calc(${dividerPx}px + ${l.lane} * (40vw + ${LANE_GAP}px))`
+          const height = ((l.end - l.start) / 60) * 84
+          const leftStyle = `calc(${dividerPx}px + 4px + ${l.lane} * (40vw + ${LANE_GAP}px))`
           // 1) pull out the YYYY-MM-DD as numbers, ignoring any timezone
           const [year, month, day] = l.appt.date.slice(0, 10).split('-').map(Number);
 
@@ -354,7 +354,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
           return (
             <div
               key={l.appt.id ?? idx}
-              className={`absolute border rounded text-xs overflow-hidden cursor-pointer ${bg}`}
+              className={`absolute border rounded-md text-xs overflow-hidden cursor-pointer ${bg}`}
               style={{ top, left: leftStyle, width: apptWidth, height, zIndex: 10 }}
               onClick={() => {
                 setSelected(l.appt)
