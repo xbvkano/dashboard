@@ -750,7 +750,7 @@ const preserveTeamRef = useRef(false)
       onClick={handleClose}
     >
       <div
-        className="bg-white p-4 sm:p-6 rounded w-full max-w-md max-h-full overflow-y-auto overflow-x-hidden space-y-4"
+        className="bg-white p-4 sm:p-6 rounded w-full lg:w-3/5 max-w-md lg:max-w-none max-h-full overflow-y-auto overflow-x-hidden space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center">
