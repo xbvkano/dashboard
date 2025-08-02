@@ -46,12 +46,13 @@ interface DayProps {
   nowOffset: number | null
   scrollRef?: Ref<HTMLDivElement>
   animating: boolean
+  initialApptId?: number
   onUpdate?: (a: Appointment) => void
   onCreate?: (appt: Appointment, status: Appointment['status']) => void
   onEdit?: (appt: Appointment) => void
 }
 
-function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate, onEdit }: DayProps) {
+function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onUpdate, onCreate, onEdit }: DayProps) {
   const { alert, confirm } = useModal()
   const navigate = useNavigate()
   const [selected, setSelected] = useState<Appointment | null>(null)
@@ -71,6 +72,18 @@ function Day({ appointments, nowOffset, scrollRef, animating, onUpdate, onCreate
   const [extraFor, setExtraFor] = useState<number | null>(null)
   const [extraName, setExtraName] = useState('')
   const [extraAmount, setExtraAmount] = useState('')
+
+  const initialShown = useRef(false)
+
+  useEffect(() => {
+    if (!initialShown.current && initialApptId && appointments.length) {
+      const match = appointments.find((a) => a.id === initialApptId)
+      if (match) {
+        setSelected(match)
+        initialShown.current = true
+      }
+    }
+  }, [initialApptId, appointments])
 
   const updateAppointment = async (data: {
     status?: Appointment['status']
@@ -841,6 +854,7 @@ interface Props {
   appointments: Appointment[]
   prevAppointments: Appointment[]
   nextAppointments: Appointment[]
+  initialApptId?: number
   onUpdate?: (a: Appointment) => void
   onCreate?: (appt: Appointment, status: Appointment['status']) => void
   onEdit?: (appt: Appointment) => void
@@ -853,6 +867,7 @@ export default function DayTimeline({
   appointments,
   prevAppointments,
   nextAppointments,
+  initialApptId,
   onUpdate,
   onCreate,
   onEdit,
@@ -968,6 +983,7 @@ export default function DayTimeline({
           nowOffset={nowOffset}
           scrollRef={currentDayRef}
           animating={animating}
+          initialApptId={initialApptId}
           onUpdate={onUpdate}
           onCreate={onCreate}
           onEdit={onEdit}

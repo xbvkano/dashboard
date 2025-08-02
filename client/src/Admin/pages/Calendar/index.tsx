@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { API_BASE_URL, fetchJson } from '../../../api'
 import MonthSelector from './components/MonthSelector'
 import WeekSelector from './components/WeekSelector'
@@ -20,7 +21,16 @@ function addMonths(date: Date, months: number) {
 }
 
 export default function Calendar() {
+  const location = useLocation()
+  const params = new URLSearchParams(location.search)
+  const queryDate = params.get('date')
+  const queryAppt = params.get('appt')
+
   const [selected, setSelected] = useState(() => {
+    if (queryDate) {
+      const d = new Date(queryDate)
+      if (!isNaN(d.getTime())) return d
+    }
     const stored = localStorage.getItem('calendarSelectedDate')
     if (stored) {
       try {
@@ -272,6 +282,7 @@ export default function Calendar() {
           appointments={appointments.current}
           prevAppointments={appointments.prev}
           nextAppointments={appointments.next}
+          initialApptId={queryAppt ? Number(queryAppt) : undefined}
           onUpdate={handleUpdate}
           onCreate={(appt, status) => handleCreateFrom(appt, status)}
           onEdit={handleEdit}
