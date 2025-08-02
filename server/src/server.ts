@@ -462,6 +462,33 @@ app.delete('/clients/:id', async (req: Request, res: Response) => {
   }
 })
 
+app.get('/clients/:id/appointments', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10)
+  const skip = parseInt(String(req.query.skip || '0'), 10)
+  const take = parseInt(String(req.query.take || '25'), 10)
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
+  try {
+    const appts = await prisma.appointment.findMany({
+      where: {
+        clientId: id,
+        status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+      },
+      orderBy: [{ date: 'desc' }, { time: 'desc' }],
+      skip,
+      take,
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
+    })
+    res.json(appts)
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch appointments' })
+  }
+})
+
 app.get('/employees', async (req: Request, res: Response) => {
   const searchTerm = String(req.query.search || '').trim()
   const skip = parseInt(String(req.query.skip || '0'), 10)
@@ -566,6 +593,33 @@ app.delete('/employees/:id', async (req: Request, res: Response) => {
     res.json({ ok: true })
   } catch (e) {
     res.status(500).json({ error: 'Failed to delete employee' })
+  }
+})
+
+app.get('/employees/:id/appointments', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10)
+  const skip = parseInt(String(req.query.skip || '0'), 10)
+  const take = parseInt(String(req.query.take || '25'), 10)
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
+  try {
+    const appts = await prisma.appointment.findMany({
+      where: {
+        employees: { some: { id } },
+        status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+      },
+      orderBy: [{ date: 'desc' }, { time: 'desc' }],
+      skip,
+      take,
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
+    })
+    res.json(appts)
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch appointments' })
   }
 })
 
