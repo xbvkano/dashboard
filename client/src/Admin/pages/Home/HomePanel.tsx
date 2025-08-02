@@ -27,7 +27,7 @@ export default function HomePanel({ title, cards, className = '' }: Props) {
           {cards.map((c) => (
             <li
               key={c.key}
-              className={`bg-white rounded shadow p-3 flex justify-between items-center ${c.done ? 'bg-green-100' : ''}`}
+              className={`rounded shadow p-3 flex justify-between items-center ${c.done ? 'bg-green-100' : 'bg-white'}`}
             >
               <div className="flex items-center gap-2">
                 {c.onToggleDone && (
