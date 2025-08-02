@@ -827,6 +827,7 @@ const preserveTeamRef = useRef(false)
                   </a>
                 </div>
               )}
+              {selectedClient.from && <div>From: {selectedClient.from}</div>}
               {selectedClient.notes && <div>Notes: {selectedClient.notes}</div>}
             </div>
           </div>
@@ -916,6 +917,7 @@ const preserveTeamRef = useRef(false)
                 >
                   <div className="font-medium">{c.name}</div>
                   <div className="text-sm text-gray-600">{formatPhone(c.number)}</div>
+                  <div className="text-sm text-gray-600">From: {c.from}</div>
                 </li>
               ))}
             </ul>
