@@ -146,6 +146,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const [showRecurringModal, setShowRecurringModal] = useState(false)
   const [recurringOption, setRecurringOption] = useState<RecurringOption>(persisted.recurringOption ?? 'Weekly')
   const [recurringMonths, setRecurringMonths] = useState<string>(persisted.recurringMonths ?? '')
+  const [creating, setCreating] = useState(false)
 
   const handleClose = () => {
     onClose()
@@ -654,6 +655,7 @@ const preserveTeamRef = useRef(false)
   }
 
   const createAppointment = async () => {
+    if (creating) return
     const missing: string[] = []
     if (!selectedClient) missing.push('client')
     if (!selectedTemplate) missing.push('template')
@@ -729,17 +731,22 @@ const preserveTeamRef = useRef(false)
       url = `${API_BASE_URL}/appointments/${initialAppointment.id}`
     }
 
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
-      body: JSON.stringify(payload),
-    })
-    if (res.ok) {
-      const appt = await res.json()
-      onCreated(appt)
-      handleCancel()
-    } else {
-      await alert('Failed to create appointment')
+    setCreating(true)
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        const appt = await res.json()
+        onCreated(appt)
+        handleCancel()
+      } else {
+        await alert('Failed to create appointment')
+      }
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -1298,7 +1305,8 @@ const preserveTeamRef = useRef(false)
               !time ||
               !isValidCarpet() ||
               !adminId ||
-              (paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment)))
+              (paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))) ||
+              creating
             }
             onClick={createAppointment}
           >
