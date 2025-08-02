@@ -73,8 +73,19 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
   const [extraFor, setExtraFor] = useState<number | null>(null)
   const [extraName, setExtraName] = useState('')
   const [extraAmount, setExtraAmount] = useState('')
+  const [showPhoneActions, setShowPhoneActions] = useState(false)
+  const isMobile =
+    typeof navigator !== 'undefined' &&
+    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  const handlePhoneClick = () => {
+    if (isMobile) setShowPhoneActions((prev) => !prev)
+  }
 
   const initialShown = useRef(false)
+
+  useEffect(() => {
+    setShowPhoneActions(false)
+  }, [selected])
 
   useEffect(() => {
     if (!initialShown.current && initialApptId && appointments.length) {
@@ -414,7 +425,39 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
                   {selected.client ? selected.client.name : 'Client'}
                 </h4>
                 {selected.client?.number && (
-                  <div className="text-sm text-gray-600">{formatPhone(selected.client.number)}</div>
+                  <>
+                    <div className="text-sm text-gray-600">
+                      {isMobile ? (
+                        <button
+                          type="button"
+                          className="underline text-blue-500"
+                          onClick={handlePhoneClick}
+                        >
+                          {formatPhone(selected.client.number)}
+                        </button>
+                      ) : (
+                        formatPhone(selected.client.number)
+                      )}
+                    </div>
+                    {isMobile && showPhoneActions && (
+                      <div className="flex gap-2 mt-1">
+                        <a
+                          href={`tel:${selected.client.number}`}
+                          className="px-2 py-1 bg-blue-500 text-white rounded"
+                          onClick={() => setShowPhoneActions(false)}
+                        >
+                          Call
+                        </a>
+                        <a
+                          href={`sms:${selected.client.number}`}
+                          className="px-2 py-1 bg-blue-500 text-white rounded"
+                          onClick={() => setShowPhoneActions(false)}
+                        >
+                          Text
+                        </a>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               <div className="flex gap-2">
