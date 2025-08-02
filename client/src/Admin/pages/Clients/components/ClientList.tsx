@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Client } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
+import { formatPhone } from '../../../../formatPhone'
 
 export default function ClientList() {
   const [items, setItems] = useState<Client[]>([])
@@ -76,7 +77,7 @@ export default function ClientList() {
           <li key={c.id} className="py-2">
             <Link to={String(c.id)} className="block">
               <div className="font-medium">{c.name}</div>
-              <div className="text-sm text-gray-600">{c.number}</div>
+              <div className="text-sm text-gray-600">{formatPhone(c.number)}</div>
             </Link>
           </li>
         ))}

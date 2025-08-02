@@ -5,6 +5,7 @@ import { Employee } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from '../../../../useFormPersistence'
 import AppointmentsSection from "../../../components/AppointmentsSection"
+import { formatPhone } from '../../../../formatPhone'
 
 export default function EmployeeForm() {
   const { alert, confirm } = useModal()
@@ -122,10 +123,9 @@ export default function EmployeeForm() {
         <input
           id="employee-number"
           name="number"
-          value={data.number}
+          value={formatPhone(data.number)}
           onChange={handleNumberChange}
           type="tel"
-          pattern="\d{10,11}"
           required
           className="w-full border p-2 rounded"
         />

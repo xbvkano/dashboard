@@ -4,6 +4,7 @@ import type { AppointmentTemplate } from '../types'
 import type { Employee } from '../../Employees/components/types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
+import { formatPhone } from '../../../../formatPhone'
 
 interface Props {
   onClose: () => void
@@ -45,8 +46,8 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const [clientSearch, setClientSearch] = useState<string>(persisted.clientSearch ?? '')
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(persisted.selectedClient ?? null)
-  const [newClient, setNewClient] = useState<{ name: string; number: string; notes: string }>(
-    persisted.newClient ?? { name: '', number: '', notes: '' },
+  const [newClient, setNewClient] = useState<{ name: string; number: string; notes: string; from: string }>(
+    persisted.newClient ?? { name: '', number: '', notes: '', from: '' },
   )
   const [showNewClient, setShowNewClient] = useState<boolean>(persisted.showNewClient ?? false)
 
@@ -54,7 +55,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const value = e.target.value
-    const digits = value.replace(/\D/g, '').slice(0, 10)
+    const digits = value.replace(/\D/g, '').slice(0, 11)
     setNewClient({ ...newClient, number: digits })
   }
 
@@ -203,7 +204,7 @@ const preserveTeamRef = useRef(false)
           const s = JSON.parse(stored)
           if (s.clientSearch) setClientSearch(s.clientSearch)
           if (s.selectedClient) setSelectedClient(s.selectedClient)
-          if (s.newClient) setNewClient(s.newClient)
+          if (s.newClient) setNewClient({ from: '', ...s.newClient })
           if (typeof s.showNewClient === 'boolean') setShowNewClient(s.showNewClient)
           if (typeof s.selectedTemplate !== 'undefined') {
             setSelectedTemplate(s.selectedTemplate)
@@ -345,7 +346,7 @@ const preserveTeamRef = useRef(false)
     setSelectedClient(null)
     setClientSearch('')
     setShowNewClient(false)
-    setNewClient({ name: '', number: '', notes: '' })
+    setNewClient({ name: '', number: '', notes: '', from: '' })
     setTemplates([])
     resetTemplateRelated()
     setAdminId('')
@@ -516,14 +517,21 @@ const preserveTeamRef = useRef(false)
     const missing: string[] = []
     if (!newClient.name.trim()) missing.push('name')
     if (!newClient.number.trim()) missing.push('number')
+    if (!newClient.from.trim()) missing.push('from')
     if (missing.length > 0) {
       await alert('Please provide: ' + missing.join(', '))
       return
     }
+    const payload = {
+      name: newClient.name,
+      number: newClient.number.length === 10 ? '1' + newClient.number : newClient.number,
+      from: newClient.from,
+      notes: newClient.notes,
+    }
     const res = await fetch(`${API_BASE_URL}/clients`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
-      body: JSON.stringify(newClient),
+      body: JSON.stringify(payload),
     })
     if (res.ok) {
       const c = await res.json()
@@ -780,7 +788,7 @@ const preserveTeamRef = useRef(false)
               </button>
             </div>
             <div className="text-sm border rounded p-2 mt-1 space-y-1">
-              <div>Number: {selectedClient.number}</div>
+              <div>Number: {formatPhone(selectedClient.number)}</div>
               {selectedClient.notes && <div>Notes: {selectedClient.notes}</div>}
             </div>
           </div>
@@ -800,9 +808,25 @@ const preserveTeamRef = useRef(false)
               id="appointment-new-client-number"
               className="w-full border p-2 rounded text-base"
               placeholder="Number"
-              value={newClient.number}
+              value={formatPhone(newClient.number)}
               onChange={handleNewClientNumberChange}
             />
+              <h4 className="font-light">From <span className="text-red-500">*</span></h4>
+            <select
+              id="appointment-new-client-from"
+              className="w-full border p-2 rounded text-base"
+              value={newClient.from}
+              onChange={(e) => setNewClient({ ...newClient, from: e.target.value })}
+            >
+              <option value="" disabled>
+                Select source
+              </option>
+              <option value="Yelp">Yelp</option>
+              <option value="Form">Form</option>
+              <option value="Call">Call</option>
+              <option value="Rita">Rita's phone</option>
+              <option value="Marcelo">Marcelo's phone</option>
+            </select>
               <h4 className="font-light">Notes:</h4>
             <textarea
               id="appointment-new-client-notes"
@@ -812,11 +836,19 @@ const preserveTeamRef = useRef(false)
               onChange={(e) => setNewClient({ ...newClient, notes: e.target.value })}
             />
             <div className="flex gap-2 justify-end">
-              <button className="px-3 py-2" onClick={() => setShowNewClient(false)}>
+              <button
+                type="button"
+                className="bg-gray-300 px-3 py-2 rounded"
+                onClick={() => setShowNewClient(false)}
+              >
                 Cancel
               </button>
-              <button className="px-3 py-2 text-blue-600" onClick={createClient}>
-                Save
+              <button
+                type="button"
+                className="bg-blue-500 text-white px-3 py-2 rounded"
+                onClick={createClient}
+              >
+                Save Client
               </button>
             </div>
           </div>
@@ -845,7 +877,7 @@ const preserveTeamRef = useRef(false)
                   }}
                 >
                   <div className="font-medium">{c.name}</div>
-                  <div className="text-sm text-gray-600">{c.number}</div>
+                  <div className="text-sm text-gray-600">{formatPhone(c.number)}</div>
                 </li>
               ))}
             </ul>
@@ -1002,11 +1034,19 @@ const preserveTeamRef = useRef(false)
                   )}
                 </>
                 <div className="flex gap-2 justify-end">
-                  <button className="px-3 py-2" onClick={() => { setShowNewTemplate(false); setEditing(false) }}>
+                  <button
+                    type="button"
+                    className="bg-gray-300 px-3 py-2 rounded"
+                    onClick={() => { setShowNewTemplate(false); setEditing(false) }}
+                  >
                     Cancel
                   </button>
-                  <button className="px-3 py-2 text-blue-600" onClick={createTemplate}>
-                    Save
+                  <button
+                    type="button"
+                    className="bg-blue-500 text-white px-3 py-2 rounded"
+                    onClick={createTemplate}
+                  >
+                    Save Template
                   </button>
                 </div>
               </div>

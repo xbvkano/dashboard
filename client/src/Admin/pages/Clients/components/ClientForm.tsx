@@ -4,6 +4,7 @@ import useFormPersistence, { clearFormPersistence, loadFormPersistence } from ".
 import { useNavigate, useParams } from 'react-router-dom'
 import { Client } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
+import { formatPhone } from '../../../../formatPhone'
 
 import AppointmentsSection from "../../../components/AppointmentsSection"
 export default function ClientForm() {
@@ -118,10 +119,9 @@ export default function ClientForm() {
         <input
           id="client-number"
           name="number"
-          value={data.number}
+          value={formatPhone(data.number)}
           onChange={handleNumberChange}
           type="tel"
-          pattern="\d{10,11}"
           required
           className="w-full border p-2 rounded"
         />
@@ -144,8 +144,8 @@ export default function ClientForm() {
           <option value="Yelp">Yelp</option>
           <option value="Form">Form</option>
           <option value="Call">Call</option>
-          <option value="Rita">Rita</option>
-          <option value="Marcelo">Marcelo</option>
+          <option value="Rita">Rita's phone</option>
+          <option value="Marcelo">Marcelo's phone</option>
         </select>
       </div>
       <div>
