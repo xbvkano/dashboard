@@ -13,14 +13,14 @@ export default function ClientForm() {
   const isNew = id === undefined
   const storageKey = `clientForm-${id || 'new'}`
   const [data, setData] = useState<Client>(() =>
-    loadFormPersistence(storageKey, { name: '', number: '', notes: '', disabled: false }),
+    loadFormPersistence(storageKey, { name: '', number: '', from: '', notes: '', disabled: false }),
   )
   useFormPersistence(storageKey, data)
 
   useEffect(() => {
     if (!isNew) {
       fetchJson(`${API_BASE_URL}/clients/${id}`)
-        .then((d) => setData(d))
+        .then((d) => setData({ from: '', ...d }))
         .catch((err) => console.error(err))
     }
   }, [id, isNew])
@@ -33,7 +33,9 @@ export default function ClientForm() {
   }
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
   ) => {
     const updated = { ...data, [e.target.name]: e.target.value }
     persist(updated)
@@ -59,6 +61,7 @@ export default function ClientForm() {
     const payload = {
       name: data.name,
       number: data.number.length === 10 ? '1' + data.number : data.number,
+      from: data.from,
       notes: data.notes,
       disabled: data.disabled ?? false,
     }
@@ -124,6 +127,28 @@ export default function ClientForm() {
         />
       </div>
       <div>
+        <label htmlFor="client-from" className="block text-sm">
+          From <span className="text-red-500">*</span>
+        </label>
+        <select
+          id="client-from"
+          name="from"
+          value={data.from}
+          onChange={handleChange}
+          required
+          className="w-full border p-2 rounded"
+        >
+          <option value="" disabled>
+            Select source
+          </option>
+          <option value="Yelp">Yelp</option>
+          <option value="Form">Form</option>
+          <option value="Call">Call</option>
+          <option value="Rita">Rita</option>
+          <option value="Marcelo">Marcelo</option>
+        </select>
+      </div>
+      <div>
         <label htmlFor="client-notes" className="block text-sm">Notes</label>
         <textarea
           id="client-notes"
@@ -146,6 +171,16 @@ export default function ClientForm() {
       <div className="flex gap-2">
         <button className="bg-blue-500 text-white px-4 py-2 rounded" type="submit">
           Save
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            clearFormPersistence(storageKey)
+            navigate('..')
+          }}
+          className="bg-gray-300 px-4 py-2 rounded"
+        >
+          Cancel
         </button>
         {!isNew && (
           <button

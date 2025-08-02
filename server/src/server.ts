@@ -423,21 +423,22 @@ app.get('/clients', async (req: Request, res: Response) => {
 
 app.post('/clients', async (req: Request, res: Response) => {
   try {
-    const { name, number, notes, disabled } = req.body as {
+    const { name, number, from, notes, disabled } = req.body as {
       name?: string
       number?: string
+      from?: string
       notes?: string
       disabled?: boolean
     }
-    if (!name || !number) {
-      return res.status(400).json({ error: 'Name and number are required' })
+    if (!name || !number || !from) {
+      return res.status(400).json({ error: 'Name, number and from are required' })
     }
     const normalized = normalizePhone(number)
     if (!normalized) {
       return res.status(400).json({ error: 'Number must be 10 or 11 digits' })
     }
     const client = await prisma.client.create({
-      data: { name, number: normalized, notes, disabled: disabled ?? false },
+      data: { name, number: normalized, from, notes, disabled: disabled ?? false },
     })
     res.json(client)
   } catch (e: any) {
@@ -463,9 +464,10 @@ app.get('/clients/:id', async (req: Request, res: Response) => {
 app.put('/clients/:id', async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10)
   try {
-    const { name, number, notes, disabled } = req.body as {
+    const { name, number, from, notes, disabled } = req.body as {
       name?: string
       number?: string
+      from?: string
       notes?: string
       disabled?: boolean
     }
@@ -478,6 +480,7 @@ app.put('/clients/:id', async (req: Request, res: Response) => {
       }
       data.number = normalized
     }
+    if (from !== undefined) data.from = from
     if (notes !== undefined) data.notes = notes
     if (disabled !== undefined) data.disabled = disabled
     const client = await prisma.client.update({ where: { id }, data })
