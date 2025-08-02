@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { API_BASE_URL, fetchJson } from '../../../api'
 import type { Appointment } from '../Calendar/types'
 import CreateInvoiceModal from './components/CreateInvoiceModal'
+import { formatPhone } from '../../../formatPhone'
 
 export default function Invoice() {
   const location = useLocation()
@@ -44,7 +45,7 @@ export default function Invoice() {
             onClick={() => setSelected(a)}
           >
             <div className="font-medium">{a.client?.name}</div>
-            <div className="text-sm">{a.client?.number}</div>
+            <div className="text-sm">{formatPhone(a.client?.number || '')}</div>
             <div className="text-sm">{a.address}</div>
             {(a as any).carpetRooms && (
               <div className="text-sm">Carpet Rooms: {(a as any).carpetRooms}</div>

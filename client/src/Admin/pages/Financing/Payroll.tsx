@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { API_BASE_URL, fetchJson } from '../../../api'
+import { formatPhone } from '../../../formatPhone'
 
 interface DueItem {
   employee: { id: number; name: string; number: string }
@@ -151,7 +152,7 @@ export default function Payroll() {
               <div className="flex justify-between mb-2">
                 <div>
                   <div className="font-medium">{d.employee.name}</div>
-                  <div className="text-sm text-gray-600">{d.employee.number}</div>
+                  <div className="text-sm text-gray-600">{formatPhone(d.employee.number)}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-sm">Total:</div>

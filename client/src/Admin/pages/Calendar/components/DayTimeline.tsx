@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Appointment } from '../types'
 import { API_BASE_URL } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
+import { formatPhone } from '../../../../formatPhone'
 
 function parseSqft(s: string | null | undefined): number | null {
   if (!s) return null
@@ -413,7 +414,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
                   {selected.client ? selected.client.name : 'Client'}
                 </h4>
                 {selected.client?.number && (
-                  <div className="text-sm text-gray-600">{selected.client.number}</div>
+                  <div className="text-sm text-gray-600">{formatPhone(selected.client.number)}</div>
                 )}
               </div>
               <div className="flex gap-2">

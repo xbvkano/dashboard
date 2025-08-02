@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Employee } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
+import { formatPhone } from '../../../../formatPhone'
 
 interface EmployeeListProps {}
 
@@ -78,7 +79,7 @@ export default function EmployeeList(_: EmployeeListProps) {
           <li key={c.id} className="py-2">
             <Link to={String(c.id)} className="block">
               <div className="font-medium">{c.name}</div>
-              <div className="text-sm text-gray-600">{c.number}</div>
+              <div className="text-sm text-gray-600">{formatPhone(c.number)}</div>
             </Link>
           </li>
         ))}
