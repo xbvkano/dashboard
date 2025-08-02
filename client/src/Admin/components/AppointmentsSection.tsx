@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { Appointment } from '../pages/Calendar/types'
 import { fetchJson } from "../../api"
 
@@ -56,18 +57,23 @@ export default function AppointmentsSection({ url }: Props) {
       <h3 className="text-lg font-semibold mb-2">Appointments</h3>
       <ul className="space-y-2">
         {items.map((a) => (
-          <li key={a.id} className="border rounded p-2 bg-white shadow">
-            <div className="font-medium">
-              {a.date.slice(0, 10)} {formatTime(a.time)} - {a.type}
-            </div>
-            <div className="text-sm text-gray-600">
-              {a.client?.name || ''} {a.address}
-            </div>
-            {a.employees && a.employees.length > 0 && (
-              <div className="text-sm text-gray-600">
-                {a.employees.map((e) => e.name).join(', ')}
+          <li key={a.id} className="border rounded bg-white shadow">
+            <Link
+              to={`/dashboard/calendar?date=${a.date.slice(0, 10)}&appt=${a.id}`}
+              className="block p-2"
+            >
+              <div className="font-medium">
+                {a.date.slice(0, 10)} {formatTime(a.time)} - {a.type}
               </div>
-            )}
+              <div className="text-sm text-gray-600">
+                {a.client?.name || ''} {a.address}
+              </div>
+              {a.employees && a.employees.length > 0 && (
+                <div className="text-sm text-gray-600">
+                  {a.employees.map((e) => e.name).join(', ')}
+                </div>
+              )}
+            </Link>
           </li>
         ))}
       </ul>
