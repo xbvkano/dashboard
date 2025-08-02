@@ -353,6 +353,41 @@ app.get('/appointments/month-counts', async (req: Request, res: Response) => {
   }
 })
 
+app.get('/appointments/range-counts', async (req: Request, res: Response) => {
+  const startStr = String(req.query.start)
+  const endStr = String(req.query.end)
+
+  if (!startStr || !endStr) {
+    return res.status(400).json({ error: 'start and end required' })
+  }
+
+  const start = new Date(startStr)
+  const end = new Date(endStr)
+
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return res.status(400).json({ error: 'Invalid start or end' })
+  }
+
+  try {
+    const appts = await prisma.appointment.findMany({
+      where: {
+        date: { gte: start, lt: end },
+        status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+      },
+      select: { date: true },
+    })
+    const counts: Record<string, number> = {}
+    for (const a of appts) {
+      const key = a.date.toISOString().slice(0, 10)
+      counts[key] = (counts[key] || 0) + 1
+    }
+    res.json(counts)
+  } catch (err) {
+    console.error('Failed to fetch range counts:', err)
+    res.status(500).json({ error: 'Failed to fetch counts' })
+  }
+})
+
 app.get('/clients', async (req: Request, res: Response) => {
   // 1. Pull and normalize query params
   const searchTerm = String(req.query.search || '').trim()
