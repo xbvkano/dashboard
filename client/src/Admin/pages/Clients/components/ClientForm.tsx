@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Client } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 
+import AppointmentsSection from "../../../components/AppointmentsSection"
 export default function ClientForm() {
   const { alert, confirm } = useModal()
   const { id } = useParams()
@@ -156,6 +157,11 @@ export default function ClientForm() {
           </button>
         )}
       </div>
+      {!isNew && (
+        <AppointmentsSection
+          url={`${API_BASE_URL}/clients/${id}/appointments`}
+        />
+      )}
     </form>
   )
 }

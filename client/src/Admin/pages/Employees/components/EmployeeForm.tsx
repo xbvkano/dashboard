@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Employee } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from '../../../../useFormPersistence'
+import AppointmentsSection from "../../../components/AppointmentsSection"
 
 export default function EmployeeForm() {
   const { alert, confirm } = useModal()
@@ -183,6 +184,11 @@ export default function EmployeeForm() {
           </button>
         )}
       </div>
+      {!isNew && (
+        <AppointmentsSection
+          url={`${API_BASE_URL}/employees/${id}/appointments`}
+        />
+      )}
     </form>
   )
 }
