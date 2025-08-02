@@ -23,10 +23,10 @@ async function main() {
   })
 
   const john = await prisma.client.create({
-    data: { name: 'John Doe', number: '5551111111' },
+    data: { name: 'John Doe', number: '5551111111', from: 'Yelp' },
   })
   const jane = await prisma.client.create({
-    data: { name: 'Jane Smith', number: '5552222222' },
+    data: { name: 'Jane Smith', number: '5552222222', from: 'Call' },
   })
 
   const empOne = await prisma.employee.create({

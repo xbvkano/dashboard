@@ -22,6 +22,7 @@ model Client {
   id                   Int                    @id @default(autoincrement())
   name                 String                 @unique
   number               String
+  from                 String?
   notes                String?
   disabled             Boolean                @default(false)
   appointments         Appointment[]
