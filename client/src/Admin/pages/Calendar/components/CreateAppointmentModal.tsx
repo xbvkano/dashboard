@@ -130,6 +130,13 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   )
   const [noTeam, setNoTeam] = useState<boolean>(persisted.noTeam ?? false)
 
+  const [showPhoneActions, setShowPhoneActions] = useState(false)
+  const isMobile =
+    typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  const handlePhoneClick = () => {
+    if (isMobile) setShowPhoneActions((prev) => !prev)
+  }
+
   const selectedTemplateData = selectedTemplate
     ? templates.find((tt) => tt.id === selectedTemplate)
     : null
@@ -788,7 +795,38 @@ const preserveTeamRef = useRef(false)
               </button>
             </div>
             <div className="text-sm border rounded p-2 mt-1 space-y-1">
-              <div>Number: {formatPhone(selectedClient.number)}</div>
+              <div>
+                Number:{' '}
+                {isMobile ? (
+                  <button
+                    type="button"
+                    className="underline text-blue-500"
+                    onClick={handlePhoneClick}
+                  >
+                    {formatPhone(selectedClient.number)}
+                  </button>
+                ) : (
+                  formatPhone(selectedClient.number)
+                )}
+              </div>
+              {isMobile && showPhoneActions && (
+                <div className="flex gap-2">
+                  <a
+                    href={`tel:${selectedClient.number}`}
+                    className="px-2 py-1 bg-blue-500 text-white rounded"
+                    onClick={() => setShowPhoneActions(false)}
+                  >
+                    Call
+                  </a>
+                  <a
+                    href={`sms:${selectedClient.number}`}
+                    className="px-2 py-1 bg-blue-500 text-white rounded"
+                    onClick={() => setShowPhoneActions(false)}
+                  >
+                    Text
+                  </a>
+                </div>
+              )}
               {selectedClient.notes && <div>Notes: {selectedClient.notes}</div>}
             </div>
           </div>
