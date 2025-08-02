@@ -459,6 +459,9 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
                     )}
                   </>
                 )}
+                {selected.client?.from && (
+                  <div className="text-sm text-gray-600">From: {selected.client.from}</div>
+                )}
               </div>
               <div className="flex gap-2">
                 <button
