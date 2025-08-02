@@ -47,6 +47,7 @@ export default function Calendar() {
   const [nowOffset, setNowOffset] = useState<number | null>(null)
   const [monthInfo, setMonthInfo] = useState<{ startDay: number; endDay: number; daysInMonth: number } | null>(null)
   const [monthCounts, setMonthCounts] = useState<Record<string, number>>({})
+  const [weekCounts, setWeekCounts] = useState<Record<string, number>>({})
   const [appointments, setAppointments] = useState<{
     prev: Appointment[]
     current: Appointment[]
@@ -80,6 +81,18 @@ export default function Calendar() {
       .catch(() => {})
   }
 
+  const refreshWeekCounts = (d = selected) => {
+    const start = startOfWeek(d)
+    const end = addDays(start, 7)
+    const startStr = start.toISOString().slice(0, 10)
+    const endStr = end.toISOString().slice(0, 10)
+    fetchJson(
+      `${API_BASE_URL}/appointments/range-counts?start=${startStr}&end=${endStr}`,
+    )
+      .then((data) => setWeekCounts(data as Record<string, number>))
+      .catch(() => {})
+  }
+
   const handleUpdate = (updated: Appointment) => {
     setAppointments((appts) => {
       const replace = (list: Appointment[]) =>
@@ -93,6 +106,7 @@ export default function Calendar() {
     // keep data in sync
     refresh(selected)
     refreshMonthCounts(new Date(updated.date))
+    refreshWeekCounts(new Date(updated.date))
   }
 
   useEffect(() => {
@@ -182,6 +196,10 @@ export default function Calendar() {
   }, [selected.getFullYear(), selected.getMonth()])
 
   useEffect(() => {
+    refreshWeekCounts(selected)
+  }, [selected])
+
+  useEffect(() => {
     refresh(selected)
   }, [selected])
 
@@ -244,7 +262,7 @@ export default function Calendar() {
           showMonth={showMonth}
           prevWeek={prevWeek}
           nextWeek={nextWeek}
-          counts={monthCounts}
+          counts={weekCounts}
         />
       </div>
         <DayTimeline
@@ -282,6 +300,7 @@ export default function Calendar() {
               }
               refresh()
               refreshMonthCounts(new Date(appt.date))
+              refreshWeekCounts(new Date(appt.date))
             }}
             initialClientId={createParams.clientId}
             initialTemplateId={createParams.templateId ?? undefined}
