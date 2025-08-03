@@ -116,7 +116,8 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       const data = await res.json()
       setInvoiceId(data.id)
       setDirty(false)
-      const url = `${API_BASE_URL}/invoices/${data.id}/pdf`
+      const tzOffset = new Date().getTimezoneOffset()
+      const url = `${API_BASE_URL}/invoices/${data.id}/pdf?tzOffset=${tzOffset}`
       if (newWindow) {
         newWindow.location.href = url
       } else {
@@ -161,10 +162,11 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       setInvoiceId(id)
       setDirty(false)
     }
+    const tzOffset = new Date().getTimezoneOffset()
     const sendRes = await fetch(`${API_BASE_URL}/invoices/${id}/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, tzOffset }),
     })
     if (sendRes.ok) {
       onClose()

@@ -91,7 +91,7 @@ const client = new OAuth2Client(
   process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173'
 )
 
-async function generateInvoicePdf(inv: any): Promise<Buffer> {
+async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
   const pdf = await PDFDocument.create()
   const page = pdf.addPage()
   const font = await pdf.embedFont(StandardFonts.Helvetica)
@@ -108,7 +108,7 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
 
   const formatDate = (d: Date) => d.toISOString().slice(0, 10)
   const formatDateLocal = (d: Date) =>
-    new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+    new Date(d.getTime() - tzOffset * 60000)
       .toISOString()
       .slice(0, 10)
 
@@ -1581,7 +1581,8 @@ app.get('/invoices/:id/pdf', async (req: Request, res: Response) => {
     const inv = await prisma.invoice.findUnique({ where: { id } })
     if (!inv) return res.status(404).json({ error: 'Not found' })
 
-    const bytes = await generateInvoicePdf(inv)
+    const tzOffset = Number(req.query.tzOffset) || 0
+    const bytes = await generateInvoicePdf(inv, tzOffset)
     res.setHeader('Content-Type', 'application/pdf')
     res.send(bytes)
   } catch (err) {
@@ -1598,7 +1599,8 @@ app.post('/invoices/:id/send', async (req: Request, res: Response) => {
     const inv = await prisma.invoice.findUnique({ where: { id } })
     if (!inv) return res.status(404).json({ error: 'Not found' })
 
-    const attachment = await generateInvoicePdf(inv)
+    const tzOffset = Number((req.body as any).tzOffset) || 0
+    const attachment = await generateInvoicePdf(inv, tzOffset)
 
     const transport = nodemailer.createTransport({
       host: process.env.MAILTRAP_HOST,
