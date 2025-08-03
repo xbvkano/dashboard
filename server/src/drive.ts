@@ -22,8 +22,25 @@ async function ensureFolder(drive: any, name: string, parentId?: string): Promis
 export async function uploadInvoiceToDrive(inv: Invoice, pdf: Buffer) {
   const credentials = process.env.GOOGLE_DRIVE_API_KEY
   if (!credentials) throw new Error('GOOGLE_DRIVE_API_KEY not set')
+
+  // Credentials are expected to be a JSON string but some environments may
+  // provide them base64-encoded. Attempt to parse the value directly and fall
+  // back to base64 decoding if that fails so misconfigured credentials do not
+  // throw a cryptic JSON error.
+  let parsedCreds: any
+  try {
+    parsedCreds = JSON.parse(credentials)
+  } catch {
+    try {
+      const decoded = Buffer.from(credentials, 'base64').toString('utf8')
+      parsedCreds = JSON.parse(decoded)
+    } catch {
+      throw new Error('GOOGLE_DRIVE_API_KEY must be valid JSON or base64-encoded JSON')
+    }
+  }
+
   const auth = new google.auth.GoogleAuth({
-    credentials: JSON.parse(credentials),
+    credentials: parsedCreds,
     scopes: ['https://www.googleapis.com/auth/drive.file'],
   })
   const drive = google.drive({ version: 'v3', auth })
