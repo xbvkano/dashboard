@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { API_BASE_URL, fetchJson } from '../../../api'
 import type { Appointment } from '../Calendar/types'
@@ -38,9 +38,15 @@ export default function Invoice() {
         if (match) setSelected(match)
       }
     }
-  }, [initialAppt, appointments, selected])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialAppt, appointments])
 
+  const initialized = useRef(false)
   useEffect(() => {
+    if (!initialized.current) {
+      initialized.current = true
+      return
+    }
     if (selected) {
       localStorage.setItem('createInvoiceSelected', String(selected.id))
     } else {
