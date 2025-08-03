@@ -12,6 +12,7 @@ import crypto from 'crypto'
 import { PDFDocument, StandardFonts, rgb, PDFFont, degrees } from 'pdf-lib'
 import nodemailer from 'nodemailer'
 import twilio from 'twilio'
+import { uploadInvoiceToDrive } from './drive'
 
 async function ensureRecurringFuture() {
   return
@@ -1642,6 +1643,7 @@ app.post('/invoices/:id/send', async (req: Request, res: Response) => {
         { filename: 'invoice.pdf', content: attachment },
       ],
     })
+    await uploadInvoiceToDrive(inv, attachment)
 
     res.json({ ok: true })
   } catch (err) {
