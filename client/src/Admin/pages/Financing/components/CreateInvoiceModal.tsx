@@ -32,6 +32,8 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   const [taxPercent, setTaxPercent] = useState('')
   const [comment, setComment] = useState('')
   const [paid, setPaid] = useState(true)
+  const [invoiceId, setInvoiceId] = useState<string | null>(null)
+  const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
     const cp = (appointment as any).carpetPrice
@@ -64,6 +66,28 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   const total =
     subtotal + (taxEnabled ? subtotal * ((parseFloat(taxPercent) || 0) / 100) : 0)
 
+  useEffect(() => {
+    if (invoiceId) setDirty(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    clientName,
+    billedTo,
+    address,
+    city,
+    stateField,
+    zip,
+    serviceDate,
+    time,
+    serviceType,
+    price,
+    carpetPrice,
+    discount,
+    taxEnabled,
+    taxPercent,
+    comment,
+    paid,
+  ])
+
   const create = async () => {
     const payload = {
       clientName,
@@ -90,13 +114,14 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     })
     if (res.ok) {
       const data = await res.json()
+      setInvoiceId(data.id)
+      setDirty(false)
       const url = `${API_BASE_URL}/invoices/${data.id}/pdf`
       if (newWindow) {
         newWindow.location.href = url
       } else {
         window.location.href = url
       }
-      onClose()
     } else {
       if (newWindow) newWindow.close()
       await alert('Failed to create invoice')
@@ -120,26 +145,32 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       taxPercent: taxEnabled ? parseFloat(taxPercent) || 0 : undefined,
       comment: comment || undefined,
     }
-    const res = await fetch(`${API_BASE_URL}/invoices`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
-      body: JSON.stringify({ ...payload, paid }),
-    })
-    if (res.ok) {
-      const data = await res.json()
-      const sendRes = await fetch(`${API_BASE_URL}/invoices/${data.id}/send`, {
+    let id = invoiceId
+    if (!id || dirty) {
+      const res = await fetch(`${API_BASE_URL}/invoices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ ...payload, paid }),
       })
-      if (sendRes.ok) {
-        onClose()
-      } else {
-        const text = await sendRes.text()
-        await alert(text || 'Failed to send invoice')
+      if (!res.ok) {
+        await alert('Failed to create invoice')
+        return
       }
+      const data = await res.json()
+      id = data.id
+      setInvoiceId(id)
+      setDirty(false)
+    }
+    const sendRes = await fetch(`${API_BASE_URL}/invoices/${id}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+      body: JSON.stringify({ email }),
+    })
+    if (sendRes.ok) {
+      onClose()
     } else {
-      await alert('Failed to create invoice')
+      const text = await sendRes.text()
+      await alert(text || 'Failed to send invoice')
     }
   }
 
