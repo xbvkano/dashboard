@@ -166,6 +166,9 @@ model Invoice {
   clientName  String
   billedTo    String
   address     String
+  city        String?
+  state       String?
+  zip         String?
   serviceDate DateTime
   serviceTime String
   serviceType String

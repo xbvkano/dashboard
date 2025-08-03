@@ -106,6 +106,17 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
   const lightBlue = rgb(0.3, 0.55, 0.85)
   const gray = rgb(0.93, 0.93, 0.93)
 
+  const formatDate = (d: Date) =>
+    new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 10)
+
+  const serviceTypeMap: Record<string, string> = {
+    DEEP: 'Deep Cleaning',
+    MOVE_IN_OUT: 'Move in/out Cleaning',
+    STANDARD: 'Standard Cleaning',
+  }
+
   let y = height - margin
   let infoX = margin
 
@@ -151,20 +162,44 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
 
   const idDigits = BigInt('0x' + inv.id.replace(/-/g, '')).toString().slice(-20)
   page.drawText('INVOICE', { x: width - margin - 120, y: y - 20, size: 26, font: bold, color: rgb(0.5, 0.7, 0.9) })
-  page.drawText(`Date of issue: ${inv.createdAt.toISOString().slice(0, 10)}`, { x: width - margin - 200, y: y - 50, size: 10, font })
+  page.drawText(`Date of issue: ${formatDate(inv.createdAt)}`, {
+    x: width - margin - 200,
+    y: y - 50,
+    size: 10,
+    font,
+  })
   page.drawText(`Invoice # ${idDigits}`, { x: width - margin - 200, y: y - 62, size: 10, font })
-  page.drawText(`Service date: ${inv.serviceDate.toISOString().slice(0, 10)}`, { x: width - margin - 200, y: y - 74, size: 10, font })
+  page.drawText(`Service date: ${formatDate(inv.serviceDate)}`, {
+    x: width - margin - 200,
+    y: y - 74,
+    size: 10,
+    font,
+  })
 
   y = infoY - 20
 
   // Section 2 - Bill to
+  const billLines = [`Name: ${inv.billedTo}`, `Address: ${inv.address}`]
+  if (inv.city) billLines.push(`City: ${inv.city}`)
+  if (inv.state) billLines.push(`State: ${inv.state}`)
+  if (inv.zip) billLines.push(`ZIP: ${inv.zip}`)
   const secHeader = 18
-  const secBody = 34
-  page.drawRectangle({ x: margin, y: y - secHeader - secBody, width: contentWidth, height: secHeader + secBody, color: rgb(1, 1, 1) })
+  const lineHeight = 12
+  const secBody = lineHeight * billLines.length + 8
+  page.drawRectangle({
+    x: margin,
+    y: y - secHeader - secBody,
+    width: contentWidth,
+    height: secHeader + secBody,
+    color: rgb(1, 1, 1),
+  })
   page.drawRectangle({ x: margin, y: y - secHeader, width: contentWidth, height: secHeader, color: darkBlue })
   page.drawText('Bill to', { x: margin + 6, y: y - 13, size: 12, font: bold, color: rgb(1, 1, 1) })
-  page.drawText(`Name: ${inv.billedTo}`, { x: margin + 6, y: y - secHeader - 14, size: 11, font })
-  page.drawText(`Address: ${inv.address}`, { x: margin + 6, y: y - secHeader - 26, size: 11, font })
+  let lineY = y - secHeader - 14
+  billLines.forEach((l) => {
+    page.drawText(l, { x: margin + 6, y: lineY, size: 11, font })
+    lineY -= lineHeight
+  })
 
   y = y - secHeader - secBody - 20
 
@@ -194,7 +229,8 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
   page.drawLine({ start: { x: margin + descWidth + taxWidth, y: y - tableHeaderHeight }, end: { x: margin + descWidth + taxWidth, y: tableBottom }, thickness: 1, color: rgb(0, 0, 0) })
 
   const services: { d: string; a: number }[] = []
-  services.push({ d: inv.serviceType, a: Number(inv.price) })
+  const mappedService = serviceTypeMap[inv.serviceType] || inv.serviceType
+  services.push({ d: mappedService, a: Number(inv.price) })
   if (inv.carpetPrice != null) services.push({ d: 'Carpet Cleaning', a: Number(inv.carpetPrice) })
 
   services.forEach((s, idx) => {
@@ -1476,6 +1512,9 @@ app.post('/invoices', async (req: Request, res: Response) => {
       clientName,
       billedTo,
       address,
+      city,
+      state,
+      zip,
       serviceDate,
       serviceTime,
       serviceType,
@@ -1489,6 +1528,9 @@ app.post('/invoices', async (req: Request, res: Response) => {
       clientName?: string
       billedTo?: string
       address?: string
+      city?: string
+      state?: string
+      zip?: string
       serviceDate?: string
       serviceTime?: string
       serviceType?: string
@@ -1509,6 +1551,9 @@ app.post('/invoices', async (req: Request, res: Response) => {
         clientName,
         billedTo,
         address,
+        city: city ?? null,
+        state: state ?? null,
+        zip: zip ?? null,
         serviceDate: new Date(serviceDate),
         serviceTime,
         serviceType,
