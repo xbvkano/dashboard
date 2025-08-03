@@ -1,5 +1,6 @@
 import { google } from 'googleapis'
 import { Readable } from 'stream'
+import { readFileSync } from 'fs'
 import type { Invoice } from '@prisma/client'
 
 async function ensureFolder(drive: any, name: string, parentId?: string): Promise<string> {
@@ -25,9 +26,9 @@ export async function uploadInvoiceToDrive(inv: Invoice, pdf: Buffer) {
 
   // Credentials are expected to be a JSON string but some environments may
   // provide them base64-encoded (sometimes in URL-safe format or without
-  // padding). Attempt to parse the value directly and fall back to a
-  // normalized base64 decode so misconfigured credentials do not throw a
-  // cryptic JSON error.
+  // padding) or as a path to a JSON file. Attempt to parse the value directly
+  // and fall back to these other formats so misconfigured credentials do not
+  // throw a cryptic JSON error.
   let parsedCreds: any
   try {
     parsedCreds = JSON.parse(credentials)
@@ -42,7 +43,14 @@ export async function uploadInvoiceToDrive(inv: Invoice, pdf: Buffer) {
       const decoded = Buffer.from(padded, 'base64').toString('utf8')
       parsedCreds = JSON.parse(decoded)
     } catch {
-      throw new Error('GOOGLE_DRIVE_API_KEY must be valid JSON or base64-encoded JSON')
+      try {
+        const file = readFileSync(credentials, 'utf8')
+        parsedCreds = JSON.parse(file)
+      } catch {
+        throw new Error(
+          'GOOGLE_DRIVE_API_KEY must be valid JSON, base64-encoded JSON, or a path to a JSON file'
+        )
+      }
     }
   }
 
