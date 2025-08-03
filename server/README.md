@@ -6,6 +6,16 @@ The database connection string is configured via `.env` and a `docker-compose.ym
 
 To enable Google authentication set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` and `ADMIN_EMAILS` in your `.env` file. Emails listed in `ADMIN_EMAILS` (comma separated) will be treated as admins when logging in.
 
+## Google Drive uploads
+
+Invoices are uploaded to Google Drive using a service account. Provide the credentials via the `GOOGLE_DRIVE_API_KEY` environment variable. The variable may contain the raw JSON, a base64-encoded JSON string, or a path to the JSON file. Hosts like Railway don't allow multiline secrets, so base64 is often the simplest approach:
+
+```bash
+GOOGLE_DRIVE_API_KEY=$(base64 -w0 service-account.json)
+```
+
+At runtime the server automatically detects and parses these formats. If parsing fails the value is used as a plain API key.
+
 ## Local HTTPS
 
 The server can also run over HTTPS in development. Generate a self-signed

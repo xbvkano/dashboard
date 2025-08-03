@@ -1,6 +1,6 @@
 import { google } from 'googleapis'
 import { Readable } from 'stream'
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
 import type { Invoice } from '@prisma/client'
 
 async function ensureFolder(drive: any, name: string, parentId?: string): Promise<string> {
@@ -20,44 +20,42 @@ async function ensureFolder(drive: any, name: string, parentId?: string): Promis
   return folder.data.id!
 }
 
-export async function uploadInvoiceToDrive(inv: Invoice, pdf: Buffer) {
-  const credentials = process.env.GOOGLE_DRIVE_API_KEY
-  if (!credentials) throw new Error('GOOGLE_DRIVE_API_KEY not set')
-
-  // Credentials are expected to be a JSON string but some environments may
-  // provide them base64-encoded (sometimes in URL-safe format or without
-  // padding) or as a path to a JSON file. Attempt to parse the value directly
-  // and fall back to these other formats so misconfigured credentials do not
-  // throw a cryptic JSON error.
-  let parsedCreds: any
+function loadCreds(value: string) {
   try {
-    parsedCreds = JSON.parse(credentials)
-  } catch {
-    try {
-      const normalized = credentials
-        .replace(/\s+/g, '')
-        .replace(/-/g, '+')
-        .replace(/_/g, '/')
-      const pad = normalized.length % 4
-      const padded = pad ? normalized + '='.repeat(4 - pad) : normalized
-      const decoded = Buffer.from(padded, 'base64').toString('utf8')
-      parsedCreds = JSON.parse(decoded)
-    } catch {
-      try {
-        const file = readFileSync(credentials, 'utf8')
-        parsedCreds = JSON.parse(file)
-      } catch {
-        throw new Error(
-          'GOOGLE_DRIVE_API_KEY must be valid JSON, base64-encoded JSON, or a path to a JSON file'
-        )
-      }
-    }
+    return JSON.parse(value)
+  } catch {}
+
+  try {
+    const normalized = value.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/')
+    const pad = normalized.length % 4
+    const padded = pad ? normalized + '='.repeat(4 - pad) : normalized
+    const decoded = Buffer.from(padded, 'base64').toString('utf8')
+    return JSON.parse(decoded)
+  } catch {}
+
+  if (existsSync(value)) {
+    const file = readFileSync(value, 'utf8')
+    return JSON.parse(file)
   }
 
-  const auth = new google.auth.GoogleAuth({
-    credentials: parsedCreds,
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
-  })
+  return null
+}
+
+export async function uploadInvoiceToDrive(inv: Invoice, pdf: Buffer) {
+  const key = process.env.GOOGLE_DRIVE_API_KEY
+  if (!key) throw new Error('GOOGLE_DRIVE_API_KEY not set')
+
+  // Environments like Railway cannot store multi-line secrets. Allow the key to
+  // be provided as raw JSON, base64-encoded JSON or a path to the JSON file.
+  // If none of these formats parse, treat it as a plain API key string.
+  const parsedCreds = loadCreds(key)
+
+  const auth = parsedCreds
+    ? new google.auth.GoogleAuth({
+        credentials: parsedCreds,
+        scopes: ['https://www.googleapis.com/auth/drive.file'],
+      })
+    : key
   const drive = google.drive({ version: 'v3', auth })
 
   const serviceDate = new Date(inv.serviceDate)
