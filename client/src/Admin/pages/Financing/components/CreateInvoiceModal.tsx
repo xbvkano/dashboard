@@ -34,6 +34,11 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   const [paid, setPaid] = useState(true)
   const [invoiceId, setInvoiceId] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
+  const [others, setOthers] = useState<{ name: string; price: string }[]>([])
+  const [showOtherModal, setShowOtherModal] = useState(false)
+  const [otherName, setOtherName] = useState('')
+  const [otherPrice, setOtherPrice] = useState('')
+  const [editingOther, setEditingOther] = useState<number | null>(null)
 
   useEffect(() => {
     const cp = (appointment as any).carpetPrice
@@ -59,9 +64,14 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     }
   }, [])
 
+  const othersTotal = others.reduce(
+    (sum, o) => sum + (parseFloat(o.price) || 0),
+    0,
+  )
   const subtotal =
     (parseFloat(price) || 0) +
-    (parseFloat(carpetPrice) || 0) -
+    (parseFloat(carpetPrice) || 0) +
+    othersTotal -
     (parseFloat(discount) || 0)
   const total =
     subtotal + (taxEnabled ? subtotal * ((parseFloat(taxPercent) || 0) / 100) : 0)
@@ -82,6 +92,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     price,
     carpetPrice,
     discount,
+    others,
     taxEnabled,
     taxPercent,
     comment,
@@ -104,6 +115,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       discount: discount ? parseFloat(discount) : undefined,
       taxPercent: taxEnabled ? parseFloat(taxPercent) || 0 : undefined,
       comment: comment || undefined,
+      otherItems: others.map((o) => ({ name: o.name, price: parseFloat(o.price) || 0 })),
       paid,
     }
     const newWindow = window.open('', '_blank')
@@ -145,6 +157,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       discount: discount ? parseFloat(discount) : undefined,
       taxPercent: taxEnabled ? parseFloat(taxPercent) || 0 : undefined,
       comment: comment || undefined,
+      otherItems: others.map((o) => ({ name: o.name, price: parseFloat(o.price) || 0 })),
     }
     let id = invoiceId
     if (!id || dirty) {
@@ -246,6 +259,52 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
           <input type="number" className="w-full border p-2 rounded" value={discount} onChange={(e) => setDiscount(e.target.value)} />
         </div>
         <div>
+          <div className="flex justify-between items-center">
+            <label className="text-sm">Other Items</label>
+            <button
+              className="text-sm text-blue-600"
+              onClick={() => {
+                setOtherName('')
+                setOtherPrice('')
+                setEditingOther(null)
+                setShowOtherModal(true)
+              }}
+            >
+              Add Other
+            </button>
+          </div>
+          {others.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {others.map((o, idx) => (
+                <li key={idx} className="flex justify-between items-center border p-2 rounded">
+                  <span>
+                    {o.name} - ${parseFloat(o.price || '0').toFixed(2)}
+                  </span>
+                  <div className="space-x-2 text-sm">
+                    <button
+                      className="text-blue-600"
+                      onClick={() => {
+                        setOtherName(o.name)
+                        setOtherPrice(o.price)
+                        setEditingOther(idx)
+                        setShowOtherModal(true)
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="text-red-600"
+                      onClick={() => setOthers(others.filter((_, i) => i !== idx))}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div>
           <label className="text-sm">Comments (optional)</label>
           <textarea
             className="w-full border p-2 rounded"
@@ -276,6 +335,45 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
           <button className="px-4 py-1 bg-green-600 text-white rounded" onClick={() => setShowEmailModal(true)}>Send</button>
         </div>
       </div>
+      {showOtherModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40" onClick={() => setShowOtherModal(false)}>
+          <div className="bg-white p-4 rounded w-full max-w-xs space-y-2" onClick={(e) => e.stopPropagation()}>
+            <h4 className="font-medium">{editingOther !== null ? 'Edit Item' : 'Add Item'}</h4>
+            <input
+              className="w-full border p-2 rounded"
+              placeholder="Name"
+              value={otherName}
+              onChange={(e) => setOtherName(e.target.value)}
+            />
+            <input
+              type="number"
+              className="w-full border p-2 rounded"
+              placeholder="Price"
+              value={otherPrice}
+              onChange={(e) => setOtherPrice(e.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <button className="px-4 py-1" onClick={() => setShowOtherModal(false)}>Cancel</button>
+              <button
+                className="px-4 py-1 bg-green-600 text-white rounded disabled:opacity-50"
+                disabled={!otherName || !otherPrice}
+                onClick={() => {
+                  if (editingOther !== null) {
+                    const copy = [...others]
+                    copy[editingOther] = { name: otherName, price: otherPrice }
+                    setOthers(copy)
+                  } else {
+                    setOthers([...others, { name: otherName, price: otherPrice }])
+                  }
+                  setShowOtherModal(false)
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showEmailModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40" onClick={() => setShowEmailModal(false)}>
           <div className="bg-white p-4 rounded w-full max-w-xs space-y-2" onClick={(e) => e.stopPropagation()}>

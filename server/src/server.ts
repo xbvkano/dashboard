@@ -233,6 +233,11 @@ async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
   const mappedService = serviceTypeMap[inv.serviceType] || inv.serviceType
   services.push({ d: mappedService, a: Number(inv.price) })
   if (inv.carpetPrice != null) services.push({ d: 'Carpet Cleaning', a: Number(inv.carpetPrice) })
+  if (Array.isArray(inv.otherItems)) {
+    inv.otherItems.forEach((o: any) => {
+      services.push({ d: String(o.name), a: Number(o.price) || 0 })
+    })
+  }
 
   services.forEach((s, idx) => {
     const ry = y - tableHeaderHeight - rowHeight * idx - rowHeight + 5
@@ -243,13 +248,16 @@ async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
   y = tableBottom - 20
 
   // Section 4 - totals and comments
-  const sub = Number(inv.price) + (inv.carpetPrice ?? 0)
+  const otherSum = Array.isArray(inv.otherItems)
+    ? inv.otherItems.reduce((s: number, o: any) => s + (Number(o.price) || 0), 0)
+    : 0
+  const sub = Number(inv.price) + (inv.carpetPrice ?? 0) + otherSum
   const taxable = inv.taxPercent ? sub * (inv.taxPercent / 100) : 0
-  const other = inv.discount ?? 0
+  const discount = inv.discount ?? 0
   const texts: [string, string][] = [
     ['Subtotal:', `$${sub.toFixed(2)}`],
     ['Taxable:', `$${taxable.toFixed(2)}`],
-    ['Other:', `$${other.toFixed(2)}`],
+    ['Discount:', `$${discount.toFixed(2)}`],
     ['Total:', `$${Number(inv.total).toFixed(2)}`],
   ]
   let tY = y
@@ -1525,6 +1533,7 @@ app.post('/invoices', async (req: Request, res: Response) => {
       taxPercent,
       comment,
       paid,
+      otherItems,
     } = req.body as {
       clientName?: string
       billedTo?: string
@@ -1541,11 +1550,14 @@ app.post('/invoices', async (req: Request, res: Response) => {
       taxPercent?: number
       comment?: string
       paid?: boolean
+      otherItems?: { name: string; price: number }[]
     }
     if (!clientName || !billedTo || !address || !serviceDate || !serviceTime || !serviceType || price === undefined) {
       return res.status(400).json({ error: 'Missing fields' })
     }
-    const subtotal = price + (carpetPrice || 0) - (discount || 0)
+    const otherTotal =
+      otherItems?.reduce((sum, i) => sum + (i.price || 0), 0) || 0
+    const subtotal = price + (carpetPrice || 0) + otherTotal - (discount || 0)
     const total = subtotal + (taxPercent ? subtotal * (taxPercent / 100) : 0)
     const invoice = await prisma.invoice.create({
       data: {
@@ -1563,6 +1575,7 @@ app.post('/invoices', async (req: Request, res: Response) => {
         discount: discount ?? null,
         taxPercent: taxPercent ?? null,
         comment: comment ?? null,
+        otherItems: otherItems ?? null,
         paid: paid ?? true,
         total,
       },
