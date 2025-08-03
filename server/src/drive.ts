@@ -24,15 +24,22 @@ export async function uploadInvoiceToDrive(inv: Invoice, pdf: Buffer) {
   if (!credentials) throw new Error('GOOGLE_DRIVE_API_KEY not set')
 
   // Credentials are expected to be a JSON string but some environments may
-  // provide them base64-encoded. Attempt to parse the value directly and fall
-  // back to base64 decoding if that fails so misconfigured credentials do not
-  // throw a cryptic JSON error.
+  // provide them base64-encoded (sometimes in URL-safe format or without
+  // padding). Attempt to parse the value directly and fall back to a
+  // normalized base64 decode so misconfigured credentials do not throw a
+  // cryptic JSON error.
   let parsedCreds: any
   try {
     parsedCreds = JSON.parse(credentials)
   } catch {
     try {
-      const decoded = Buffer.from(credentials, 'base64').toString('utf8')
+      const normalized = credentials
+        .replace(/\s+/g, '')
+        .replace(/-/g, '+')
+        .replace(/_/g, '/')
+      const pad = normalized.length % 4
+      const padded = pad ? normalized + '='.repeat(4 - pad) : normalized
+      const decoded = Buffer.from(padded, 'base64').toString('utf8')
       parsedCreds = JSON.parse(decoded)
     } catch {
       throw new Error('GOOGLE_DRIVE_API_KEY must be valid JSON or base64-encoded JSON')
