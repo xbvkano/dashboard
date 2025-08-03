@@ -15,6 +15,9 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   const [clientName, setClientName] = useState(appointment.client?.name || '')
   const [billedTo, setBilledTo] = useState(appointment.client?.name || '')
   const [address, setAddress] = useState(appointment.address)
+  const [city, setCity] = useState('')
+  const [stateField, setStateField] = useState('')
+  const [zip, setZip] = useState('')
   const [serviceDate, setServiceDate] = useState(appointment.date.slice(0, 10))
   const [time, setTime] = useState(appointment.time)
   const [serviceType, setServiceType] = useState(appointment.type)
@@ -66,6 +69,9 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       clientName,
       billedTo,
       address,
+      city: city || undefined,
+      state: stateField || undefined,
+      zip: zip || undefined,
       serviceDate,
       serviceTime: time,
       serviceType,
@@ -102,6 +108,9 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       clientName,
       billedTo,
       address,
+      city: city || undefined,
+      state: stateField || undefined,
+      zip: zip || undefined,
       serviceDate,
       serviceTime: time,
       serviceType,
@@ -158,6 +167,20 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         <div>
           <label className="text-sm">Address</label>
           <input className="w-full border p-2 rounded" value={address} onChange={(e) => setAddress(e.target.value)} />
+        </div>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className="text-sm">City (optional)</label>
+            <input className="w-full border p-2 rounded" value={city} onChange={(e) => setCity(e.target.value)} />
+          </div>
+          <div className="flex-1">
+            <label className="text-sm">State (optional)</label>
+            <input className="w-full border p-2 rounded" value={stateField} onChange={(e) => setStateField(e.target.value)} />
+          </div>
+          <div className="flex-1">
+            <label className="text-sm">ZIP (optional)</label>
+            <input className="w-full border p-2 rounded" value={zip} onChange={(e) => setZip(e.target.value)} />
+          </div>
         </div>
         <div className="flex gap-2">
           <div className="flex-1">
