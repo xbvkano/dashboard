@@ -1,6 +1,5 @@
 import { google } from 'googleapis'
 import { Readable } from 'stream'
-import { readFileSync, existsSync } from 'fs'
 import type { Invoice } from '@prisma/client'
 
 async function ensureFolder(drive: any, name: string, parentId?: string): Promise<string> {
@@ -20,42 +19,17 @@ async function ensureFolder(drive: any, name: string, parentId?: string): Promis
   return folder.data.id!
 }
 
-function loadCreds(value: string) {
-  try {
-    return JSON.parse(value)
-  } catch {}
-
-  try {
-    const normalized = value.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/')
-    const pad = normalized.length % 4
-    const padded = pad ? normalized + '='.repeat(4 - pad) : normalized
-    const decoded = Buffer.from(padded, 'base64').toString('utf8')
-    return JSON.parse(decoded)
-  } catch {}
-
-  if (existsSync(value)) {
-    const file = readFileSync(value, 'utf8')
-    return JSON.parse(file)
-  }
-
-  return null
-}
-
 export async function uploadInvoiceToDrive(inv: Invoice, pdf: Buffer) {
-  const key = process.env.GOOGLE_DRIVE_API_KEY
-  if (!key) throw new Error('GOOGLE_DRIVE_API_KEY not set')
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN
+  if (!refreshToken) throw new Error('GOOGLE_REFRESH_TOKEN not set')
 
-  // Environments like Railway cannot store multi-line secrets. Allow the key to
-  // be provided as raw JSON, base64-encoded JSON or a path to the JSON file.
-  // If none of these formats parse, treat it as a plain API key string.
-  const parsedCreds = loadCreds(key)
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173',
+  )
+  auth.setCredentials({ refresh_token: refreshToken })
 
-  const auth = parsedCreds
-    ? new google.auth.GoogleAuth({
-        credentials: parsedCreds,
-        scopes: ['https://www.googleapis.com/auth/drive.file'],
-      })
-    : key
   const drive = google.drive({ version: 'v3', auth })
 
   const serviceDate = new Date(inv.serviceDate)

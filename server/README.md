@@ -8,13 +8,7 @@ To enable Google authentication set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, 
 
 ## Google Drive uploads
 
-Invoices are uploaded to Google Drive using a service account. Provide the credentials via the `GOOGLE_DRIVE_API_KEY` environment variable. The variable may contain the raw JSON, a base64-encoded JSON string, or a path to the JSON file. Hosts like Railway don't allow multiline secrets, so base64 is often the simplest approach:
-
-```bash
-GOOGLE_DRIVE_API_KEY=$(base64 -w0 service-account.json)
-```
-
-At runtime the server automatically detects and parses these formats. If parsing fails the value is used as a plain API key.
+Invoices are uploaded to Google Drive using the same OAuth credentials used for authentication. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` and `GOOGLE_REFRESH_TOKEN` in your `.env` file. The refresh token must be generated with the `https://www.googleapis.com/auth/drive.file` scope. The server uses these values to authorize the Drive client and upload invoices.
 
 ## Local HTTPS
 
