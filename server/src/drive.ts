@@ -42,7 +42,10 @@ export async function uploadInvoiceToDrive(inv: Invoice, pdf: Buffer) {
   const monthFolder = await ensureFolder(drive, month, yearFolder)
 
   const safeName = inv.clientName.replace(/[^a-z0-9]+/gi, '_').toLowerCase()
-  const fileName = `${safeName}_${inv.id}.pdf`
+  const invoiceNumber =
+    (inv.number as string | undefined) ||
+    BigInt('0x' + inv.id.replace(/-/g, '')).toString().slice(-20)
+  const fileName = `${safeName}_${invoiceNumber}.pdf`
 
   await drive.files.create({
     requestBody: { name: fileName, parents: [monthFolder] },

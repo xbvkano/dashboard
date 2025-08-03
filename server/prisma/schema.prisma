@@ -163,6 +163,7 @@ enum AppointmentStatus {
 
 model Invoice {
   id          String   @id @default(uuid()) @db.Uuid
+  number      String?  @unique
   clientName  String
   billedTo    String
   address     String

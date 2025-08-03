@@ -233,6 +233,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       body: JSON.stringify({ email, tzOffset }),
     })
     if (sendRes.ok) {
+      setShowEmailModal(false)
       onClose()
     } else {
       const text = await sendRes.text()
@@ -432,7 +433,13 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
             <input type="email" className="w-full border p-2 rounded" placeholder="Email" value={sendEmail} onChange={(e) => setSendEmail(e.target.value)} />
             <div className="flex justify-end gap-2">
               <button className="px-4 py-1" onClick={() => setShowEmailModal(false)}>Cancel</button>
-              <button className="px-4 py-1 bg-green-600 text-white rounded disabled:opacity-50" disabled={!sendEmail} onClick={() => { sendInvoice(sendEmail); setShowEmailModal(false); }}>Send</button>
+              <button
+                className="px-4 py-1 bg-green-600 text-white rounded disabled:opacity-50"
+                disabled={!sendEmail}
+                onClick={() => sendInvoice(sendEmail)}
+              >
+                Send
+              </button>
             </div>
           </div>
         </div>

@@ -162,15 +162,28 @@ async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
     infoY -= 12
   })
 
-  const idDigits = BigInt('0x' + inv.id.replace(/-/g, '')).toString().slice(-20)
-  page.drawText('INVOICE', { x: width - margin - 120, y: y - 20, size: 26, font: bold, color: rgb(0.5, 0.7, 0.9) })
+  const invoiceNumber =
+    (inv.number as string | undefined) ||
+    BigInt('0x' + inv.id.replace(/-/g, '')).toString().slice(-20)
+  page.drawText('INVOICE', {
+    x: width - margin - 120,
+    y: y - 20,
+    size: 26,
+    font: bold,
+    color: rgb(0.5, 0.7, 0.9),
+  })
   page.drawText(`Date of issue: ${formatDateLocal(inv.createdAt)}`, {
     x: width - margin - 200,
     y: y - 50,
     size: 10,
     font,
   })
-  page.drawText(`Invoice # ${idDigits}`, { x: width - margin - 200, y: y - 62, size: 10, font })
+  page.drawText(`Invoice # ${invoiceNumber}`, {
+    x: width - margin - 200,
+    y: y - 62,
+    size: 10,
+    font,
+  })
   page.drawText(`Service date: ${formatDate(inv.serviceDate)}`, {
     x: width - margin - 200,
     y: y - 74,
@@ -1568,8 +1581,12 @@ app.post('/invoices', async (req: Request, res: Response) => {
     const otherTotal = normalizedItems.reduce((sum, i) => sum + i.price, 0)
     const subtotal = price + (carpetPrice || 0) + otherTotal - (discount || 0)
     const total = subtotal + (taxPercent ? subtotal * (taxPercent / 100) : 0)
+    const uuid = crypto.randomUUID()
+    const number = BigInt('0x' + uuid.replace(/-/g, '')).toString().slice(-20)
     const invoice = await prisma.invoice.create({
       data: {
+        id: uuid,
+        number,
         clientName,
         billedTo,
         address,
