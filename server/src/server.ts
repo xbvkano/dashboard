@@ -107,6 +107,10 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
   const gray = rgb(0.93, 0.93, 0.93)
 
   const formatDate = (d: Date) => d.toISOString().slice(0, 10)
+  const formatDateLocal = (d: Date) =>
+    new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 10)
 
   const serviceTypeMap: Record<string, string> = {
     DEEP: 'Deep Cleaning',
@@ -159,7 +163,7 @@ async function generateInvoicePdf(inv: any): Promise<Buffer> {
 
   const idDigits = BigInt('0x' + inv.id.replace(/-/g, '')).toString().slice(-20)
   page.drawText('INVOICE', { x: width - margin - 120, y: y - 20, size: 26, font: bold, color: rgb(0.5, 0.7, 0.9) })
-  page.drawText(`Date of issue: ${formatDate(inv.createdAt)}`, {
+  page.drawText(`Date of issue: ${formatDateLocal(inv.createdAt)}`, {
     x: width - margin - 200,
     y: y - 50,
     size: 10,
@@ -1543,8 +1547,6 @@ app.post('/invoices', async (req: Request, res: Response) => {
     }
     const subtotal = price + (carpetPrice || 0) - (discount || 0)
     const total = subtotal + (taxPercent ? subtotal * (taxPercent / 100) : 0)
-    const now = new Date()
-    const createdAt = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
     const invoice = await prisma.invoice.create({
       data: {
         clientName,
@@ -1563,7 +1565,6 @@ app.post('/invoices', async (req: Request, res: Response) => {
         comment: comment ?? null,
         paid: paid ?? true,
         total,
-        createdAt,
       },
     })
     res.json({ id: invoice.id })
