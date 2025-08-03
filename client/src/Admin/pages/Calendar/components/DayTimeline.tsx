@@ -386,14 +386,30 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
               }}
             >
               <div className="flex justify-between items-start p-1">
-                <div className="font-medium truncate pr-1">
-                  {l.appt.client?.name || 'Client'}
+                <div className="pr-1 overflow-hidden flex-1">
+                  <div className="font-medium truncate">
+                    {l.appt.client?.name || 'Client'}
+                  </div>
+                  {l.appt.client?.number && (
+                    <div className="text-[10px] leading-tight">
+                      {formatPhone(l.appt.client.number)}
+                    </div>
+                  )}
                 </div>
                 <div
                   className={`w-3 h-3 rounded-sm ${l.appt.noTeam ? 'bg-purple-500' : l.appt.infoSent ? 'bg-green-500' : 'bg-red-500'}`}
                 />
               </div>
               <div className="px-1 pb-1">{l.appt.type}</div>
+              <div className="px-1 pb-1 border-t border-gray-300 text-[10px] leading-tight">
+                {l.appt.employees && l.appt.employees.length > 0 ? (
+                  l.appt.employees.map((e) => (
+                    <div key={e.id}>{e.name}</div>
+                  ))
+                ) : (
+                  <div>no team</div>
+                )}
+              </div>
             </div>
           )
         })}
