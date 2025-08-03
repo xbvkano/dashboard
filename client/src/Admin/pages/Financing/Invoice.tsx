@@ -4,18 +4,20 @@ import { API_BASE_URL, fetchJson } from '../../../api'
 import type { Appointment } from '../Calendar/types'
 import CreateInvoiceModal from './components/CreateInvoiceModal'
 import { formatPhone } from '../../../formatPhone'
+import { clearFormPersistence } from '../../../useFormPersistence'
 
 export default function Invoice() {
   const location = useLocation()
   const params = new URLSearchParams(location.search)
   const [date, setDate] = useState(() =>
-    params.get('date') || new Date().toISOString().slice(0, 10),
+    params.get('date') || localStorage.getItem('createInvoiceDate') || new Date().toISOString().slice(0, 10),
   )
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [selected, setSelected] = useState<Appointment | null>(null)
   const initialAppt = params.get('appt')
 
   useEffect(() => {
+    localStorage.setItem('createInvoiceDate', date)
     fetchJson(`${API_BASE_URL}/appointments?date=${date}`)
       .then((d) => setAppointments(d))
       .catch(() => setAppointments([]))
@@ -26,9 +28,26 @@ export default function Invoice() {
       const match = appointments.find((a) => String(a.id) === initialAppt)
       if (match) {
         setSelected(match)
+        return
       }
     }
-  }, [initialAppt, appointments])
+    if (!selected && appointments.length) {
+      const stored = localStorage.getItem('createInvoiceSelected')
+      if (stored) {
+        const match = appointments.find((a) => String(a.id) === stored)
+        if (match) setSelected(match)
+      }
+    }
+  }, [initialAppt, appointments, selected])
+
+  useEffect(() => {
+    if (selected) {
+      localStorage.setItem('createInvoiceSelected', String(selected.id))
+    } else {
+      localStorage.removeItem('createInvoiceSelected')
+      clearFormPersistence('createInvoiceState')
+    }
+  }, [selected])
 
   return (
     <div className="p-4 pb-16">
@@ -47,8 +66,8 @@ export default function Invoice() {
             <div className="font-medium">{a.client?.name}</div>
             <div className="text-sm">{formatPhone(a.client?.number || '')}</div>
             <div className="text-sm">{a.address}</div>
-            {(a as any).carpetRooms && (
-              <div className="text-sm">Carpet Rooms: {(a as any).carpetRooms}</div>
+            {a.carpetRooms && (
+              <div className="text-sm">Carpet Rooms: {a.carpetRooms}</div>
             )}
           </div>
         ))}

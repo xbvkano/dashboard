@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import type { Appointment } from '../../Calendar/types'
 import { API_BASE_URL } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
+import useFormPersistence, {
+  loadFormPersistence,
+} from '../../../../useFormPersistence'
 
 interface Props {
   appointment: Appointment
@@ -10,43 +13,91 @@ interface Props {
 
 export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   const { alert } = useModal()
-  const [sendEmail, setSendEmail] = useState('')
+  const storageKey = 'createInvoiceState'
+  const persisted = loadFormPersistence(storageKey, {
+    sendEmail: '',
+    clientName: appointment.client?.name || '',
+    billedTo: appointment.client?.name || '',
+    address: appointment.address,
+    city: '',
+    stateField: '',
+    zip: '',
+    serviceDate: appointment.date.slice(0, 10),
+    time: appointment.time,
+    serviceType: appointment.type,
+    price: String(appointment.price ?? ''),
+    carpetPrice:
+      appointment.carpetPrice != null
+        ? String(appointment.carpetPrice)
+        : '',
+    discount: '',
+    taxEnabled: false,
+    taxPercent: '',
+    comment: '',
+    paid: true,
+    others: [] as { name: string; price: string }[],
+    invoiceId: null as string | null,
+    dirty: false,
+  })
+  const [sendEmail, setSendEmail] = useState(persisted.sendEmail)
   const [showEmailModal, setShowEmailModal] = useState(false)
-  const [clientName, setClientName] = useState(appointment.client?.name || '')
-  const [billedTo, setBilledTo] = useState(appointment.client?.name || '')
-  const [address, setAddress] = useState(appointment.address)
-  const [city, setCity] = useState('')
-  const [stateField, setStateField] = useState('')
-  const [zip, setZip] = useState('')
-  const [serviceDate, setServiceDate] = useState(appointment.date.slice(0, 10))
-  const [time, setTime] = useState(appointment.time)
-  const [serviceType, setServiceType] = useState(appointment.type)
-  const [price, setPrice] = useState(String(appointment.price ?? ''))
-  const [carpetPrice, setCarpetPrice] = useState(
-    (appointment as any).carpetPrice != null
-      ? String((appointment as any).carpetPrice)
-      : ''
+  const [clientName, setClientName] = useState(persisted.clientName)
+  const [billedTo, setBilledTo] = useState(persisted.billedTo)
+  const [address, setAddress] = useState(persisted.address)
+  const [city, setCity] = useState(persisted.city)
+  const [stateField, setStateField] = useState(persisted.stateField)
+  const [zip, setZip] = useState(persisted.zip)
+  const [serviceDate, setServiceDate] = useState(persisted.serviceDate)
+  const [time, setTime] = useState(persisted.time)
+  const [serviceType, setServiceType] = useState(persisted.serviceType)
+  const [price, setPrice] = useState(persisted.price)
+  const [carpetPrice, setCarpetPrice] = useState(persisted.carpetPrice)
+  const [discount, setDiscount] = useState(persisted.discount)
+  const [taxEnabled, setTaxEnabled] = useState(persisted.taxEnabled)
+  const [taxPercent, setTaxPercent] = useState(persisted.taxPercent)
+  const [comment, setComment] = useState(persisted.comment)
+  const [paid, setPaid] = useState(persisted.paid)
+  const [invoiceId, setInvoiceId] = useState<string | null>(persisted.invoiceId)
+  const [dirty, setDirty] = useState(persisted.dirty)
+  const [others, setOthers] = useState<{ name: string; price: string }[]>(
+    persisted.others,
   )
-  const [discount, setDiscount] = useState('')
-  const [taxEnabled, setTaxEnabled] = useState(false)
-  const [taxPercent, setTaxPercent] = useState('')
-  const [comment, setComment] = useState('')
-  const [paid, setPaid] = useState(true)
-  const [invoiceId, setInvoiceId] = useState<string | null>(null)
-  const [dirty, setDirty] = useState(false)
-  const [others, setOthers] = useState<{ name: string; price: string }[]>([])
   const [showOtherModal, setShowOtherModal] = useState(false)
   const [otherName, setOtherName] = useState('')
   const [otherPrice, setOtherPrice] = useState('')
   const [editingOther, setEditingOther] = useState<number | null>(null)
 
+  useFormPersistence(storageKey, {
+    sendEmail,
+    clientName,
+    billedTo,
+    address,
+    city,
+    stateField,
+    zip,
+    serviceDate,
+    time,
+    serviceType,
+    price,
+    carpetPrice,
+    discount,
+    taxEnabled,
+    taxPercent,
+    comment,
+    paid,
+    others,
+    invoiceId,
+    dirty,
+  })
+
   useEffect(() => {
-    const cp = (appointment as any).carpetPrice
+    if (carpetPrice) return
+    const cp = appointment.carpetPrice
     if (cp != null) {
       setCarpetPrice(String(cp))
       return
     }
-    const rooms = (appointment as any).carpetRooms
+    const rooms = appointment.carpetRooms
     const size = appointment.size
     if (rooms != null && size) {
       fetch(`${API_BASE_URL}/carpet-rate?size=${encodeURIComponent(size)}&rooms=${rooms}`)
@@ -54,7 +105,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         .then((d) => setCarpetPrice(String(d.rate)))
         .catch(() => {})
     }
-  }, [appointment])
+  }, [appointment, carpetPrice])
 
   useEffect(() => {
     const original = document.body.style.overflow
