@@ -66,6 +66,8 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   const [otherName, setOtherName] = useState('')
   const [otherPrice, setOtherPrice] = useState('')
   const [editingOther, setEditingOther] = useState<number | null>(null)
+  const [sending, setSending] = useState(false)
+  const [creating, setCreating] = useState(false)
 
   useFormPersistence(storageKey, {
     sendEmail,
@@ -151,6 +153,8 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   ])
 
   const create = async () => {
+    if (creating) return
+    setCreating(true)
     const payload = {
       clientName,
       billedTo,
@@ -190,9 +194,12 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       if (newWindow) newWindow.close()
       await alert('Failed to create invoice')
     }
+    setCreating(false)
   }
 
   const sendInvoice = async (email: string) => {
+    if (sending) return
+    setSending(true)
     const payload = {
       clientName,
       billedTo,
@@ -234,10 +241,12 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     })
     if (sendRes.ok) {
       setShowEmailModal(false)
+      setSending(false)
       onClose()
     } else {
       const text = await sendRes.text()
       await alert(text || 'Failed to send invoice')
+      setSending(false)
     }
   }
 
@@ -383,7 +392,13 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         <div className="font-medium">Total: ${total.toFixed(2)}</div>
         <div className="flex justify-end gap-2 pt-2">
           <button className="px-4 py-1" onClick={onClose}>Cancel</button>
-          <button className="px-4 py-1 bg-blue-500 text-white rounded" onClick={create}>Create</button>
+          <button
+            className="px-4 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
+            disabled={creating}
+            onClick={create}
+          >
+            {creating ? 'Creating...' : 'Create'}
+          </button>
           <button className="px-4 py-1 bg-green-600 text-white rounded" onClick={() => setShowEmailModal(true)}>Send</button>
         </div>
       </div>
@@ -435,10 +450,10 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
               <button className="px-4 py-1" onClick={() => setShowEmailModal(false)}>Cancel</button>
               <button
                 className="px-4 py-1 bg-green-600 text-white rounded disabled:opacity-50"
-                disabled={!sendEmail}
+                disabled={!sendEmail || sending}
                 onClick={() => sendInvoice(sendEmail)}
               >
-                Send
+                {sending ? 'Sending...' : 'Send'}
               </button>
             </div>
           </div>

@@ -46,9 +46,21 @@ export async function uploadInvoiceToDrive(inv: Invoice, pdf: Buffer) {
     BigInt('0x' + inv.id.replace(/-/g, '')).toString().slice(-20)
   const fileName = `${safeName}_${invoiceNumber}.pdf`
 
-  await drive.files.create({
-    requestBody: { name: fileName, parents: [monthFolder] },
-    media: { mimeType: 'application/pdf', body: Readable.from(pdf) },
-    fields: 'id',
+  const existingRes = await drive.files.list({
+    q: `name = '${fileName}' and '${monthFolder}' in parents and trashed = false`,
+    fields: 'files(id)',
   })
+  const existing = existingRes.data.files?.[0]
+  if (existing?.id) {
+    await drive.files.update({
+      fileId: existing.id,
+      media: { mimeType: 'application/pdf', body: Readable.from(pdf) },
+    })
+  } else {
+    await drive.files.create({
+      requestBody: { name: fileName, parents: [monthFolder] },
+      media: { mimeType: 'application/pdf', body: Readable.from(pdf) },
+      fields: 'id',
+    })
+  }
 }
