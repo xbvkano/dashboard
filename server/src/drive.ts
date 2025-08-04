@@ -36,8 +36,7 @@ export async function uploadInvoiceToDrive(inv: Invoice, pdf: Buffer) {
   const year = String(serviceDate.getFullYear())
   const month = String(serviceDate.getMonth() + 1).padStart(2, '0')
 
-  const driveFolder = await ensureFolder(drive, 'drive')
-  const invoicesFolder = await ensureFolder(drive, 'invoices', driveFolder)
+  const invoicesFolder = await ensureFolder(drive, 'invoices')
   const yearFolder = await ensureFolder(drive, year, invoicesFolder)
   const monthFolder = await ensureFolder(drive, month, yearFolder)
 
