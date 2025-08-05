@@ -1496,7 +1496,7 @@ app.post('/appointments/:id/send-info', async (req: Request, res: Response) => {
       )
       const total = pay + (carpetIds.includes(e.id) ? carpetPer : 0) + extrasTotal
       const body = [
-        `New appointment from Evidence Cleaning`,
+        `New appointment from Evidence Cleaning!`,
         `Appointment Date: ${appt.date.toISOString().slice(0, 10)}`,
         `Appointment Time: ${appt.time}`,
         `Appointment Type: ${appt.type}`,
@@ -1504,6 +1504,7 @@ app.post('/appointments/:id/send-info', async (req: Request, res: Response) => {
         `Pay: $${total.toFixed(2)}`,
         appt.cityStateZip ? `Instructions: ${appt.cityStateZip}` : undefined,
         note && `Note: ${note}`,
+        `\n Please do not respond to this message`,
       ]
         .filter(Boolean)
         .join('\n')
