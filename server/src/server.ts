@@ -369,6 +369,65 @@ app.get('/admins', async (_req: Request, res: Response) => {
   res.json(admins)
 })
 
+app.get('/lock', async (_req: Request, res: Response) => {
+  const lock = await prisma.lock.findUnique({
+    where: { id: 1 },
+    include: { user: true },
+  })
+  res.json({
+    locked: !!lock?.userId,
+    lockedBy: lock?.user ? { id: lock.user.id, name: lock.user.name, email: lock.user.email } : null,
+    lockedAt: lock?.lockedAt ?? null,
+  })
+})
+
+app.post('/lock/acquire', async (req: Request, res: Response) => {
+  const { userId } = req.body as { userId?: number }
+  if (!userId) return res.status(400).json({ error: 'userId required' })
+  const now = new Date()
+  try {
+    const ok = await prisma.$transaction(async (tx) => {
+      const updated = await tx.lock.updateMany({
+        where: { id: 1, userId: null },
+        data: { userId, lockedAt: now, releasedAt: null },
+      })
+      if (updated.count === 0) return false
+      await tx.lockLog.create({ data: { userId, lockedAt: now } })
+      return true
+    })
+    if (!ok) return res.status(409).json({ error: 'Lock already taken' })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Failed to acquire lock', err)
+    res.status(500).json({ error: 'Failed to acquire lock' })
+  }
+})
+
+app.post('/lock/release', async (req: Request, res: Response) => {
+  const { userId } = req.body as { userId?: number }
+  if (!userId) return res.status(400).json({ error: 'userId required' })
+  const now = new Date()
+  try {
+    const ok = await prisma.$transaction(async (tx) => {
+      const updated = await tx.lock.updateMany({
+        where: { id: 1, userId },
+        data: { userId: null, releasedAt: now },
+      })
+      if (updated.count === 0) return false
+      await tx.lockLog.updateMany({
+        where: { userId, releasedAt: null },
+        data: { releasedAt: now },
+      })
+      return true
+    })
+    if (!ok) return res.status(409).json({ error: 'Lock not owned by user' })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Failed to release lock', err)
+    res.status(500).json({ error: 'Failed to release lock' })
+  }
+})
+
 app.get('/month-info', (req: Request, res: Response) => {
   const year = parseInt(String(req.query.year))
   const month = parseInt(String(req.query.month))

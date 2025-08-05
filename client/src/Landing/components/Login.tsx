@@ -35,6 +35,9 @@ export default function Login({ onLogin }: LoginProps) {
         if (data.user && typeof data.user.safe !== 'undefined') {
           localStorage.setItem('safe', data.user.safe ? 'true' : 'false')
         }
+        if (data.user && typeof data.user.id !== 'undefined') {
+          localStorage.setItem('userId', String(data.user.id))
+        }
       }
 
       searchParams.delete('code')
@@ -67,6 +70,9 @@ export default function Login({ onLogin }: LoginProps) {
         localStorage.setItem('role', data.role)
         if (data.user && typeof data.user.safe !== 'undefined') {
           localStorage.setItem('safe', data.user.safe ? 'true' : 'false')
+        }
+        if (data.user && typeof data.user.id !== 'undefined') {
+          localStorage.setItem('userId', String(data.user.id))
         }
       }
     },

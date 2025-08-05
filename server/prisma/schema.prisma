@@ -16,6 +16,8 @@ model User {
   safe  Boolean @default(false)
 
   appointments Appointment[] @relation("AdminAppointments")
+  lock         Lock?    @relation("LockUser")
+  lockLogs     LockLog[] @relation("LockLogUser")
 }
 
 model Client {
@@ -222,4 +224,20 @@ model ManualPayrollItem {
   employee  Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   payment   EmployeePayment? @relation(fields: [paymentId], references: [id])
   payrollItem PayrollItem?   @relation("ExtraItems", fields: [payrollItemId], references: [id])
+}
+
+model Lock {
+  id        Int       @id
+  userId    Int?      @unique
+  user      User?     @relation("LockUser", fields: [userId], references: [id])
+  lockedAt  DateTime?
+  releasedAt DateTime?
+}
+
+model LockLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation("LockLogUser", fields: [userId], references: [id])
+  lockedAt   DateTime @default(now())
+  releasedAt DateTime?
 }

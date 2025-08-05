@@ -4,6 +4,7 @@ import { useModal } from '../../../ModalProvider'
 import type { Appointment } from '../Calendar/types'
 import CreateAppointmentModal from '../Calendar/components/CreateAppointmentModal'
 import HomePanel, { HomePanelCard } from './HomePanel'
+import LockButton from '../../../LockButton'
 
 export default function Home() {
   const { confirm } = useModal()
@@ -124,7 +125,10 @@ export default function Home() {
 
   return (
     <div className="p-4 space-y-4">
-      <h2 className="text-xl font-semibold">Home</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Home</h2>
+        <LockButton />
+      </div>
       <HomePanel title="Upcoming Reocurring" cards={upcomingCards} />
       <HomePanel title="Appointments with no teams" cards={cards} />
       {editParams && (
