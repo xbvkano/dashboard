@@ -92,7 +92,7 @@ model AppointmentTemplate {
   id                Int                @id @default(autoincrement())
   templateName      String
   type              AppointmentType
-  size              String?
+  size              String
   address           String
   cityStateZip      String?
   price             Float

@@ -772,6 +772,7 @@ app.post('/appointment-templates', async (req: Request, res: Response) => {
       !clientId ||
       !templateName ||
       !type ||
+      !size ||
       !address ||
       price === undefined
     ) {

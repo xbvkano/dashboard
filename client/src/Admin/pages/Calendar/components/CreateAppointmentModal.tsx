@@ -95,6 +95,13 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     ...(persisted.templateForm || {}),
   })
 
+  const isTemplateReady =
+    templateForm.templateName.trim() !== '' &&
+    templateForm.address.trim() !== '' &&
+    templateForm.price !== '' &&
+    templateForm.size !== '' &&
+    (!templateForm.carpetEnabled || parseInt(templateForm.carpetRooms, 10) >= 1)
+
   const [date, setDate] = useState<string>(persisted.date ?? '')
   const [time, setTime] = useState<string>(persisted.time ?? '')
 
@@ -592,6 +599,7 @@ const preserveTeamRef = useRef(false)
     if (!templateForm.templateName.trim()) missing.push('template name')
     if (!templateForm.address.trim()) missing.push('address')
     if (templateForm.price === '') missing.push('price')
+    if (!templateForm.size) missing.push('size')
     if (templateForm.carpetEnabled) {
       const rooms = parseInt(templateForm.carpetRooms, 10)
       if (isNaN(rooms) || rooms < 1) {
@@ -606,7 +614,7 @@ const preserveTeamRef = useRef(false)
       clientId: selectedClient.id,
       templateName: templateForm.templateName,
       type: templateForm.type,
-      size: templateForm.size || undefined,
+      size: templateForm.size,
       address: templateForm.address,
       price: parseFloat(templateForm.price),
       notes: templateForm.notes || undefined,
@@ -1083,8 +1091,9 @@ const preserveTeamRef = useRef(false)
                   </button>
                   <button
                     type="button"
-                    className="bg-blue-500 text-white px-3 py-2 rounded"
+                    className="bg-blue-500 text-white px-3 py-2 rounded disabled:opacity-50"
                     onClick={createTemplate}
+                    disabled={!isTemplateReady}
                   >
                     Save Template
                   </button>
@@ -1380,6 +1389,7 @@ const preserveTeamRef = useRef(false)
           <button
             className="bg-blue-500 text-white px-6 py-2 rounded disabled:opacity-50"
             disabled={
+              showNewTemplate ||
               !selectedTemplate ||
               !date ||
               !time ||

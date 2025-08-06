@@ -2,7 +2,7 @@ export interface AppointmentTemplate {
   id?: number
   templateName: string
   type: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
-  size?: string
+  size: string
   address: string
   price: number
   clientId: number
