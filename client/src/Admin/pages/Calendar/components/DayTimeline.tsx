@@ -237,7 +237,9 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
             item = { employeeId: extraFor, extras: [] }
             items.push(item)
           }
-          item.extras = [...item.extras, { id: ex.id, name: ex.name, amount: ex.amount }]
+          if (!item.extras.some((e) => e.id === ex.id)) {
+            item.extras = [...item.extras, { id: ex.id, name: ex.name, amount: ex.amount }]
+          }
           return { ...curr, payrollItems: items }
         })
       }
