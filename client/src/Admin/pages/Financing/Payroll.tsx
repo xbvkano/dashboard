@@ -23,6 +23,13 @@ interface PaidItem {
   amount: number
   extra: number
   createdAt: string
+  items: {
+    service: string
+    date: string
+    amount: number
+    extras?: { id: number; name: string; amount: number }[]
+    manual?: boolean
+  }[]
 }
 
 export default function Payroll() {
@@ -178,6 +185,47 @@ export default function Payroll() {
       }),
     )
     setEditing(null)
+  }
+
+  const deleteExtra = async (
+    empId: number,
+    itemId: number,
+    exId: number,
+    amt: number,
+  ) => {
+    await fetch(`${API_BASE_URL}/payroll/extra/${exId}`, {
+      method: 'DELETE',
+      headers: { 'ngrok-skip-browser-warning': '1' },
+    })
+    setDue((curr) =>
+      curr.map((d) => {
+        if (d.employee.id !== empId) return d
+        const items = d.items.map((it) => {
+          if (it.id !== itemId) return it
+          const extras = it.extras?.filter((ex) => ex.id !== exId) || []
+          return { ...it, extras }
+        })
+        return { ...d, items, total: d.total - amt }
+      }),
+    )
+    setEditing((curr) =>
+      curr
+        ? {
+            empId: curr.empId,
+            item: {
+              ...curr.item,
+              extras: curr.item.extras.filter((ex: any) => ex.id !== exId),
+            },
+          }
+        : null,
+    )
+    setSelectedMap((curr) => {
+      const entry = curr[empId]
+      if (!entry) return curr
+      const manuals = new Set(entry.manuals)
+      manuals.delete(exId)
+      return { ...curr, [empId]: { items: entry.items, manuals } }
+    })
   }
 
   const toggleItem = (
@@ -363,6 +411,19 @@ export default function Payroll() {
                 </div>
                 <div className="text-sm text-gray-600">{p.createdAt.slice(0, 10)}</div>
               </div>
+              <ul className="text-sm pl-4 mt-1">
+                {p.items.map((it, idx) => (
+                  <li key={idx} className="mb-1">
+                    {it.service}, {it.date.slice(0, 10)}, ${it.amount.toFixed(2)}
+                    {it.extras &&
+                      it.extras.map((ex) => (
+                        <div key={ex.id} className="pl-4">
+                          {ex.name}: ${ex.amount.toFixed(2)}
+                        </div>
+                      ))}
+                  </li>
+                ))}
+              </ul>
               <div className="text-right mt-2">
                 <button
                   className="text-blue-500 text-sm"
@@ -485,7 +546,7 @@ export default function Payroll() {
             )}
             {editing.item.extras &&
               editing.item.extras.map((ex: any, idx: number) => (
-                <div key={ex.id} className="flex gap-2">
+                <div key={ex.id} className="flex gap-2 items-center">
                   <input
                     className="border p-2 rounded flex-1"
                     value={ex.name}
@@ -515,6 +576,19 @@ export default function Payroll() {
                       })
                     }
                   />
+                  <button
+                    className="text-red-500 text-xs"
+                    onClick={() =>
+                      deleteExtra(
+                        editing.empId,
+                        editing.item.id,
+                        ex.id,
+                        ex.amount,
+                      )
+                    }
+                  >
+                    Delete
+                  </button>
                 </div>
               ))}
             <div className="flex justify-end gap-2 pt-2">
