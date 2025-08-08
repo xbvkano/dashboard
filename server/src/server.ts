@@ -1796,6 +1796,19 @@ app.post('/payroll/manual', async (req: Request, res: Response) => {
   res.json({ id: item.id })
 })
 
+app.put('/payroll/manual/:id', async (req: Request, res: Response) => {
+  const id = Number(req.params.id)
+  const { name, amount } = req.body as { name?: string; amount?: number }
+  if (!id || amount == null) {
+    return res.status(400).json({ error: 'id and amount required' })
+  }
+  const item = await prisma.manualPayrollItem.update({
+    where: { id },
+    data: { name: name || 'Other', amount },
+  })
+  res.json({ id: item.id, name: item.name, amount: item.amount })
+})
+
 app.post('/payroll/extra', async (req: Request, res: Response) => {
   const { appointmentId, employeeId, name, amount } = req.body as {
     appointmentId?: number

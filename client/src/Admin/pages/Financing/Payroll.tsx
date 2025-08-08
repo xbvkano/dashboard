@@ -38,6 +38,9 @@ export default function Payroll() {
   const [selectedMap, setSelectedMap] = useState<
     Record<number, { items: Set<number>; manuals: Set<number> }>
   >({})
+  const [editing, setEditing] = useState<{ empId: number; item: any } | null>(
+    null,
+  )
 
   const load = () => {
     fetchJson(`${API_BASE_URL}/payroll/due`).then(setDue).catch(() => setDue([]))
@@ -131,26 +134,76 @@ export default function Payroll() {
     setOtherAmount('')
   }
 
-  const toggleItem = (empId: number, it: { id?: number; manual?: boolean }) => {
-    if (!it.id) return
-    setSelectedMap((curr) => {
-      const entry = curr[empId] || { items: new Set<number>(), manuals: new Set<number>() }
-      const items = new Set(entry.items)
-      const manuals = new Set(entry.manuals)
-      const set = it.manual ? manuals : items
-      if (set.has(it.id)) set.delete(it.id)
-      else set.add(it.id)
-      return { ...curr, [empId]: { items, manuals } }
-    })
+  const openEdit = (empId: number, it: any) => {
+    setEditing({ empId, item: JSON.parse(JSON.stringify(it)) })
   }
 
-  const toggleExtra = (empId: number, id: number) => {
+  const saveEdit = async () => {
+    if (!editing) return
+    const { empId, item } = editing
+    if (item.manual && item.id) {
+      await fetch(`${API_BASE_URL}/payroll/manual/${item.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': '1',
+        },
+        body: JSON.stringify({ name: item.service, amount: item.amount }),
+      })
+    }
+    if (item.extras) {
+      for (const ex of item.extras) {
+        await fetch(`${API_BASE_URL}/payroll/extra/${ex.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': '1',
+          },
+          body: JSON.stringify({ name: ex.name, amount: ex.amount }),
+        })
+      }
+    }
+    setDue((curr) =>
+      curr.map((d) => {
+        if (d.employee.id !== empId) return d
+        const items = d.items.map((it) => (it.id === item.id ? item : it))
+        const total = items.reduce(
+          (sum, it) =>
+            sum +
+            it.amount +
+            (it.extras ? it.extras.reduce((s, ex) => s + ex.amount, 0) : 0),
+          0,
+        )
+        return { ...d, items, total }
+      }),
+    )
+    setEditing(null)
+  }
+
+  const toggleItem = (
+    empId: number,
+    it: { id?: number; manual?: boolean; extras?: { id: number }[] },
+  ) => {
+    if (!it.id) return
     setSelectedMap((curr) => {
-      const entry = curr[empId] || { items: new Set<number>(), manuals: new Set<number>() }
+      const entry = curr[empId] || {
+        items: new Set<number>(),
+        manuals: new Set<number>(),
+      }
       const items = new Set(entry.items)
       const manuals = new Set(entry.manuals)
-      if (manuals.has(id)) manuals.delete(id)
-      else manuals.add(id)
+      if (it.manual) {
+        if (manuals.has(it.id)) manuals.delete(it.id)
+        else manuals.add(it.id)
+      } else {
+        if (items.has(it.id)) {
+          items.delete(it.id)
+          if (it.extras) for (const ex of it.extras) manuals.delete(ex.id)
+        } else {
+          items.add(it.id)
+          if (it.extras) for (const ex of it.extras) manuals.add(ex.id)
+        }
+      }
       return { ...curr, [empId]: { items, manuals } }
     })
   }
@@ -161,11 +214,11 @@ export default function Payroll() {
     if (!d || !sel) return 0
     let total = 0
     for (const it of d.items) {
-      if (it.id && sel.items.has(it.id)) total += it.amount
       if (it.manual && it.id && sel.manuals.has(it.id)) total += it.amount
-      if (it.extras) {
-        for (const ex of it.extras) {
-          if (sel.manuals.has(ex.id)) total += ex.amount
+      else if (it.id && sel.items.has(it.id)) {
+        total += it.amount
+        if (it.extras) {
+          for (const ex of it.extras) total += ex.amount
         }
       }
     }
@@ -239,44 +292,51 @@ export default function Payroll() {
                 </div>
               </div>
               <ul className="text-sm pl-4">
-                {d.items.map((it, idx) => (
-                  <li key={idx} className="mb-1">
-                    <div className="flex items-center">
-                      {it.id && it.selectable !== false && (
-                        <input
-                          type="checkbox"
-                          className="mr-1"
-                          checked={
-                            it.manual
-                              ? selectedMap[d.employee.id]?.manuals.has(it.id) || false
-                              : selectedMap[d.employee.id]?.items.has(it.id) || false
-                          }
-                          onChange={() => toggleItem(d.employee.id, it)}
-                        />
-                      )}
-                      {it.service}, {it.date.slice(0, 10)}, ${it.amount.toFixed(2)}
-                    </div>
-                    {it.extras &&
-                      it.extras.map((ex) => (
-                        <div key={ex.id} className="pl-4 flex items-start relative">
-                          <div className="absolute left-0 top-0 w-3 h-3 border-l border-b border-gray-400" />
-                          <label className="ml-3 flex items-center">
-                            <input
-                              type="checkbox"
-                              className="mr-1"
-                              checked={
-                                selectedMap[d.employee.id]?.manuals.has(ex.id) || false
-                              }
-                              onChange={() => toggleExtra(d.employee.id, ex.id)}
-                            />
-                            <span>
+                {d.items.map((it, idx) => {
+                  const extrasTotal =
+                    it.extras?.reduce((sum, ex) => sum + ex.amount, 0) || 0
+                  const itemTotal = it.amount + extrasTotal
+                  return (
+                    <li key={idx} className="mb-1">
+                      <div className="flex items-center">
+                        {it.id && it.selectable !== false && (
+                          <input
+                            type="checkbox"
+                            className="mr-1"
+                            checked={
+                              it.manual
+                                ? selectedMap[d.employee.id]?.manuals.has(it.id) || false
+                                : selectedMap[d.employee.id]?.items.has(it.id) || false
+                            }
+                            onChange={() => toggleItem(d.employee.id, it)}
+                          />
+                        )}
+                        {it.service}, {it.date.slice(0, 10)}, ${it.amount.toFixed(2)}
+                        {extrasTotal
+                          ? ` + ${extrasTotal.toFixed(2)} = ${itemTotal.toFixed(2)}`
+                          : ''}
+                        <button
+                          className="text-blue-500 text-xs ml-2"
+                          onClick={() => openEdit(d.employee.id, it)}
+                        >
+                          Edit
+                        </button>
+                      </div>
+                      {it.extras &&
+                        it.extras.map((ex) => (
+                          <div
+                            key={ex.id}
+                            className="pl-4 flex items-start relative"
+                          >
+                            <div className="absolute left-0 top-0 w-3 h-3 border-l border-b border-gray-400" />
+                            <div className="ml-3">
                               {ex.name}: ${ex.amount.toFixed(2)}
-                            </span>
-                          </label>
-                        </div>
-                      ))}
-                  </li>
-                ))}
+                            </div>
+                          </div>
+                        ))}
+                    </li>
+                  )
+                })}
               </ul>
               <div className="text-right mt-1">
                 <button
@@ -368,6 +428,107 @@ export default function Payroll() {
                 onClick={handleChargeback}
               >
                 Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {editing && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setEditing(null)}
+        >
+          <div
+            className="bg-white p-4 rounded space-y-2 max-h-[90vh] overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="font-medium">Edit Item</div>
+            {editing.item.manual ? (
+              <>
+                <input
+                  className="border p-2 rounded w-full"
+                  value={editing.item.service}
+                  onChange={(e) =>
+                    setEditing((curr) =>
+                      curr
+                        ? {
+                            ...curr,
+                            item: { ...curr.item, service: e.target.value },
+                          }
+                        : null,
+                    )
+                  }
+                />
+                <input
+                  type="number"
+                  className="border p-2 rounded w-full"
+                  value={editing.item.amount}
+                  onChange={(e) =>
+                    setEditing((curr) =>
+                      curr
+                        ? {
+                            ...curr,
+                            item: {
+                              ...curr.item,
+                              amount: parseFloat(e.target.value) || 0,
+                            },
+                          }
+                        : null,
+                    )
+                  }
+                />
+              </>
+            ) : (
+              <div>
+                {editing.item.service}: ${editing.item.amount.toFixed(2)}
+              </div>
+            )}
+            {editing.item.extras &&
+              editing.item.extras.map((ex: any, idx: number) => (
+                <div key={ex.id} className="flex gap-2">
+                  <input
+                    className="border p-2 rounded flex-1"
+                    value={ex.name}
+                    onChange={(e) =>
+                      setEditing((curr) => {
+                        if (!curr) return null
+                        const extras = curr.item.extras.map((ee: any, i: number) =>
+                          i === idx ? { ...ee, name: e.target.value } : ee,
+                        )
+                        return { ...curr, item: { ...curr.item, extras } }
+                      })
+                    }
+                  />
+                  <input
+                    type="number"
+                    className="border p-2 rounded w-24"
+                    value={ex.amount}
+                    onChange={(e) =>
+                      setEditing((curr) => {
+                        if (!curr) return null
+                        const extras = curr.item.extras.map((ee: any, i: number) =>
+                          i === idx
+                            ? { ...ee, amount: parseFloat(e.target.value) || 0 }
+                            : ee,
+                        )
+                        return { ...curr, item: { ...curr.item, extras } }
+                      })
+                    }
+                  />
+                </div>
+              ))}
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                className="px-4 py-1 border rounded"
+                onClick={() => setEditing(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-1 bg-blue-500 text-white rounded"
+                onClick={saveEdit}
+              >
+                Save
               </button>
             </div>
           </div>
