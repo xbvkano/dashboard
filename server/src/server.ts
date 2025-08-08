@@ -1810,19 +1810,22 @@ app.put('/payroll/manual/:id', async (req: Request, res: Response) => {
 })
 
 app.post('/payroll/extra', async (req: Request, res: Response) => {
-  const { appointmentId, employeeId, name, amount } = req.body as {
+  const { appointmentId, payrollItemId, employeeId, name, amount } = req.body as {
     appointmentId?: number
+    payrollItemId?: number
     employeeId?: number
     name?: string
     amount?: number
   }
-  if (!appointmentId || !employeeId || amount == null) {
+  if ((!appointmentId && !payrollItemId) || !employeeId || amount == null) {
     return res
       .status(400)
-      .json({ error: 'appointmentId, employeeId and amount required' })
+      .json({ error: 'appointmentId or payrollItemId, employeeId and amount required' })
   }
   const payrollItem = await prisma.payrollItem.findFirst({
-    where: { appointmentId, employeeId },
+    where: payrollItemId
+      ? { id: payrollItemId, employeeId }
+      : { appointmentId: appointmentId!, employeeId },
   })
   if (!payrollItem) {
     return res.status(404).json({ error: 'payroll item not found' })

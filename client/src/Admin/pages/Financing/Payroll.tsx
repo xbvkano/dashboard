@@ -48,6 +48,11 @@ export default function Payroll() {
   const [editing, setEditing] = useState<{ empId: number; item: any } | null>(
     null,
   )
+  const [newExtraName, setNewExtraName] = useState('')
+  const [newExtraAmount, setNewExtraAmount] = useState('')
+  const [extraToDelete, setExtraToDelete] = useState<
+    { empId: number; itemId: number; exId: number; amt: number } | null
+  >(null)
 
   const load = () => {
     fetchJson(`${API_BASE_URL}/payroll/due`).then(setDue).catch(() => setDue([]))
@@ -143,6 +148,8 @@ export default function Payroll() {
 
   const openEdit = (empId: number, it: any) => {
     setEditing({ empId, item: JSON.parse(JSON.stringify(it)) })
+    setNewExtraName('')
+    setNewExtraAmount('')
   }
 
   const saveEdit = async () => {
@@ -226,6 +233,58 @@ export default function Payroll() {
       manuals.delete(exId)
       return { ...curr, [empId]: { items: entry.items, manuals } }
     })
+  }
+
+  const addExtra = async (empId: number, itemId: number) => {
+    const name = newExtraName.trim() || 'Extra'
+    const amt = parseFloat(newExtraAmount) || 0
+    const res = await fetch(`${API_BASE_URL}/payroll/extra`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '1',
+      },
+      body: JSON.stringify({
+        payrollItemId: itemId,
+        employeeId: empId,
+        name,
+        amount: amt,
+      }),
+    })
+    if (res.ok) {
+      const ex = await res.json()
+      setDue((curr) =>
+        curr.map((d) => {
+          if (d.employee.id !== empId) return d
+          const items = d.items.map((it) => {
+            if (it.id !== itemId) return it
+            const extras = [...(it.extras || []), ex]
+            return { ...it, extras }
+          })
+          return { ...d, items, total: d.total + ex.amount }
+        }),
+      )
+      setEditing((curr) =>
+        curr
+          ? {
+              empId: curr.empId,
+              item: {
+                ...curr.item,
+                extras: [...(curr.item.extras || []), ex],
+              },
+            }
+          : null,
+      )
+      setSelectedMap((curr) => {
+        const entry = curr[empId]
+        if (!entry) return curr
+        const manuals = new Set(entry.manuals)
+        if (entry.items.has(itemId)) manuals.add(ex.id)
+        return { ...curr, [empId]: { items: entry.items, manuals } }
+      })
+    }
+    setNewExtraName('')
+    setNewExtraAmount('')
   }
 
   const toggleItem = (
@@ -579,18 +638,39 @@ export default function Payroll() {
                   <button
                     className="text-red-500 text-xs"
                     onClick={() =>
-                      deleteExtra(
-                        editing.empId,
-                        editing.item.id,
-                        ex.id,
-                        ex.amount,
-                      )
+                      setExtraToDelete({
+                        empId: editing.empId,
+                        itemId: editing.item.id,
+                        exId: ex.id,
+                        amt: ex.amount,
+                      })
                     }
                   >
                     Delete
                   </button>
                 </div>
               ))}
+            <div className="flex gap-2 items-center">
+              <input
+                className="border p-2 rounded flex-1"
+                placeholder="Name"
+                value={newExtraName}
+                onChange={(e) => setNewExtraName(e.target.value)}
+              />
+              <input
+                type="number"
+                className="border p-2 rounded w-24"
+                placeholder="Amount"
+                value={newExtraAmount}
+                onChange={(e) => setNewExtraAmount(e.target.value)}
+              />
+              <button
+                className="text-blue-500 text-xs"
+                onClick={() => addExtra(editing.empId, editing.item.id)}
+              >
+                Add
+              </button>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 className="px-4 py-1 border rounded"
@@ -603,6 +683,41 @@ export default function Payroll() {
                 onClick={saveEdit}
               >
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {extraToDelete && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-60"
+          onClick={() => setExtraToDelete(null)}
+        >
+          <div
+            className="bg-white p-4 rounded space-y-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>Delete this subitem?</div>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-1 border rounded"
+                onClick={() => setExtraToDelete(null)}
+              >
+                No
+              </button>
+              <button
+                className="px-4 py-1 bg-red-500 text-white rounded"
+                onClick={() => {
+                  deleteExtra(
+                    extraToDelete.empId,
+                    extraToDelete.itemId,
+                    extraToDelete.exId,
+                    extraToDelete.amt,
+                  )
+                  setExtraToDelete(null)
+                }}
+              >
+                Yes
               </button>
             </div>
           </div>
