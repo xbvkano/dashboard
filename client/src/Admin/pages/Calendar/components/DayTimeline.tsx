@@ -73,6 +73,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
   const [extraFor, setExtraFor] = useState<number | null>(null)
   const [extraName, setExtraName] = useState('')
   const [extraAmount, setExtraAmount] = useState('')
+  const [editingExtraId, setEditingExtraId] = useState<number | null>(null)
   const [showPhoneActions, setShowPhoneActions] = useState(false)
   const isMobile =
     typeof navigator !== 'undefined' &&
@@ -171,45 +172,96 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
     }
   }
 
-  const openExtra = (empId: number) => {
+  const openExtra = (
+    empId: number,
+    ex?: { id: number; name: string; amount: number },
+  ) => {
     setExtraFor(empId)
-    setExtraName('')
-    setExtraAmount('')
+    setExtraName(ex?.name || '')
+    setExtraAmount(ex ? String(ex.amount) : '')
+    setEditingExtraId(ex?.id ?? null)
   }
 
   const saveExtra = async () => {
     if (!selected || extraFor == null) return
     const amt = parseFloat(extraAmount) || 0
-    const res = await fetch(`${API_BASE_URL}/payroll/extra`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': '1',
-      },
-      body: JSON.stringify({
-        appointmentId: selected.id,
-        employeeId: extraFor,
-        name: extraName || 'Extra',
-        amount: amt,
-      }),
-    })
-    if (res.ok) {
-      const ex = await res.json()
-      setSelected((curr) => {
-        if (!curr) return curr
-        const items = curr.payrollItems ? [...curr.payrollItems] : []
-        let item = items.find((p) => p.employeeId === extraFor)
-        if (!item) {
-          item = { employeeId: extraFor, extras: [] }
-          items.push(item)
-        }
-        item.extras = [...item.extras, { id: ex.id, name: ex.name, amount: ex.amount }]
-        return { ...curr, payrollItems: items }
+    if (editingExtraId) {
+      const res = await fetch(
+        `${API_BASE_URL}/payroll/extra/${editingExtraId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': '1',
+          },
+          body: JSON.stringify({
+            name: extraName || 'Extra',
+            amount: amt,
+          }),
+        },
+      )
+      if (res.ok) {
+        setSelected((curr) => {
+          if (!curr) return curr
+          const items = curr.payrollItems ? [...curr.payrollItems] : []
+          let item = items.find((p) => p.employeeId === extraFor)
+          if (item) {
+            item.extras = item.extras.map((ex) =>
+              ex.id === editingExtraId ? { ...ex, name: extraName || 'Extra', amount: amt } : ex,
+            )
+          }
+          return { ...curr, payrollItems: items }
+        })
+      }
+    } else {
+      const res = await fetch(`${API_BASE_URL}/payroll/extra`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': '1',
+        },
+        body: JSON.stringify({
+          appointmentId: selected.id,
+          employeeId: extraFor,
+          name: extraName || 'Extra',
+          amount: amt,
+        }),
       })
+      if (res.ok) {
+        const ex = await res.json()
+        setSelected((curr) => {
+          if (!curr) return curr
+          const items = curr.payrollItems ? [...curr.payrollItems] : []
+          let item = items.find((p) => p.employeeId === extraFor)
+          if (!item) {
+            item = { employeeId: extraFor, extras: [] }
+            items.push(item)
+          }
+          item.extras = [...item.extras, { id: ex.id, name: ex.name, amount: ex.amount }]
+          return { ...curr, payrollItems: items }
+        })
+      }
     }
     setExtraFor(null)
     setExtraName('')
     setExtraAmount('')
+    setEditingExtraId(null)
+  }
+
+  const deleteExtra = async (id: number, empId: number) => {
+    await fetch(`${API_BASE_URL}/payroll/extra/${id}`, {
+      method: 'DELETE',
+      headers: { 'ngrok-skip-browser-warning': '1' },
+    })
+    setSelected((curr) => {
+      if (!curr) return curr
+      const items = curr.payrollItems ? [...curr.payrollItems] : []
+      const item = items.find((p) => p.employeeId === empId)
+      if (item) {
+        item.extras = item.extras.filter((ex) => ex.id !== id)
+      }
+      return { ...curr, payrollItems: items }
+    })
   }
 
   useEffect(() => {
@@ -548,9 +600,21 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
                         {extras.map((ex) => (
                           <div key={ex.id} className="pl-4 flex items-start relative">
                             <div className="absolute left-0 top-0 w-3 h-3 border-l border-b border-gray-400" />
-                            <span className="ml-3">
+                            <div className="ml-3 flex items-center">
                               {ex.name}: ${ex.amount.toFixed(2)}
-                            </span>
+                              <button
+                                className="text-blue-500 text-xs ml-2"
+                                onClick={() => openExtra(e.id!, ex)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="text-red-500 text-xs ml-1"
+                                onClick={() => deleteExtra(ex.id, e.id!)}
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </li>
@@ -871,13 +935,16 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
             {extraFor != null && (
               <div
                 className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                onClick={() => setExtraFor(null)}
+                onClick={() => {
+                  setExtraFor(null)
+                  setEditingExtraId(null)
+                }}
               >
                 <div
                   className="bg-white p-4 rounded space-y-2"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="font-medium">Add Extra Item</div>
+                  <div className="font-medium">{editingExtraId ? 'Edit Extra Item' : 'Add Extra Item'}</div>
                   <input
                     className="border p-2 rounded w-full"
                     placeholder="Name"
@@ -892,11 +959,17 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
                     onChange={(e) => setExtraAmount(e.target.value)}
                   />
                   <div className="flex justify-end gap-2">
-                    <button className="px-4 py-1 border rounded" onClick={() => setExtraFor(null)}>
+                    <button
+                      className="px-4 py-1 border rounded"
+                      onClick={() => {
+                        setExtraFor(null)
+                        setEditingExtraId(null)
+                      }}
+                    >
                       Cancel
                     </button>
                     <button className="px-4 py-1 bg-blue-500 text-white rounded" onClick={saveExtra}>
-                      Add
+                      {editingExtraId ? 'Update' : 'Add'}
                     </button>
                   </div>
                 </div>

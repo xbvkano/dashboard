@@ -5,7 +5,15 @@ import { formatPhone } from '../../../formatPhone'
 
 interface DueItem {
   employee: { id: number; name: string; number: string }
-  items: { service: string; date: string; amount: number; tip: number }[]
+  items: {
+    id?: number
+    service: string
+    date: string
+    amount: number
+    selectable?: boolean
+    manual?: boolean
+    extras?: { id: number; name: string; amount: number }[]
+  }[]
   total: number
 }
 
@@ -27,6 +35,9 @@ export default function Payroll() {
   const [otherFor, setOtherFor] = useState<number | null>(null)
   const [otherName, setOtherName] = useState('')
   const [otherAmount, setOtherAmount] = useState('')
+  const [selectedMap, setSelectedMap] = useState<
+    Record<number, { items: Set<number>; manuals: Set<number> }>
+  >({})
 
   const load = () => {
     fetchJson(`${API_BASE_URL}/payroll/due`).then(setDue).catch(() => setDue([]))
@@ -46,15 +57,26 @@ export default function Payroll() {
 
   const handlePay = async () => {
     if (!selected) return
+    const sel = selectedMap[selected] || {
+      items: new Set<number>(),
+      manuals: new Set<number>(),
+    }
     const payload = {
       employeeId: selected,
       amount: parseFloat(amount) || 0,
       extra: extra ? parseFloat(extra) || 0 : 0,
+      itemIds: Array.from(sel.items),
+      manualIds: Array.from(sel.manuals),
     }
     await fetch(`${API_BASE_URL}/payroll/pay`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
       body: JSON.stringify(payload),
+    })
+    setSelectedMap((curr) => {
+      const copy = { ...curr }
+      delete copy[selected]
+      return copy
     })
     setSelected('')
     setAmount('')
@@ -77,19 +99,21 @@ export default function Payroll() {
     if (otherFor == null) return
     const name = otherName.trim() || 'Other'
     const amt = parseFloat(otherAmount) || 0
-    await fetch(`${API_BASE_URL}/payroll/manual`, {
+    const res = await fetch(`${API_BASE_URL}/payroll/manual`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
       body: JSON.stringify({ employeeId: otherFor, name, amount: amt }),
     })
+    const data = await res.json()
     setDue((curr) =>
       curr.map((d) => {
         if (d.employee.id !== otherFor) return d
         const newItem = {
+          id: data.id,
           service: name,
           date: new Date().toISOString(),
           amount: amt,
-          tip: 0,
+          manual: true,
         }
         return {
           ...d,
@@ -106,6 +130,58 @@ export default function Payroll() {
     setOtherName('')
     setOtherAmount('')
   }
+
+  const toggleItem = (empId: number, it: { id?: number; manual?: boolean }) => {
+    if (!it.id) return
+    setSelectedMap((curr) => {
+      const entry = curr[empId] || { items: new Set<number>(), manuals: new Set<number>() }
+      const items = new Set(entry.items)
+      const manuals = new Set(entry.manuals)
+      const set = it.manual ? manuals : items
+      if (set.has(it.id)) set.delete(it.id)
+      else set.add(it.id)
+      return { ...curr, [empId]: { items, manuals } }
+    })
+  }
+
+  const toggleExtra = (empId: number, id: number) => {
+    setSelectedMap((curr) => {
+      const entry = curr[empId] || { items: new Set<number>(), manuals: new Set<number>() }
+      const items = new Set(entry.items)
+      const manuals = new Set(entry.manuals)
+      if (manuals.has(id)) manuals.delete(id)
+      else manuals.add(id)
+      return { ...curr, [empId]: { items, manuals } }
+    })
+  }
+
+  const selectedTotal = (empId: number) => {
+    const d = due.find((dd) => dd.employee.id === empId)
+    const sel = selectedMap[empId]
+    if (!d || !sel) return 0
+    let total = 0
+    for (const it of d.items) {
+      if (it.id && sel.items.has(it.id)) total += it.amount
+      if (it.manual && it.id && sel.manuals.has(it.id)) total += it.amount
+      if (it.extras) {
+        for (const ex of it.extras) {
+          if (sel.manuals.has(ex.id)) total += ex.amount
+        }
+      }
+    }
+    return total
+  }
+
+  useEffect(() => {
+    if (selected) {
+      const total = selectedTotal(selected)
+      if (total > 0) setAmount(total.toFixed(2))
+      else {
+        const emp = due.find((d) => d.employee.id === selected)
+        if (emp) setAmount(String(emp.total))
+      }
+    }
+  }, [selected, selectedMap, due])
 
   return (
     <div className="p-4 pb-16 space-y-4">
@@ -157,20 +233,46 @@ export default function Payroll() {
                 <div className="text-right">
                   <div className="text-sm">Total:</div>
                   <div className="text-lg font-semibold">${d.total.toFixed(2)}</div>
+                  <div className="text-sm text-gray-600">
+                    Selected: ${selectedTotal(d.employee.id).toFixed(2)}
+                  </div>
                 </div>
               </div>
-              <ul className="text-sm list-disc pl-4">
+              <ul className="text-sm pl-4">
                 {d.items.map((it, idx) => (
                   <li key={idx} className="mb-1">
-                    {it.service}, {it.date.slice(0, 10)}, ${it.amount.toFixed(2)}
-                    {it.tip ? ` + ${it.tip.toFixed(2)} tip` : ''}
+                    <div className="flex items-center">
+                      {it.id && it.selectable !== false && (
+                        <input
+                          type="checkbox"
+                          className="mr-1"
+                          checked={
+                            it.manual
+                              ? selectedMap[d.employee.id]?.manuals.has(it.id) || false
+                              : selectedMap[d.employee.id]?.items.has(it.id) || false
+                          }
+                          onChange={() => toggleItem(d.employee.id, it)}
+                        />
+                      )}
+                      {it.service}, {it.date.slice(0, 10)}, ${it.amount.toFixed(2)}
+                    </div>
                     {it.extras &&
-                      it.extras.map((ex: any, ei: number) => (
-                        <div key={ei} className="pl-4 flex items-start relative">
+                      it.extras.map((ex) => (
+                        <div key={ex.id} className="pl-4 flex items-start relative">
                           <div className="absolute left-0 top-0 w-3 h-3 border-l border-b border-gray-400" />
-                          <span className="ml-3">
-                            {ex.name}: ${ex.amount.toFixed(2)}
-                          </span>
+                          <label className="ml-3 flex items-center">
+                            <input
+                              type="checkbox"
+                              className="mr-1"
+                              checked={
+                                selectedMap[d.employee.id]?.manuals.has(ex.id) || false
+                              }
+                              onChange={() => toggleExtra(d.employee.id, ex.id)}
+                            />
+                            <span>
+                              {ex.name}: ${ex.amount.toFixed(2)}
+                            </span>
+                          </label>
                         </div>
                       ))}
                   </li>

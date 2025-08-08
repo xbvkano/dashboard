@@ -1714,7 +1714,6 @@ app.get('/payroll/due', async (_req: Request, res: Response) => {
       appt.carpetRooms && appt.size && carpetIds.length
         ? calculateCarpetRate(appt.size, appt.carpetRooms) / carpetIds.length
         : 0
-    const tip = (appt.tip || 0) / count
     if (!map[e.id]) {
       map[e.id] = { employee: e, items: [], total: e.prevBalance || 0 }
       if (e.prevBalance && e.prevBalance !== 0) {
@@ -1722,20 +1721,20 @@ app.get('/payroll/due', async (_req: Request, res: Response) => {
           service: e.prevBalance > 0 ? 'Previous balance' : 'Credit',
           date: e.lastPaidAt,
           amount: e.prevBalance,
-          tip: 0,
+          selectable: false,
         })
       }
     }
     const amount = pay + (carpetIds.includes(e.id) ? carpetShare : 0)
-    const extras = it.extras.map((ex: any) => ({ name: ex.name, amount: ex.amount }))
+    const extras = it.extras.map((ex: any) => ({ id: ex.id, name: ex.name, amount: ex.amount }))
     map[e.id].items.push({
+      id: it.id,
       service: appt.type,
       date: appt.date,
       amount,
-      tip,
       extras,
     })
-    map[e.id].total += amount + tip
+    map[e.id].total += amount
     for (const ex of extras) {
       map[e.id].total += ex.amount
     }
@@ -1749,15 +1748,16 @@ app.get('/payroll/due', async (_req: Request, res: Response) => {
           service: e.prevBalance > 0 ? 'Previous balance' : 'Credit',
           date: e.lastPaidAt,
           amount: e.prevBalance,
-          tip: 0,
+          selectable: false,
         })
       }
     }
     map[e.id].items.push({
+      id: ot.id,
       service: ot.name,
       date: ot.createdAt,
       amount: ot.amount,
-      tip: 0,
+      manual: true,
     })
     map[e.id].total += ot.amount
   }
@@ -1770,7 +1770,7 @@ app.get('/payroll/due', async (_req: Request, res: Response) => {
         service: e.prevBalance > 0 ? 'Previous balance' : 'Credit',
         date: e.lastPaidAt,
         amount: e.prevBalance,
-        tip: 0,
+        selectable: false,
       })
     }
   }
@@ -1830,6 +1830,30 @@ app.post('/payroll/extra', async (req: Request, res: Response) => {
   })
 })
 
+app.put('/payroll/extra/:id', async (req: Request, res: Response) => {
+  const id = Number(req.params.id)
+  const { name, amount } = req.body as { name?: string; amount?: number }
+  if (!id || amount == null) {
+    return res.status(400).json({ error: 'id and amount required' })
+  }
+  const extra = await prisma.manualPayrollItem.update({
+    where: { id },
+    data: { name: name || 'Extra', amount },
+  })
+  res.json({ id: extra.id, name: extra.name, amount: extra.amount })
+})
+
+app.delete('/payroll/extra/:id', async (req: Request, res: Response) => {
+  const id = Number(req.params.id)
+  if (!id) return res.status(400).json({ error: 'id required' })
+  try {
+    await prisma.manualPayrollItem.delete({ where: { id } })
+    res.json({ ok: true })
+  } catch {
+    res.status(404).json({ error: 'extra not found' })
+  }
+})
+
 app.get('/payroll/paid', async (_req: Request, res: Response) => {
   const payments = await prisma.employeePayment.findMany({
     orderBy: { createdAt: 'desc' },
@@ -1840,24 +1864,34 @@ app.get('/payroll/paid', async (_req: Request, res: Response) => {
 })
 
 app.post('/payroll/pay', async (req: Request, res: Response) => {
-  const { employeeId, amount, extra = 0 } = req.body as { employeeId?: number; amount?: number; extra?: number }
+  const { employeeId, amount, extra = 0, itemIds = [], manualIds = [] } =
+    (req.body as {
+      employeeId?: number
+      amount?: number
+      extra?: number
+      itemIds?: number[]
+      manualIds?: number[]
+    })
   if (!employeeId || amount == null) {
     return res.status(400).json({ error: 'employeeId and amount required' })
   }
   const employee = await prisma.employee.findUnique({ where: { id: employeeId } })
   if (!employee) return res.status(404).json({ error: 'employee not found' })
-  const items = await prisma.payrollItem.findMany({
-    where: { employeeId, paid: false },
-    include: { appointment: { include: { employees: true } }, extras: true },
-  })
-  const others = await prisma.manualPayrollItem.findMany({
-    where: { employeeId, paid: false, payrollItemId: null },
-  })
-  const extras = items.flatMap((it: any) => it.extras)
-  let totalDue = employee.prevBalance || 0
+  const items = itemIds.length
+    ? await prisma.payrollItem.findMany({
+        where: { id: { in: itemIds }, employeeId, paid: false },
+        include: { appointment: { include: { employees: true } } },
+      })
+    : []
+  const manualItems = manualIds.length
+    ? await prisma.manualPayrollItem.findMany({
+        where: { id: { in: manualIds }, employeeId, paid: false },
+      })
+    : []
+  let itemsTotal = 0
   for (const it of items) {
     const c = it.appointment.employees.length || 1
-    totalDue += calculatePayRate(it.appointment.type, it.appointment.size ?? null, c)
+    itemsTotal += calculatePayRate(it.appointment.type, it.appointment.size ?? null, c)
     if (
       it.appointment.carpetRooms &&
       it.appointment.size &&
@@ -1869,27 +1903,31 @@ app.post('/payroll/pay', async (req: Request, res: Response) => {
           it.appointment.carpetRooms,
         ) / it.appointment.carpetEmployees.length
       if (it.appointment.carpetEmployees.includes(employeeId)) {
-        totalDue += share
+        itemsTotal += share
       }
     }
-    totalDue += (it.appointment.tip || 0) / c
   }
-  for (const ot of others) {
-    totalDue += ot.amount
-  }
-  for (const ex of extras) {
-    totalDue += ex.amount
+  for (const mi of manualItems) {
+    itemsTotal += mi.amount
   }
   const payment = await prisma.employeePayment.create({ data: { employeeId, amount, extra } })
   if (items.length) {
-    await prisma.payrollItem.updateMany({ where: { id: { in: items.map((i: { id: number }) => i.id) } }, data: { paid: true, paymentId: payment.id } })
+    await prisma.payrollItem.updateMany({
+      where: { id: { in: items.map((i: { id: number }) => i.id) } },
+      data: { paid: true, paymentId: payment.id },
+    })
   }
-  const manualIds = [...others.map((o: { id: number }) => o.id), ...extras.map((e: { id: number }) => e.id)]
-  if (manualIds.length) {
-    await prisma.manualPayrollItem.updateMany({ where: { id: { in: manualIds } }, data: { paid: true, paymentId: payment.id } })
+  if (manualItems.length) {
+    await prisma.manualPayrollItem.updateMany({
+      where: { id: { in: manualItems.map((m: { id: number }) => m.id) } },
+      data: { paid: true, paymentId: payment.id },
+    })
   }
-  const balance = totalDue - amount
-  await prisma.employee.update({ where: { id: employeeId }, data: { prevBalance: balance, lastPaidAt: new Date() } })
+  const balance = (employee.prevBalance || 0) + itemsTotal - amount
+  await prisma.employee.update({
+    where: { id: employeeId },
+    data: { prevBalance: balance, lastPaidAt: new Date() },
+  })
   res.json({ id: payment.id })
 })
 
@@ -1922,7 +1960,6 @@ app.post('/payroll/chargeback', async (req: Request, res: Response) => {
         itemsTotal += share
       }
     }
-    itemsTotal += (it.appointment.tip || 0) / c
   }
   for (const ot of payment.manualItems) {
     itemsTotal += ot.amount
