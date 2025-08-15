@@ -663,6 +663,22 @@ const preserveTeamRef = useRef(false)
     }
   }
 
+  const deleteTemplate = async () => {
+    if (!selectedTemplate) return
+    const ok = await confirm('Delete this template?')
+    if (!ok) return
+    const res = await fetch(`${API_BASE_URL}/appointment-templates/${selectedTemplate}`, {
+      method: 'DELETE',
+      headers: { "ngrok-skip-browser-warning": "1" },
+    })
+    if (res.ok) {
+      setTemplates((p) => p.filter((tt) => tt.id !== selectedTemplate))
+      resetTemplateRelated()
+    } else {
+      await alert('Failed to delete template')
+    }
+  }
+
   const isValidSelection = () => {
     if (staffOptions.length === 0) return true
     const opt = staffOptions[selectedOption]
@@ -1111,6 +1127,9 @@ const preserveTeamRef = useRef(false)
                     </button>
                     <button className="text-sm text-blue-500" onClick={startEditTemplate}>
                       edit
+                    </button>
+                    <button className="text-sm text-red-500" onClick={deleteTemplate}>
+                      delete
                     </button>
                   </div>
                 </div>
