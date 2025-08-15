@@ -801,6 +801,16 @@ app.post('/appointment-templates', async (req: Request, res: Response) => {
   }
 })
 
+app.delete('/appointment-templates/:id', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10)
+  try {
+    await prisma.appointmentTemplate.delete({ where: { id } })
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to delete template' })
+  }
+})
+
 // Staff options lookup
 app.get('/staff-options', (req: Request, res: Response) => {
   const size = String(req.query.size || '')
