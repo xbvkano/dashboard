@@ -990,6 +990,29 @@ app.get('/appointments/no-team', async (_req: Request, res: Response) => {
   }
 })
 
+// Get AI appointments
+app.get('/appointments/ai', async (_req: Request, res: Response) => {
+  try {
+    const appts = await prisma.appointment.findMany({
+      where: {
+        aiCreated: true,
+        status: { notIn: ['DELETED', 'RESCHEDULE_OLD', 'CANCEL'] },
+      },
+      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
+    })
+    res.json(appts)
+  } catch (err) {
+    console.error('Failed to fetch AI appointments:', err)
+    res.status(500).json({ error: 'Failed to fetch AI appointments' })
+  }
+})
+
 app.get('/appointments/upcoming-recurring', async (_req: Request, res: Response) => {
   try {
     const today = new Date()
@@ -1282,6 +1305,146 @@ app.post('/appointments', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error creating appointment:', err)
     return res.status(500).json({ error: 'Failed to create appointment' })
+  }
+})
+
+// AI Appointment creation endpoint
+app.post('/ai-appointments', async (req: Request, res: Response) => {
+  try {
+    const {
+      clientName,
+      clientPhone,
+      appointmentAddress,
+      price,
+      date,
+      time,
+      notes,
+      adminId,
+      size,
+    } = req.body as {
+      clientName?: string
+      clientPhone?: string
+      appointmentAddress?: string
+      price?: number
+      date?: string
+      time?: string
+      notes?: string
+      adminId?: number
+      size?: string
+    }
+
+    // Validate required fields
+    if (!clientName || !clientPhone || !appointmentAddress || !price || !date || !time || !adminId || !size) {
+      return res.status(400).json({ error: 'Missing required fields: clientName, clientPhone, appointmentAddress, price, date, time, adminId, size' })
+    }
+
+    // Normalize phone number
+    const normalizedPhone = normalizePhone(clientPhone)
+    if (!normalizedPhone) {
+      return res.status(400).json({ error: 'Invalid phone number format' })
+    }
+
+    // Step 1: Find or create client
+    let client = await prisma.client.findFirst({
+      where: {
+        OR: [
+          { name: clientName },
+          { number: normalizedPhone }
+        ]
+      }
+    })
+
+    if (!client) {
+      // Create new client with AI note
+      client = await prisma.client.create({
+        data: {
+          name: clientName,
+          number: normalizedPhone,
+          from: 'AI',
+          notes: 'Client created by AI',
+        }
+      })
+    } else {
+      // Update existing client to add AI note if not already present
+      const currentNotes = client.notes || ''
+      if (!currentNotes.includes('AI')) {
+        await prisma.client.update({
+          where: { id: client.id },
+          data: {
+            notes: currentNotes ? `${currentNotes} | Client used by AI` : 'Client used by AI'
+          }
+        })
+      }
+    }
+
+    // Use the provided size instead of estimating from address
+    const estimatedSize = size
+
+    // Step 3: Find matching template or create new one
+    let template = await prisma.appointmentTemplate.findFirst({
+      where: {
+        clientId: client.id,
+        address: appointmentAddress,
+        price: price,
+        size: estimatedSize
+      }
+    })
+
+    if (!template) {
+      // Create new template with AI note
+      template = await prisma.appointmentTemplate.create({
+        data: {
+          templateName: `AI Template - ${appointmentAddress}`,
+          type: 'AI',
+          size: estimatedSize,
+          address: appointmentAddress,
+          price: price,
+          notes: 'Template created by AI',
+          instructions: 'AI created template',
+          clientId: client.id,
+        }
+      })
+    }
+
+    // Step 4: Create the appointment
+    const appt = await prisma.appointment.create({
+      data: {
+        clientId: client.id,
+        adminId,
+        date: new Date(date),
+        time,
+        type: 'AI',
+        address: appointmentAddress,
+        size: estimatedSize,
+        price,
+        paid: false,
+        paymentMethod: 'CASH',
+        tip: 0,
+        noTeam: true, // AI appointments are always no team by default
+        notes: notes || 'Appointment created by AI',
+        status: 'APPOINTED',
+        lineage: 'single',
+        aiCreated: true, // Mark as AI created
+      },
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+      },
+    })
+
+    return res.json({
+      success: true,
+      appointment: appt,
+      client: client,
+      template: template,
+      message: 'AI appointment created successfully'
+    })
+
+  } catch (err) {
+    console.error('Error creating AI appointment:', err)
+    return res.status(500).json({ error: 'Failed to create AI appointment' })
   }
 })
 
@@ -2161,6 +2324,159 @@ app.post('/login', async (req: Request, res: Response) => {
     console.error(e)
     res.status(500).json({ error: 'Authentication failed' })
   }
+})
+
+// OpenAPI specification for AI appointment endpoint
+app.get('/openapi.json', (_req: Request, res: Response) => {
+  res.json({
+    openapi: "3.0.0",
+    info: {
+      title: "AI Appointment API",
+      version: "1.0.0",
+      description: "API for creating AI-powered appointments"
+    },
+    servers: [
+      {
+        url: "http://localhost:3000",
+        description: "Development server"
+      }
+    ],
+    paths: {
+      "/ai-appointments": {
+        post: {
+          summary: "Create AI Appointment",
+          description: "Create a new appointment automatically using AI. The system will handle client lookup/creation, template matching/creation, and appointment scheduling.",
+          operationId: "createAiAppointment",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    clientName: {
+                      type: "string",
+                      description: "Full name of the client",
+                      example: "John Smith"
+                    },
+                    clientPhone: {
+                      type: "string",
+                      description: "Phone number in any format",
+                      example: "555-123-4567"
+                    },
+                    appointmentAddress: {
+                      type: "string",
+                      description: "Full address of the appointment location",
+                      example: "123 Main St, Las Vegas, NV 89101"
+                    },
+                    price: {
+                      type: "number",
+                      description: "Cost of the appointment in dollars",
+                      example: 150.00
+                    },
+                    date: {
+                      type: "string",
+                      format: "date",
+                      description: "Appointment date in YYYY-MM-DD format",
+                      example: "2024-01-15"
+                    },
+                    time: {
+                      type: "string",
+                      pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$",
+                      description: "Appointment time in HH:MM format, 24-hour",
+                      example: "10:00"
+                    },
+                                         notes: {
+                       type: "string",
+                       description: "Additional notes for the appointment",
+                       example: "Deep cleaning needed"
+                     },
+                     size: {
+                       type: "string",
+                       description: "Property size in square feet (e.g., '1500-2000', '2000-2500')",
+                       example: "1500-2000"
+                     },
+                     adminId: {
+                       type: "integer",
+                       description: "ID of the admin user creating the appointment",
+                       example: 1
+                     }
+                   },
+                   required: ["clientName", "clientPhone", "appointmentAddress", "price", "date", "time", "adminId", "size"]
+                }
+              }
+            }
+          },
+          responses: {
+            "200": {
+              description: "AI appointment created successfully",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: {
+                        type: "boolean",
+                        example: true
+                      },
+                      appointment: {
+                        type: "object",
+                        description: "Full appointment object with all details"
+                      },
+                      client: {
+                        type: "object",
+                        description: "Client information (existing or newly created)"
+                      },
+                      template: {
+                        type: "object",
+                        description: "Template information (existing or newly created)"
+                      },
+                      message: {
+                        type: "string",
+                        example: "AI appointment created successfully"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+              description: "Bad request - missing or invalid fields",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                                             error: {
+                         type: "string",
+                         example: "Missing required fields: clientName, clientPhone, appointmentAddress, price, date, time, adminId, size"
+                       }
+                    }
+                  }
+                }
+              }
+            },
+            "500": {
+              description: "Internal server error",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      error: {
+                        type: "string",
+                        example: "Failed to create AI appointment"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  })
 })
 
 // 404 handler for unmatched routes
