@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://dashboard-production-83c0.up.railway.app",
+      "url": "https://server.worldwideevidence.com",
       "description": "Production server"
     }
   ],
@@ -42,7 +42,7 @@
                   "price": {
                     "type": "number",
                     "description": "Cost of the appointment in dollars",
-                    "example": 150.00
+                    "example": 150
                   },
                   "date": {
                     "type": "string",
@@ -79,8 +79,8 @@
                   "price",
                   "date",
                   "time",
-                  "size",
-                  "adminId"
+                  "adminId",
+                  "size"
                 ]
               }
             }
@@ -128,7 +128,7 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "example": "Missing required fields: clientName, clientPhone, appointmentAddress, price, date, time, size, adminId"
+                      "example": "Missing required fields: clientName, clientPhone, appointmentAddress, price, date, time, adminId, size"
                     }
                   }
                 }
