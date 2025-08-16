@@ -3,7 +3,7 @@
   "info": {
     "title": "AI Appointment API",
     "version": "1.0.0",
-    "description": "API for creating AI-powered appointments."
+    "description": "API for creating AI-powered appointments"
   },
   "servers": [
     {
@@ -14,9 +14,9 @@
   "paths": {
     "/ai-appointments": {
       "post": {
-        "operationId": "createAiAppointment",
         "summary": "Create AI Appointment",
         "description": "Create a new appointment automatically using AI. The system will handle client lookup/creation, template matching/creation, and appointment scheduling.",
+        "operationId": "createAiAppointment",
         "requestBody": {
           "required": true,
           "content": {
@@ -42,7 +42,7 @@
                   "price": {
                     "type": "number",
                     "description": "Cost of the appointment in dollars",
-                    "example": 150.0
+                    "example": 150.00
                   },
                   "date": {
                     "type": "string",
@@ -63,7 +63,7 @@
                   },
                   "size": {
                     "type": "string",
-                    "description": "Estimated size of the job or space (e.g. '1500-2000')",
+                    "description": "Property size in square feet (e.g., '1500-2000', '2000-2500')",
                     "example": "1500-2000"
                   },
                   "adminId": {
