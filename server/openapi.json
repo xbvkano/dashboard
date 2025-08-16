@@ -8,7 +8,7 @@
   "servers": [
     {
       "url": "https://dashboard-production-83c0.up.railway.app",
-      "description": "Production server (Railway)"
+      "description": "Production server"
     }
   ],
   "paths": {
