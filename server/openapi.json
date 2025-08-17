@@ -66,11 +66,12 @@
                     "description": "Property size in square feet (e.g., '1500-2000', '2000-2500')",
                     "example": "1500-2000"
                   },
-                  "adminId": {
-                    "type": "integer",
-                    "description": "ID of the admin user creating the appointment",
-                    "example": 1
-                  }
+                                     "serviceType": {
+                     "type": "string",
+                     "description": "Type of cleaning service (STANDARD, DEEP, MOVE_IN_OUT)",
+                     "example": "STANDARD",
+                     "enum": ["STANDARD", "DEEP", "MOVE_IN_OUT"]
+                   }
                 },
                 "required": [
                   "clientName",
@@ -79,8 +80,8 @@
                   "price",
                   "date",
                   "time",
-                  "adminId",
-                  "size"
+                  "size",
+                  "serviceType"
                 ]
               }
             }
@@ -128,7 +129,7 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "example": "Missing required fields: clientName, clientPhone, appointmentAddress, price, date, time, adminId, size"
+                      "example": "Missing required fields: clientName, clientPhone, appointmentAddress, price, date, time, size, serviceType"
                     }
                   }
                 }

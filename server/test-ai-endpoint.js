@@ -11,7 +11,7 @@ async function testAIAppointment() {
       time: '10:00',
       notes: 'Test AI appointment',
       size: '1500-2000',
-      adminId: 1
+      serviceType: 'STANDARD'
     });
 
     console.log('Success! AI Appointment created:');

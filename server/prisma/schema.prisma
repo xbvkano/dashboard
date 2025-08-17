@@ -144,7 +144,6 @@ enum AppointmentType {
   STANDARD
   DEEP
   MOVE_IN_OUT
-  AI
 }
 
 enum Role {

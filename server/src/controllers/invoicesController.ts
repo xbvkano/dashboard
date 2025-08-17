@@ -1,36 +1,12 @@
-import express, { Request, Response, NextFunction } from 'express'
-import cors from 'cors'
-import dotenv from 'dotenv'
-import fs from 'fs'
-import https from 'https'
-import path from 'path'
+import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
-import { OAuth2Client } from 'google-auth-library'
 import { PDFDocument, StandardFonts, rgb, PDFFont, degrees } from 'pdf-lib'
 import nodemailer from 'nodemailer'
-import twilio from 'twilio'
-import { uploadInvoiceToDrive } from './drive'
-
-async function ensureRecurringFuture() {
-  return
-}
-dotenv.config()
+import fs from 'fs'
+import path from 'path'
+import { uploadInvoiceToDrive } from '../drive'
 
 const prisma = new PrismaClient()
-const app = express()
-const port = process.env.PORT || 3000
-const smsClient = twilio(
-  process.env.TWILIO_ACCOUNT_SID || '',
-  process.env.TWILIO_AUTH_TOKEN || '',
-)
-
-
-
-const client = new OAuth2Client(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173'
-)
 
 async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
   const pdf = await PDFDocument.create()
@@ -267,79 +243,156 @@ async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
   return Buffer.from(bytes)
 }
 
-app.use(cors({
-  allowedHeaders: [
-    'Content-Type',
-    'ngrok-skip-browser-warning',  // <- allow it here
-  ],
-}))
-app.use(express.json())
+export async function createInvoice(req: Request, res: Response) {
+  try {
+    const {
+      clientName,
+      billedTo,
+      address,
+      city,
+      state,
+      zip,
+      serviceDate,
+      serviceTime,
+      serviceType,
+      price,
+      carpetPrice,
+      discount,
+      taxPercent,
+      comment,
+      paid,
+      otherItems,
+    } = req.body as {
+      clientName?: string
+      billedTo?: string
+      address?: string
+      city?: string
+      state?: string
+      zip?: string
+      serviceDate?: string
+      serviceTime?: string
+      serviceType?: string
+      price?: number
+      carpetPrice?: number
+      discount?: number
+      taxPercent?: number
+      comment?: string
+      paid?: boolean
+      otherItems?: { name: string; price: number | string }[]
+    }
+    if (!clientName || !billedTo || !address || !serviceDate || !serviceTime || !serviceType || price === undefined) {
+      return res.status(400).json({ error: 'Missing fields' })
+    }
+    const normalizedItems = (otherItems || []).map((i) => ({
+      name: i.name,
+      price: Number(i.price) || 0,
+    }))
+    const otherTotal = normalizedItems.reduce((sum, i) => sum + i.price, 0)
+    const subtotal = price + (carpetPrice || 0) + otherTotal - (discount || 0)
+    const total = subtotal + (taxPercent ? subtotal * (taxPercent / 100) : 0)
+    const crypto = require('crypto')
+    const uuid = crypto.randomUUID()
+    const number = BigInt('0x' + uuid.replace(/-/g, '')).toString().slice(-20)
+    const invoice = await prisma.invoice.create({
+      data: {
+        id: uuid,
+        number,
+        clientName,
+        billedTo,
+        address,
+        city: city ?? null,
+        state: state ?? null,
+        zip: zip ?? null,
+        serviceDate: new Date(serviceDate),
+        serviceTime,
+        serviceType,
+        price,
+        carpetPrice: carpetPrice ?? null,
+        discount: discount ?? null,
+        taxPercent: taxPercent ?? null,
+        comment: comment ?? null,
+        otherItems: normalizedItems.length ? normalizedItems : undefined,
+        paid: paid ?? true,
+        total,
+      },
+    })
+    res.json({ id: invoice.id })
+  } catch (err) {
+    console.error('Failed to create invoice:', err)
+    res.status(500).json({ error: 'Failed to create invoice' })
+  }
+}
 
-// Basic request/response logging middleware
-app.use((req: Request, res: Response, next) => {
-  console.log(`got ${req.method} ${req.originalUrl} body: ${JSON.stringify(req.body)}`)
-  const originalJson = res.json.bind(res)
-  let responseBody: any
-  res.json = ((body: any) => {
-    responseBody = body
-    return originalJson(body)
-  }) as any
-  res.on('finish', () => {
-    console.log(
-      `Responded ${req.method} ${req.originalUrl} -> ${res.statusCode} ${JSON.stringify(responseBody)}`
+export async function getInvoicePdf(req: Request, res: Response) {
+  try {
+    const { id } = req.params
+    const inv = await prisma.invoice.findUnique({ where: { id } })
+    if (!inv) return res.status(404).json({ error: 'Not found' })
+
+    const tzOffset = Number(req.query.tzOffset) || 0
+    const bytes = await generateInvoicePdf(inv, tzOffset)
+    res.setHeader('Content-Type', 'application/pdf')
+    res.send(bytes)
+  } catch (err) {
+    console.error('Failed to generate invoice PDF:', err)
+    res.status(500).json({ error: 'Failed to generate PDF' })
+  }
+}
+
+export async function sendInvoice(req: Request, res: Response) {
+  try {
+    const { id } = req.params
+    const email = String((req.body as any).email || '').trim()
+    if (!email) return res.status(400).json({ error: 'email required' })
+    const inv = await prisma.invoice.findUnique({ where: { id } })
+    if (!inv) return res.status(404).json({ error: 'Not found' })
+
+    const tzOffset = Number((req.body as any).tzOffset) || 0
+    const attachment = await generateInvoicePdf(inv, tzOffset)
+
+    const transport = nodemailer.createTransport({
+      host: process.env.MAILTRAP_HOST,
+      port: Number(process.env.MAILTRAP_PORT),
+      auth: {
+        user: process.env.MAILTRAP_USER,
+        pass: process.env.MAILTRAP_API_KEY,
+      },
+    })
+
+    await transport.sendMail({
+      from: process.env.MAILTRAP_FROM || 'no-reply@example.com',
+      to: email,
+      subject: 'Evidence Cleaning Invoice',
+      text:
+        'Hello,\n\nthis is an automated message from Evidence Cleaning. Attached is you invoice.\n\nPlease feel free to text Cassia at 725-577-4524 if you have any questions.\nBest,\nEvidence Cleaning.',
+      attachments: [
+        { filename: 'invoice.pdf', content: attachment },
+      ],
+    })
+    await uploadInvoiceToDrive(inv, attachment)
+
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('Failed to send invoice email:', err)
+    res.status(500).json({ error: 'Failed to send invoice' })
+  }
+}
+
+export async function getRevenue(_req: Request, res: Response) {
+  try {
+    const invoices = await prisma.invoice.findMany({
+      orderBy: { serviceDate: 'asc' },
+      select: { serviceDate: true, total: true, serviceType: true },
+    })
+    res.json(
+      invoices.map((i: any) => ({
+        serviceDate: i.serviceDate.toISOString(),
+        total: i.total,
+        serviceType: i.serviceType,
+      }))
     )
-  })
-  next()
-})
-
-// Import all route files
-import basicRoutes from './routes/basic'
-import authRoutes from './routes/auth'
-import calendarRoutes from './routes/calendar'
-import calculatorsRoutes from './routes/calculators'
-import clientsRoutes from './routes/clients'
-import employeesRoutes from './routes/employees'
-import templatesRoutes from './routes/templates'
-import appointmentsRoutes from './routes/appointments'
-import invoicesRoutes from './routes/invoices'
-import payrollRoutes from './routes/payroll'
-import aiAppointmentRoutes from './routes/aiAppointments'
-
-// Use all route files
-app.use('/', basicRoutes)
-app.use('/', authRoutes)
-app.use('/', calendarRoutes)
-app.use('/', calculatorsRoutes)
-app.use('/', clientsRoutes)
-app.use('/', employeesRoutes)
-app.use('/', templatesRoutes)
-app.use('/', appointmentsRoutes)
-app.use('/', invoicesRoutes)
-app.use('/', payrollRoutes)
-app.use('/', aiAppointmentRoutes)
-
-// 404 handler for unmatched routes
-app.use((_req: Request, res: Response) => {
-  res.status(404).json({ error: 'Not found' })
-})
-
-// Error handler to ensure JSON responses
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err)
-  res.status(500).json({ error: 'Internal server error' })
-})
-
-const keyPath = process.env.SSL_KEY_PATH
-const certPath = process.env.SSL_CERT_PATH
-
-if (keyPath && certPath) {
-  const key = fs.readFileSync(path.resolve(keyPath))
-  const cert = fs.readFileSync(path.resolve(certPath))
-  https.createServer({ key, cert }, app).listen(port, () => {
-    console.log(`HTTPS server listening on port ${port}`)
-  })
-} else {
-  app.listen(port, () => {
-    console.log(`Server listening on port ${port}`)
-  })
+  } catch (err) {
+    console.error('Failed to fetch revenue:', err)
+    res.status(500).json({ error: 'Failed to fetch revenue' })
+  }
 }

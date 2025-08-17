@@ -17,7 +17,7 @@ The AI Appointment endpoint allows AI systems to create appointments automatical
   "time": "string (required, HH:MM format)",
   "notes": "string (optional)",
   "size": "string (required)",
-  "adminId": "number (required)"
+  "serviceType": "string (required)"
 }
 ```
 
@@ -30,7 +30,7 @@ The AI Appointment endpoint allows AI systems to create appointments automatical
 - **time**: Appointment time in HH:MM format (24-hour)
 - **notes**: Additional notes for the appointment (optional)
 - **size**: Property size in square feet (e.g., '1500-2000', '2000-2500')
-- **adminId**: ID of the admin user creating the appointment
+- **serviceType**: Type of cleaning service (STANDARD, DEEP, MOVE_IN_OUT)
 
 ## Response
 ```json
@@ -66,7 +66,7 @@ Uses the provided size parameter directly for template matching and appointment 
 
 ### 4. Appointment Creation
 Creates appointment with these default settings:
-- **Type**: AI
+- **Type**: Uses the provided serviceType (STANDARD, DEEP, MOVE_IN_OUT)
 - **Payment Method**: CASH
 - **Paid**: false
 - **No Team**: true (can be edited later)
@@ -79,7 +79,7 @@ Creates appointment with these default settings:
 - All AI-created appointments have `aiCreated: true`
 - Client notes include AI usage indication
 - Template notes indicate AI creation
-- Appointment type is set to "AI"
+- Appointment type uses the provided serviceType (STANDARD, DEEP, MOVE_IN_OUT)
 
 ### No Team Default
 - All AI appointments are created with `noTeam: true`
@@ -116,7 +116,7 @@ curl -X POST http://localhost:3000/ai-appointments \
     "time": "14:30",
     "notes": "Deep cleaning needed",
     "size": "2000-2500",
-    "adminId": 1
+    "serviceType": "DEEP"
   }'
 ```
 
@@ -132,7 +132,7 @@ curl -X POST http://localhost:3000/ai-appointments \
     "date": "2024-01-25",
     "time": "09:00",
     "size": "1500-2000",
-    "adminId": 1
+    "serviceType": "STANDARD"
   }'
 ```
 

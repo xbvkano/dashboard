@@ -1,0 +1,163 @@
+import { Request, Response } from 'express'
+
+export function getOpenAPISpec(_req: Request, res: Response) {
+  res.json({
+    openapi: "3.1.0",
+    info: {
+      title: "AI Appointment API",
+      version: "1.0.0",
+      description: "API for creating AI-powered appointments"
+    },
+    servers: [
+      {
+        url: "https://dashboard-production-83c0.up.railway.app",
+        description: "Production server"
+      }
+    ],
+    paths: {
+      "/ai-appointments": {
+        post: {
+          summary: "Create AI Appointment",
+          description: "Create a new appointment automatically using AI. The system will handle client lookup/creation, template matching/creation, and appointment scheduling.",
+          operationId: "createAiAppointment",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    clientName: {
+                      type: "string",
+                      description: "Full name of the client",
+                      example: "John Smith"
+                    },
+                    clientPhone: {
+                      type: "string",
+                      description: "Phone number in any format",
+                      example: "555-123-4567"
+                    },
+                    appointmentAddress: {
+                      type: "string",
+                      description: "Full address of the appointment location",
+                      example: "123 Main St, Las Vegas, NV 89101"
+                    },
+                    price: {
+                      type: "number",
+                      description: "Cost of the appointment in dollars",
+                      example: 150
+                    },
+                    date: {
+                      type: "string",
+                      format: "date",
+                      description: "Appointment date in YYYY-MM-DD format",
+                      example: "2024-01-15"
+                    },
+                    time: {
+                      type: "string",
+                      pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$",
+                      description: "Appointment time in HH:MM format, 24-hour",
+                      example: "10:00"
+                    },
+                    notes: {
+                      type: "string",
+                      description: "Additional notes for the appointment",
+                      example: "Deep cleaning needed"
+                    },
+                    size: {
+                      type: "string",
+                      description: "Property size in square feet (e.g., '1500-2000', '2000-2500')",
+                      example: "1500-2000"
+                    },
+                    serviceType: {
+                      type: "string",
+                      description: "Type of cleaning service (STANDARD, DEEP, MOVE_IN_OUT)",
+                      example: "STANDARD",
+                      enum: ["STANDARD", "DEEP", "MOVE_IN_OUT"]
+                    }
+                  },
+                  required: [
+                    "clientName",
+                    "clientPhone",
+                    "appointmentAddress",
+                    "price",
+                    "date",
+                    "time",
+                    "size",
+                    "serviceType"
+                  ]
+                }
+              }
+            }
+          },
+          responses: {
+            "200": {
+              description: "AI appointment created successfully",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: {
+                        type: "boolean",
+                        example: true
+                      },
+                      appointment: {
+                        type: "object",
+                        description: "The created appointment object"
+                      },
+                      client: {
+                        type: "object",
+                        description: "The client object (existing or newly created)"
+                      },
+                      template: {
+                        type: "object",
+                        description: "The template object (existing or newly created)"
+                      },
+                      message: {
+                        type: "string",
+                        example: "AI appointment created successfully"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+              description: "Invalid input",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      error: {
+                        type: "string",
+                        example: "Missing required fields: clientName, clientPhone, appointmentAddress, price, date, time, size, serviceType"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "500": {
+              description: "Server error",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      error: {
+                        type: "string",
+                        example: "Failed to create AI appointment"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+}
