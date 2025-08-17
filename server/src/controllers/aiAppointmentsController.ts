@@ -99,7 +99,7 @@ export async function createAIAppointment(req: Request, res: Response) {
           address: appointmentAddress,
           price: price,
           notes: 'Template created by AI',
-          instructions: 'AI created template',
+          instructions: '',
           clientId: client.id,
         }
       })
