@@ -264,7 +264,7 @@ export async function createRecurringAppointment(req: Request, res: Response) {
         payrollItems: { include: { extras: true } },
       },
     })
-    if (!noTeam && employeeIds.length && !['CANCEL', 'DELETED'].includes(status)) {
+    if (!noTeam && employeeIds.length) {
       await syncPayrollItems(appt.id, employeeIds)
     }
 
