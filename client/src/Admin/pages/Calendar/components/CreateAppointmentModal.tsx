@@ -410,6 +410,10 @@ const preserveTeamRef = useRef(false)
           if (match && match.id !== undefined) {
             setSelectedTemplate(match.id)
             loadStaffData(match.id)
+            // Auto-populate size field
+            if (match.size) {
+              setTemplateForm(prev => ({ ...prev, size: match.size }))
+            }
             storedTemplateIdRef.current = null
             return
           }
@@ -419,6 +423,10 @@ const preserveTeamRef = useRef(false)
           if (match && match.id !== undefined) {
             setSelectedTemplate(match.id)
             loadStaffData(match.id)
+            // Auto-populate size field
+            if (match.size) {
+              setTemplateForm(prev => ({ ...prev, size: match.size }))
+            }
           }
         }
       })
@@ -434,6 +442,10 @@ const preserveTeamRef = useRef(false)
       if (match && match.id !== undefined) {
         setSelectedTemplate(match.id)
         loadStaffData(match.id)
+        // Auto-populate size field
+        if (match.size) {
+          setTemplateForm(prev => ({ ...prev, size: match.size }))
+        }
       }
       storedTemplateIdRef.current = null
     }
@@ -1159,13 +1171,22 @@ const preserveTeamRef = useRef(false)
                     value={selectedTemplate ?? ''}
                     onChange={(e) => {
                       resetTemplateRelated()
-                      setSelectedTemplate(Number(e.target.value))
+                      const templateId = Number(e.target.value)
+                      setSelectedTemplate(templateId)
+                      
+                      // Auto-populate size field when template is selected
+                      if (templateId) {
+                        const selectedTemplate = templates.find(t => t.id === templateId)
+                        if (selectedTemplate?.size) {
+                          setTemplateForm(prev => ({ ...prev, size: selectedTemplate.size }))
+                        }
+                      }
                     }}
                   >
                     <option value="">Select template</option>
                     {templates.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.templateName}
+                        {t.templateName} {t.size ? `(${t.size})` : ''}
                       </option>
                     ))}
                   </select>

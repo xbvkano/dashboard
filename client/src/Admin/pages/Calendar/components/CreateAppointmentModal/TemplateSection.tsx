@@ -2,6 +2,20 @@ import { useState, useEffect } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../../../api'
 import type { AppointmentTemplate } from '../../types'
 
+const sizeOptions = [
+  '0-1000',
+  '1000-1500',
+  '1500-2000',
+  '2000-2500',
+  '2500-3000',
+  '3000-3500',
+  '3500-4000',
+  '4000-4500',
+  '4500-5000',
+  '5500-6000',
+  '6000+',
+]
+
 interface TemplateSectionProps {
   selectedClient: { id: number } | null
   selectedTemplate: number | null
@@ -230,13 +244,18 @@ export default function TemplateSection({
             <option value="DEEP">Deep</option>
             <option value="MOVE_IN_OUT">Move in/out</option>
           </select>
-          <input
-            type="text"
-            placeholder="Size (e.g., 2000-2500)"
+          <select
             className="w-full border p-2 rounded mb-2"
             value={templateForm.size}
             onChange={(e) => setTemplateForm({ ...templateForm, size: e.target.value })}
-          />
+          >
+            <option value="">Select size</option>
+            {sizeOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
           <input
             type="text"
             placeholder="Address"

@@ -150,6 +150,13 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
 
   const handleSendInfo = async () => {
     if (!selected) return
+    
+    // Check if appointment has a team assigned
+    if (selected.noTeam || !selected.employees || selected.employees.length === 0) {
+      await alert('Cannot send info: No team assigned to this appointment. Please add at least one team member before sending info.')
+      return
+    }
+    
     const res = await fetch(
       `${API_BASE_URL}/appointments/${selected.id}/send-info`,
       {
@@ -168,7 +175,9 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
       setShowSendInfo(false)
       setNote('')
     } else {
-      await alert('Failed to send info')
+      const errorData = await res.json().catch(() => ({}))
+      const errorMessage = errorData.error || 'Failed to send info'
+      await alert(errorMessage)
     }
   }
 

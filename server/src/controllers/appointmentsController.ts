@@ -599,6 +599,13 @@ export async function sendAppointmentInfo(req: Request, res: Response) {
     })
     if (!appt) return res.status(404).json({ error: 'Not found' })
 
+    // Check if appointment has a team assigned
+    if (appt.noTeam || !appt.employees || appt.employees.length === 0) {
+      return res.status(400).json({ 
+        error: 'Cannot send info: No team assigned to this appointment. Please add at least one team member before sending info.' 
+      })
+    }
+
     const pay = calculatePayRate(appt.type, appt.size ?? null, appt.employees.length || 1)
     const carpetIds = appt.carpetEmployees || []
     const carpetPer =

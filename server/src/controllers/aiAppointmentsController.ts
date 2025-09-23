@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
-import { calculateAppointmentHours } from '../utils/appointmentUtils'
+import { calculateAppointmentHours, parseSqft } from '../utils/appointmentUtils'
 import { normalizePhone } from '../utils/phoneUtils'
 
 const prisma = new PrismaClient()
@@ -32,6 +32,12 @@ export async function createAIAppointment(req: Request, res: Response) {
     // Validate required fields
     if (!clientName || !clientPhone || !appointmentAddress || !price || !date || !time || !size || !serviceType) {
       return res.status(400).json({ error: 'Missing required fields: clientName, clientPhone, appointmentAddress, price, date, time, size, serviceType' })
+    }
+
+    // Validate size format - should be either a range (e.g., "1500-2000") or single value (e.g., "3030")
+    const parsedSize = parseSqft(size)
+    if (parsedSize === null) {
+      return res.status(400).json({ error: 'Invalid size format. Size should be a range (e.g., "1500-2000") or single value (e.g., "3030")' })
     }
 
     // Hardcode adminId to 9
@@ -76,8 +82,10 @@ export async function createAIAppointment(req: Request, res: Response) {
       }
     }
 
-    // Use the provided size instead of estimating from address
+    // Use the provided size directly (validated above to ensure it's parseable)
+    // Size can be either a range format (e.g., "1500-2000") or single value (e.g., "3030")
     const estimatedSize = size
+    console.log(`AI Appointment: Using size "${estimatedSize}" (parsed as ${parsedSize} sqft)`)
 
     // Step 3: Find matching template or create new one
     let template = await prisma.appointmentTemplate.findFirst({

@@ -84,6 +84,12 @@ export default function AppointmentDetails({
   }
 
   const handleSendInfo = async () => {
+    // Check if appointment has a team assigned
+    if (appointment.noTeam || !appointment.employees || appointment.employees.length === 0) {
+      await alert('Cannot send info: No team assigned to this appointment. Please add at least one team member before sending info.')
+      return
+    }
+    
     const res = await fetch(`${API_BASE_URL}/appointments/${appointment.id}/send-info`, {
       method: 'POST',
       headers: {
@@ -98,7 +104,9 @@ export default function AppointmentDetails({
       setShowSendInfo(false)
       setNote('')
     } else {
-      await alert('Failed to send info')
+      const errorData = await res.json().catch(() => ({}))
+      const errorMessage = errorData.error || 'Failed to send info'
+      await alert(errorMessage)
     }
   }
 
