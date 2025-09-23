@@ -179,8 +179,15 @@ const preserveTeamRef = useRef(false)
 
   const loadStaffData = (templateId: number) => {
     const t = templates.find((tt) => tt.id === templateId)
-    if (!t || !t.size) return
-    fetchJson(`${API_BASE_URL}/staff-options?size=${encodeURIComponent(t.size)}&type=${t.type}`)
+    if (!t) return
+    
+    // Use template size if available, otherwise use templateForm size (for editing)
+    const size = t.size || templateForm.size
+    const type = t.type || templateForm.type
+    
+    if (!size || !type) return
+    
+    fetchJson(`${API_BASE_URL}/staff-options?size=${encodeURIComponent(size)}&type=${type}`)
       .then((d) => {
         setStaffOptions(d)
       })
@@ -471,6 +478,13 @@ const preserveTeamRef = useRef(false)
     setCarpetEnabled(!!hasCarpet)
     setCarpetRooms(t?.carpetRooms || '')
   }, [selectedTemplate, templates])
+
+  // Reload staff data when templateForm size changes during editing
+  useEffect(() => {
+    if (selectedTemplate && editing && templateForm.size && templateForm.type) {
+      loadStaffData(selectedTemplate)
+    }
+  }, [templateForm.size, templateForm.type, editing, selectedTemplate])
 
   // calculate pay rate when team changes
   useEffect(() => {
@@ -1200,7 +1214,7 @@ const preserveTeamRef = useRef(false)
         )}
 
         {/* Team selection */}
-        {selectedTemplate && staffOptions.length > 0 && (
+        {selectedTemplate && (
           <div className="space-y-1">
             <label className="flex items-center gap-2">
               <input
@@ -1227,7 +1241,7 @@ const preserveTeamRef = useRef(false)
                   className="border px-3 py-2 rounded"
                   onClick={() => setShowTeamModal(true)}
                 >
-                  Team Options <span className="text-red-500">*</span>
+                  {staffOptions.length > 0 ? 'Team Options' : 'Select Team'} <span className="text-red-500">*</span>
                 </button>
                 {selectedEmployees.length > 0 && staffOptions[selectedOption] && (
                   <>
@@ -1459,20 +1473,27 @@ const preserveTeamRef = useRef(false)
             <button onClick={() => setShowTeamModal(false)}>X</button>
           </div>
           <div className="space-y-2">
-            {staffOptions.map((o, idx) => (
-              <button
-                key={idx}
-              className={`w-full px-3 py-2 border rounded ${selectedOption === idx ? 'bg-blue-500 text-white' : ''}`}
-                onClick={() => {
-                  setSelectedOption(idx)
-                  setSelectedEmployees([])
-                  setCarpetEmployees([])
-                  setCarpetRate(null)
-                }}
-              >
-                {o.sem} SEM / {o.com} COM - {o.hours}h
-              </button>
-            ))}
+            {staffOptions.length > 0 ? (
+              staffOptions.map((o, idx) => (
+                <button
+                  key={idx}
+                  className={`w-full px-3 py-2 border rounded ${selectedOption === idx ? 'bg-blue-500 text-white' : ''}`}
+                  onClick={() => {
+                    setSelectedOption(idx)
+                    setSelectedEmployees([])
+                    setCarpetEmployees([])
+                    setCarpetRate(null)
+                  }}
+                >
+                  {o.sem} SEM / {o.com} COM - {o.hours}h
+                </button>
+              ))
+            ) : (
+              <div className="text-center text-gray-500 py-4">
+                <p>Please select a size for the template to see team options.</p>
+                <p className="text-sm mt-1">Team options are calculated based on the appointment size and type.</p>
+              </div>
+            )}
           </div>
           {staffOptions[selectedOption] && (
             <div className="space-y-1">
