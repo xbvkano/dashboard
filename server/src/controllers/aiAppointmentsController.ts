@@ -3,6 +3,31 @@ import { PrismaClient } from '@prisma/client'
 import { calculateAppointmentHours, parseSqft } from '../utils/appointmentUtils'
 import { normalizePhone } from '../utils/phoneUtils'
 
+/**
+ * Convert a specific size value to the appropriate size range for staff options
+ */
+function getSizeRange(size: string): string {
+  // Parse the size value (handles both single values and ranges)
+  const sqft = parseSqft(size)
+  if (sqft === null) {
+    return size // Return original if can't parse
+  }
+  
+  // Map specific sizes to standard ranges
+  if (sqft <= 1000) return '0-1000'
+  if (sqft <= 1500) return '1000-1500'
+  if (sqft <= 2000) return '1500-2000'
+  if (sqft <= 2500) return '2000-2500'
+  if (sqft <= 3000) return '2500-3000'
+  if (sqft <= 3500) return '3000-3500'
+  if (sqft <= 4000) return '3500-4000'
+  if (sqft <= 4500) return '4000-4500'
+  if (sqft <= 5000) return '4500-5000'
+  if (sqft <= 5500) return '5000-5500'
+  if (sqft <= 6000) return '5500-6000'
+  return '6000+'
+}
+
 const prisma = new PrismaClient()
 
 export async function createAIAppointment(req: Request, res: Response) {
@@ -82,10 +107,9 @@ export async function createAIAppointment(req: Request, res: Response) {
       }
     }
 
-    // Use the provided size directly (validated above to ensure it's parseable)
-    // Size can be either a range format (e.g., "1500-2000") or single value (e.g., "3030")
-    const estimatedSize = size
-    console.log(`AI Appointment: Using size "${estimatedSize}" (parsed as ${parsedSize} sqft)`)
+    // Map the size to the standard range format for team options compatibility
+    const mappedSize = getSizeRange(size)
+    console.log(`AI Appointment: Mapped size "${size}" to "${mappedSize}" (parsed as ${parsedSize} sqft)`)
 
     // Step 3: Find matching template or create new one
     let template = await prisma.appointmentTemplate.findFirst({
@@ -93,7 +117,7 @@ export async function createAIAppointment(req: Request, res: Response) {
         clientId: client.id,
         address: appointmentAddress,
         price: price,
-        size: estimatedSize
+        size: mappedSize
       }
     })
 
@@ -103,7 +127,7 @@ export async function createAIAppointment(req: Request, res: Response) {
         data: {
           templateName: `AI Template - ${appointmentAddress}`,
           type: serviceType as any,
-          size: estimatedSize,
+          size: mappedSize,
           address: appointmentAddress,
           price: price,
           notes: 'Template created by AI',
@@ -125,7 +149,7 @@ export async function createAIAppointment(req: Request, res: Response) {
         time,
         type: serviceType as any, // Use the actual service type (STANDARD, DEEP, MOVE_IN_OUT)
         address: appointmentAddress,
-        size: estimatedSize,
+        size: mappedSize,
         hours, // Add the calculated hours
         price,
         paid: false,
