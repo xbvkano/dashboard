@@ -377,6 +377,20 @@ export async function sendInvoice(req: Request, res: Response) {
         { filename: 'invoice.pdf', content: attachment },
       ],
     })
+
+    // Send confirmation email to admin
+    console.log('Sending confirmation email to admin...')
+    await transport.sendMail({
+      from: process.env.MAILTRAP_FROM || 'no-reply@example.com',
+      to: 'admin@worldwideevidence.com',
+      subject: `Invoice Sent Confirmation - ${inv.clientName}`,
+      text: `Invoice has been sent to: ${email}\n\nClient: ${inv.clientName}\nService Date: ${new Date(inv.serviceDate).toLocaleDateString()}\nAmount: $${inv.price}\n\nInvoice details are attached.`,
+      attachments: [
+        { filename: `invoice_${inv.clientName.replace(/[^a-z0-9]/gi, '_')}.pdf`, content: attachment },
+      ],
+    })
+    console.log('Admin confirmation email sent successfully')
+
     await uploadInvoiceToDrive(inv, attachment)
 
     res.json({ ok: true })
