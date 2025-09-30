@@ -350,50 +350,174 @@ export async function sendInvoice(req: Request, res: Response) {
     const tzOffset = Number((req.body as any).tzOffset) || 0
     const attachment = await generateInvoicePdf(inv, tzOffset)
 
-    const transport = nodemailer.createTransport({
-      host: process.env.MAILTRAP_HOST,
-      port: Number(process.env.MAILTRAP_PORT),
-      secure: false, // true for 465, false for other ports
-      auth: {
-        user: process.env.MAILTRAP_USER,
-        pass: process.env.MAILTRAP_API_KEY,
-      },
-      connectionTimeout: 60000, // 60 seconds
-      greetingTimeout: 30000,   // 30 seconds
-      socketTimeout: 60000,     // 60 seconds
-      tls: {
-        rejectUnauthorized: false
+    // Try Mailtrap API first, fallback to SMTP
+    let emailSent = false
+    
+    try {
+      console.log('Attempting to send via Mailtrap API...')
+      const response = await fetch('https://send.api.mailtrap.io/api/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.MAILTRAP_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: { email: process.env.MAILTRAP_FROM || 'no-reply@worldwideevidence.com' },
+          to: [{ email }],
+          subject: 'Evidence Cleaning Invoice',
+          text: 'Hello,\n\nthis is an automated message from Evidence Cleaning. Attached is you invoice.\n\nPlease feel free to text Cassia at 725-577-4524 if you have any questions.\nBest,\nEvidence Cleaning.',
+          attachments: [
+            {
+              content: attachment.toString('base64'),
+              filename: 'invoice.pdf',
+              type: 'application/pdf',
+              disposition: 'attachment'
+            }
+          ]
+        })
+      })
+      
+      if (response.ok) {
+        console.log('✅ Email sent successfully via Mailtrap API')
+        emailSent = true
+      } else {
+        console.log('❌ Mailtrap API failed, trying SMTP...')
+        throw new Error('API failed')
       }
-    })
+    } catch (apiError) {
+      console.log('Mailtrap API failed, falling back to SMTP:', (apiError as Error).message)
+      
+      console.log('SMTP Configuration:', {
+        host: process.env.MAILTRAP_HOST,
+        port: process.env.MAILTRAP_PORT,
+        user: process.env.MAILTRAP_USER,
+        hasApiKey: !!process.env.MAILTRAP_API_KEY
+      })
 
-    // Test the connection first
-    console.log('Testing SMTP connection...')
-    await transport.verify()
-    console.log('SMTP connection verified successfully')
+      let transport = nodemailer.createTransport({
+        host: process.env.MAILTRAP_HOST,
+        port: Number(process.env.MAILTRAP_PORT),
+        secure: false, // true for 465, false for other ports
+        auth: {
+          user: process.env.MAILTRAP_USER,
+          pass: process.env.MAILTRAP_API_KEY,
+        },
+        connectionTimeout: 30000, // 30 seconds
+        greetingTimeout: 15000,   // 15 seconds
+        socketTimeout: 30000,     // 30 seconds
+        tls: {
+          rejectUnauthorized: false,
+          ciphers: 'SSLv3'
+        },
+        debug: true, // Enable debug logging
+        logger: true // Enable logger
+      })
 
-    await transport.sendMail({
-      from: process.env.MAILTRAP_FROM || 'no-reply@example.com',
-      to: email,
-      subject: 'Evidence Cleaning Invoice',
-      text:
-        'Hello,\n\nthis is an automated message from Evidence Cleaning. Attached is you invoice.\n\nPlease feel free to text Cassia at 725-577-4524 if you have any questions.\nBest,\nEvidence Cleaning.',
-      attachments: [
-        { filename: 'invoice.pdf', content: attachment },
-      ],
-    })
+      // Test the connection first
+      console.log('Testing SMTP connection...')
+      try {
+        await transport.verify()
+        console.log('SMTP connection verified successfully')
+      } catch (verifyError) {
+        console.error('SMTP verification failed, trying alternative configuration...', verifyError)
+        
+        // Try alternative configuration without TLS
+        const altTransport = nodemailer.createTransport({
+          host: process.env.MAILTRAP_HOST,
+          port: Number(process.env.MAILTRAP_PORT),
+          secure: false,
+          auth: {
+            user: process.env.MAILTRAP_USER,
+            pass: process.env.MAILTRAP_API_KEY,
+          },
+          connectionTimeout: 15000,
+          greetingTimeout: 10000,
+          socketTimeout: 15000,
+          ignoreTLS: true,
+          debug: true,
+          logger: true
+        })
+        
+        console.log('Testing alternative SMTP connection...')
+        await altTransport.verify()
+        console.log('Alternative SMTP connection verified successfully')
+        
+        // Use the alternative transport
+        transport = altTransport
+      }
+
+      await transport.sendMail({
+        from: process.env.MAILTRAP_FROM || 'no-reply@example.com',
+        to: email,
+        subject: 'Evidence Cleaning Invoice',
+        text:
+          'Hello,\n\nthis is an automated message from Evidence Cleaning. Attached is you invoice.\n\nPlease feel free to text Cassia at 725-577-4524 if you have any questions.\nBest,\nEvidence Cleaning.',
+        attachments: [
+          { filename: 'invoice.pdf', content: attachment },
+        ],
+      })
+      console.log('✅ Email sent successfully via SMTP')
+      emailSent = true
+    }
 
     // Send confirmation email to admin
     console.log('Sending confirmation email to admin...')
-    await transport.sendMail({
-      from: process.env.MAILTRAP_FROM || 'no-reply@example.com',
-      to: 'admin@worldwideevidence.com',
-      subject: `Invoice Sent Confirmation - ${inv.clientName}`,
-      text: `Invoice has been sent to: ${email}\n\nClient: ${inv.clientName}\nService Date: ${new Date(inv.serviceDate).toLocaleDateString()}\nAmount: $${inv.price}\n\nInvoice details are attached.`,
-      attachments: [
-        { filename: `invoice_${inv.clientName.replace(/[^a-z0-9]/gi, '_')}.pdf`, content: attachment },
-      ],
-    })
-    console.log('Admin confirmation email sent successfully')
+    try {
+      const adminResponse = await fetch('https://send.api.mailtrap.io/api/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.MAILTRAP_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: { email: process.env.MAILTRAP_FROM || 'no-reply@worldwideevidence.com' },
+          to: [{ email: 'admin@worldwideevidence.com' }],
+          subject: `Invoice Sent Confirmation - ${inv.clientName}`,
+          text: `Invoice has been sent to: ${email}\n\nClient: ${inv.clientName}\nService Date: ${new Date(inv.serviceDate).toLocaleDateString()}\nAmount: $${inv.price}\n\nInvoice details are attached.`,
+          attachments: [
+            {
+              content: attachment.toString('base64'),
+              filename: `invoice_${inv.clientName.replace(/[^a-z0-9]/gi, '_')}.pdf`,
+              type: 'application/pdf',
+              disposition: 'attachment'
+            }
+          ]
+        })
+      })
+      
+      if (adminResponse.ok) {
+        console.log('✅ Admin confirmation email sent successfully via API')
+      } else {
+        console.log('❌ Admin email via API failed, trying SMTP...')
+        // Fallback to SMTP for admin email
+        const adminTransport = nodemailer.createTransport({
+          host: process.env.MAILTRAP_HOST,
+          port: Number(process.env.MAILTRAP_PORT),
+          secure: false,
+          auth: {
+            user: process.env.MAILTRAP_USER,
+            pass: process.env.MAILTRAP_API_KEY,
+          },
+          connectionTimeout: 15000,
+          greetingTimeout: 10000,
+          socketTimeout: 15000,
+          ignoreTLS: true,
+        })
+        
+        await adminTransport.sendMail({
+          from: process.env.MAILTRAP_FROM || 'no-reply@example.com',
+          to: 'admin@worldwideevidence.com',
+          subject: `Invoice Sent Confirmation - ${inv.clientName}`,
+          text: `Invoice has been sent to: ${email}\n\nClient: ${inv.clientName}\nService Date: ${new Date(inv.serviceDate).toLocaleDateString()}\nAmount: $${inv.price}\n\nInvoice details are attached.`,
+          attachments: [
+            { filename: `invoice_${inv.clientName.replace(/[^a-z0-9]/gi, '_')}.pdf`, content: attachment },
+          ],
+        })
+        console.log('✅ Admin confirmation email sent successfully via SMTP')
+      }
+    } catch (adminError) {
+      console.error('Failed to send admin confirmation email:', adminError)
+    }
 
     await uploadInvoiceToDrive(inv, attachment)
 
