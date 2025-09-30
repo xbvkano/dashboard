@@ -353,6 +353,7 @@ export async function sendInvoice(req: Request, res: Response) {
     const transport = nodemailer.createTransport({
       host: process.env.MAILTRAP_HOST,
       port: Number(process.env.MAILTRAP_PORT),
+      secure: false, // true for 465, false for other ports
       auth: {
         user: process.env.MAILTRAP_USER,
         pass: process.env.MAILTRAP_API_KEY,
@@ -360,6 +361,9 @@ export async function sendInvoice(req: Request, res: Response) {
       connectionTimeout: 60000, // 60 seconds
       greetingTimeout: 30000,   // 30 seconds
       socketTimeout: 60000,     // 60 seconds
+      tls: {
+        rejectUnauthorized: false
+      }
     })
 
     // Test the connection first
