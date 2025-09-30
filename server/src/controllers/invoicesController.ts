@@ -357,7 +357,15 @@ export async function sendInvoice(req: Request, res: Response) {
         user: process.env.MAILTRAP_USER,
         pass: process.env.MAILTRAP_API_KEY,
       },
+      connectionTimeout: 60000, // 60 seconds
+      greetingTimeout: 30000,   // 30 seconds
+      socketTimeout: 60000,     // 60 seconds
     })
+
+    // Test the connection first
+    console.log('Testing SMTP connection...')
+    await transport.verify()
+    console.log('SMTP connection verified successfully')
 
     await transport.sendMail({
       from: process.env.MAILTRAP_FROM || 'no-reply@example.com',
@@ -374,6 +382,12 @@ export async function sendInvoice(req: Request, res: Response) {
     res.json({ ok: true })
   } catch (err) {
     console.error('Failed to send invoice email:', err)
+    console.error('Error details:', {
+      code: (err as any)?.code,
+      command: (err as any)?.command,
+      response: (err as any)?.response,
+      responseCode: (err as any)?.responseCode
+    })
     res.status(500).json({ error: 'Failed to send invoice' })
   }
 }
