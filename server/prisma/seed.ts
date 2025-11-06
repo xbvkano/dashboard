@@ -22,6 +22,16 @@ async function main() {
     },
   })
 
+  // Create AI Admin user with ID 9
+  await prisma.user.create({
+    data: {
+      id: 9,
+      email: 'ai@system.com',
+      name: 'AI Admin',
+      role: 'ADMIN',
+    },
+  })
+
   const john = await prisma.client.create({
     data: { name: 'John Doe', number: '5551111111', from: 'Yelp' },
   })

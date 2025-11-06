@@ -56,16 +56,22 @@ The AI Appointment endpoint allows AI systems to create appointments automatical
 - If found: Updates client notes to indicate AI usage
 - If not found: Creates new client with "Client created by AI" note
 
-### 2. Property Size
+### 2. Same-Day Appointment Check
+- Verifies if the client already has an appointment on the requested date
+- If duplicate found: Returns 409 error with existing appointment details
+- Prevents double-booking on the same day
+
+### 3. Property Size
 Uses the provided size parameter directly for template matching and appointment creation.
 
-### 3. Template Matching/Creation
+### 4. Template Matching/Creation
 - Searches for existing template with matching client, address, price, and size
 - If found: Uses existing template
 - If not found: Creates new template with "AI created template" notes
 
-### 4. Appointment Creation
+### 5. Appointment Creation
 Creates appointment with these default settings:
+- **Admin**: Assigned to AI Admin (adminId: 9)
 - **Type**: Uses the provided serviceType (STANDARD, DEEP, MOVE_IN_OUT)
 - **Payment Method**: CASH
 - **Paid**: false
@@ -96,6 +102,22 @@ Creates appointment with these default settings:
 - Missing required fields return 400 with specific field list
 - Invalid phone number format returns 400
 - Invalid date/time format returns 400
+- Invalid size format returns 400
+
+### Business Logic Errors
+- **409 Conflict - Same Day Appointment**: Client already has an appointment on the requested date
+  ```json
+  {
+    "error": "SAME_DAY_APPOINT",
+    "message": "Client already has an appointment on this date",
+    "existingAppointment": {
+      "id": 123,
+      "date": "2024-01-20T00:00:00.000Z",
+      "time": "10:00",
+      "address": "123 Main St"
+    }
+  }
+  ```
 
 ### Server Errors
 - Database errors return 500 with generic error message
@@ -160,7 +182,7 @@ curl -X POST http://localhost:3000/ai-appointments \
 
 ## Security Considerations
 
-- Requires valid adminId for authentication
+- All AI appointments are assigned to a dedicated AI Admin user (ID: 9)
 - All operations are logged on server side
 - No sensitive data exposure in error messages
 - Input validation prevents injection attacks

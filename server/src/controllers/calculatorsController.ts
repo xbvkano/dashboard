@@ -67,27 +67,27 @@ export function getPayRate(req: Request, res: Response) {
     return res.status(400).json({ error: 'type, size and count required' })
   }
 
-  const sqft = parseSqft(size)
-  if (sqft === null) {
-    return res.status(400).json({ error: 'invalid size' })
-  }
+  // const sqft = parseSqft(size)
+  // if (sqft === null) {
+  //   return res.status(400).json({ error: 'invalid size' })
+  // }
 
-  const isLarge = sqft > 2500
-  let rate = 0
+  // const isLarge = sqft > 2500
+  // let rate = 0
 
-  if (type === 'STANDARD') {
-    rate = isLarge ? 100 : 80
-  } else if (type === 'DEEP' || type === 'MOVE_IN_OUT') {
-    if (isLarge) {
-      rate = 100
-    } else {
-      rate = count === 1 ? 100 : 90
-    }
-  } else {
-    return res.status(400).json({ error: 'invalid type' })
-  }
+  // if (type === 'STANDARD') {
+  //   rate = isLarge ? 100 : 80
+  // } else if (type === 'DEEP' || type === 'MOVE_IN_OUT') {
+  //   if (isLarge) {
+  //     rate = 100
+  //   } else {
+  //     rate = count === 1 ? 100 : 90
+  //   }
+  // } else {
+  //   return res.status(400).json({ error: 'invalid type' })
+  // }
 
-  res.json({ rate })
+  res.json({ rate: 80})
 }
 
 export function getCarpetRate(req: Request, res: Response) {

@@ -65,7 +65,7 @@ export async function createAIAppointment(req: Request, res: Response) {
       return res.status(400).json({ error: 'Invalid size format. Size should be a range (e.g., "1500-2000") or single value (e.g., "3030")' })
     }
 
-    // Hardcode adminId to 9
+    // Hardcode adminId to 9 (AI Admin)
     const adminId = 9
 
     // Normalize phone number
@@ -105,6 +105,28 @@ export async function createAIAppointment(req: Request, res: Response) {
           }
         })
       }
+    }
+
+    // Step 2: Check if client already has an appointment on the same day
+    const appointmentDate = new Date(date)
+    const existingAppointment = await prisma.appointment.findFirst({
+      where: {
+        clientId: client.id,
+        date: appointmentDate
+      }
+    })
+
+    if (existingAppointment) {
+      return res.status(409).json({ 
+        error: 'SAME_DAY_APPOINT',
+        message: 'Client already has an appointment on this date',
+        existingAppointment: {
+          id: existingAppointment.id,
+          date: existingAppointment.date,
+          time: existingAppointment.time,
+          address: existingAppointment.address
+        }
+      })
     }
 
     // Map the size to the standard range format for team options compatibility
