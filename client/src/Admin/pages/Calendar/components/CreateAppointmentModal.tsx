@@ -740,7 +740,7 @@ const preserveTeamRef = useRef(false)
       await alert('Team must have at least one member')
       return
     }
-    if (!isValidSelection()) {
+    if (!noTeam && !isValidSelection()) {
       const proceed = await confirm('Team is less than required. Continue?')
       if (!proceed) return
     }
