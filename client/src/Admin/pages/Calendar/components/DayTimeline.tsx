@@ -75,6 +75,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
   const [extraAmount, setExtraAmount] = useState('')
   const [editingExtraId, setEditingExtraId] = useState<number | null>(null)
   const [showPhoneActions, setShowPhoneActions] = useState(false)
+  const [showActionPanel, setShowActionPanel] = useState(false)
   const isMobile =
     typeof navigator !== 'undefined' &&
     /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
@@ -708,45 +709,31 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
               </div>
             )}
 
-            <div className="flex flex-wrap justify-end gap-2 pt-2">
-              {selected.clientId && (
-                <button
-                  className="px-4 py-1 bg-blue-500 text-white rounded"
-                  onClick={() => {
-                    navigate(`/dashboard/clients/${selected.clientId}`)
-                    setSelected(null)
-                  }}
-                >
-                  View Client
-                </button>
-              )}
-              <button className="px-4 py-1 bg-red-500 text-white rounded" onClick={() => setShowDelete(true)}>
-                Delete
-              </button>
+            {/* Actions Panel Toggle */}
+            <div className="pt-2">
               <button
-                className="px-4 py-1 bg-purple-500 text-white rounded"
-                onClick={() => {
-                  if (selected?.status === 'CANCEL') {
-                    updateAppointment({ status: 'APPOINTED' })
-                  } else if (selected?.observe) {
-                    updateAppointment({ status: 'CANCEL' })
-                  } else {
-                    setShowCancel(true)
-                  }
-                }}
+                onClick={() => setShowActionPanel(!showActionPanel)}
+                className="w-full px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600 flex items-center justify-center gap-2"
               >
-                {selected?.status === 'CANCEL' ? 'Uncancel' : 'Cancel'}
+                {showActionPanel ? '▼' : '▶'} Action Panel
               </button>
-              {selected?.observe ? (
-                <>
+              
+              {showActionPanel && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {/* Blue buttons - Navigation/View/Reschedule */}
+                  {selected.clientId && (
+                    <button
+                      className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                      onClick={() => {
+                        navigate(`/dashboard/clients/${selected.clientId}`)
+                        setSelected(null)
+                      }}
+                    >
+                      View Client
+                    </button>
+                  )}
                   <button
-                    className="px-4 py-1 bg-yellow-500 text-white rounded"
-                    onClick={() => updateAppointment({ observe: false })}
-                  >
-                    Unobserve
-                  </button>
-                  <button
-                    className="px-4 py-1 bg-blue-500 text-white rounded"
+                    className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
                     onClick={() => {
                       const appt = selected!
                       setSelected(null)
@@ -755,66 +742,94 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
                   >
                     Reschedule
                   </button>
-                </>
-              ) : (
-                <>
+                  {!selected?.observe && (
+                    <button
+                      className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 disabled:opacity-50"
+                      disabled={
+                        paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))
+                      }
+                      onClick={() => {
+                        const appt = selected!
+                        setSelected(null)
+                        onCreate?.(appt, 'REBOOK')
+                      }}
+                    >
+                      Book Again
+                    </button>
+                  )}
+                  
+                  {/* Yellow buttons - Observe */}
+                  {selected?.observe ? (
+                    <button
+                      className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+                      onClick={() => updateAppointment({ observe: false })}
+                    >
+                      Unobserve
+                    </button>
+                  ) : (
+                    <button
+                      className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+                      onClick={() => updateAppointment({ observe: true })}
+                    >
+                      Observe
+                    </button>
+                  )}
+                  
+                  {/* Purple button - Cancel */}
                   <button
-                    className="px-4 py-1 bg-yellow-500 text-white rounded"
-                    onClick={() => updateAppointment({ observe: true })}
-                  >
-                    Observe
-                  </button>
-                  <button
-                    className="px-4 py-1 bg-blue-500 text-white rounded"
+                    className="px-3 py-2 bg-purple-500 text-white rounded text-sm hover:bg-purple-600"
                     onClick={() => {
-                      const appt = selected!
-                      setSelected(null)
-                      onCreate?.(appt, 'RESCHEDULE_NEW')
+                      if (selected?.status === 'CANCEL') {
+                        updateAppointment({ status: 'APPOINTED' })
+                      } else if (selected?.observe) {
+                        updateAppointment({ status: 'CANCEL' })
+                      } else {
+                        setShowCancel(true)
+                      }
                     }}
                   >
-                    Reschedule
+                    {selected?.status === 'CANCEL' ? 'Uncancel' : 'Cancel'}
                   </button>
+                  
+                  {/* Red button - Delete */}
+                  <button 
+                    className="px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600" 
+                    onClick={() => setShowDelete(true)}
+                  >
+                    Delete
+                  </button>
+                  
+                  {/* Indigo button - Send Info */}
+                  {!selected?.noTeam && (
+                    <button
+                      className="px-3 py-2 bg-indigo-500 text-white rounded text-sm hover:bg-indigo-600"
+                      onClick={() => setShowSendInfo(true)}
+                    >
+                      Send Info
+                    </button>
+                  )}
+                  
+                  {/* Green buttons - Invoice & Save */}
                   <button
-                    className="px-4 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
-                    disabled={
-                      paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))
-                    }
+                    className="px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700"
                     onClick={() => {
-                      const appt = selected!
-                      setSelected(null)
-                      onCreate?.(appt, 'REBOOK')
+                      if (!selected) return
+                      navigate(
+                        `/dashboard/financing/invoice?date=${selected.date.slice(0, 10)}&appt=${selected.id}`,
+                      )
                     }}
                   >
-                    Book Again
+                    Invoice
                   </button>
-                </>
+                  <button
+                    className="px-3 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600 disabled:opacity-50"
+                    disabled={paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))}
+                    onClick={handleSave}
+                  >
+                    Save
+                  </button>
+                </div>
               )}
-              {!selected?.noTeam && (
-                <button
-                  className="px-4 py-1 bg-indigo-500 text-white rounded"
-                  onClick={() => setShowSendInfo(true)}
-                >
-                  Send Info
-                </button>
-              )}
-              <button
-                className="px-4 py-1 bg-green-600 text-white rounded"
-                onClick={() => {
-                  if (!selected) return
-                  navigate(
-                    `/dashboard/financing/invoice?date=${selected.date.slice(0, 10)}&appt=${selected.id}`,
-                  )
-                }}
-              >
-                Invoice
-              </button>
-              <button
-                className="px-4 py-1 bg-green-500 text-white rounded disabled:opacity-50"
-                disabled={paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))}
-                onClick={handleSave}
-              >
-                Save
-              </button>
             </div>
 
             {showDelete && (

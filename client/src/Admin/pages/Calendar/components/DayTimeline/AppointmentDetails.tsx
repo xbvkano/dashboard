@@ -34,6 +34,7 @@ export default function AppointmentDetails({
   const [extraAmount, setExtraAmount] = useState('')
   const [editingExtraId, setEditingExtraId] = useState<number | null>(null)
   const [showPhoneActions, setShowPhoneActions] = useState(false)
+  const [showActionPanel, setShowActionPanel] = useState(false)
 
   const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 
@@ -283,43 +284,61 @@ export default function AppointmentDetails({
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-2">
-          {appointment.clientId && (
-            <button
-              onClick={() => {
-                navigate(`/dashboard/clients/${appointment.clientId}`)
-                onClose()
-              }}
-              className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-            >
-              View Client
-            </button>
+        {/* Actions Panel Toggle */}
+        <div>
+          <button
+            onClick={() => setShowActionPanel(!showActionPanel)}
+            className="w-full px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600 flex items-center justify-center gap-2"
+          >
+            {showActionPanel ? '▼' : '▶'} Action Panel
+          </button>
+          
+          {showActionPanel && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {/* Blue buttons - Navigation/View */}
+              {appointment.clientId && (
+                <button
+                  onClick={() => {
+                    navigate(`/dashboard/clients/${appointment.clientId}`)
+                    onClose()
+                  }}
+                  className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                >
+                  View Client
+                </button>
+              )}
+              <button
+                onClick={() => onCreate(appointment, 'RESCHEDULE_NEW')}
+                className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+              >
+                Reschedule
+              </button>
+              
+              {/* Green button - Edit */}
+              <button
+                onClick={() => onEdit(appointment)}
+                className="px-3 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600"
+              >
+                Edit
+              </button>
+              
+              {/* Purple button - Complete */}
+              <button
+                onClick={() => updateAppointment({ status: 'COMPLETED' })}
+                className="px-3 py-2 bg-purple-500 text-white rounded text-sm hover:bg-purple-600"
+              >
+                Complete
+              </button>
+              
+              {/* Red button - Cancel */}
+              <button
+                onClick={() => updateAppointment({ status: 'CANCELLED' })}
+                className="px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600"
+              >
+                Cancel
+              </button>
+            </div>
           )}
-          <button
-            onClick={() => onCreate(appointment, 'RESCHEDULE_NEW')}
-            className="px-3 py-1 bg-blue-500 text-white rounded text-sm"
-          >
-            Reschedule
-          </button>
-          <button
-            onClick={() => onEdit(appointment)}
-            className="px-3 py-1 bg-green-500 text-white rounded text-sm"
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => updateAppointment({ status: 'COMPLETED' })}
-            className="px-3 py-1 bg-purple-500 text-white rounded text-sm"
-          >
-            Complete
-          </button>
-          <button
-            onClick={() => updateAppointment({ status: 'CANCELLED' })}
-            className="px-3 py-1 bg-red-500 text-white rounded text-sm"
-          >
-            Cancel
-          </button>
         </div>
 
         {paid && (
