@@ -52,31 +52,90 @@ export default function AppointmentsSection({ url }: Props) {
     return `${hh}:${m.toString().padStart(2, '0')} ${ampm}`
   }
 
+  // Separate appointments into future and previous
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  const futureAppointments = items.filter((a) => {
+    const apptDate = new Date(a.date)
+    apptDate.setHours(0, 0, 0, 0)
+    return apptDate >= today
+  })
+  
+  const previousAppointments = items.filter((a) => {
+    const apptDate = new Date(a.date)
+    apptDate.setHours(0, 0, 0, 0)
+    return apptDate < today
+  })
+
   return (
     <div className="mt-6">
       <h3 className="text-lg font-semibold mb-2">Appointments</h3>
-      <ul className="space-y-2">
-        {items.map((a) => (
-          <li key={a.id} className="border rounded bg-white shadow">
-            <Link
-              to={`/dashboard/calendar?date=${a.date.slice(0, 10)}&appt=${a.id}`}
-              className="block p-2"
-            >
-              <div className="font-medium">
-                {a.date.slice(0, 10)} {formatTime(a.time)} - {a.type}
-              </div>
-              <div className="text-sm text-gray-600">
-                {a.client?.name || ''} {a.address}
-              </div>
-              {a.employees && a.employees.length > 0 && (
-                <div className="text-sm text-gray-600">
-                  {a.employees.map((e) => e.name).join(', ')}
-                </div>
-              )}
-            </Link>
-          </li>
-        ))}
-      </ul>
+      
+      {futureAppointments.length > 0 && (
+        <>
+          <div className="flex items-center my-4">
+            <div className="flex-grow border-t border-gray-300"></div>
+            <span className="px-3 text-sm font-medium text-gray-600">Future Appointments</span>
+            <div className="flex-grow border-t border-gray-300"></div>
+          </div>
+          <ul className="space-y-2">
+            {futureAppointments.map((a) => (
+              <li key={a.id} className="border rounded bg-white shadow">
+                <Link
+                  to={`/dashboard/calendar?date=${a.date.slice(0, 10)}&appt=${a.id}`}
+                  className="block p-2"
+                >
+                  <div className="font-medium">
+                    {a.date.slice(0, 10)} {formatTime(a.time)} - {a.type}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {a.client?.name || ''} {a.address}
+                  </div>
+                  {a.employees && a.employees.length > 0 && (
+                    <div className="text-sm text-gray-600">
+                      {a.employees.map((e) => e.name).join(', ')}
+                    </div>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      
+      {previousAppointments.length > 0 && (
+        <>
+          <div className="flex items-center my-4">
+            <div className="flex-grow border-t border-gray-300"></div>
+            <span className="px-3 text-sm font-medium text-gray-600">Previous Appointments</span>
+            <div className="flex-grow border-t border-gray-300"></div>
+          </div>
+          <ul className="space-y-2">
+            {previousAppointments.map((a) => (
+              <li key={a.id} className="border rounded bg-white shadow">
+                <Link
+                  to={`/dashboard/calendar?date=${a.date.slice(0, 10)}&appt=${a.id}`}
+                  className="block p-2"
+                >
+                  <div className="font-medium">
+                    {a.date.slice(0, 10)} {formatTime(a.time)} - {a.type}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {a.client?.name || ''} {a.address}
+                  </div>
+                  {a.employees && a.employees.length > 0 && (
+                    <div className="text-sm text-gray-600">
+                      {a.employees.map((e) => e.name).join(', ')}
+                    </div>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      
       <div ref={loader} className="h-5" />
     </div>
   )

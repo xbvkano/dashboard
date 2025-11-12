@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { API_BASE_URL } from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
 import { formatPhone } from '../../../../../formatPhone'
@@ -20,6 +21,7 @@ export default function AppointmentDetails({
   onEdit,
 }: AppointmentDetailsProps) {
   const { alert, confirm } = useModal()
+  const navigate = useNavigate()
   const [paid, setPaid] = useState(appointment.paid)
   const [paymentMethod, setPaymentMethod] = useState(appointment.paymentMethod || 'CASH')
   const [otherPayment, setOtherPayment] = useState('')
@@ -283,6 +285,17 @@ export default function AppointmentDetails({
 
         {/* Actions */}
         <div className="flex flex-wrap gap-2">
+          {appointment.clientId && (
+            <button
+              onClick={() => {
+                navigate(`/dashboard/clients/${appointment.clientId}`)
+                onClose()
+              }}
+              className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+            >
+              View Client
+            </button>
+          )}
           <button
             onClick={() => onCreate(appointment, 'RESCHEDULE_NEW')}
             className="px-3 py-1 bg-blue-500 text-white rounded text-sm"

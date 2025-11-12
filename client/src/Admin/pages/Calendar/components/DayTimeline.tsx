@@ -709,6 +709,17 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
             )}
 
             <div className="flex flex-wrap justify-end gap-2 pt-2">
+              {selected.clientId && (
+                <button
+                  className="px-4 py-1 bg-blue-500 text-white rounded"
+                  onClick={() => {
+                    navigate(`/dashboard/clients/${selected.clientId}`)
+                    setSelected(null)
+                  }}
+                >
+                  View Client
+                </button>
+              )}
               <button className="px-4 py-1 bg-red-500 text-white rounded" onClick={() => setShowDelete(true)}>
                 Delete
               </button>
