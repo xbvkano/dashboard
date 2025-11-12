@@ -1356,6 +1356,22 @@ const preserveTeamRef = useRef(false)
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
               />
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setTime('09:00')}
+                  className="flex-1 px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                >
+                  9:00 AM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTime('14:00')}
+                  className="flex-1 px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                >
+                  2:00 PM
+                </button>
+              </div>
             </div>
           </div>
           )}
