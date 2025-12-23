@@ -8,14 +8,23 @@ generator client {
    binaryTargets = ["native"]
 }
 
+enum UserType {
+  Google
+  password
+}
+
 model User {
-  id    Int    @id @default(autoincrement())
-  email String @unique
-  name  String?
-  role  Role   @default(EMPLOYEE)
-  safe  Boolean @default(false)
+  id       Int      @id @default(autoincrement())
+  email    String?  @unique
+  name     String?
+  role     Role     @default(EMPLOYEE)
+  safe     Boolean  @default(false)
+  type     UserType @default(Google)
+  password String?
+  userName String?  @unique
 
   appointments Appointment[] @relation("AdminAppointments")
+  employee     Employee?
 }
 
 model Client {
@@ -36,7 +45,10 @@ model Employee {
   notes        String?
   experienced  Boolean                    @default(false)
   disabled     Boolean                    @default(false)
+  userId       Int?                       @unique
+  user         User?                      @relation(fields: [userId], references: [id])
   appointments Appointment[]              @relation("AppointmentEmployees")
+  schedule     Schedule?
 
   prevBalance  Float                      @default(0)
   lastPaidAt   DateTime?
@@ -223,4 +235,16 @@ model ManualPayrollItem {
   employee  Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   payment   EmployeePayment? @relation(fields: [paymentId], references: [id])
   payrollItem PayrollItem?   @relation("ExtraItems", fields: [payrollItemId], references: [id])
+}
+
+model Schedule {
+  id             Int      @id @default(autoincrement())
+  employeeId     Int      @unique
+  futureSchedule String[] @default([])
+  pastSchedule   String[] @default([])
+  employeeUpdate DateTime? @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }

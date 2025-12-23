@@ -1,5 +1,5 @@
 import AdminDashboard from '../Admin/AdminDashboard'
-import UserDashboard from '../User/UserDashboard'
+import EmployeeDashboard from '../Employee/EmployeeDashboard'
 
 type Role = 'ADMIN' | 'OWNER' | 'EMPLOYEE'
 
@@ -10,7 +10,7 @@ interface DashboardProps {
 
 export default function Dashboard({ role, onLogout }: DashboardProps) {
   return role === 'EMPLOYEE' ? (
-    <UserDashboard onLogout={onLogout} />
+    <EmployeeDashboard onLogout={onLogout} />
   ) : (
     <AdminDashboard onLogout={onLogout} />
   )

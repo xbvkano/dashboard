@@ -5,4 +5,7 @@ export interface Employee {
   notes?: string
   experienced?: boolean
   disabled?: boolean
+  password?: string
+  hasPassword?: boolean
+  userType?: 'Google' | 'password'
 }

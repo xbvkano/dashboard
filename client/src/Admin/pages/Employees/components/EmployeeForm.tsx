@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useModal } from '../../../../ModalProvider'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import { Employee } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from '../../../../useFormPersistence'
@@ -20,6 +20,7 @@ export default function EmployeeForm() {
       notes: '',
       experienced: false,
       disabled: false,
+      password: '',
     }),
   )
   useFormPersistence(storageKey, data)
@@ -33,10 +34,12 @@ export default function EmployeeForm() {
   }, [id, isNew])
 
   const persist = (updated: Employee) => {
-    Object.entries(updated).forEach(([field, value]) => {
+    // Don't persist password for security
+    const { password, ...dataToPersist } = updated
+    Object.entries(dataToPersist).forEach(([field, value]) => {
       localStorage.setItem(`${storageKey}-${field}`, JSON.stringify(value))
     })
-    localStorage.setItem(storageKey, JSON.stringify(updated))
+    localStorage.setItem(storageKey, JSON.stringify(dataToPersist))
   }
 
   const handleChange = (
@@ -63,12 +66,23 @@ export default function EmployeeForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const payload = {
+    const payload: any = {
       name: data.name,
       number: data.number.length === 10 ? '1' + data.number : data.number,
       notes: data.notes,
       experienced: data.experienced,
       disabled: data.disabled ?? false,
+    }
+    // Password is required for new employees, optional for updates
+    if (isNew) {
+      if (!data.password) {
+        await alert('Password is required')
+        return
+      }
+      payload.password = data.password
+    } else if (data.password) {
+      // Only include password in update if it's provided
+      payload.password = data.password
     }
     const res = await fetch(`${API_BASE_URL}/employees${isNew ? '' : '/' + id}` ,{
       method: isNew ? 'POST' : 'PUT',
@@ -81,6 +95,8 @@ export default function EmployeeForm() {
       return
     }
     clearFormPersistence(storageKey)
+    // Clear password field after successful save
+    setData(prev => ({ ...prev, password: '' }))
     navigate('..')
   }
 
@@ -102,7 +118,8 @@ export default function EmployeeForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="p-4 space-y-3">
+    <form onSubmit={handleSubmit} className="p-4 pb-16 space-y-3">
+      <Link to=".." className="text-blue-500 text-sm">&larr; Back</Link>
       <div>
         <label htmlFor="employee-name" className="block text-sm">
           Name <span className="text-red-500">*</span>
@@ -137,6 +154,23 @@ export default function EmployeeForm() {
           name="notes"
           value={data.notes || ''}
           onChange={handleChange}
+          className="w-full border p-2 rounded"
+        />
+      </div>
+      <div>
+        <label htmlFor="employee-password" className="block text-sm">
+          Password {isNew && <span className="text-red-500">*</span>}
+          {!isNew && data.hasPassword && (
+            <span className="text-gray-500 text-xs ml-2">(leave blank to keep current password)</span>
+          )}
+        </label>
+        <input
+          id="employee-password"
+          name="password"
+          type="password"
+          value={data.password || ''}
+          onChange={handleChange}
+          required={isNew}
           className="w-full border p-2 rounded"
         />
       </div>

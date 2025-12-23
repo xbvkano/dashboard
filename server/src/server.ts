@@ -270,7 +270,9 @@ async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
 app.use(cors({
   allowedHeaders: [
     'Content-Type',
-    'ngrok-skip-browser-warning',  // <- allow it here
+    'ngrok-skip-browser-warning',
+    'x-user-name',
+    'x-user-id',
   ],
 }))
 app.use(express.json())
@@ -299,7 +301,11 @@ import calendarRoutes from './routes/calendar'
 import calculatorsRoutes from './routes/calculators'
 import clientsRoutes from './routes/clients'
 import employeesRoutes from './routes/employees'
+import employeeScheduleRoutes from './routes/employeeSchedule'
+import testRoutes from './routes/test'
 import templatesRoutes from './routes/templates'
+import { setupScheduleCleanupJob } from './jobs/scheduleCleanup'
+import { setupScheduleReminderJob } from './jobs/scheduleReminder'
 import appointmentsRoutes from './routes/appointments'
 import invoicesRoutes from './routes/invoices'
 import payrollRoutes from './routes/payroll'
@@ -312,11 +318,17 @@ app.use('/', calendarRoutes)
 app.use('/', calculatorsRoutes)
 app.use('/', clientsRoutes)
 app.use('/', employeesRoutes)
+app.use('/', employeeScheduleRoutes)
+app.use('/', testRoutes)
 app.use('/', templatesRoutes)
 app.use('/', appointmentsRoutes)
 app.use('/', invoicesRoutes)
 app.use('/', payrollRoutes)
 app.use('/', aiAppointmentRoutes)
+
+// Initialize cron jobs
+setupScheduleCleanupJob()
+setupScheduleReminderJob()
 
 // 404 handler for unmatched routes
 app.use((_req: Request, res: Response) => {

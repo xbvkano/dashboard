@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { OAuth2Client } from 'google-auth-library'
 import axios from 'axios'
+import bcrypt from 'bcrypt'
 
 const prisma = new PrismaClient()
 
@@ -12,9 +13,47 @@ const client = new OAuth2Client(
 )
 
 export async function login(req: Request, res: Response) {
-  const { token, code } = req.body as { token?: string; code?: string }
+  const { token, code, userName, password } = req.body as { 
+    token?: string
+    code?: string
+    userName?: string
+    password?: string
+  }
+
+  // Handle username/password login
+  if (userName && password) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { userName },
+      })
+
+      if (!user) {
+        return res.status(401).json({ error: 'Invalid username or password' })
+      }
+
+      if (user.type !== 'password') {
+        return res.status(401).json({ error: 'This account uses Google sign-in' })
+      }
+
+      if (!user.password) {
+        return res.status(401).json({ error: 'Password not set for this account' })
+      }
+
+      const isValid = await bcrypt.compare(password, user.password)
+      if (!isValid) {
+        return res.status(401).json({ error: 'Invalid username or password' })
+      }
+
+      return res.json({ role: user.role, user, userName: user.userName })
+    } catch (e) {
+      console.error('Password login error:', e)
+      return res.status(500).json({ error: 'Authentication failed' })
+    }
+  }
+
+  // Handle Google OAuth login
   if (!token && !code) {
-    return res.status(400).json({ error: 'Missing token or code' })
+    return res.status(400).json({ error: 'Missing credentials' })
   }
   try {
     let email: string | undefined

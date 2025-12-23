@@ -14,6 +14,15 @@ export default function App() {
       localStorage.setItem('role', 'OWNER')
       return 'OWNER'
     }
+    
+    // Check if user was signed out
+    const signedOut = localStorage.getItem('signedOut') === 'true'
+    if (signedOut) {
+      // Clear sign out flag and don't restore role
+      localStorage.removeItem('signedOut')
+      return null
+    }
+    
     const stored = localStorage.getItem('role')
     return stored === 'ADMIN' || stored === 'OWNER' || stored === 'EMPLOYEE'
       ? (stored as Role) 

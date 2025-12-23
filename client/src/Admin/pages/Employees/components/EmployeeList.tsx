@@ -61,8 +61,9 @@ export default function EmployeeList(_: EmployeeListProps) {
   }, [hasMore])
 
   return (
-    <div className="p-4">
-      <h2 className="text-xl font-semibold mb-2">Employees</h2>
+    <div className="p-4 pb-16">
+      <Link to=".." className="text-blue-500 text-sm">&larr; Back</Link>
+      <h2 className="text-xl font-semibold mb-2">Accounts</h2>
       <div className="flex items-center gap-2 mb-4">
         <input
           value={search}
