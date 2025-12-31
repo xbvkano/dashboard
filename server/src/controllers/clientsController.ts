@@ -19,6 +19,7 @@ export async function getClients(req: Request, res: Response) {
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
           { number: { contains: searchTerm, mode: 'insensitive' } },
+          { appointmentTemplates: { some: { address: { contains: searchTerm, mode: 'insensitive' } } } },
         ],
       }
     : includeDisabled ? {} : { disabled: false }
