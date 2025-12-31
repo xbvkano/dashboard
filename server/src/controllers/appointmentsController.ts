@@ -51,6 +51,7 @@ export async function getAppointments(req: Request, res: Response) {
     })
     res.json(appts)
   } catch (e) {
+    console.error('Error fetching appointments:', e)
     res.status(500).json({ error: 'Failed to fetch appointments' })
   }
 }
