@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useCalendarState } from './hooks/useCalendarState'
 import { useCalendarData } from './hooks/useCalendarData'
 import { useCalendarActions } from './hooks/useCalendarActions'
@@ -8,6 +9,7 @@ import DayTimeline from './components/DayTimeline'
 import CreateAppointmentModal from './components/CreateAppointmentModal'
 
 export default function Calendar() {
+  const [scrollToApptId, setScrollToApptId] = useState<number | undefined>(undefined)
   const {
     selected,
     setSelected,
@@ -45,7 +47,8 @@ export default function Calendar() {
     setDeleteOldId,
     refresh,
     refreshMonthCounts,
-    refreshWeekCounts
+    refreshWeekCounts,
+    setSelected
   )
 
   const weekStart = startOfWeek(selected)
@@ -87,6 +90,8 @@ export default function Calendar() {
         prevAppointments={appointments.prev}
         nextAppointments={appointments.next}
         initialApptId={queryAppt}
+        scrollToApptId={scrollToApptId}
+        selectedDate={selected}
         onUpdate={handleUpdate}
         onCreate={(appt, status) => handleCreateFrom(appt, status)}
         onEdit={handleEdit}
@@ -105,9 +110,17 @@ export default function Calendar() {
             setDeleteOldId(null)
           }}
           onCreated={async (appt) => {
-            await handleCreated(appt, rescheduleOldId, deleteOldId)
+            const apptId = await handleCreated(appt, rescheduleOldId, deleteOldId)
             setRescheduleOldId(null)
             setDeleteOldId(null)
+            if (apptId) {
+              // Set scroll ID after a brief delay to ensure date navigation completes
+              setTimeout(() => {
+                setScrollToApptId(apptId)
+                // Clear after scrolling completes
+                setTimeout(() => setScrollToApptId(undefined), 2000)
+              }, 100)
+            }
           }}
           initialClientId={createParams.clientId}
           initialTemplateId={createParams.templateId ?? undefined}

@@ -12,7 +12,8 @@ export function useCalendarActions(
   setDeleteOldId: (id: number | null) => void,
   refresh: () => void,
   refreshMonthCounts: (date?: Date) => void,
-  refreshWeekCounts: (date?: Date) => void
+  refreshWeekCounts: (date?: Date) => void,
+  setSelected: (date: Date) => void
 ) {
   const handleUpdate = (updated: Appointment) => {
     // keep data in sync
@@ -89,9 +90,13 @@ export function useCalendarActions(
     if (deleteOldId) {
       await markOldDelete(deleteOldId)
     }
+    // Navigate to the appointment date
+    setSelected(new Date(appt.date))
     refresh()
     refreshMonthCounts(new Date(appt.date))
     refreshWeekCounts(new Date(appt.date))
+    // Return the appointment ID so it can be scrolled to
+    return appt.id
   }
 
   return {

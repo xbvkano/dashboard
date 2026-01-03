@@ -48,12 +48,13 @@ interface DayProps {
   scrollRef?: Ref<HTMLDivElement>
   animating: boolean
   initialApptId?: number
+  scrollToApptId?: number
   onUpdate?: (a: Appointment) => void
   onCreate?: (appt: Appointment, status: Appointment['status']) => void
   onEdit?: (appt: Appointment) => void
 }
 
-function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onUpdate, onCreate, onEdit }: DayProps) {
+function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scrollToApptId, onUpdate, onCreate, onEdit }: DayProps) {
   const { alert, confirm } = useModal()
   const navigate = useNavigate()
   const [selected, setSelected] = useState<Appointment | null>(null)
@@ -98,6 +99,38 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, onU
       }
     }
   }, [initialApptId, appointments])
+
+  // Scroll to appointment when scrollToApptId is set
+  useEffect(() => {
+    if (!scrollToApptId || !scrollRef || typeof scrollRef === 'function' || !scrollRef.current) {
+      return
+    }
+    
+    // Wait a bit for appointments to load if they're not loaded yet
+    const timeoutId = setTimeout(() => {
+      const match = appointments.find((a) => a.id === scrollToApptId)
+      if (!match || !scrollRef || typeof scrollRef === 'function' || !scrollRef.current) {
+        return
+      }
+
+      // Calculate scroll position based on appointment time
+      const [h, m] = match.time.split(':').map((n) => parseInt(n, 10))
+      const startMinutes = h * 60 + m
+      const topPosition = (startMinutes / 60) * 84
+      
+      // Scroll to the appointment with some offset from top
+      const scrollContainer = scrollRef.current
+      if (scrollContainer) {
+        // Scroll to position, offset by ~200px from top to leave some space
+        scrollContainer.scrollTo({
+          top: Math.max(0, topPosition - 200),
+          behavior: 'smooth',
+        })
+      }
+    }, 300) // Small delay to allow appointments to load after date change
+
+    return () => clearTimeout(timeoutId)
+  }, [scrollToApptId, appointments, scrollRef])
 
   const updateAppointment = async (data: {
     status?: Appointment['status']
@@ -1028,6 +1061,8 @@ interface Props {
   prevAppointments: Appointment[]
   nextAppointments: Appointment[]
   initialApptId?: number
+  scrollToApptId?: number
+  selectedDate: Date
   onUpdate?: (a: Appointment) => void
   onCreate?: (appt: Appointment, status: Appointment['status']) => void
   onEdit?: (appt: Appointment) => void
@@ -1041,6 +1076,8 @@ export default function DayTimeline({
   prevAppointments,
   nextAppointments,
   initialApptId,
+  scrollToApptId,
+  selectedDate,
   onUpdate,
   onCreate,
   onEdit,
@@ -1052,14 +1089,38 @@ export default function DayTimeline({
   const [dragDelta, setDragDelta] = useState(0)
   const [baseOffset, setBaseOffset] = useState(0)
   const [animating, setAnimating] = useState(false)
+  const lastSelectedDateRef = useRef<string>('')
 
+  // Reset baseOffset when selected date changes externally
+  // This ensures the displayed day always matches the selected date in the header
   useLayoutEffect(() => {
     if (!containerRef.current) return
     const w = containerRef.current.offsetWidth
-    setBaseOffset(-w)
-    setDragDelta(0)
-    setAnimating(false)
-  }, [appointments, prevAppointments, nextAppointments])
+    const selectedDateStr = selectedDate.toDateString()
+    
+    // Reset to center position when selected date changed externally
+    // (e.g., from WeekSelector/MonthSelector click, not from swipe navigation)
+    // Only reset if not currently animating (to avoid interrupting swipe animations)
+    if (lastSelectedDateRef.current !== selectedDateStr && !animating) {
+      setBaseOffset(-w)
+      setDragDelta(0)
+      setAnimating(false)
+      lastSelectedDateRef.current = selectedDateStr
+    }
+  }, [selectedDate, animating])
+
+  // Also reset baseOffset when appointments change to ensure sync
+  useLayoutEffect(() => {
+    if (!containerRef.current) return
+    const w = containerRef.current.offsetWidth
+    // Reset to center when appointments are reloaded
+    // This handles cases where appointments update but selectedDate hasn't changed yet
+    if (!animating) {
+      setBaseOffset(-w)
+      setDragDelta(0)
+      setAnimating(false)
+    }
+  }, [appointments, prevAppointments, nextAppointments, animating])
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX
@@ -1157,6 +1218,7 @@ export default function DayTimeline({
           scrollRef={currentDayRef}
           animating={animating}
           initialApptId={initialApptId}
+          scrollToApptId={scrollToApptId}
           onUpdate={onUpdate}
           onCreate={onCreate}
           onEdit={onEdit}
