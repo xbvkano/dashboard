@@ -91,10 +91,15 @@ export function useCalendarActions(
       await markOldDelete(deleteOldId)
     }
     // Navigate to the appointment date
-    setSelected(new Date(appt.date))
+    // Parse date string to avoid timezone issues (extract YYYY-MM-DD and create local date)
+    const dateStr = appt.date.slice(0, 10) // Get YYYY-MM-DD portion
+    const [year, month, day] = dateStr.split('-').map(Number)
+    const appointmentDate = new Date(year, month - 1, day) // month is 0-indexed in Date constructor
+    
+    setSelected(appointmentDate)
     refresh()
-    refreshMonthCounts(new Date(appt.date))
-    refreshWeekCounts(new Date(appt.date))
+    refreshMonthCounts(appointmentDate)
+    refreshWeekCounts(appointmentDate)
     // Return the appointment ID so it can be scrolled to
     return appt.id
   }

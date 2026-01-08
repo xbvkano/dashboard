@@ -24,7 +24,7 @@ export default function AdminDashboard({ onLogout }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900">
-      <nav className="bg-white shadow fixed bottom-0 md:sticky md:top-0 w-full z-50 md:mb-4">
+      <nav className="bg-white shadow fixed bottom-0 md:sticky md:top-0 w-full z-50">
         <ul className="flex flex-wrap justify-around p-2 text-sm">
           <li><Link className="px-2 py-1" to="/dashboard">Home</Link></li>
           <li><Link className="px-2 py-1" to="/dashboard/calendar">Calendar</Link></li>

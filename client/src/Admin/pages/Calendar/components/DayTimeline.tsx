@@ -1091,7 +1091,7 @@ export default function DayTimeline({
   const [animating, setAnimating] = useState(false)
   const lastSelectedDateRef = useRef<string>('')
 
-  // Reset baseOffset when selected date changes externally
+  // Reset baseOffset when selected date changes externally or window resizes
   // This ensures the displayed day always matches the selected date in the header
   useLayoutEffect(() => {
     if (!containerRef.current) return
@@ -1121,6 +1121,19 @@ export default function DayTimeline({
       setAnimating(false)
     }
   }, [appointments, prevAppointments, nextAppointments, animating])
+
+  // Handle window resize to fix multiple days being visible
+  useEffect(() => {
+    if (!containerRef.current) return
+    const handleResize = () => {
+      if (!containerRef.current || animating) return
+      const w = containerRef.current.offsetWidth
+      setBaseOffset(-w)
+      setDragDelta(0)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [animating])
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX

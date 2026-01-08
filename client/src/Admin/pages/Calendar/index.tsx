@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useCalendarState } from './hooks/useCalendarState'
 import { useCalendarData } from './hooks/useCalendarData'
 import { useCalendarActions } from './hooks/useCalendarActions'
@@ -10,6 +10,10 @@ import CreateAppointmentModal from './components/CreateAppointmentModal'
 
 export default function Calendar() {
   const [scrollToApptId, setScrollToApptId] = useState<number | undefined>(undefined)
+  const [headerHeight, setHeaderHeight] = useState(0)
+  const [isDesktop, setIsDesktop] = useState(false)
+  const [navHeight, setNavHeight] = useState(48)
+  const headerRef = useRef<HTMLDivElement>(null)
   const {
     selected,
     setSelected,
@@ -61,9 +65,55 @@ export default function Calendar() {
   const prevDay = () => setSelected((d) => addDays(d, -1))
   const nextDay = () => setSelected((d) => addDays(d, 1))
 
+  // Measure header height for padding calculations
+  useEffect(() => {
+    if (headerRef.current) {
+      const height = headerRef.current.offsetHeight
+      setHeaderHeight(height)
+    }
+  }, [showMonth, selected])
+
+  // Detect desktop vs mobile for responsive padding and measure nav height
+  useEffect(() => {
+    const checkDesktop = () => {
+      const isDesktopWidth = window.innerWidth >= 768
+      setIsDesktop(isDesktopWidth)
+      // Measure actual nav bar height on desktop
+      if (isDesktopWidth) {
+        // Find nav element - it has md:sticky class
+        const navElements = document.querySelectorAll('nav')
+        const stickyNav = Array.from(navElements).find(el => {
+          const styles = window.getComputedStyle(el)
+          return styles.position === 'sticky' || styles.position === 'fixed'
+        }) as HTMLElement | undefined
+        if (stickyNav) {
+          setNavHeight(stickyNav.offsetHeight)
+        }
+      } else {
+        setNavHeight(0)
+      }
+    }
+    checkDesktop()
+    window.addEventListener('resize', checkDesktop)
+    // Also check after a brief delay to ensure nav is rendered
+    const timeoutId = setTimeout(checkDesktop, 100)
+    return () => {
+      window.removeEventListener('resize', checkDesktop)
+      clearTimeout(timeoutId)
+    }
+  }, [])
+  const contentPadding = isDesktop ? navHeight + headerHeight : headerHeight
+
   return (
     <div className="flex flex-col h-full">
-      <div className="sticky top-0 z-10 bg-white">
+      <div 
+        ref={headerRef}
+        className="sticky md:fixed top-0 left-0 right-0 z-40 bg-white"
+        style={{ 
+          top: isDesktop ? `${navHeight}px` : '0px',
+          borderTop: '1px solid rgb(209 213 219)' // border-gray-300
+        }}
+      >
         <MonthSelector
           selected={selected}
           setSelected={setSelected}
@@ -82,20 +132,27 @@ export default function Calendar() {
           counts={weekCounts}
         />
       </div>
-      <DayTimeline
-        nowOffset={nowOffset}
-        prevDay={prevDay}
-        nextDay={nextDay}
-        appointments={appointments.current}
-        prevAppointments={appointments.prev}
-        nextAppointments={appointments.next}
-        initialApptId={queryAppt}
-        scrollToApptId={scrollToApptId}
-        selectedDate={selected}
-        onUpdate={handleUpdate}
-        onCreate={(appt, status) => handleCreateFrom(appt, status)}
-        onEdit={handleEdit}
-      />
+      <div 
+        className="flex flex-col flex-1"
+        style={{ 
+          paddingTop: `${contentPadding}px`
+        }}
+      >
+        <DayTimeline
+          nowOffset={nowOffset}
+          prevDay={prevDay}
+          nextDay={nextDay}
+          appointments={appointments.current}
+          prevAppointments={appointments.prev}
+          nextAppointments={appointments.next}
+          initialApptId={queryAppt}
+          scrollToApptId={scrollToApptId}
+          selectedDate={selected}
+          onUpdate={handleUpdate}
+          onCreate={(appt, status) => handleCreateFrom(appt, status)}
+          onEdit={handleEdit}
+        />
+      </div>
       <button
         className="fixed bottom-20 right-6 w-12 h-12 rounded-full bg-black text-white text-2xl flex items-center justify-center"
         onClick={() => setCreateParams({})}
