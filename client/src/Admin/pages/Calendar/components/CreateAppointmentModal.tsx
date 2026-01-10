@@ -149,19 +149,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     ? templates.find((tt) => tt.id === selectedTemplate)
     : null
 
-  // recurring options
-  const recurringOptions = [
-    'Weekly',
-    'Biweekly',
-    'Thrweekly',
-    'Monthly',
-    'Other',
-  ] as const
-  type RecurringOption = (typeof recurringOptions)[number]
-  const [recurringEnabled, setRecurringEnabled] = useState<boolean>(persisted.recurringEnabled ?? false)
-  const [showRecurringModal, setShowRecurringModal] = useState(false)
-  const [recurringOption, setRecurringOption] = useState<RecurringOption>(persisted.recurringOption ?? 'Weekly')
-  const [recurringMonths, setRecurringMonths] = useState<string>(persisted.recurringMonths ?? '')
+  // Legacy recurring state removed - use Recurring Appointments page instead
   const [creating, setCreating] = useState(false)
 
   const handleClose = () => {
@@ -201,7 +189,15 @@ const preserveTeamRef = useRef(false)
   useEffect(() => {
     if (initialAppointment) {
       if (initialAppointment.client) setSelectedClient(initialAppointment.client)
-      setDate(initialAppointment.date.slice(0, 10))
+      // Convert UTC date from server to local date string for date input
+      // Use UTC methods to extract the calendar day, then format for local display
+      const apptDate = typeof initialAppointment.date === 'string' 
+        ? new Date(initialAppointment.date) 
+        : initialAppointment.date
+      const year = apptDate.getUTCFullYear()
+      const month = String(apptDate.getUTCMonth() + 1).padStart(2, '0')
+      const day = String(apptDate.getUTCDate()).padStart(2, '0')
+      setDate(`${year}-${month}-${day}`)
       setTime(initialAppointment.time)
       if (initialAppointment.employees)
         setSelectedEmployees(initialAppointment.employees.map((e) => e.id))
@@ -215,7 +211,7 @@ const preserveTeamRef = useRef(false)
         setCarpetEnabled(true)
         setCarpetRooms(String((initialAppointment as any).carpetRooms))
       }
-      if (initialAppointment.reoccurring) setRecurringEnabled(true)
+      // Legacy recurring check removed
       if (initialAppointment.noTeam) setNoTeam(true)
       initializedRef.current = true
       localStorage.removeItem('createAppointmentState')
@@ -252,9 +248,7 @@ const preserveTeamRef = useRef(false)
           if (Array.isArray(s.carpetEmployees)) setCarpetEmployees(s.carpetEmployees)
           if (typeof s.overrideCarpetPrice === 'boolean')
             setOverrideCarpetPrice(s.overrideCarpetPrice)
-          if (typeof s.recurringEnabled === 'boolean') setRecurringEnabled(s.recurringEnabled)
-          if (s.recurringOption) setRecurringOption(s.recurringOption)
-          if (s.recurringMonths) setRecurringMonths(s.recurringMonths)
+          // Legacy recurring persistence removed
           if (typeof s.noTeam === 'boolean') setNoTeam(s.noTeam)
         } catch {}
       }
@@ -290,13 +284,11 @@ const preserveTeamRef = useRef(false)
       carpetPrice: templateForm.carpetPrice,
       overrideCarpetPrice,
       carpetEmployees,
-      recurringEnabled,
-      recurringOption,
-      recurringMonths,
+      // Legacy recurring state removed
       noTeam,
     }
     localStorage.setItem('createAppointmentState', JSON.stringify(data))
-  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, showTeamModal, employeeSearch, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, templateForm.carpetPrice, overrideCarpetPrice, carpetEmployees, recurringEnabled, recurringOption, recurringMonths, noTeam])
+  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, showTeamModal, employeeSearch, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, templateForm.carpetPrice, overrideCarpetPrice, carpetEmployees, noTeam])
 
   useEffect(() => {
     if (selectedTemplate !== null) {
@@ -354,10 +346,7 @@ const preserveTeamRef = useRef(false)
     setEmployeeSearch('')
     setPayRate(null)
     resetCarpet()
-    setRecurringEnabled(false)
-    setShowRecurringModal(false)
-    setRecurringOption('Weekly')
-    setRecurringMonths('')
+    // Legacy recurring reset removed
     setPaid(false)
     setTip('')
     setPaymentMethod('')
@@ -751,10 +740,33 @@ const preserveTeamRef = useRef(false)
         if (!ok) return
       }
     }
+    // Check if date is in the past (using local time for user experience)
+    if (date) {
+      // Parse date string as local date for validation
+      const dateParts = date.split('-')
+      if (dateParts.length === 3) {
+        const selectedDate = new Date(
+          parseInt(dateParts[0]),
+          parseInt(dateParts[1]) - 1,
+          parseInt(dateParts[2])
+        )
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        selectedDate.setHours(0, 0, 0, 0)
+        if (selectedDate < today) {
+          const proceed = await confirm('The selected date is in the past. Are you sure you want to book the appointment for this date?')
+          if (!proceed) return
+        }
+      }
+    }
+    
+    // Convert local date to UTC date string for server
+    // The date string from input (YYYY-MM-DD) represents the user's local date
+    // We send it as-is, and server interprets it as UTC for consistent storage
     const body = {
       clientId: selectedClient.id,
       templateId: selectedTemplate,
-      date,
+      date, // Send as YYYY-MM-DD, server will parse as UTC
       time,
       hours: staffOptions[selectedOption]?.hours,
       employeeIds: noTeam ? [] : selectedEmployees,
@@ -764,7 +776,7 @@ const preserveTeamRef = useRef(false)
       paymentMethodNote:
         paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
       tip: paid ? parseFloat(tip) || 0 : 0,
-      status: recurringEnabled ? 'REOCCURRING' : newStatus ?? 'APPOINTED',
+      status: newStatus ?? 'APPOINTED',
       noTeam,
       ...(carpetEnabled
         ? {
@@ -775,21 +787,9 @@ const preserveTeamRef = useRef(false)
         : {}),
     }
 
-    let url = recurringEnabled ? `${API_BASE_URL}/appointments/recurring` : `${API_BASE_URL}/appointments`
+    // Legacy recurring removed - use Recurring Appointments page to create recurring appointments
+    let url = `${API_BASE_URL}/appointments`
     const extra: any = {}
-    if (recurringEnabled) {
-      extra.frequency =
-        recurringOption === 'Weekly'
-          ? 'WEEKLY'
-          : recurringOption === 'Biweekly'
-          ? 'BIWEEKLY'
-          : recurringOption === 'Thrweekly'
-          ? 'EVERY3'
-          : recurringOption === 'Monthly'
-          ? 'MONTHLY'
-          : 'CUSTOM'
-      if (recurringOption === 'Other') extra.months = parseInt(recurringMonths || '1', 10)
-    }
     let method: 'POST' | 'PUT' = 'POST'
     let payload: any = { ...body, ...extra }
     if (initialAppointment) {
@@ -1294,41 +1294,7 @@ const preserveTeamRef = useRef(false)
           </div>
         )}
 
-        {/* Recurring */}
-        {selectedTemplate && (selectedEmployees.length > 0 || noTeam) && (
-          <div className="space-y-1">
-            <label className="flex items-center gap-2">
-              <span>Recurring</span>
-              <input
-                type="checkbox"
-                checked={recurringEnabled}
-                onChange={(e) => {
-                  setRecurringEnabled(e.target.checked)
-                  if (!e.target.checked) {
-                    setRecurringOption('Weekly')
-                    setRecurringMonths('')
-                  }
-                }}
-              />
-            </label>
-            {recurringEnabled && (
-              <>
-                <button
-                  className="border px-3 py-2 rounded"
-                  onClick={() => setShowRecurringModal(true)}
-                >
-                  Recurring Options
-                </button>
-                <div className="text-sm border rounded p-2">
-                  Frequency:{' '}
-                  {recurringOption === 'Other'
-                    ? `${recurringMonths} months`
-                    : recurringOption}
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        {/* Recurring appointments should be created via the Recurring Appointments page */}
 
         {/* Date and time */}
         {selectedTemplate && (
@@ -1587,52 +1553,7 @@ const preserveTeamRef = useRef(false)
         </div>
       </div>
     )}
-    {showRecurringModal && (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
-        <div className="bg-white p-4 rounded w-full max-w-xs max-h-full overflow-y-auto overflow-x-hidden space-y-2">
-          <div className="flex justify-between items-center">
-            <h4 className="font-medium">Recurring Options</h4>
-            <button onClick={() => setShowRecurringModal(false)}>X</button>
-          </div>
-          <div className="space-y-2">
-            <select
-              className="w-full border p-2 rounded text-base"
-              value={recurringOption}
-              onChange={(e) => setRecurringOption(e.target.value as RecurringOption)}
-            >
-              {recurringOptions.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-            {recurringOption === 'Other' && (
-              <div>
-                <h4 className="font-light">Every how many months?</h4>
-                <input
-                  type="number"
-                  min="1"
-                  className="w-full border p-2 rounded text-base"
-                  value={recurringMonths}
-                  onChange={(e) => setRecurringMonths(e.target.value)}
-                />
-              </div>
-            )}
-          </div>
-          <div className="text-right">
-            <button
-              className="px-3 py-2 text-blue-600 disabled:text-gray-400"
-              disabled={recurringOption === 'Other' && !recurringMonths}
-              onClick={() => {
-                if (recurringOption !== 'Other' || recurringMonths) setShowRecurringModal(false)
-              }}
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
+    {/* Legacy recurring modal removed - use Recurring Appointments page */}
     </>
   )
 }

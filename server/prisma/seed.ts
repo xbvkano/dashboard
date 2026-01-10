@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcrypt'
+import { ruleToJson, calculateNextAppointmentDate } from '../src/utils/recurrenceUtils'
+import { calculateAppointmentHours } from '../src/utils/appointmentUtils'
 
 const prisma = new PrismaClient()
 
@@ -17,6 +19,7 @@ async function main() {
   await prisma.employeePayment.deleteMany()
   await prisma.schedule.deleteMany() // Delete schedules before employees
   await prisma.appointment.deleteMany()
+  await prisma.recurrenceFamily.deleteMany() // Delete recurrence families before clients
   await prisma.employeeTemplate.deleteMany()
   await prisma.appointmentTemplate.deleteMany()
   await prisma.employee.deleteMany()
@@ -27,6 +30,7 @@ async function main() {
   await prisma.$executeRawUnsafe(`ALTER SEQUENCE "User_id_seq" RESTART WITH 1`)
   await prisma.$executeRawUnsafe(`ALTER SEQUENCE "Employee_id_seq" RESTART WITH 1`)
   await prisma.$executeRawUnsafe(`ALTER SEQUENCE "Client_id_seq" RESTART WITH 1`)
+  await prisma.$executeRawUnsafe(`ALTER SEQUENCE "RecurrenceFamily_id_seq" RESTART WITH 1`)
 
   // Seed base users/clients/employees
   const admin = await prisma.user.create({
@@ -57,6 +61,9 @@ async function main() {
   })
   const jane = await prisma.client.create({
     data: { name: 'Jane Smith', number: '5552222222', from: 'Call' },
+  })
+  const marcos = await prisma.client.create({
+    data: { name: 'Marcos Kano', number: '7255774523', from: 'Test' },
   })
 
   // Create users for employees with password authentication
@@ -161,6 +168,16 @@ async function main() {
       clientId: jane.id,
     },
   })
+  const temp3 = await prisma.appointmentTemplate.create({
+    data: {
+      templateName: 'Marcos Standard',
+      type: 'STANDARD',
+      size: '1500-2000',
+      address: '789 Test St',
+      price: 150,
+      clientId: marcos.id,
+    },
+  })
 
   const today = new Date()
   const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400000)
@@ -187,7 +204,7 @@ async function main() {
     include: { employees: true },
   })
 
-  // Past recurring appointment
+  // Past recurring appointment (now just a regular appointment for seed data)
   const pastRecurring = await prisma.appointment.create({
     data: {
       adminId: admin.id,
@@ -201,15 +218,14 @@ async function main() {
       price: temp1.price,
       paymentMethod: 'CASH',
       lineage: 'weekly-1',
-      status: 'REOCCURRING',
-      reoccurring: true,
+      status: 'APPOINTED',
       notes: 'Past recurring appointment',
       employees: { connect: [{ id: empTwo.id }] },
     },
     include: { employees: true },
   })
 
-  // Future recurring appointment
+  // Future recurring appointment (now just a regular appointment for seed data)
   const futureRecurring = await prisma.appointment.create({
     data: {
       adminId: admin.id,
@@ -223,8 +239,7 @@ async function main() {
       price: temp1.price,
       paymentMethod: 'CASH',
       lineage: 'weekly-1',
-      status: 'REOCCURRING',
-      reoccurring: true,
+      status: 'APPOINTED',
       notes: 'Future recurring appointment',
       employees: { connect: [{ id: empTwo.id }] },
     },
@@ -343,6 +358,204 @@ async function main() {
       }
     })
   }
+
+  // Create recurrence families with relevant dates
+
+  // Active recurrence family 1: Weekly, past confirmed + future unconfirmed
+  const family1FirstDate = addDays(today, -14) // 2 weeks ago
+  const family1NextDate = addDays(today, 7) // 1 week from now
+  const family1 = await prisma.recurrenceFamily.create({
+    data: {
+      status: 'active',
+      recurrenceRule: ruleToJson({ type: 'weekly', interval: 1 }),
+      nextAppointmentDate: family1NextDate,
+    },
+  })
+  
+  // Past confirmed appointment
+  await prisma.appointment.create({
+    data: {
+      clientId: john.id,
+      adminId: admin.id,
+      date: family1FirstDate,
+      time: '10:00',
+      type: temp1.type,
+      address: temp1.address,
+      size: temp1.size,
+      hours: calculateAppointmentHours(temp1.size, temp1.type),
+      price: temp1.price,
+      paymentMethod: 'CASH',
+      status: 'APPOINTED',
+      lineage: 'single',
+      familyId: family1.id,
+      employees: { connect: [{ id: empOne.id }] },
+    },
+  })
+
+  // Future unconfirmed appointment
+  await prisma.appointment.create({
+    data: {
+      clientId: john.id,
+      adminId: admin.id,
+      date: family1NextDate,
+      time: '10:00',
+      type: temp1.type,
+      address: temp1.address,
+      size: temp1.size,
+      hours: calculateAppointmentHours(temp1.size, temp1.type),
+      price: temp1.price,
+      paymentMethod: 'CASH',
+      status: 'RECURRING_UNCONFIRMED',
+      lineage: 'single',
+      familyId: family1.id,
+    },
+  })
+
+  // Active recurrence family 2: Biweekly, future confirmed + future unconfirmed
+  const family2FirstDate = addDays(today, 3) // 3 days from now
+  const family2NextDate = addDays(today, 17) // 17 days from now (2 weeks later)
+  const family2 = await prisma.recurrenceFamily.create({
+    data: {
+      status: 'active',
+      recurrenceRule: ruleToJson({ type: 'biweekly', interval: 2 }),
+      nextAppointmentDate: family2NextDate,
+    },
+  })
+
+  await prisma.appointment.create({
+    data: {
+      clientId: jane.id,
+      adminId: admin.id,
+      date: family2FirstDate,
+      time: '14:00',
+      type: temp2.type,
+      address: temp2.address,
+      size: temp2.size,
+      hours: calculateAppointmentHours(temp2.size, temp2.type),
+      price: temp2.price,
+      paymentMethod: 'VENMO',
+      status: 'APPOINTED',
+      lineage: 'single',
+      familyId: family2.id,
+      employees: { connect: [{ id: empTwo.id }, { id: empThree.id }] },
+    },
+  })
+
+  await prisma.appointment.create({
+    data: {
+      clientId: jane.id,
+      adminId: admin.id,
+      date: family2NextDate,
+      time: '14:00',
+      type: temp2.type,
+      address: temp2.address,
+      size: temp2.size,
+      hours: calculateAppointmentHours(temp2.size, temp2.type),
+      price: temp2.price,
+      paymentMethod: 'CASH',
+      status: 'RECURRING_UNCONFIRMED',
+      lineage: 'single',
+      familyId: family2.id,
+    },
+  })
+
+  // Stopped recurrence family: Had a missed unconfirmed appointment
+  const stoppedFamilyFirstDate = addDays(today, -21) // 3 weeks ago
+  const stoppedFamilyMissedDate = addDays(today, -7) // 1 week ago (missed)
+  const stoppedFamily = await prisma.recurrenceFamily.create({
+    data: {
+      status: 'stopped',
+      recurrenceRule: ruleToJson({ type: 'weekly', interval: 1 }),
+      nextAppointmentDate: stoppedFamilyMissedDate, // This was the missed date
+    },
+  })
+
+  // Past confirmed
+  await prisma.appointment.create({
+    data: {
+      clientId: john.id,
+      adminId: admin.id,
+      date: stoppedFamilyFirstDate,
+      time: '11:00',
+      type: temp1.type,
+      address: temp1.address,
+      size: temp1.size,
+      hours: calculateAppointmentHours(temp1.size, temp1.type),
+      price: temp1.price,
+      paymentMethod: 'CASH',
+      status: 'APPOINTED',
+      lineage: 'single',
+      familyId: stoppedFamily.id,
+      employees: { connect: [{ id: empTwo.id }] },
+    },
+  })
+
+  // Missed unconfirmed (this caused the family to stop)
+  await prisma.appointment.create({
+    data: {
+      clientId: john.id,
+      adminId: admin.id,
+      date: stoppedFamilyMissedDate,
+      time: '11:00',
+      type: temp1.type,
+      address: temp1.address,
+      size: temp1.size,
+      hours: calculateAppointmentHours(temp1.size, temp1.type),
+      price: temp1.price,
+      paymentMethod: 'CASH',
+      status: 'RECURRING_UNCONFIRMED',
+      lineage: 'single',
+      familyId: stoppedFamily.id,
+    },
+  })
+
+  // Active recurrence family 3: Monthly intervals (every 2 months)
+  const family3FirstDate = addDays(today, -30) // 1 month ago
+  const family3NextDate = addDays(today, 30) // 1 month from now
+  const family3 = await prisma.recurrenceFamily.create({
+    data: {
+      status: 'active',
+      recurrenceRule: ruleToJson({ type: 'customMonths', interval: 2 }),
+      nextAppointmentDate: family3NextDate,
+    },
+  })
+
+  await prisma.appointment.create({
+    data: {
+      clientId: jane.id,
+      adminId: admin.id,
+      date: family3FirstDate,
+      time: '09:00',
+      type: temp2.type,
+      address: temp2.address,
+      size: temp2.size,
+      hours: calculateAppointmentHours(temp2.size, temp2.type),
+      price: temp2.price,
+      paymentMethod: 'CASH',
+      status: 'APPOINTED',
+      lineage: 'single',
+      familyId: family3.id,
+      employees: { connect: [{ id: empOne.id }] },
+    },
+  })
+
+  await prisma.appointment.create({
+    data: {
+      clientId: jane.id,
+      adminId: admin.id,
+      date: family3NextDate,
+      time: '09:00',
+      type: temp2.type,
+      address: temp2.address,
+      size: temp2.size,
+      hours: calculateAppointmentHours(temp2.size, temp2.type),
+      price: temp2.price,
+      paymentMethod: 'CASH',
+      status: 'RECURRING_UNCONFIRMED',
+      lineage: 'single',
+      familyId: family3.id,
+    },
+  })
 }
 
 main()

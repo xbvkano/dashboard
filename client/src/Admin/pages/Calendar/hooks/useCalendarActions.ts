@@ -18,8 +18,15 @@ export function useCalendarActions(
   const handleUpdate = (updated: Appointment) => {
     // keep data in sync
     refresh()
-    refreshMonthCounts(new Date(updated.date))
-    refreshWeekCounts(new Date(updated.date))
+    // Extract UTC date components to create local date with same calendar day
+    const apptDate = typeof updated.date === 'string' ? new Date(updated.date) : updated.date
+    const localDate = new Date(
+      apptDate.getUTCFullYear(),
+      apptDate.getUTCMonth(),
+      apptDate.getUTCDate()
+    )
+    refreshMonthCounts(localDate)
+    refreshWeekCounts(localDate)
   }
 
   const handleCreateFrom = async (appt: Appointment, status: Appointment['status']) => {
@@ -91,10 +98,14 @@ export function useCalendarActions(
       await markOldDelete(deleteOldId)
     }
     // Navigate to the appointment date
-    // Parse date string to avoid timezone issues (extract YYYY-MM-DD and create local date)
-    const dateStr = appt.date.slice(0, 10) // Get YYYY-MM-DD portion
-    const [year, month, day] = dateStr.split('-').map(Number)
-    const appointmentDate = new Date(year, month - 1, day) // month is 0-indexed in Date constructor
+    // Server sends UTC dates, we need to extract UTC date components and create a local date
+    // with the same calendar day (e.g., Jan 18 UTC -> Jan 18 local)
+    const apptDate = typeof appt.date === 'string' ? new Date(appt.date) : appt.date
+    const appointmentDate = new Date(
+      apptDate.getUTCFullYear(),  // Use UTC methods to get the calendar day
+      apptDate.getUTCMonth(),
+      apptDate.getUTCDate()
+    )
     
     setSelected(appointmentDate)
     refresh()

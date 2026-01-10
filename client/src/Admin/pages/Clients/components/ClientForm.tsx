@@ -7,6 +7,7 @@ import { API_BASE_URL, fetchJson } from '../../../../api'
 import { formatPhone } from '../../../../formatPhone'
 
 import AppointmentsSection from "../../../components/AppointmentsSection"
+import RecurrenceFamiliesSection from "../../../components/RecurrenceFamiliesSection"
 export default function ClientForm() {
   const { alert, confirm } = useModal()
   const { id } = useParams()
@@ -192,10 +193,13 @@ export default function ClientForm() {
           </button>
         )}
       </div>
-      {!isNew && (
-        <AppointmentsSection
-          url={`${API_BASE_URL}/clients/${id}/appointments`}
-        />
+      {!isNew && id && (
+        <>
+          <RecurrenceFamiliesSection clientId={parseInt(id, 10)} />
+          <AppointmentsSection
+            url={`${API_BASE_URL}/clients/${id}/appointments`}
+          />
+        </>
       )}
     </form>
   )

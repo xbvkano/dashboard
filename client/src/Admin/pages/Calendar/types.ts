@@ -46,7 +46,9 @@ export interface Appointment {
     | 'CANCEL'
     | 'REBOOK'
     | 'REOCCURRING'
+    | 'RECURRING_UNCONFIRMED'
     | 'DELETED'
+  familyId?: number
   client?: import('../Clients/components/types').Client
   employees?: import('../Employees/components/types').Employee[]
   admin?: { id: number; name: string | null; email: string }

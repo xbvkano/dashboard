@@ -29,8 +29,9 @@ export async function getMonthCounts(req: Request, res: Response) {
     return res.status(400).json({ error: 'Invalid year or month' })
   }
 
-  const start = new Date(year, month - 1, 1)
-  const end = new Date(year, month, 1)
+  // Use UTC dates for consistent querying
+  const start = new Date(Date.UTC(year, month - 1, 1))
+  const end = new Date(Date.UTC(year, month, 1))
   try {
     const appts = await prisma.appointment.findMany({
       where: {
@@ -41,7 +42,11 @@ export async function getMonthCounts(req: Request, res: Response) {
     })
     const counts: Record<string, number> = {}
     for (const a of appts) {
-      const key = a.date.toISOString().slice(0, 10)
+      // Format date as YYYY-MM-DD using UTC to match storage
+      const year = a.date.getUTCFullYear()
+      const month = String(a.date.getUTCMonth() + 1).padStart(2, '0')
+      const day = String(a.date.getUTCDate()).padStart(2, '0')
+      const key = `${year}-${month}-${day}`
       counts[key] = (counts[key] || 0) + 1
     }
     res.json(counts)
@@ -59,24 +64,43 @@ export async function getRangeCounts(req: Request, res: Response) {
     return res.status(400).json({ error: 'start and end required' })
   }
 
-  const start = new Date(startStr)
-  const end = new Date(endStr)
-
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-    return res.status(400).json({ error: 'Invalid start or end' })
+  // Parse date strings (YYYY-MM-DD) as UTC midnight for consistent querying
+  const parseDateUTC = (dateStr: string): Date | null => {
+    const dateParts = dateStr.split('-')
+    if (dateParts.length !== 3) return null
+    const date = new Date(Date.UTC(
+      parseInt(dateParts[0]),
+      parseInt(dateParts[1]) - 1, // Month is 0-indexed
+      parseInt(dateParts[2])
+    ))
+    return isNaN(date.getTime()) ? null : date
   }
+
+  const start = parseDateUTC(startStr)
+  const end = parseDateUTC(endStr)
+
+  if (!start || !end) {
+    return res.status(400).json({ error: 'Invalid start or end date format. Use YYYY-MM-DD' })
+  }
+
+  // Set end to the start of the next day in UTC to match getAppointments logic
+  const endExclusive = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() + 1))
 
   try {
     const appts = await prisma.appointment.findMany({
       where: {
-        date: { gte: start, lt: end },
+        date: { gte: start, lt: endExclusive },
         status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
       },
       select: { date: true },
     })
     const counts: Record<string, number> = {}
     for (const a of appts) {
-      const key = a.date.toISOString().slice(0, 10)
+      // Format date as YYYY-MM-DD using UTC to match storage
+      const year = a.date.getUTCFullYear()
+      const month = String(a.date.getUTCMonth() + 1).padStart(2, '0')
+      const day = String(a.date.getUTCDate()).padStart(2, '0')
+      const key = `${year}-${month}-${day}`
       counts[key] = (counts[key] || 0) + 1
     }
     res.json(counts)

@@ -11,8 +11,16 @@ export function useCalendarState() {
 
   const [selected, setSelected] = useState(() => {
     if (queryDate) {
-      const d = new Date(queryDate)
-      if (!isNaN(d.getTime())) return d
+      // Parse date string (YYYY-MM-DD) to avoid timezone issues
+      const dateParts = queryDate.split('-')
+      if (dateParts.length === 3) {
+        const d = new Date(
+          parseInt(dateParts[0]),
+          parseInt(dateParts[1]) - 1, // Month is 0-indexed
+          parseInt(dateParts[2])
+        )
+        if (!isNaN(d.getTime())) return d
+      }
     }
     const stored = localStorage.getItem('calendarSelectedDate')
     if (stored) {

@@ -81,9 +81,6 @@ model Appointment {
   carpetRooms     Int?
   carpetPrice     Float?
   carpetEmployees Int[]
-  reoccurring     Boolean         @default(false)
-  reocuringDate   DateTime?
-  recurringDone   Boolean         @default(false)
   status          AppointmentStatus @default(APPOINTED)
   observe         Boolean         @default(false)
   observation     String?
@@ -94,11 +91,24 @@ model Appointment {
   buildingNumber  String?
   notes           String?
   aiCreated       Boolean         @default(false)
+  familyId        Int?
+  family          RecurrenceFamily? @relation(fields: [familyId], references: [id], onDelete: SetNull)
   createdAt       DateTime?       @default(now())
   updatedAt       DateTime?       @updatedAt
 
   employees       Employee[]      @relation("AppointmentEmployees")
   payrollItems   PayrollItem[]
+}
+
+model RecurrenceFamily {
+  id                Int       @id @default(autoincrement())
+  status            String    @default("active") // "active" | "stopped"
+  recurrenceRule    String    // JSON string containing rule configuration
+  nextAppointmentDate DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  appointments      Appointment[]
 }
 
 model AppointmentTemplate {
@@ -171,6 +181,7 @@ enum AppointmentStatus {
   CANCEL
   REBOOK
   REOCCURRING
+  RECURRING_UNCONFIRMED
   DELETED
 }
 

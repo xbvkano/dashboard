@@ -8,7 +8,7 @@ import {
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import type { Appointment } from '../types'
-import { API_BASE_URL } from '../../../../api'
+import { API_BASE_URL, fetchJson } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
 import { formatPhone } from '../../../../formatPhone'
 
@@ -52,9 +52,11 @@ interface DayProps {
   onUpdate?: (a: Appointment) => void
   onCreate?: (appt: Appointment, status: Appointment['status']) => void
   onEdit?: (appt: Appointment) => void
+  onNavigateToDate?: (date: Date) => void
+  onRefresh?: () => void
 }
 
-function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scrollToApptId, onUpdate, onCreate, onEdit }: DayProps) {
+function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scrollToApptId, onUpdate, onCreate, onEdit, onNavigateToDate, onRefresh }: DayProps) {
   const { alert, confirm } = useModal()
   const navigate = useNavigate()
   const [selected, setSelected] = useState<Appointment | null>(null)
@@ -77,6 +79,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   const [editingExtraId, setEditingExtraId] = useState<number | null>(null)
   const [showPhoneActions, setShowPhoneActions] = useState(false)
   const [showActionPanel, setShowActionPanel] = useState(false)
+  const [recurrenceRule, setRecurrenceRule] = useState<string | null>(null)
   const isMobile =
     typeof navigator !== 'undefined' &&
     /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
@@ -152,6 +155,162 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
       setSelected(null)
     } else {
       await alert('Failed to update appointment')
+    }
+  }
+
+  // Recurring appointment handlers
+  const [showMoveModal, setShowMoveModal] = useState(false)
+  const [moveDate, setMoveDate] = useState('')
+  const [moveTime, setMoveTime] = useState('')
+  const [showPastDateConfirm, setShowPastDateConfirm] = useState(false)
+  const [pendingMoveData, setPendingMoveData] = useState<{ date: string; time: string } | null>(null)
+  const [showSkipConfirm, setShowSkipConfirm] = useState(false)
+  const [showConfirmConfirm, setShowConfirmConfirm] = useState(false)
+  const [skipAppointment, setSkipAppointment] = useState<Appointment | null>(null)
+  const [confirmAppointment, setConfirmAppointment] = useState<Appointment | null>(null)
+
+  const handleConfirmRecurring = () => {
+    if (selected) {
+      setConfirmAppointment(selected)
+      setShowConfirmConfirm(true)
+    }
+  }
+
+  const executeConfirmRecurring = async () => {
+    if (!confirmAppointment?.id) return
+    setShowConfirmConfirm(false)
+    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${confirmAppointment.id}/confirm`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '1',
+      },
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      onUpdate?.(updated)
+      setSelected(null) // Close details modal
+      setConfirmAppointment(null)
+      // Removed date navigation - only Move button should navigate
+      onRefresh?.()
+    } else {
+      const errorData = await res.json().catch(() => ({}))
+      await alert(errorData.error || 'Failed to confirm appointment')
+    }
+  }
+
+  const cancelConfirm = () => {
+    setShowConfirmConfirm(false)
+    setConfirmAppointment(null)
+    // Details modal stays open
+  }
+
+  const handleSkipRecurring = () => {
+    if (selected) {
+      setSkipAppointment(selected)
+      setSelected(null) // Close details modal
+      setShowSkipConfirm(true) // Show skip confirmation
+    }
+  }
+
+  const executeSkipRecurring = async () => {
+    if (!skipAppointment?.id) return
+    setShowSkipConfirm(false)
+    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${skipAppointment.id}/skip`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '1',
+      },
+    })
+    if (res.ok) {
+      const data = await res.json()
+      onUpdate?.(skipAppointment)
+      setSkipAppointment(null)
+      // Removed date navigation - only Move button should navigate
+      onRefresh?.()
+    } else {
+      const errorData = await res.json().catch(() => ({}))
+      await alert(errorData.error || 'Failed to skip appointment')
+    }
+  }
+
+  const cancelSkip = () => {
+    setShowSkipConfirm(false)
+    if (skipAppointment) {
+      setSelected(skipAppointment) // Reopen details modal
+      setSkipAppointment(null)
+    }
+  }
+
+  const handleMoveRecurring = async () => {
+    if (!selected?.id || !moveDate || !moveTime) return
+    
+    // Check if date is in the past
+    const selectedDate = new Date(moveDate)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    selectedDate.setHours(0, 0, 0, 0)
+    if (selectedDate < today) {
+      // Show confirmation modal in front of details modal
+      setPendingMoveData({ date: moveDate, time: moveTime })
+      setShowPastDateConfirm(true)
+      return
+    }
+    
+    await executeMoveRecurring(moveDate, moveTime)
+  }
+
+  const executeMoveRecurring = async (date: string, time: string) => {
+    if (!selected?.id) return
+    
+    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${selected.id}/move`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '1',
+      },
+      body: JSON.stringify({ newDate: date, newTime: time }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      onUpdate?.(updated)
+      setShowMoveModal(false)
+      setMoveDate('')
+      setMoveTime('')
+      setShowPastDateConfirm(false)
+      setPendingMoveData(null)
+      setSelected(null)
+      
+      // Navigate to the new date when moving
+      const dateStr = date
+      const dateParts = typeof dateStr === 'string' ? dateStr.split('T')[0].split('-') : null
+      if (dateParts && dateParts.length === 3 && onNavigateToDate) {
+        const nextDate = new Date(
+          parseInt(dateParts[0]),
+          parseInt(dateParts[1]) - 1,
+          parseInt(dateParts[2])
+        )
+        onNavigateToDate(nextDate)
+        onRefresh?.()
+      }
+    } else {
+      const errorData = await res.json().catch(() => ({}))
+      await alert(errorData.error || 'Failed to move appointment')
+    }
+  }
+
+  const handleRecurringSettings = () => {
+    if (selected?.familyId) {
+      navigate(`/dashboard/recurring?familyId=${selected.familyId}`)
+      setSelected(null)
+    }
+  }
+
+  const handleViewClient = () => {
+    if (selected?.clientId) {
+      navigate(`/dashboard/clients/${selected.clientId}`)
+      setSelected(null)
     }
   }
 
@@ -313,6 +472,25 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
     if (!selected) return
     setPaid(Boolean(selected.paid))
     setPaymentMethod(selected.paymentMethod ?? '')
+    
+    // Fetch recurrence rule if this is an unconfirmed recurring appointment
+    const isRecurringUnconfirmed = selected.status === 'RECURRING_UNCONFIRMED' && !!selected.familyId
+    if (isRecurringUnconfirmed && selected.familyId) {
+      fetchJson(`${API_BASE_URL}/recurring/${selected.familyId}`)
+        .then((data: any) => {
+          if (data.ruleSummary) {
+            setRecurrenceRule(data.ruleSummary)
+          } else {
+            setRecurrenceRule(null)
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to fetch recurrence rule:', err)
+          setRecurrenceRule(null)
+        })
+    } else {
+      setRecurrenceRule(null)
+    }
     setTip(selected.tip != null ? String(selected.tip) : '')
     setOtherPayment('')
     setObservation(selected.observation ?? '')
@@ -423,7 +601,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   return (
     <div
       ref={scrollRef}
-      className={`flex-1 relative ${animating || selected ? 'overflow-hidden' : 'overflow-x-auto overflow-y-auto'}`}
+      className={`flex-1 relative ${animating || selected ? 'overflow-hidden' : 'overflow-x-auto overflow-hidden'}`}
     >
       <div className="relative divide-y" style={{ width: containerWidth, minWidth: '100%' }}>
         {/* divider line */}
@@ -456,21 +634,28 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
           const top = (l.start / 60) * 84
           const height = ((l.end - l.start) / 60) * 84 - 2
           const leftStyle = `calc(${dividerPx}px + 8px + ${l.lane} * (40vw + ${LANE_GAP}px))`
-          // 1) pull out the YYYY-MM-DD as numbers, ignoring any timezone
-          const [year, month, day] = l.appt.date.slice(0, 10).split('-').map(Number);
+          // Convert UTC date from server to local date for display
+          // Server stores dates as UTC, we display in user's local timezone
+          const apptDate = typeof l.appt.date === 'string' ? new Date(l.appt.date) : l.appt.date
+          const [year, month, day] = [
+            apptDate.getFullYear(),
+            apptDate.getMonth() + 1,
+            apptDate.getDate()
+          ];
 
           // 2) pull out the hour/minute
           const [sh, sm] = l.appt.time.split(':').map((n) => parseInt(n, 10));
 
 
+          // Unconfirmed recurring appointments are always blue
           let bg = 'bg-red-200 border-red-400'
-          if (l.appt.paid) {
+          if (l.appt.status === 'RECURRING_UNCONFIRMED') {
+            bg = 'bg-blue-200 border-blue-400'
+          } else if (l.appt.paid) {
             bg = 'bg-green-200 border-green-400'
-          }
-          if (l.appt.status === 'CANCEL') {
-            bg = 'bg-purple-200 border-purple-400'
-          }
-          if (l.appt.observe) {
+          } else if (l.appt.status === 'CANCEL') {
+            bg = 'bg-gray-200 border-gray-400'
+          } else if (l.appt.observe) {
             bg = 'bg-yellow-200 border-yellow-400'
           }
           return (
@@ -521,75 +706,97 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
       </div>
 
       {/* details modal */}
-      {selected &&
-        createPortal(
-          <div
-            className="fixed inset-x-0 bg-black/50 flex items-center justify-center z-40 p-2 overflow-hidden"
-            style={{ top: overlayTop, height: overlayHeight }}
-            onClick={() => setSelected(null)}
-          >
+      {selected && (() => {
+        // Check if this is an unconfirmed recurring appointment
+        // Note: isRecurringUnconfirmed is true when status is RECURRING_UNCONFIRMED and familyId exists
+        // This determines which action buttons to show (recurring actions vs regular action panel)
+        const isRecurringUnconfirmed = selected.status === 'RECURRING_UNCONFIRMED' && !!selected.familyId
+        
+        return createPortal(
+          <>
+            {/* Full-page background overlay */}
             <div
-              className="bg-white p-4 rounded space-y-2 w-full max-w-md max-h-full overflow-y-auto"
+              className="fixed inset-0 bg-black/50"
+              style={{ zIndex: 9999 }}
+              onClick={() => setSelected(null)}
+            />
+            {/* Modal content */}
+            <div
+              className="fixed bg-white p-4 rounded space-y-2 w-full max-w-md max-h-[90vh] overflow-y-auto"
+              style={{
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 10000,
+              }}
               onClick={(e) => e.stopPropagation()}
             >
-            <div className="flex justify-between items-center">
-              <div>
-                <h4 className="font-medium">
-                  {selected.client ? selected.client.name : 'Client'}
-                </h4>
-                {selected.client?.number && (
-                  <>
-                    <div className="text-sm text-gray-600">
-                      {isMobile ? (
-                        <button
-                          type="button"
-                          className="underline text-blue-500"
-                          onClick={handlePhoneClick}
-                        >
-                          {formatPhone(selected.client.number)}
-                        </button>
-                      ) : (
-                        formatPhone(selected.client.number)
-                      )}
-                    </div>
-                    {isMobile && showPhoneActions && (
-                      <div className="flex gap-2 mt-1">
-                        <a
-                          href={`tel:${selected.client.number}`}
-                          className="px-2 py-1 bg-blue-500 text-white rounded"
-                          onClick={() => setShowPhoneActions(false)}
-                        >
-                          Call
-                        </a>
-                        <a
-                          href={`sms:${selected.client.number}`}
-                          className="px-2 py-1 bg-blue-500 text-white rounded"
-                          onClick={() => setShowPhoneActions(false)}
-                        >
-                          Text
-                        </a>
-                      </div>
-                    )}
-                  </>
-                )}
-                {selected.client?.from && (
-                  <div className="text-sm text-gray-600">From: {selected.client.from}</div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  className="text-sm text-blue-500"
-                  onClick={() => {
-                    const appt = selected!
-                    setSelected(null)
-                    onEdit?.(appt)
-                  }}
-                >
-                  Edit
+              {/* Close button */}
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Appointment Details</h3>
+                <button onClick={() => setSelected(null)} className="text-gray-500 hover:text-gray-700 text-2xl leading-none">
+                  ×
                 </button>
-                <button onClick={() => setSelected(null)}>X</button>
               </div>
-            </div>
+              
+              {/* Client Info */}
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <h4 className="font-medium">
+                    {selected.client ? selected.client.name : 'Client'}
+                  </h4>
+                  {selected.client?.number && (
+                    <>
+                      <div className="text-sm text-gray-600">
+                        {isMobile ? (
+                          <button
+                            type="button"
+                            className="underline text-blue-500"
+                            onClick={handlePhoneClick}
+                          >
+                            {formatPhone(selected.client.number)}
+                          </button>
+                        ) : (
+                          formatPhone(selected.client.number)
+                        )}
+                      </div>
+                      {isMobile && showPhoneActions && (
+                        <div className="flex gap-2 mt-1">
+                          <a
+                            href={`tel:${selected.client.number}`}
+                            className="px-2 py-1 bg-blue-500 text-white rounded"
+                            onClick={() => setShowPhoneActions(false)}
+                          >
+                            Call
+                          </a>
+                          <a
+                            href={`sms:${selected.client.number}`}
+                            className="px-2 py-1 bg-blue-500 text-white rounded"
+                            onClick={() => setShowPhoneActions(false)}
+                          >
+                            Text
+                          </a>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {selected.client?.from && (
+                    <div className="text-sm text-gray-600">From: {selected.client.from}</div>
+                  )}
+                </div>
+                {!isRecurringUnconfirmed && (
+                  <button
+                    className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                    onClick={() => {
+                      const appt = selected!
+                      setSelected(null)
+                      onEdit?.(appt)
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
             <div className="text-sm">Address: {selected.address}</div>
             <div className="text-sm">Type: {selected.type}</div>
             {selected.admin && (
@@ -597,7 +804,13 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
                 Admin: {selected.admin.name ?? selected.admin.email}
               </div>
             )}
-            <div className="text-sm">Date &amp; Time: {selected.date.slice(0, 10)} {selected.time}</div>
+            <div className="text-sm">Date &amp; Time: {(() => {
+              const apptDate = typeof selected.date === 'string' ? new Date(selected.date) : selected.date
+              const year = apptDate.getFullYear()
+              const month = String(apptDate.getMonth() + 1).padStart(2, '0')
+              const day = String(apptDate.getDate()).padStart(2, '0')
+              return `${year}-${month}-${day}`
+            })()} {selected.time}</div>
             {selected.employees && selected.employees.length > 0 && (
               <div className="text-sm">
                 Team:
@@ -668,9 +881,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
                 </ul>
               </div>
             )}
-            {selected.reoccurring && (
-              <div className="text-sm">Recurring</div>
-            )}
+            {/* Legacy recurring check removed - use familyId to identify recurring appointments */}
             {selected.size && <div className="text-sm">Size: {selected.size}</div>}
             {selected.hours != null && (
               <div className="text-sm">Hours: {selected.hours}</div>
@@ -685,51 +896,61 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
               <div className="text-sm">Notes: {selected.notes}</div>
             )}
 
-            <div className="pt-2 border-t space-y-2">
-              <label className="flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  checked={paid}
-                  onChange={(e) => setPaid(e.target.checked)}
-                />
-                Paid
-              </label>
-              {paid && (
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm">Tip (optional)</label>
+            {/* Show recurrence rule for unconfirmed recurring appointments */}
+            {isRecurringUnconfirmed && recurrenceRule && (
+              <div className="text-sm font-medium text-blue-600 mt-2 p-2 bg-blue-50 rounded">
+                Recurrence Rule: {recurrenceRule}
+              </div>
+            )}
+
+            {/* Paid checkbox - only show for non-unconfirmed recurring appointments */}
+            {!isRecurringUnconfirmed && (
+              <div className="pt-2 border-t space-y-2">
+                <label className="flex items-center gap-1">
                   <input
-                    type="number"
-                    className="border p-2 rounded text-base"
-                    placeholder="Tip"
-                    value={tip}
-                    onChange={(e) => setTip(e.target.value)}
+                    type="checkbox"
+                    checked={paid}
+                    onChange={(e) => setPaid(e.target.checked)}
                   />
-                  <label className="text-sm">
-                    Payment Method <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    className="border p-2 rounded text-base"
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                  >
-                    <option value="">Select payment method</option>
-                    <option value="CASH">Cash</option>
-                    <option value="ZELLE">Zelle</option>
-                    <option value="VENMO">Venmo</option>
-                    <option value="PAYPAL">Paypal</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                  {paymentMethod === 'OTHER' && (
+                  Paid
+                </label>
+                {paid && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm">Tip (optional)</label>
                     <input
+                      type="number"
                       className="border p-2 rounded text-base"
-                      placeholder="Payment method"
-                      value={otherPayment}
-                      onChange={(e) => setOtherPayment(e.target.value)}
+                      placeholder="Tip"
+                      value={tip}
+                      onChange={(e) => setTip(e.target.value)}
                     />
-                  )}
-                </div>
-              )}
-            </div>
+                    <label className="text-sm">
+                      Payment Method <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      className="border p-2 rounded text-base"
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                    >
+                      <option value="">Select payment method</option>
+                      <option value="CASH">Cash</option>
+                      <option value="ZELLE">Zelle</option>
+                      <option value="VENMO">Venmo</option>
+                      <option value="PAYPAL">Paypal</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                    {paymentMethod === 'OTHER' && (
+                      <input
+                        className="border p-2 rounded text-base"
+                        placeholder="Payment method"
+                        value={otherPayment}
+                        onChange={(e) => setOtherPayment(e.target.value)}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {selected.observe && (
               <div className="space-y-1">
@@ -742,16 +963,113 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
               </div>
             )}
 
-            {/* Actions Panel Toggle */}
-            <div className="pt-2">
-              <button
-                onClick={() => setShowActionPanel(!showActionPanel)}
-                className="w-full px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600 flex items-center justify-center gap-2"
-              >
-                {showActionPanel ? '▼' : '▶'} Action Panel
-              </button>
-              
-              {showActionPanel && (
+            {/* Recurring Unconfirmed Actions */}
+            {isRecurringUnconfirmed && (
+              <div className="pt-2 border-t space-y-2">
+                <div className="text-sm font-medium text-blue-700 mb-2">
+                  Recurring Appointment Actions
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleConfirmRecurring}
+                    className="px-3 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={handleSkipRecurring}
+                    className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+                  >
+                    Skip
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMoveTime(selected?.time || '')
+                      setShowMoveModal(true)
+                    }}
+                    className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                  >
+                    Move
+                  </button>
+                  <button
+                    onClick={handleRecurringSettings}
+                    className="px-3 py-2 bg-purple-500 text-white rounded text-sm hover:bg-purple-600"
+                  >
+                    View Family
+                  </button>
+                  <button
+                    onClick={handleViewClient}
+                    className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                  >
+                    View Client
+                  </button>
+                  {selected?.observe ? (
+                    <button
+                      onClick={() => updateAppointment({ observe: false })}
+                      className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+                    >
+                      Unobserve
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => updateAppointment({ observe: true })}
+                      className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+                    >
+                      Observe
+                    </button>
+                  )}
+                </div>
+                {showMoveModal && (
+                  <div className="mt-2 p-3 bg-gray-50 rounded">
+                    <label className="block text-sm font-medium mb-1">New Date</label>
+                    <input
+                      type="date"
+                      value={moveDate}
+                      onChange={(e) => setMoveDate(e.target.value)}
+                      className="w-full border p-2 rounded text-sm"
+                    />
+                    <label className="block text-sm font-medium mb-1 mt-2">New Time</label>
+                    <input
+                      type="time"
+                      value={moveTime}
+                      onChange={(e) => setMoveTime(e.target.value)}
+                      className="w-full border p-2 rounded text-sm"
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={handleMoveRecurring}
+                        disabled={!moveDate || !moveTime}
+                        className="flex-1 px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 disabled:bg-gray-400"
+                      >
+                        Move
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowMoveModal(false)
+                          setMoveDate('')
+                          setMoveTime('')
+                        }}
+                        className="flex-1 px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Actions Panel Toggle - Only show for non-recurring-unconfirmed appointments */}
+            {!isRecurringUnconfirmed && (
+              <div className="pt-2">
+                <button
+                  onClick={() => setShowActionPanel(!showActionPanel)}
+                  className="w-full px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600 flex items-center justify-center gap-2"
+                >
+                  {showActionPanel ? '▼' : '▶'} Action Panel
+                </button>
+                
+                {showActionPanel && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {/* Blue buttons - Navigation/View/Reschedule */}
                   {selected.clientId && (
@@ -848,7 +1166,13 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
                     onClick={() => {
                       if (!selected) return
                       navigate(
-                        `/dashboard/financing/invoice?date=${selected.date.slice(0, 10)}&appt=${selected.id}`,
+                        `/dashboard/financing/invoice?date=${(() => {
+                          const apptDate = typeof selected.date === 'string' ? new Date(selected.date) : selected.date
+                          const year = apptDate.getFullYear()
+                          const month = String(apptDate.getMonth() + 1).padStart(2, '0')
+                          const day = String(apptDate.getDate()).padStart(2, '0')
+                          return `${year}-${month}-${day}`
+                        })()}&appt=${selected.id}`,
                       )
                     }}
                   >
@@ -862,8 +1186,9 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
                     Save
                   </button>
                 </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
             {showDelete && (
               <div
@@ -934,7 +1259,13 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
                   <div className="font-medium">Send Appointment Info</div>
                   {selected && (
                     <div className="text-sm space-y-1">
-                      <div>Appointment Date: {selected.date.slice(0, 10)}</div>
+                      <div>Appointment Date: {(() => {
+                        const apptDate = typeof selected.date === 'string' ? new Date(selected.date) : selected.date
+                        const year = apptDate.getFullYear()
+                        const month = String(apptDate.getMonth() + 1).padStart(2, '0')
+                        const day = String(apptDate.getDate()).padStart(2, '0')
+                        return `${year}-${month}-${day}`
+                      })()}</div>
                       <div>Appointment Time: {selected.time}</div>
                       <div>Appointment Type: {selected.type}</div>
                       <div>Address: {selected.address}</div>
@@ -1045,8 +1376,128 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
                 </div>
               </div>
             )}
+              </div>
+            </>
+          ,
+          document.body
+        )
+      })()}
+
+      {/* Skip Confirmation Modal */}
+      {showSkipConfirm && skipAppointment && createPortal(
+        <>
+          <div
+            className="fixed inset-0 bg-black/50"
+            style={{ zIndex: 10001 }}
+            onClick={cancelSkip}
+          />
+          <div
+            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-lg max-w-md"
+            style={{ zIndex: 10002 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4">Skip Recurring Appointment?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This appointment will be marked as canceled and the next one will be generated.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={cancelSkip}
+                className="px-4 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeSkipRecurring}
+                className="px-4 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+              >
+                Skip
+              </button>
+            </div>
           </div>
-        </div>,
+        </>,
+        document.body
+      )}
+
+      {/* Confirm Confirmation Modal */}
+      {showConfirmConfirm && confirmAppointment && createPortal(
+        <>
+          <div
+            className="fixed inset-0 bg-black/50"
+            style={{ zIndex: 10001 }}
+            onClick={cancelConfirm}
+          />
+          <div
+            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-lg max-w-md"
+            style={{ zIndex: 10002 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4">Confirm Recurring Appointment?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This appointment will be confirmed and the next unconfirmed appointment will be generated.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={cancelConfirm}
+                className="px-4 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeConfirmRecurring}
+                className="px-4 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* Past Date Confirmation Modal */}
+      {showPastDateConfirm && pendingMoveData && createPortal(
+        <>
+          <div
+            className="fixed inset-0 bg-black/50"
+            style={{ zIndex: 10003 }}
+            onClick={() => {
+              setShowPastDateConfirm(false)
+              setPendingMoveData(null)
+            }}
+          />
+          <div
+            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-lg max-w-md"
+            style={{ zIndex: 10004 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4">Move to Past Date?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              The selected date is in the past. Are you sure you want to move the appointment to this date?
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowPastDateConfirm(false)
+                  setPendingMoveData(null)
+                }}
+                className="px-4 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (pendingMoveData) {
+                    executeMoveRecurring(pendingMoveData.date, pendingMoveData.time)
+                  }
+                }}
+                className="px-4 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+              >
+                Move
+              </button>
+            </div>
+          </div>
+        </>,
         document.body
       )}
     </div>
@@ -1066,6 +1517,8 @@ interface Props {
   onUpdate?: (a: Appointment) => void
   onCreate?: (appt: Appointment, status: Appointment['status']) => void
   onEdit?: (appt: Appointment) => void
+  onNavigateToDate?: (date: Date) => void
+  onRefresh?: () => void
 }
 
 export default function DayTimeline({
@@ -1081,6 +1534,8 @@ export default function DayTimeline({
   onUpdate,
   onCreate,
   onEdit,
+  onNavigateToDate,
+  onRefresh,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const currentDayRef = useRef<HTMLDivElement | null>(null)
@@ -1224,6 +1679,8 @@ export default function DayTimeline({
           onUpdate={onUpdate}
           onCreate={onCreate}
           onEdit={onEdit}
+          onNavigateToDate={onNavigateToDate}
+          onRefresh={onRefresh}
         />
         <Day
           appointments={appointments}
@@ -1235,6 +1692,8 @@ export default function DayTimeline({
           onUpdate={onUpdate}
           onCreate={onCreate}
           onEdit={onEdit}
+          onNavigateToDate={onNavigateToDate}
+          onRefresh={onRefresh}
         />
         <Day
           appointments={nextAppointments}
@@ -1243,6 +1702,8 @@ export default function DayTimeline({
           onUpdate={onUpdate}
           onCreate={onCreate}
           onEdit={onEdit}
+          onNavigateToDate={onNavigateToDate}
+          onRefresh={onRefresh}
         />
       </div>
     </div>

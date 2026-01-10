@@ -53,18 +53,20 @@ export async function sendScheduleReminders(): Promise<void> {
 }
 
 // Setup cron job to run daily at 9 AM
+// COMMENTED OUT: Schedule reminder cron job disabled
 export function setupScheduleReminderJob(): void {
   // Run daily at 09:00 (9 AM)
-  cron.schedule('0 9 * * *', async () => {
-    console.log('Running daily schedule reminder job...')
-    try {
-      await sendScheduleReminders()
-      console.log('Schedule reminder job completed successfully')
-    } catch (error) {
-      console.error('Schedule reminder job failed:', error)
-    }
-  })
+  // cron.schedule('0 9 * * *', async () => {
+  //   console.log('Running daily schedule reminder job...')
+  //   try {
+  //     await sendScheduleReminders()
+  //     console.log('Schedule reminder job completed successfully')
+  //   } catch (error) {
+  //     console.error('Schedule reminder job failed:', error)
+  //   }
+  // })
   
-  console.log('Schedule reminder cron job scheduled to run daily at 9 AM')
+  // console.log('Schedule reminder cron job scheduled to run daily at 9 AM')
+  console.log('Schedule reminder cron job is DISABLED')
 }
 

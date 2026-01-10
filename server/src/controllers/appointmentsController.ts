@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { parseSqft, calculatePayRate, calculateCarpetRate } from '../utils/appointmentUtils'
+import { jsonToRule, calculateNextAppointmentDate } from '../utils/recurrenceUtils'
 import twilio from 'twilio'
 
 const prisma = new PrismaClient()
@@ -9,7 +10,28 @@ const smsClient = twilio(
   process.env.TWILIO_AUTH_TOKEN || '',
 )
 
-async function syncPayrollItems(apptId: number, employeeIds: number[]) {
+/**
+ * Parse date string (YYYY-MM-DD) as UTC midnight
+ * This ensures consistent storage and queries across all timezones
+ */
+function parseDateStringUTC(dateStr: string): Date {
+  const dateParts = dateStr.split('-')
+  if (dateParts.length !== 3) {
+    throw new Error('Invalid date format. Use YYYY-MM-DD')
+  }
+  // Create UTC date at midnight
+  const date = new Date(Date.UTC(
+    parseInt(dateParts[0]),
+    parseInt(dateParts[1]) - 1, // Month is 0-indexed
+    parseInt(dateParts[2])
+  ))
+  if (isNaN(date.getTime())) {
+    throw new Error('Invalid date')
+  }
+  return date
+}
+
+export async function syncPayrollItems(apptId: number, employeeIds: number[]) {
   const existing = await prisma.payrollItem.findMany({ where: { appointmentId: apptId } })
   const existingIds = existing.map((p: { employeeId: number }) => p.employeeId)
   const toAdd = employeeIds.filter((id) => !existingIds.includes(id))
@@ -22,19 +44,19 @@ async function syncPayrollItems(apptId: number, employeeIds: number[]) {
   }
 }
 
-async function ensureRecurringFuture() {
-  return
-}
-
 export async function getAppointments(req: Request, res: Response) {
-  await ensureRecurringFuture()
   const dateStr = String(req.query.date || '')
   if (!dateStr) return res.status(400).json({ error: 'date required' })
-  const date = new Date(dateStr)
-  if (isNaN(date.getTime())) {
-    return res.status(400).json({ error: 'invalid date' })
+  
+  // Parse date string (YYYY-MM-DD) as UTC midnight
+  let date: Date
+  try {
+    date = parseDateStringUTC(dateStr)
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || 'Invalid date format. Use YYYY-MM-DD' })
   }
-  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)
+  // Next day in UTC
+  const next = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1))
   try {
     const appts = await prisma.appointment.findMany({
       where: {
@@ -47,6 +69,7 @@ export async function getAppointments(req: Request, res: Response) {
         employees: true,
         admin: true,
         payrollItems: { include: { extras: true } },
+        family: true,
       },
     })
     res.json(appts)
@@ -67,6 +90,7 @@ export async function getAppointmentsByLineage(req: Request, res: Response) {
         employees: true,
         admin: true,
         payrollItems: { include: { extras: true } },
+        family: true,
       },
     })
     res.json(appts)
@@ -88,6 +112,7 @@ export async function getNoTeamAppointments(_req: Request, res: Response) {
         employees: true,
         admin: true,
         payrollItems: { include: { extras: true } },
+        family: true,
       },
     })
     res.json(appts)
@@ -97,183 +122,27 @@ export async function getNoTeamAppointments(_req: Request, res: Response) {
   }
 }
 
+// Legacy recurring endpoints - DEPRECATED
+// Use /recurring/* endpoints instead
 export async function getUpcomingRecurringAppointments(_req: Request, res: Response) {
-  try {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const next = new Date(today)
-    next.setDate(next.getDate() + 7)
-    const appts = await prisma.appointment.findMany({
-      where: {
-        reoccurring: true,
-        reocuringDate: { gte: today, lte: next },
-        status: { notIn: ['DELETED', 'CANCEL'] },
-      },
-      orderBy: { reocuringDate: 'asc' },
-      include: {
-        client: true,
-        employees: true,
-        admin: true,
-        payrollItems: { include: { extras: true } },
-      },
-    })
-    const results = appts.map((a: any) => ({
-      ...a,
-      daysLeft: Math.ceil((a.reocuringDate!.getTime() - today.getTime()) / 86400000),
-    }))
-    res.json(results)
-  } catch (err) {
-    console.error('Failed to fetch upcoming recurring appointments:', err)
-    res.status(500).json({ error: 'Failed to fetch appointments' })
-  }
+  res.status(410).json({ 
+    error: 'This endpoint is deprecated. Use GET /recurring/active instead.',
+    migration: 'The recurring appointments system has been refactored. Please use the new RecurrenceFamily-based API.'
+  })
 }
 
 export async function updateRecurringDone(req: Request, res: Response) {
-  const id = parseInt(req.params.id, 10)
-  if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
-  const done = !!(req.body as any).done
-  try {
-    const appt = await prisma.appointment.update({
-      where: { id },
-      data: { recurringDone: done },
-      include: {
-        client: true,
-        employees: true,
-        admin: true,
-        payrollItems: { include: { extras: true } },
-      },
-    })
-    res.json(appt)
-  } catch (err) {
-    console.error('Failed to update recurringDone:', err)
-    res.status(500).json({ error: 'Failed to update appointment' })
-  }
+  res.status(410).json({ 
+    error: 'This endpoint is deprecated. Recurring appointments now use the RecurrenceFamily system.',
+    migration: 'Use the Recurring Appointments page to manage recurring appointments.'
+  })
 }
 
 export async function createRecurringAppointment(req: Request, res: Response) {
-  try {
-    const {
-      clientId,
-      templateId,
-      date,
-      time,
-      hours,
-      employeeIds = [],
-      adminId,
-      paid = false,
-      paymentMethod = 'CASH',
-      paymentMethodNote,
-      tip = 0,
-      carpetRooms,
-      carpetPrice,
-      carpetEmployees = [],
-      count = 1,
-      frequency,
-      noTeam = false,
-    } = req.body as {
-      clientId?: number
-      templateId?: number
-      date?: string
-      time?: string
-      hours?: number
-      employeeIds?: number[]
-      adminId?: number
-      paid?: boolean
-      paymentMethod?: string
-      paymentMethodNote?: string
-      tip?: number
-      carpetRooms?: number
-      carpetPrice?: number
-      carpetEmployees?: number[]
-      count?: number
-      frequency?: string
-      noTeam?: boolean
-    }
-
-    if (!clientId || !templateId || !date || !time || !adminId || !frequency) {
-      return res.status(400).json({ error: 'Missing required fields' })
-    }
-
-    const template = await prisma.appointmentTemplate.findUnique({
-      where: { id: templateId },
-    })
-    if (!template) {
-      return res.status(400).json({ error: 'Invalid templateId' })
-    }
-
-    const crypto = require('crypto')
-    const lineage = crypto.randomUUID()
-    const first = new Date(date)
-    const nextDate = new Date(first)
-    if (frequency === 'WEEKLY') nextDate.setDate(nextDate.getDate() + 7)
-    else if (frequency === 'BIWEEKLY') nextDate.setDate(nextDate.getDate() + 14)
-    else if (frequency === 'EVERY3') nextDate.setDate(nextDate.getDate() + 21)
-    else if (frequency === 'MONTHLY') nextDate.setMonth(nextDate.getMonth() + 1)
-    else {
-      const m = parseInt(String(req.body.months || 1), 10)
-      nextDate.setMonth(nextDate.getMonth() + (isNaN(m) ? 1 : m))
-    }
-    const carpetRoomsFinal =
-      carpetRooms !== undefined ? carpetRooms : template.carpetRooms ?? null
-    let finalCarpetPrice = carpetPrice
-    if (finalCarpetPrice === undefined) {
-      if (template.carpetPrice != null && carpetRoomsFinal) {
-        finalCarpetPrice = template.carpetPrice
-      } else if (carpetRoomsFinal && template.size) {
-        const sqft = parseSqft(template.size)
-        if (sqft !== null) {
-          finalCarpetPrice = carpetRoomsFinal * (sqft >= 4000 ? 40 : 35)
-        }
-      }
-    }
-    const appt = await prisma.appointment.create({
-      data: {
-        clientId,
-        adminId,
-        date: first,
-        time,
-        type: template.type,
-        address: template.address,
-        cityStateZip: template.instructions ?? undefined,
-        size: template.size,
-        hours: hours ?? null,
-        price: template.price,
-        paid,
-        tip,
-        noTeam,
-        carpetRooms: carpetRoomsFinal,
-        carpetPrice: finalCarpetPrice ?? null,
-        carpetEmployees,
-        paymentMethod: paymentMethod as any,
-        notes:
-          [template.notes, paymentMethodNote].filter(Boolean).join(' | ') ||
-          undefined,
-        status: 'REOCCURRING',
-        lineage,
-        reoccurring: true,
-        reocuringDate: nextDate,
-        ...(employeeIds.length > 0 && {
-          employees: {
-            connect: employeeIds.map((id) => ({ id })),
-          },
-        }),
-      },
-      include: {
-        client: true,
-        employees: true,
-        admin: true,
-        payrollItems: { include: { extras: true } },
-      },
-    })
-    if (!noTeam && employeeIds.length) {
-      await syncPayrollItems(appt.id, employeeIds)
-    }
-
-    res.json(appt)
-  } catch (err) {
-    console.error('Error creating recurring appointments:', err)
-    res.status(500).json({ error: 'Failed to create recurring appointments' })
-  }
+  res.status(410).json({ 
+    error: 'This endpoint is deprecated. Use POST /recurring instead.',
+    migration: 'Please use the new RecurrenceFamily API to create recurring appointments.'
+  })
 }
 
 export async function createAppointment(req: Request, res: Response) {
@@ -379,6 +248,7 @@ export async function createAppointment(req: Request, res: Response) {
         employees: true,
         admin: true,
         payrollItems: { include: { extras: true } },
+        family: true,
       },
     })
 
@@ -467,7 +337,13 @@ export async function updateAppointment(req: Request, res: Response) {
         }
       }
     }
-    if (date !== undefined) data.date = new Date(date)
+    if (date !== undefined) {
+      try {
+        data.date = parseDateStringUTC(date)
+      } catch (err: any) {
+        return res.status(400).json({ error: err.message || 'Invalid date format. Use YYYY-MM-DD' })
+      }
+    }
     if (time !== undefined) data.time = time
     if (hours !== undefined) data.hours = hours
     if (adminId !== undefined) data.adminId = adminId
@@ -491,30 +367,127 @@ export async function updateAppointment(req: Request, res: Response) {
       data.observation = null
     }
     const future = req.query.future === 'true'
-    const current = await prisma.appointment.findUnique({ where: { id }, include: { employees: true, client: true, admin: true } })
+    const current = await prisma.appointment.findUnique({ where: { id }, include: { employees: true, client: true, admin: true, family: true } })
     if (!current) return res.status(404).json({ error: 'Not found' })
-
-    const crypto = require('crypto')
-    const convertToRecurring =
-      current.lineage === 'single' && (data.status === 'REOCCURRING' || req.body.reoccurring)
-    if (convertToRecurring) {
-      const lineage = crypto.randomUUID()
-      const frequency: string = req.body.frequency || 'WEEKLY'
-      const nextDate = new Date(data.date ? new Date(data.date) : current.date)
-      if (frequency === 'BIWEEKLY') nextDate.setDate(nextDate.getDate() + 14)
-      else if (frequency === 'EVERY3') nextDate.setDate(nextDate.getDate() + 21)
-      else if (frequency === 'MONTHLY') nextDate.setMonth(nextDate.getMonth() + 1)
-      else if (frequency === 'CUSTOM') {
-        const m = parseInt(String(req.body.months || 1), 10)
-        nextDate.setMonth(nextDate.getMonth() + (isNaN(m) ? 1 : m))
-      } else nextDate.setDate(nextDate.getDate() + 7)
-
-      const updated = await prisma.appointment.update({
-        where: { id: current.id },
-        data: { ...data, lineage, reoccurring: true, reocuringDate: nextDate },
-        include: { employees: true, client: true, admin: true },
+    
+    // When rescheduling a confirmed recurring appointment, find the new rescheduled appointment
+    // and update the family's nextAppointmentDate to reflect where it actually is now.
+    // Keep the familyId so the appointment remains part of the family and viewable in calendar.
+    if (status === 'RESCHEDULE_OLD' && current.familyId && current.status === 'APPOINTED' && current.family) {
+      // Find the new rescheduled appointment (RESCHEDULE_NEW) that was just created
+      // It should have the same clientId, address, and be created recently (within 5 minutes)
+      // and not have a familyId yet (since it was just created)
+      const rescheduledNewAppointment = await prisma.appointment.findFirst({
+        where: {
+          clientId: current.clientId,
+          address: current.address,
+          status: 'RESCHEDULE_NEW',
+          familyId: null, // New appointment won't have familyId yet
+          createdAt: {
+            gte: new Date(Date.now() - 300000), // Created within last 5 minutes (more reliable)
+          },
+        },
+        orderBy: { createdAt: 'desc' },
       })
-      return res.json(updated)
+      
+      // Log the reschedule with family info
+      // Use UTC date components to get the correct calendar day
+      const oldDateUTC = new Date(current.date)
+      const oldDateStr = `${oldDateUTC.getUTCFullYear()}-${String(oldDateUTC.getUTCMonth() + 1).padStart(2, '0')}-${String(oldDateUTC.getUTCDate()).padStart(2, '0')}`
+      const oldTimeStr = current.time
+      const todayUTC = new Date()
+      const todayStr = `${todayUTC.getUTCFullYear()}-${String(todayUTC.getUTCMonth() + 1).padStart(2, '0')}-${String(todayUTC.getUTCDate()).padStart(2, '0')}`
+      
+      let rescheduleLog: string
+      if (rescheduledNewAppointment) {
+        // Get the new appointment's date in UTC for logging
+        const newDateUTC = new Date(rescheduledNewAppointment.date)
+        const newDateStr = `${newDateUTC.getUTCFullYear()}-${String(newDateUTC.getUTCMonth() + 1).padStart(2, '0')}-${String(newDateUTC.getUTCDate()).padStart(2, '0')}`
+        const newTimeStr = rescheduledNewAppointment.time
+        rescheduleLog = `[Rescheduled from recurrence family #${current.familyId}: ${oldDateStr} ${oldTimeStr} → ${newDateStr} ${newTimeStr} on ${todayStr}]`
+      } else {
+        rescheduleLog = `[Rescheduled from recurrence family #${current.familyId}: ${oldDateStr} ${oldTimeStr} (rescheduled) on ${todayStr}]`
+      }
+      
+      // Add reschedule log to notes
+      const existingNotes = current.notes || ''
+      data.notes = existingNotes 
+        ? `${existingNotes}\n${rescheduleLog}`
+        : rescheduleLog
+      
+      if (rescheduledNewAppointment) {
+        
+        // Update the new appointment to have the same familyId
+        await prisma.appointment.update({
+          where: { id: rescheduledNewAppointment.id },
+          data: { familyId: current.familyId },
+        })
+        
+        // Update the family's nextAppointmentDate based on the new rescheduled appointment date
+        const rule = jsonToRule(current.family.recurrenceRule)
+        const nextDate = calculateNextAppointmentDate(rule, rescheduledNewAppointment.date)
+        
+        // Check for unconfirmed appointments to determine the actual next date
+        const family = await prisma.recurrenceFamily.findUnique({
+          where: { id: current.familyId },
+          include: {
+            appointments: {
+              where: {
+                status: 'RECURRING_UNCONFIRMED',
+              },
+              orderBy: { date: 'asc' },
+            },
+          },
+        })
+        
+        // If there are unconfirmed appointments, use the earliest one
+        // Otherwise, use the calculated next date from the rescheduled appointment
+        const finalNextDate = family && family.appointments.length > 0
+          ? (family.appointments[0].date < nextDate ? family.appointments[0].date : nextDate)
+          : nextDate
+        
+        await prisma.recurrenceFamily.update({
+          where: { id: current.familyId },
+          data: { nextAppointmentDate: finalNextDate }
+        })
+      } else {
+        // If we can't find the new appointment, recalculate from the last confirmed appointment
+        const family = await prisma.recurrenceFamily.findUnique({
+          where: { id: current.familyId },
+          include: {
+            appointments: {
+              where: {
+                status: { in: ['APPOINTED', 'RECURRING_UNCONFIRMED'] },
+              },
+              orderBy: { date: 'desc' },
+            },
+          },
+        })
+        
+        if (family && family.appointments.length > 0) {
+          const lastAppointment = family.appointments[0]
+          const rule = jsonToRule(current.family.recurrenceRule)
+          const nextDate = calculateNextAppointmentDate(rule, lastAppointment.date)
+          await prisma.recurrenceFamily.update({
+            where: { id: current.familyId },
+            data: { nextAppointmentDate: nextDate }
+          })
+        }
+      }
+      
+      // DO NOT clear familyId - keep the appointment in the family so:
+      // 1. The family history is accurate (shows rescheduled appointments)
+      // 2. The "view in calendar" functionality works correctly
+      // 3. The appointment remains tracked in the recurrence family
+    }
+
+    // Legacy recurring conversion removed - use RecurrenceFamily system instead
+    // If someone tries to set status to REOCCURRING, reject it
+    if (data.status === 'REOCCURRING') {
+      return res.status(400).json({ 
+        error: 'REOCCURRING status is deprecated. Use the RecurrenceFamily system instead.',
+        migration: 'Please use POST /recurring to create recurring appointments.'
+      })
     }
 
     if (future && current.lineage !== 'single') {
@@ -556,6 +529,7 @@ export async function updateAppointment(req: Request, res: Response) {
         employees: true,
         admin: true,
         payrollItems: { include: { extras: true } },
+        family: true,
       },
         orderBy: { date: 'asc' },
       })
@@ -569,6 +543,7 @@ export async function updateAppointment(req: Request, res: Response) {
         employees: true,
         admin: true,
         payrollItems: { include: { extras: true } },
+        family: true,
       },
       })
       if (appt.status === 'CANCEL' || appt.status === 'DELETED') {
@@ -596,6 +571,7 @@ export async function sendAppointmentInfo(req: Request, res: Response) {
         employees: true,
         admin: true,
         payrollItems: { include: { extras: true } },
+        family: true,
       },
     })
     if (!appt) return res.status(404).json({ error: 'Not found' })
@@ -651,6 +627,7 @@ export async function sendAppointmentInfo(req: Request, res: Response) {
         employees: true,
         admin: true,
         payrollItems: { include: { extras: true } },
+        family: true,
       },
     })
 

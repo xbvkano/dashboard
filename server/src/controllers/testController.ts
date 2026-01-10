@@ -1,6 +1,9 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { movePastSchedulesForDate } from '../jobs/scheduleCleanup'
+import { sendScheduleReminders } from '../jobs/scheduleReminder'
+import { syncRecurringAppointments } from '../controllers/recurringController'
+import { sendAppointmentReminders } from '../jobs/appointmentReminder'
 import twilio from 'twilio'
 
 const prisma = new PrismaClient()
@@ -204,6 +207,70 @@ export async function testScheduleReminder(req: Request, res: Response) {
   } catch (e) {
     console.error('Error testing schedule reminder:', e)
     res.status(500).json({ error: 'Failed to test schedule reminder' })
+  }
+}
+
+// Test endpoint to trigger schedule cleanup job
+export async function testScheduleCleanup(req: Request, res: Response) {
+  try {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    await movePastSchedulesForDate(today)
+    
+    res.json({
+      success: true,
+      message: 'Schedule cleanup job completed successfully',
+      date: today.toISOString().slice(0, 10)
+    })
+  } catch (error) {
+    console.error('Error testing schedule cleanup:', error)
+    res.status(500).json({ error: 'Failed to test schedule cleanup' })
+  }
+}
+
+// Test endpoint to trigger schedule reminder job
+export async function testScheduleReminderJob(req: Request, res: Response) {
+  try {
+    await sendScheduleReminders()
+    
+    res.json({
+      success: true,
+      message: 'Schedule reminder job completed successfully'
+    })
+  } catch (error) {
+    console.error('Error testing schedule reminder job:', error)
+    res.status(500).json({ error: 'Failed to test schedule reminder job' })
+  }
+}
+
+// Test endpoint to trigger recurring sync job
+export async function testRecurringSync(req: Request, res: Response) {
+  try {
+    await syncRecurringAppointments()
+    
+    res.json({
+      success: true,
+      message: 'Recurring sync job completed successfully'
+    })
+  } catch (error) {
+    console.error('Error testing recurring sync:', error)
+    res.status(500).json({ error: 'Failed to test recurring sync' })
+  }
+}
+
+// Test endpoint to trigger appointment reminder job
+export async function testAppointmentReminder(req: Request, res: Response) {
+  try {
+    await sendAppointmentReminders()
+    
+    res.json({
+      success: true,
+      message: 'Appointment reminder job completed successfully'
+    })
+  } catch (error) {
+    console.error('Error testing appointment reminder:', error)
+    res.status(500).json({ error: 'Failed to test appointment reminder' })
   }
 }
 

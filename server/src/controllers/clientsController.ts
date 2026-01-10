@@ -145,3 +145,64 @@ export async function getClientAppointments(req: Request, res: Response) {
     res.status(500).json({ error: 'Failed to fetch appointments' })
   }
 }
+
+export async function getClientRecurrenceFamilies(req: Request, res: Response) {
+  const id = parseInt(req.params.id, 10)
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
+  try {
+    // Get all appointments for this client that have a familyId
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        clientId: id,
+        familyId: { not: null },
+      },
+      select: {
+        familyId: true,
+      },
+      distinct: ['familyId'],
+    })
+
+    const familyIds = appointments
+      .map((a) => a.familyId)
+      .filter((id): id is number => id !== null)
+
+    if (familyIds.length === 0) {
+      return res.json([])
+    }
+
+    const families = await prisma.recurrenceFamily.findMany({
+      where: {
+        id: { in: familyIds },
+      },
+      include: {
+        appointments: {
+          where: {
+            status: { in: ['APPOINTED', 'RECURRING_UNCONFIRMED'] },
+            date: { gte: new Date() },
+          },
+          orderBy: { date: 'asc' },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    // Import utility functions
+    const { jsonToRule, formatRecurrenceRule } = await import('../utils/recurrenceUtils')
+    
+    const results = families.map((family) => {
+      const rule = jsonToRule(family.recurrenceRule)
+      return {
+        ...family,
+        rule,
+        ruleSummary: formatRecurrenceRule(rule),
+        nextAppointment: family.appointments[0] || null,
+      }
+    })
+
+    res.json(results)
+  } catch (e) {
+    console.error('Error fetching client recurrence families:', e)
+    res.status(500).json({ error: 'Failed to fetch recurrence families' })
+  }
+}

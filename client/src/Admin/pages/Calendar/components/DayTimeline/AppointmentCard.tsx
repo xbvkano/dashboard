@@ -13,11 +13,18 @@ export default function AppointmentCard({ appointment, onClick, isSelected }: Ap
   const top = (parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1])) * (84 / 60)
   const height = appointment.hours ? appointment.hours * 84 : 84
 
+  const isRecurringUnconfirmed = appointment.status === 'RECURRING_UNCONFIRMED'
+  const bgColor = isRecurringUnconfirmed
+    ? isSelected
+      ? 'ring-2 ring-blue-500 bg-blue-100'
+      : 'bg-blue-200 hover:bg-blue-300'
+    : isSelected
+    ? 'ring-2 ring-blue-500 bg-blue-50'
+    : 'bg-white hover:bg-gray-50'
+
   return (
     <div
-      className={`absolute left-0 right-0 mx-1 rounded border cursor-pointer ${
-        isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'bg-white hover:bg-gray-50'
-      }`}
+      className={`absolute left-0 right-0 mx-1 rounded border cursor-pointer ${bgColor}`}
       style={{
         top: `${top}px`,
         height: `${height}px`,
@@ -43,6 +50,11 @@ export default function AppointmentCard({ appointment, onClick, isSelected }: Ap
         <div className="text-xs text-gray-500 mt-auto">
           {startTime} - {endTime}
         </div>
+        {isRecurringUnconfirmed && (
+          <div className="text-xs text-blue-700 font-medium">
+            Recurring – Needs Confirmation
+          </div>
+        )}
         {appointment.paid && (
           <div className="text-xs text-green-600 font-medium">
             ✓ Paid

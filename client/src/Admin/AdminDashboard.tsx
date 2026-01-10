@@ -4,6 +4,8 @@ import Calendar from './pages/Calendar'
 import Clients from './pages/Clients'
 import Employees from './pages/Employees'
 import Financing from './pages/Financing'
+import Recurring from './pages/Recurring'
+import DevTools from './pages/DevTools'
 
 interface Props {
   onLogout: () => void
@@ -31,6 +33,9 @@ export default function AdminDashboard({ onLogout }: Props) {
           <li><Link className="px-2 py-1" to="/dashboard/clients">Clients</Link></li>
           <li><Link className="px-2 py-1" to="/dashboard/employees">Employees</Link></li>
           <li><Link className="px-2 py-1" to="/dashboard/financing">Financing</Link></li>
+          {import.meta.env.VITE_ENABLE_DEVTOOLS === 'true' && (
+            <li><Link className="px-2 py-1" to="/dashboard/devtools">DevTools</Link></li>
+          )}
           {!isSafe && (
             <li>
               <button className="px-2 py-1" onClick={signOut}>
@@ -47,6 +52,10 @@ export default function AdminDashboard({ onLogout }: Props) {
           <Route path="clients/*" element={<Clients />} />
           <Route path="employees/*" element={<Employees />} />
           <Route path="financing/*" element={<Financing />} />
+          <Route path="recurring/*" element={<Recurring />} />
+          {import.meta.env.VITE_ENABLE_DEVTOOLS === 'true' && (
+            <Route path="devtools" element={<DevTools />} />
+          )}
         </Routes>
       </main>
     </div>

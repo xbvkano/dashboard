@@ -11,9 +11,6 @@ import nodemailer from 'nodemailer'
 import twilio from 'twilio'
 import { uploadInvoiceToDrive } from './drive'
 
-async function ensureRecurringFuture() {
-  return
-}
 dotenv.config()
 
 const prisma = new PrismaClient()
@@ -277,20 +274,160 @@ app.use(cors({
 }))
 app.use(express.json())
 
-// Basic request/response logging middleware
+// Enhanced request/response logging middleware
 app.use((req: Request, res: Response, next) => {
-  console.log(`got ${req.method} ${req.originalUrl} body: ${JSON.stringify(req.body)}`)
+  const startTime = Date.now()
+  const timestamp = new Date().toISOString()
+  
+  // Build request log
+  const requestLog: any = {
+    timestamp,
+    type: 'REQUEST',
+    method: req.method,
+    path: req.path,
+    url: req.originalUrl,
+  }
+  
+  // Add query params if present
+  if (Object.keys(req.query).length > 0) {
+    requestLog.query = req.query
+  }
+  
+  // Add params if present (route parameters)
+  if (Object.keys(req.params).length > 0) {
+    requestLog.params = req.params
+  }
+  
+  // Add request body if present
+  if (Object.keys(req.body || {}).length > 0) {
+    requestLog.body = req.body
+  }
+  
+  // Add headers if needed (optional, can be verbose)
+  // requestLog.headers = req.headers
+  
+  console.log('\n' + '='.repeat(80))
+  console.log('📥 REQUEST:')
+  console.log(JSON.stringify(requestLog, null, 2))
+  console.log('='.repeat(80))
+  
+  // Capture response
   const originalJson = res.json.bind(res)
+  const originalSend = res.send.bind(res)
   let responseBody: any
+  let responseSent = false
+  
   res.json = ((body: any) => {
-    responseBody = body
+    if (!responseSent) {
+      responseBody = body
+      responseSent = true
+    }
     return originalJson(body)
   }) as any
+  
+  res.send = ((body: any) => {
+    if (!responseSent) {
+      responseBody = body
+      responseSent = true
+    }
+    return originalSend(body)
+  }) as any
+  
   res.on('finish', () => {
-    console.log(
-      `Responded ${req.method} ${req.originalUrl} -> ${res.statusCode} ${JSON.stringify(responseBody)}`
-    )
+    const duration = Date.now() - startTime
+    const responseTimestamp = new Date().toISOString()
+    
+    // Build response log
+    const responseLog: any = {
+      timestamp: responseTimestamp,
+      type: 'RESPONSE',
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      statusMessage: res.statusMessage,
+      duration: `${duration}ms`,
+    }
+    
+    // Add response body if present
+    if (responseBody !== undefined) {
+      try {
+        // If responseBody is already a string (from res.send()), try to parse it
+        let bodyToLog: any = responseBody
+        if (typeof responseBody === 'string') {
+          try {
+            bodyToLog = JSON.parse(responseBody)
+          } catch {
+            // If parsing fails, it's just a plain string, log it as is
+            bodyToLog = responseBody
+          }
+        }
+        
+        // Serialize to check size (use compact format for size check)
+        const bodyStrCompact = JSON.stringify(bodyToLog)
+        const bodyStrFormatted = JSON.stringify(bodyToLog, null, 2)
+        
+        // Truncate very large responses for readability (10KB formatted limit)
+        if (bodyStrFormatted.length > 10000) {
+          // For large responses, create a summary
+          const bodyType = Array.isArray(bodyToLog) ? 'array' : typeof bodyToLog
+          const itemCount = Array.isArray(bodyToLog) ? bodyToLog.length : 
+                          typeof bodyToLog === 'object' && bodyToLog !== null ? Object.keys(bodyToLog).length : 1
+          
+          responseLog.bodySummary = {
+            type: bodyType,
+            itemCount: itemCount,
+            size: bodyStrCompact.length,
+            formattedSize: bodyStrFormatted.length,
+          }
+          
+          // For arrays, show first few items; for objects, show structure
+          if (Array.isArray(bodyToLog) && bodyToLog.length > 0) {
+            responseLog.bodyPreview = bodyToLog.slice(0, 3)
+            responseLog.bodyPreviewNote = `Showing first 3 of ${bodyToLog.length} items. Full body truncated.`
+          } else if (typeof bodyToLog === 'object' && bodyToLog !== null) {
+            // Show a preview with just the keys/values of first level
+            const preview: any = {}
+            const keys = Object.keys(bodyToLog).slice(0, 5)
+            keys.forEach(key => {
+              const value = bodyToLog[key]
+              if (Array.isArray(value)) {
+                preview[key] = `[Array(${value.length})]`
+              } else if (typeof value === 'object' && value !== null) {
+                preview[key] = `[Object(${Object.keys(value).length} keys)]`
+              } else {
+                preview[key] = value
+              }
+            })
+            responseLog.bodyPreview = preview
+            responseLog.bodyPreviewNote = `Showing preview of ${keys.length} of ${Object.keys(bodyToLog).length} properties. Full body truncated.`
+          } else {
+            responseLog.bodyPreview = bodyStrFormatted.substring(0, 5000) + '\n... [TRUNCATED]'
+          }
+          
+          responseLog.truncated = true
+        } else {
+          responseLog.body = bodyToLog
+        }
+      } catch (err) {
+        // If there's any error processing the body, just log it as a string representation
+        responseLog.bodyError = 'Unable to serialize response body'
+        responseLog.bodyStringPreview = String(responseBody).substring(0, 1000)
+      }
+    }
+    
+    const statusEmoji = res.statusCode >= 200 && res.statusCode < 300 ? '✅' : 
+                        res.statusCode >= 400 && res.statusCode < 500 ? '⚠️' : 
+                        res.statusCode >= 500 ? '❌' : 'ℹ️'
+    
+    console.log('\n' + '='.repeat(80))
+    console.log(`📤 RESPONSE ${statusEmoji}:`)
+    console.log(JSON.stringify(responseLog, null, 2))
+    if (responseLog.bodyPreviewNote) {
+      console.log(`\nNote: ${responseLog.bodyPreviewNote}`)
+    }
+    console.log('='.repeat(80) + '\n')
   })
+  
   next()
 })
 
@@ -305,8 +442,10 @@ import employeeScheduleRoutes from './routes/employeeSchedule'
 import testRoutes from './routes/test'
 import templatesRoutes from './routes/templates'
 import { setupScheduleCleanupJob } from './jobs/scheduleCleanup'
-import { setupScheduleReminderJob } from './jobs/scheduleReminder'
+// import { setupScheduleReminderJob } from './jobs/scheduleReminder'
+import { setupAppointmentReminderJob } from './jobs/appointmentReminder'
 import appointmentsRoutes from './routes/appointments'
+import recurringRoutes from './routes/recurring'
 import invoicesRoutes from './routes/invoices'
 import payrollRoutes from './routes/payroll'
 import aiAppointmentRoutes from './routes/aiAppointments'
@@ -322,13 +461,15 @@ app.use('/', employeeScheduleRoutes)
 app.use('/', testRoutes)
 app.use('/', templatesRoutes)
 app.use('/', appointmentsRoutes)
+app.use('/', recurringRoutes)
 app.use('/', invoicesRoutes)
 app.use('/', payrollRoutes)
 app.use('/', aiAppointmentRoutes)
 
 // Initialize cron jobs
 setupScheduleCleanupJob()
-setupScheduleReminderJob()
+// setupScheduleReminderJob() // COMMENTED OUT: Schedule reminder cron job disabled
+setupAppointmentReminderJob()
 
 // 404 handler for unmatched routes
 app.use((_req: Request, res: Response) => {

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { API_BASE_URL } from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
@@ -11,6 +12,10 @@ interface AppointmentDetailsProps {
   onClose: () => void
   onCreate: (appt: Appointment, status: Appointment['status']) => void
   onEdit: (appt: Appointment) => void
+  onNavigateToDate?: (date: Date) => void
+  onRefresh?: () => void
+  onRequestSkip?: () => void
+  onRequestConfirm?: () => void
 }
 
 export default function AppointmentDetails({
@@ -19,7 +24,12 @@ export default function AppointmentDetails({
   onClose,
   onCreate,
   onEdit,
+  onNavigateToDate,
+  onRefresh,
+  onRequestSkip,
+  onRequestConfirm,
 }: AppointmentDetailsProps) {
+  
   const { alert, confirm } = useModal()
   const navigate = useNavigate()
   const [paid, setPaid] = useState(appointment.paid)
@@ -35,8 +45,24 @@ export default function AppointmentDetails({
   const [editingExtraId, setEditingExtraId] = useState<number | null>(null)
   const [showPhoneActions, setShowPhoneActions] = useState(false)
   const [showActionPanel, setShowActionPanel] = useState(false)
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false)
+  const [showMoveModal, setShowMoveModal] = useState(false)
+  const [newDate, setNewDate] = useState('')
+  const [moveDate, setMoveDate] = useState('')
+  const [moveTime, setMoveTime] = useState('')
+  const [showPastDateConfirm, setShowPastDateConfirm] = useState(false)
+  const [pendingMoveData, setPendingMoveData] = useState<{ date: string; time: string } | null>(null)
 
   const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  
+  // Check if this is an unconfirmed recurring appointment - must have both familyId and RECURRING_UNCONFIRMED status
+  const statusStr = String(appointment.status || '').toUpperCase()
+  const statusMatches = statusStr === 'RECURRING_UNCONFIRMED'
+  const hasFamilyId = !!appointment.familyId
+  const isRecurringUnconfirmed = statusMatches && hasFamilyId
+  
+  // Note: isRecurringUnconfirmed is true when status is RECURRING_UNCONFIRMED and familyId exists
+  // This determines whether to show recurring appointment action buttons vs regular action panel
 
   const handlePhoneClick = () => {
     if (isMobile) setShowPhoneActions((prev) => !prev)
@@ -185,6 +211,111 @@ export default function AppointmentDetails({
     }
   }
 
+  const handleConfirmRecurring = () => {
+    if (onRequestConfirm) {
+      onRequestConfirm()
+    }
+  }
+
+  const handleConfirmAndReschedule = async () => {
+    if (!appointment.id || !newDate) return
+    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${appointment.id}/confirm-reschedule`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '1',
+      },
+      body: JSON.stringify({ newDate }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      onUpdate(updated)
+      setShowRescheduleModal(false)
+      setNewDate('')
+      onClose()
+    } else {
+      const errorData = await res.json().catch(() => ({}))
+      await alert(errorData.error || 'Failed to confirm and reschedule appointment')
+    }
+  }
+
+  const handleSkipRecurring = () => {
+    if (onRequestSkip) {
+      onRequestSkip()
+    }
+  }
+
+  const handleRecurringSettings = () => {
+    if (appointment.familyId) {
+      navigate(`/dashboard/recurring?familyId=${appointment.familyId}`)
+      onClose()
+    }
+  }
+
+  const handleViewClient = () => {
+    if (appointment.clientId) {
+      navigate(`/dashboard/clients/${appointment.clientId}`)
+      onClose()
+    }
+  }
+
+  const handleMoveRecurring = async () => {
+    if (!appointment.id || !moveDate || !moveTime) return
+    
+    // Check if date is in the past
+    const selectedDate = new Date(moveDate)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    selectedDate.setHours(0, 0, 0, 0)
+    if (selectedDate < today) {
+      // Show confirmation modal in front of details modal
+      setPendingMoveData({ date: moveDate, time: moveTime })
+      setShowPastDateConfirm(true)
+      return
+    }
+    
+    await executeMoveRecurring(moveDate, moveTime)
+  }
+
+  const executeMoveRecurring = async (date: string, time: string) => {
+    if (!appointment.id) return
+    
+    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${appointment.id}/move`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '1',
+      },
+      body: JSON.stringify({ newDate: date, newTime: time }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      onUpdate(updated)
+      setShowMoveModal(false)
+      setMoveDate('')
+      setMoveTime('')
+      setShowPastDateConfirm(false)
+      setPendingMoveData(null)
+      onClose()
+      
+      // Navigate to the new date when moving
+      const dateStr = date
+      const dateParts = typeof dateStr === 'string' ? dateStr.split('T')[0].split('-') : null
+      if (dateParts && dateParts.length === 3 && onNavigateToDate) {
+        const nextDate = new Date(
+          parseInt(dateParts[0]),
+          parseInt(dateParts[1]) - 1,
+          parseInt(dateParts[2])
+        )
+        onNavigateToDate(nextDate)
+        onRefresh?.()
+      }
+    } else {
+      const errorData = await res.json().catch(() => ({}))
+      await alert(errorData.error || 'Failed to move appointment')
+    }
+  }
+
   return (
     <div className="bg-white p-4 rounded-lg shadow-lg max-w-md">
       <div className="flex justify-between items-start mb-4">
@@ -284,14 +415,111 @@ export default function AppointmentDetails({
           </div>
         </div>
 
-        {/* Actions Panel Toggle */}
-        <div>
-          <button
-            onClick={() => setShowActionPanel(!showActionPanel)}
-            className="w-full px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600 flex items-center justify-center gap-2"
-          >
-            {showActionPanel ? '▼' : '▶'} Action Panel
-          </button>
+        {/* Recurring Unconfirmed Actions */}
+        {isRecurringUnconfirmed && (
+          <div className="space-y-2 border-t pt-4">
+            <div className="text-sm font-medium text-blue-700 mb-2">
+              Recurring Appointment Actions
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleConfirmRecurring}
+                className="px-3 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={handleSkipRecurring}
+                className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+              >
+                Skip
+              </button>
+              <button
+                onClick={() => {
+                  setMoveTime(appointment.time || '')
+                  setShowMoveModal(true)
+                }}
+                className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+              >
+                Move
+              </button>
+              <button
+                onClick={handleRecurringSettings}
+                className="px-3 py-2 bg-purple-500 text-white rounded text-sm hover:bg-purple-600"
+              >
+                View Family
+              </button>
+              <button
+                onClick={handleViewClient}
+                className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+              >
+                View Client
+              </button>
+              {appointment.observe ? (
+                <button
+                  onClick={() => updateAppointment({ observe: false })}
+                  className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+                >
+                  Unobserve
+                </button>
+              ) : (
+                <button
+                  onClick={() => updateAppointment({ observe: true })}
+                  className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+                >
+                  Observe
+                </button>
+              )}
+            </div>
+            {showMoveModal && (
+              <div className="mt-2 p-3 bg-gray-50 rounded">
+                <label className="block text-sm font-medium mb-1">New Date</label>
+                <input
+                  type="date"
+                  value={moveDate}
+                  onChange={(e) => setMoveDate(e.target.value)}
+                  className="w-full border p-2 rounded text-sm"
+                />
+                <label className="block text-sm font-medium mb-1 mt-2">New Time</label>
+                <input
+                  type="time"
+                  value={moveTime}
+                  onChange={(e) => setMoveTime(e.target.value)}
+                  className="w-full border p-2 rounded text-sm"
+                />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={handleMoveRecurring}
+                    disabled={!moveDate || !moveTime}
+                    className="flex-1 px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 disabled:bg-gray-400"
+                  >
+                    Move
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowMoveModal(false)
+                      setMoveDate('')
+                      setMoveTime('')
+                    }}
+                    className="flex-1 px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Actions Panel Toggle - Only show for non-recurring-unconfirmed appointments */}
+        {!isRecurringUnconfirmed && (
+          <div>
+            <button
+              onClick={() => setShowActionPanel(!showActionPanel)}
+              className="w-full px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600 flex items-center justify-center gap-2"
+            >
+              {showActionPanel ? '▼' : '▶'} Action Panel
+            </button>
           
           {showActionPanel && (
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -339,7 +567,8 @@ export default function AppointmentDetails({
               </button>
             </div>
           )}
-        </div>
+          </div>
+        )}
 
         {paid && (
           <button
@@ -350,6 +579,52 @@ export default function AppointmentDetails({
           </button>
         )}
       </div>
+
+      {/* Past Date Confirmation Modal */}
+      {showPastDateConfirm && pendingMoveData && createPortal(
+        <>
+          <div
+            className="fixed inset-0 bg-black/50"
+            style={{ zIndex: 10003 }}
+            onClick={() => {
+              setShowPastDateConfirm(false)
+              setPendingMoveData(null)
+            }}
+          />
+          <div
+            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-lg max-w-md"
+            style={{ zIndex: 10004 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4">Move to Past Date?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              The selected date is in the past. Are you sure you want to move the appointment to this date?
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowPastDateConfirm(false)
+                  setPendingMoveData(null)
+                }}
+                className="px-4 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (pendingMoveData) {
+                    executeMoveRecurring(pendingMoveData.date, pendingMoveData.time)
+                  }
+                }}
+                className="px-4 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+              >
+                Move
+              </button>
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   )
 }

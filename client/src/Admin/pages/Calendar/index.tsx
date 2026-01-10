@@ -102,11 +102,12 @@ export default function Calendar() {
       clearTimeout(timeoutId)
     }
   }, [])
-  const contentPadding = isDesktop ? navHeight + headerHeight : headerHeight
+  const contentPadding = isDesktop ? 108 : headerHeight
 
   return (
-    <div className="flex flex-col h-full">
+    <div id="calendar-page" className="flex flex-col h-full">
       <div 
+        id="calendar-header"
         ref={headerRef}
         className="sticky md:fixed top-0 left-0 right-0 z-40 bg-white"
         style={{ 
@@ -133,7 +134,8 @@ export default function Calendar() {
         />
       </div>
       <div 
-        className="flex flex-col flex-1"
+        id="calendar-content"
+        className="flex flex-col flex-1 overflow-hidden"
         style={{ 
           paddingTop: `${contentPadding}px`
         }}
@@ -151,6 +153,17 @@ export default function Calendar() {
           onUpdate={handleUpdate}
           onCreate={(appt, status) => handleCreateFrom(appt, status)}
           onEdit={handleEdit}
+          onNavigateToDate={(date) => {
+            setSelected(date)
+            refresh()
+            refreshMonthCounts(date)
+            refreshWeekCounts(date)
+          }}
+          onRefresh={() => {
+            refresh()
+            refreshMonthCounts(selected)
+            refreshWeekCounts(selected)
+          }}
         />
       </div>
       <button

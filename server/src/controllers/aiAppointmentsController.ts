@@ -108,11 +108,33 @@ export async function createAIAppointment(req: Request, res: Response) {
     }
 
     // Step 2: Check if client already has an appointment on the same day
-    const appointmentDate = new Date(date)
+    // Parse date string (YYYY-MM-DD) as UTC midnight for consistent storage
+    const dateParts = date.split('-')
+    if (dateParts.length !== 3) {
+      return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' })
+    }
+    const appointmentDate = new Date(Date.UTC(
+      parseInt(dateParts[0]),
+      parseInt(dateParts[1]) - 1, // Month is 0-indexed
+      parseInt(dateParts[2])
+    ))
+    if (isNaN(appointmentDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date' })
+    }
+    
+    // For the query, we need to check the full day range in UTC
+    const nextDay = new Date(Date.UTC(
+      appointmentDate.getUTCFullYear(),
+      appointmentDate.getUTCMonth(),
+      appointmentDate.getUTCDate() + 1
+    ))
     const existingAppointment = await prisma.appointment.findFirst({
       where: {
         clientId: client.id,
-        date: appointmentDate
+        date: {
+          gte: appointmentDate,
+          lt: nextDay
+        }
       }
     })
 
@@ -167,7 +189,7 @@ export async function createAIAppointment(req: Request, res: Response) {
       data: {
         clientId: client.id,
         adminId,
-        date: new Date(date),
+        date: appointmentDate,
         time,
         type: serviceType as any, // Use the actual service type (STANDARD, DEEP, MOVE_IN_OUT)
         address: appointmentAddress,
