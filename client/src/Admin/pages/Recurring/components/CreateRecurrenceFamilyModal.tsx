@@ -16,8 +16,10 @@ interface AppointmentTemplate {
   templateName: string
   type: string
   address: string
-  size: string
+  size: string | null
   price: number
+  notes?: string | null
+  instructions?: string | null
 }
 
 interface Admin {
@@ -323,7 +325,33 @@ export default function CreateRecurrenceFamilyModal({
               </label>
               {!showNewTemplate ? (
                 <>
-                  {templates.length > 0 ? (
+                  {selectedTemplateId ? (() => {
+                    const selectedTemplate = templates.find(t => t.id === selectedTemplateId)
+                    return selectedTemplate ? (
+                      <div className="bg-gray-100 p-3 rounded mb-2">
+                        <div className="font-medium">{selectedTemplate.templateName}</div>
+                        <div className="text-sm text-gray-600">Type: {selectedTemplate.type}</div>
+                        {selectedTemplate.size && (
+                          <div className="text-sm text-gray-600">Size: {selectedTemplate.size}</div>
+                        )}
+                        <div className="text-sm text-gray-600">Address: {selectedTemplate.address}</div>
+                        <div className="text-sm text-gray-600">Price: ${selectedTemplate.price.toFixed(2)}</div>
+                        {selectedTemplate.notes && (
+                          <div className="text-sm text-gray-600">Notes: {selectedTemplate.notes}</div>
+                        )}
+                        {selectedTemplate.instructions && (
+                          <div className="text-sm text-gray-600">Instructions: {selectedTemplate.instructions}</div>
+                        )}
+                        <button
+                          type="button"
+                          className="text-blue-500 text-sm mt-1 hover:text-blue-700"
+                          onClick={() => setSelectedTemplateId(null)}
+                        >
+                          Change
+                        </button>
+                      </div>
+                    ) : null
+                  })() : templates.length > 0 ? (
                     <select
                       value={selectedTemplateId || ''}
                       onChange={(e) => setSelectedTemplateId(parseInt(e.target.value, 10) || null)}
@@ -342,13 +370,15 @@ export default function CreateRecurrenceFamilyModal({
                       No templates found for this client.
                     </p>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setShowNewTemplate(true)}
-                    className="text-blue-500 text-sm hover:text-blue-700"
-                  >
-                    + Create new template
-                  </button>
+                  {!selectedTemplateId && (
+                    <button
+                      type="button"
+                      onClick={() => setShowNewTemplate(true)}
+                      className="text-blue-500 text-sm hover:text-blue-700"
+                    >
+                      + Create new template
+                    </button>
+                  )}
                 </>
               ) : (
                 <div className="border rounded p-4 bg-gray-50 space-y-2">

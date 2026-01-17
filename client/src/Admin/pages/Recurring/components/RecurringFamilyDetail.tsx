@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
 import { RecurrenceFamily } from '../index'
@@ -13,6 +13,7 @@ interface Props {
 export default function RecurringFamilyDetail({ family, onUpdate }: Props) {
   const { alert, confirm } = useModal()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [editingRule, setEditingRule] = useState(false)
   const [ruleType, setRuleType] = useState(family.rule?.type || 'weekly')
   const [interval, setInterval] = useState(family.rule?.interval || 1)
@@ -101,6 +102,27 @@ export default function RecurringFamilyDetail({ family, onUpdate }: Props) {
 
   const handleRestartFamily = () => {
     setShowRestartModal(true)
+  }
+
+  const handleDeleteFamily = async () => {
+    if (!(await confirm(
+      'Delete Recurrence Family\n\nAre you sure you want to delete this recurrence family? This action cannot be undone. The appointment history will be preserved, but the family and any unconfirmed appointments will be permanently removed.'
+    ))) return
+
+    try {
+      await fetchJson(`${API_BASE_URL}/recurring/${family.id}`, {
+        method: 'DELETE',
+      })
+      await alert('Recurrence family deleted successfully')
+      // Clear URL params to prevent trying to load deleted family
+      setSearchParams({})
+      // Navigate back to the recurring list page (this will clear the detail view)
+      navigate('/dashboard/recurring', { replace: true })
+      // Refresh the families list
+      onUpdate()
+    } catch (err: any) {
+      await alert(err.error || 'Failed to delete recurrence family')
+    }
   }
 
   const history = family.history || family.appointments || []
@@ -225,12 +247,20 @@ export default function RecurringFamilyDetail({ family, onUpdate }: Props) {
               Stop
             </button>
           ) : (
-            <button
-              onClick={handleRestartFamily}
-              className="px-3 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600"
-            >
-              Restart
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleRestartFamily}
+                className="px-3 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600"
+              >
+                Restart
+              </button>
+              <button
+                onClick={handleDeleteFamily}
+                className="px-3 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
           )}
         </div>
 

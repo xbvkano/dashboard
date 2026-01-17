@@ -367,6 +367,7 @@ export async function createRecurrenceFamily(req: Request, res: Response) {
         status: 'active',
         recurrenceRule: ruleToJson(recurrenceRule),
         nextAppointmentDate: firstDate, // First appointment is the unconfirmed one
+        templateId: templateId, // Store the templateId for future reference
       },
     })
 
@@ -394,6 +395,7 @@ export async function createRecurrenceFamily(req: Request, res: Response) {
         status: 'RECURRING_UNCONFIRMED',
         lineage: 'single',
         familyId: family.id,
+        templateId: templateId, // Store the templateId to ensure correct template is used
       },
       include: {
         client: true,
@@ -839,6 +841,9 @@ async function ensureSingleUnconfirmedInstance(
     const templateAppt = confirmedAppts[0] || family.appointments[0]
     
     if (templateAppt) {
+      // Use templateId from family if available, otherwise from the template appointment
+      const templateIdToUse = family.templateId ?? templateAppt.templateId ?? null
+      
       await prisma.appointment.create({
         data: {
           clientId: templateAppt.clientId,
@@ -864,6 +869,7 @@ async function ensureSingleUnconfirmedInstance(
           status: 'RECURRING_UNCONFIRMED',
           lineage: 'single',
           familyId: family.id,
+          templateId: templateIdToUse, // Store templateId to ensure correct template is used
         },
       })
     }
@@ -935,6 +941,9 @@ export async function restartRecurrenceFamily(req: Request, res: Response) {
       ? calculateAppointmentHours(lastAppt.size, lastAppt.type)
       : lastAppt.hours
 
+    // Use templateId from family if available, otherwise from the last appointment
+    const templateIdToUse = family.templateId ?? lastAppt.templateId ?? null
+
     const unconfirmedAppt = await prisma.appointment.create({
       data: {
         clientId: lastAppt.clientId,
@@ -958,6 +967,7 @@ export async function restartRecurrenceFamily(req: Request, res: Response) {
         status: 'RECURRING_UNCONFIRMED',
         lineage: 'single',
         familyId: family.id,
+        templateId: templateIdToUse, // Store templateId to ensure correct template is used
       },
       include: {
         client: true,
@@ -973,6 +983,46 @@ export async function restartRecurrenceFamily(req: Request, res: Response) {
   } catch (err) {
     console.error('Failed to restart recurrence family:', err)
     res.status(500).json({ error: 'Failed to restart recurrence family' })
+  }
+}
+
+/**
+ * Delete a recurrence family (only allowed for stopped families)
+ */
+export async function deleteRecurrenceFamily(req: Request, res: Response) {
+  const id = parseInt(req.params.id, 10)
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
+
+  try {
+    const family = await prisma.recurrenceFamily.findUnique({
+      where: { id },
+    })
+
+    if (!family) {
+      return res.status(404).json({ error: 'Recurrence family not found' })
+    }
+
+    if (family.status !== 'stopped') {
+      return res.status(400).json({ error: 'Can only delete stopped recurrence families' })
+    }
+
+    // Delete all RECURRING_UNCONFIRMED appointments for this family
+    await prisma.appointment.deleteMany({
+      where: {
+        familyId: id,
+        status: 'RECURRING_UNCONFIRMED',
+      },
+    })
+
+    // Delete the family (other appointments will have their familyId set to null due to onDelete: SetNull)
+    await prisma.recurrenceFamily.delete({
+      where: { id },
+    })
+
+    res.json({ message: 'Recurrence family deleted successfully' })
+  } catch (err) {
+    console.error('Failed to delete recurrence family:', err)
+    res.status(500).json({ error: 'Failed to delete recurrence family' })
   }
 }
 

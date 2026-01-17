@@ -82,6 +82,9 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const [showNewTemplate, setShowNewTemplate] = useState<boolean>(persisted.showNewTemplate ?? false)
   const [editing, setEditing] = useState<boolean>(persisted.editing ?? false)
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(persisted.editingTemplateId ?? null)
+  const [editingTemplateNotes, setEditingTemplateNotes] = useState<boolean>(false)
+  const [editingTemplateNotesId, setEditingTemplateNotesId] = useState<number | null>(null)
+  const [editingTemplateNotesValue, setEditingTemplateNotesValue] = useState<string>('')
   const [templateForm, setTemplateForm] = useState({
     templateName: '',
     type: 'STANDARD',
@@ -153,6 +156,8 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const [creating, setCreating] = useState(false)
 
   const handleClose = () => {
+    localStorage.removeItem('createAppointmentState')
+    localStorage.removeItem('createAppointmentSelectedTemplateId')
     onClose()
   }
 
@@ -188,19 +193,27 @@ const preserveTeamRef = useRef(false)
 
   useEffect(() => {
     if (initialAppointment) {
+      console.log('[EDIT MODAL] ===== Initializing from initialAppointment =====')
+      console.log('[EDIT MODAL] Full initialAppointment:', JSON.stringify(initialAppointment, null, 2))
+      console.log('[EDIT MODAL] initialAppointment.noTeam:', initialAppointment.noTeam)
+      console.log('[EDIT MODAL] initialAppointment.employees:', initialAppointment.employees)
+      console.log('[EDIT MODAL] initialAppointment.employeeIds:', (initialAppointment as any).employeeIds)
+      
       if (initialAppointment.client) setSelectedClient(initialAppointment.client)
-      // Convert UTC date from server to local date string for date input
-      // Use UTC methods to extract the calendar day, then format for local display
+      // Display date directly from database (stored as local time, not UTC)
       const apptDate = typeof initialAppointment.date === 'string' 
         ? new Date(initialAppointment.date) 
         : initialAppointment.date
-      const year = apptDate.getUTCFullYear()
-      const month = String(apptDate.getUTCMonth() + 1).padStart(2, '0')
-      const day = String(apptDate.getUTCDate()).padStart(2, '0')
+      const year = apptDate.getFullYear()
+      const month = String(apptDate.getMonth() + 1).padStart(2, '0')
+      const day = String(apptDate.getDate()).padStart(2, '0')
       setDate(`${year}-${month}-${day}`)
       setTime(initialAppointment.time)
-      if (initialAppointment.employees)
-        setSelectedEmployees(initialAppointment.employees.map((e) => e.id))
+      if (initialAppointment.employees) {
+        const employeeIds = initialAppointment.employees.map((e) => e.id).filter((id): id is number => id !== undefined)
+        console.log('[EDIT MODAL] Setting selectedEmployees from initialAppointment.employees:', employeeIds)
+        setSelectedEmployees(employeeIds)
+      }
       if (initialAppointment.adminId)
         setAdminId(initialAppointment.adminId)
       if (initialAppointment.paid !== undefined) setPaid(initialAppointment.paid)
@@ -212,7 +225,11 @@ const preserveTeamRef = useRef(false)
         setCarpetRooms(String((initialAppointment as any).carpetRooms))
       }
       // Legacy recurring check removed
-      if (initialAppointment.noTeam) setNoTeam(true)
+      // Set noTeam explicitly based on initialAppointment value
+      const shouldHaveNoTeam = initialAppointment.noTeam === true
+      console.log('[EDIT MODAL] Setting noTeam to:', shouldHaveNoTeam)
+      setNoTeam(shouldHaveNoTeam)
+      console.log('[EDIT MODAL] ===== Initialization complete =====')
       initializedRef.current = true
       localStorage.removeItem('createAppointmentState')
     } else {
@@ -763,6 +780,34 @@ const preserveTeamRef = useRef(false)
     // Convert local date to UTC date string for server
     // The date string from input (YYYY-MM-DD) represents the user's local date
     // We send it as-is, and server interprets it as UTC for consistent storage
+    
+    console.log('[EDIT MODAL] ===== Creating/Updating Appointment =====')
+    console.log('[EDIT MODAL] Initial appointment:', initialAppointment ? `ID: ${initialAppointment.id}` : 'null')
+    console.log('[EDIT MODAL] Current state values:')
+    console.log('[EDIT MODAL]   - noTeam:', noTeam)
+    console.log('[EDIT MODAL]   - selectedEmployees:', selectedEmployees)
+    console.log('[EDIT MODAL]   - selectedClient:', selectedClient?.id, selectedClient?.name)
+    console.log('[EDIT MODAL]   - selectedTemplate:', selectedTemplate)
+    console.log('[EDIT MODAL]   - date:', date)
+    console.log('[EDIT MODAL]   - time:', time)
+    console.log('[EDIT MODAL]   - adminId:', adminId)
+    
+    if (!selectedClient) {
+      await alert('Please select a client')
+      return
+    }
+    
+    // Determine status - convert deprecated REOCCURRING to APPOINTED
+    let appointmentStatus = newStatus ?? 'APPOINTED'
+    if (initialAppointment && initialAppointment.status === 'REOCCURRING') {
+      console.log('[EDIT MODAL] Converting deprecated REOCCURRING status to APPOINTED')
+      appointmentStatus = 'APPOINTED'
+    } else if (!initialAppointment && appointmentStatus === 'REOCCURRING') {
+      // Also handle new appointments with REOCCURRING status
+      console.log('[EDIT MODAL] Converting deprecated REOCCURRING status to APPOINTED')
+      appointmentStatus = 'APPOINTED'
+    }
+    
     const body = {
       clientId: selectedClient.id,
       templateId: selectedTemplate,
@@ -776,7 +821,7 @@ const preserveTeamRef = useRef(false)
       paymentMethodNote:
         paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
       tip: paid ? parseFloat(tip) || 0 : 0,
-      status: newStatus ?? 'APPOINTED',
+      status: appointmentStatus,
       noTeam,
       ...(carpetEnabled
         ? {
@@ -786,6 +831,8 @@ const preserveTeamRef = useRef(false)
           }
         : {}),
     }
+
+    console.log('[EDIT MODAL] Body object before payload:', JSON.stringify(body, null, 2))
 
     // Legacy recurring removed - use Recurring Appointments page to create recurring appointments
     let url = `${API_BASE_URL}/appointments`
@@ -797,6 +844,10 @@ const preserveTeamRef = useRef(false)
       url = `${API_BASE_URL}/appointments/${initialAppointment.id}`
     }
 
+    console.log('[EDIT MODAL] Final payload:', JSON.stringify(payload, null, 2))
+    console.log('[EDIT MODAL] Request URL:', url)
+    console.log('[EDIT MODAL] Request method:', method)
+
     setCreating(true)
     try {
       const res = await fetch(url, {
@@ -804,12 +855,29 @@ const preserveTeamRef = useRef(false)
         headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
         body: JSON.stringify(payload),
       })
+      
+      console.log('[EDIT MODAL] Response status:', res.status, res.statusText)
+      
       if (res.ok) {
         const appt = await res.json()
+        console.log('[EDIT MODAL] Success! Updated appointment:', JSON.stringify(appt, null, 2))
         onCreated(appt)
         handleCancel()
       } else {
-        await alert('Failed to create appointment')
+        const errorText = await res.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { raw: errorText }
+        }
+        console.error('[EDIT MODAL] Failed to save appointment')
+        console.error('[EDIT MODAL] Status:', res.status, res.statusText)
+        console.error('[EDIT MODAL] Error response:', errorData)
+        
+        // Show user-friendly error message
+        const errorMessage = errorData.error || errorData.raw || 'Failed to save appointment'
+        await alert(errorMessage)
       }
     } finally {
       setCreating(false)
@@ -820,7 +888,6 @@ const preserveTeamRef = useRef(false)
     <>
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-20 p-2"
-      onClick={handleClose}
     >
       <div
         className="bg-white p-4 sm:p-6 rounded-lg w-full lg:w-3/5 max-w-md lg:max-w-none h-[70vh] overflow-hidden overflow-y-auto overflow-x-hidden space-y-4"
@@ -830,7 +897,9 @@ const preserveTeamRef = useRef(false)
           <h2 className="text-lg font-semibold">
             {initialAppointment ? 'Edit Appointment' : 'New Appointment'}
           </h2>
-          <button onClick={handleClose}>X</button>
+          <button onClick={handleClose} className="text-gray-500 hover:text-gray-700">
+            ×
+          </button>
         </div>
 
         {/* Client selection */}
@@ -1169,7 +1238,81 @@ const preserveTeamRef = useRef(false)
                       {t.size && <div>Size: {t.size}</div>}
                       <div>Address: {t.address}</div>
                       <div>Price: ${t.price.toFixed(2)}</div>
-                      {t.notes && <div>Notes: {t.notes}</div>}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="font-medium">Notes:</label>
+                          {!editingTemplateNotes || editingTemplateNotesId !== t.id ? (
+                            <button
+                              type="button"
+                              className="text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap"
+                              onClick={() => {
+                                setEditingTemplateNotes(true)
+                                setEditingTemplateNotesId(t.id!)
+                                setEditingTemplateNotesValue(t.notes || '')
+                              }}
+                            >
+                              edit
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 whitespace-nowrap"
+                              onClick={async () => {
+                                try {
+                                  const updated = await fetchJson(`${API_BASE_URL}/appointment-templates/${t.id}`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ notes: editingTemplateNotesValue }),
+                                  })
+                                  
+                                  // Update the template in the list
+                                  setTemplates(templates.map(tmpl => tmpl.id === t.id ? updated : tmpl))
+                                  
+                                  // If editing an appointment that matches this template, update appointment notes too
+                                  if (initialAppointment) {
+                                    const matchesTemplate = 
+                                      initialAppointment.address === t.address &&
+                                      initialAppointment.type === t.type &&
+                                      (initialAppointment.size || '') === (t.size || '')
+                                    
+                                    if (matchesTemplate) {
+                                      try {
+                                        await fetchJson(`${API_BASE_URL}/appointments/${initialAppointment.id}`, {
+                                          method: 'PUT',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ notes: editingTemplateNotesValue || null }),
+                                        })
+                                      } catch (apptError) {
+                                        // Don't fail the whole operation if appointment update fails
+                                      }
+                                    }
+                                  }
+                                  
+                                  setEditingTemplateNotes(false)
+                                  setEditingTemplateNotesId(null)
+                                  setEditingTemplateNotesValue('')
+                                } catch (error) {
+                                  alert('Failed to update template notes')
+                                }
+                              }}
+                            >
+                              save
+                            </button>
+                          )}
+                        </div>
+                        <textarea
+                          className="w-full border p-2 rounded text-sm"
+                          rows={3}
+                          value={editingTemplateNotes && editingTemplateNotesId === t.id ? editingTemplateNotesValue : (t.notes || '')}
+                          onChange={(e) => {
+                            if (editingTemplateNotes && editingTemplateNotesId === t.id) {
+                              setEditingTemplateNotesValue(e.target.value)
+                            }
+                          }}
+                          disabled={!editingTemplateNotes || editingTemplateNotesId !== t.id}
+                          placeholder="No notes"
+                        />
+                      </div>
                       {t.instructions && <div>Instructions: {t.instructions}</div>}
                       {t.carpetEnabled && (
                         <div>Carpet Rooms: {t.carpetRooms}</div>
@@ -1223,15 +1366,22 @@ const preserveTeamRef = useRef(false)
                 checked={noTeam}
                 onChange={async (e) => {
                   const checked = e.target.checked
+                  console.log('[EDIT MODAL] No Team checkbox changed:', checked)
+                  console.log('[EDIT MODAL] Current selectedEmployees before change:', selectedEmployees)
                   if (checked) {
                     const ok = await confirm('Create appointment with no team?')
-                    if (!ok) return
+                    if (!ok) {
+                      console.log('[EDIT MODAL] User cancelled no team confirmation')
+                      return
+                    }
                   }
                   setNoTeam(checked)
                   if (checked) {
+                    console.log('[EDIT MODAL] Clearing selectedEmployees and carpetEmployees')
                     setSelectedEmployees([])
                     setCarpetEmployees([])
                   }
+                  console.log('[EDIT MODAL] noTeam state set to:', checked)
                 }}
               />
               <span>No Team</span>
@@ -1240,7 +1390,12 @@ const preserveTeamRef = useRef(false)
               <>
                 <button
                   className="border px-3 py-2 rounded"
-                  onClick={() => setShowTeamModal(true)}
+                  onClick={() => {
+                    console.log('[EDIT MODAL] Opening team modal')
+                    console.log('[EDIT MODAL] Current selectedEmployees:', selectedEmployees)
+                    console.log('[EDIT MODAL] Current noTeam:', noTeam)
+                    setShowTeamModal(true)
+                  }}
                 >
                   {staffOptions.length > 0 ? 'Team Options' : 'Select Team'} <span className="text-red-500">*</span>
                 </button>
@@ -1504,9 +1659,20 @@ const preserveTeamRef = useRef(false)
                       type="checkbox"
                       checked={selectedEmployees.includes(e.id!)}
                       onChange={() => {
-                        setSelectedEmployees((prev) =>
-                          prev.includes(e.id!) ? prev.filter((id) => id !== e.id) : [...prev, e.id!]
-                        )
+                        const newSelected = selectedEmployees.includes(e.id!)
+                          ? selectedEmployees.filter((id) => id !== e.id)
+                          : [...selectedEmployees, e.id!]
+                        console.log('[EDIT MODAL] Employee selection changed')
+                        console.log('[EDIT MODAL] Employee ID:', e.id, 'Employee name:', e.name)
+                        console.log('[EDIT MODAL] Previous selectedEmployees:', selectedEmployees)
+                        console.log('[EDIT MODAL] New selectedEmployees:', newSelected)
+                        console.log('[EDIT MODAL] Current noTeam state:', noTeam)
+                        setSelectedEmployees(newSelected)
+                        // If employee is being added and noTeam is true, we should uncheck noTeam
+                        if (!selectedEmployees.includes(e.id!) && noTeam) {
+                          console.log('[EDIT MODAL] Employee added but noTeam is true - unchecking noTeam')
+                          setNoTeam(false)
+                        }
                       }}
                     />
                     {e.name}
@@ -1545,7 +1711,12 @@ const preserveTeamRef = useRef(false)
           <div className="text-right">
             <button
               className="px-3 py-2 text-blue-600"
-              onClick={() => setShowTeamModal(false)}
+              onClick={() => {
+                console.log('[EDIT MODAL] Closing team modal')
+                console.log('[EDIT MODAL] Final selectedEmployees:', selectedEmployees)
+                console.log('[EDIT MODAL] Current noTeam:', noTeam)
+                setShowTeamModal(false)
+              }}
             >
               Done
             </button>

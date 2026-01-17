@@ -80,6 +80,10 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   const [showPhoneActions, setShowPhoneActions] = useState(false)
   const [showActionPanel, setShowActionPanel] = useState(false)
   const [recurrenceRule, setRecurrenceRule] = useState<string | null>(null)
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [editingNotesValue, setEditingNotesValue] = useState('')
+  const [template, setTemplate] = useState<any>(null)
+  const [loadingTemplate, setLoadingTemplate] = useState(false)
   const isMobile =
     typeof navigator !== 'undefined' &&
     /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
@@ -88,10 +92,50 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   }
 
   const initialShown = useRef(false)
+  // Store saved notes in ref to preserve them after refresh
+  const savedNotesRef = useRef<{ appointmentId: number; notes: string } | null>(null)
+
+  // Fetch template when selected appointment changes
+  useEffect(() => {
+    if (selected?.clientId) {
+      setLoadingTemplate(true)
+      fetchJson(`${API_BASE_URL}/appointment-templates?clientId=${selected.clientId}`)
+        .then((templates: any[]) => {
+          // If appointment has templateId, use it directly; otherwise fall back to matching
+          let match: any = null
+          if (selected.templateId) {
+            match = templates.find((t: any) => t.id === selected.templateId)
+          }
+          // Fall back to matching by address, type, and size if templateId not found or not available
+          if (!match) {
+            match = templates.find(
+              (t: any) => 
+                t.address === selected.address && 
+                t.type === selected.type && 
+                (t.size || '') === (selected.size || '')
+            )
+          }
+          if (match) {
+            setTemplate(match)
+          } else {
+            setTemplate(null)
+          }
+        })
+        .catch(() => {
+          setTemplate(null)
+        })
+        .finally(() => setLoadingTemplate(false))
+    } else {
+      setTemplate(null)
+    }
+  }, [selected?.clientId, selected?.templateId, selected?.address, selected?.type, selected?.size])
 
   useEffect(() => {
     setShowPhoneActions(false)
-  }, [selected])
+    // Reset editing notes when selection changes
+    setEditingNotes(false)
+    setEditingNotesValue('')
+  }, [selected, template])
 
   useEffect(() => {
     if (!initialShown.current && initialApptId && appointments.length) {
@@ -718,7 +762,6 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
             <div
               className="fixed inset-0 bg-black/50"
               style={{ zIndex: 9999 }}
-              onClick={() => setSelected(null)}
             />
             {/* Modal content */}
             <div
@@ -805,11 +848,16 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
               </div>
             )}
             <div className="text-sm">Date &amp; Time: {(() => {
-              const apptDate = typeof selected.date === 'string' ? new Date(selected.date) : selected.date
-              const year = apptDate.getFullYear()
-              const month = String(apptDate.getMonth() + 1).padStart(2, '0')
-              const day = String(apptDate.getDate()).padStart(2, '0')
-              return `${year}-${month}-${day}`
+              // Extract date directly from database format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss.sssZ)
+              // Handle both string and Date object
+              let dateStr: string
+              if (typeof selected.date === 'string') {
+                dateStr = selected.date
+              } else {
+                dateStr = (selected.date as any as Date).toISOString()
+              }
+              const dateOnly = dateStr.split('T')[0]
+              return dateOnly
             })()} {selected.time}</div>
             {selected.employees && selected.employees.length > 0 && (
               <div className="text-sm">
@@ -882,19 +930,119 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
               </div>
             )}
             {/* Legacy recurring check removed - use familyId to identify recurring appointments */}
+            {template && (
+              <div className="text-sm">Template selected: {template.templateName || 'Unnamed Template'}</div>
+            )}
             {selected.size && <div className="text-sm">Size: {selected.size}</div>}
             {selected.hours != null && (
               <div className="text-sm">Hours: {selected.hours}</div>
             )}
-            {selected.price != null && (
-              <div className="text-sm">Price: ${selected.price}</div>
-            )}
+            {(() => {
+              const displayPrice = template?.price ?? selected.price
+              return displayPrice != null ? (
+                <div className="text-sm">Price: ${displayPrice}</div>
+              ) : null
+            })()}
             {selected.cityStateZip && (
               <div className="text-sm">Instructions: {selected.cityStateZip}</div>
             )}
-            {selected.notes && (
-              <div className="text-sm">Notes: {selected.notes}</div>
-            )}
+            {/* Notes Section - showing template notes */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <label className="font-medium text-sm">Notes:</label>
+                {loadingTemplate ? (
+                  <span className="text-xs text-gray-400">Loading template...</span>
+                ) : !editingNotes ? (
+                  <button
+                    type="button"
+                    className="text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap"
+                    onClick={() => {
+                      const templateNotes = template?.notes || ''
+                      setEditingNotes(true)
+                      setEditingNotesValue(templateNotes)
+                    }}
+                  >
+                    edit
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 whitespace-nowrap"
+                    onClick={async () => {
+                      if (!template?.id) {
+                        await alert('No template found for this appointment. Cannot save notes.')
+                        return
+                      }
+                      
+                      try {
+                        // Update template notes only (not appointment notes)
+                        const updatedTemplate = await fetchJson(`${API_BASE_URL}/appointment-templates/${template.id}`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ notes: editingNotesValue || null }),
+                        })
+                        
+                        // Update the template in state
+                        setTemplate(updatedTemplate)
+                        
+                        // Also update all appointments that match this template
+                        if (selected?.clientId) {
+                          try {
+                            // Find all appointments for this client that match the template
+                            const matchingAppointments = appointments.filter(
+                              (a: any) => 
+                                a.clientId === selected.clientId &&
+                                a.address === template.address &&
+                                a.type === template.type &&
+                                (a.size || '') === (template.size || '')
+                            )
+                            
+                            if (matchingAppointments.length > 0) {
+                              // Update all matching appointments to sync their notes with template
+                              for (const appt of matchingAppointments) {
+                                try {
+                                  await fetchJson(`${API_BASE_URL}/appointments/${appt.id}`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ notes: editingNotesValue || null }),
+                                  })
+                                } catch (apptError) {
+                                  // Ignore individual appointment update failures
+                                }
+                              }
+                            }
+                          } catch (syncError) {
+                            // Don't fail the whole operation if sync fails
+                          }
+                        }
+                        
+                        setEditingNotes(false)
+                        setEditingNotesValue('')
+                        
+                        // Refresh to get updated data
+                        onRefresh?.()
+                      } catch (error) {
+                        await alert('Failed to update template notes')
+                      }
+                    }}
+                  >
+                    save
+                  </button>
+                )}
+              </div>
+              <textarea
+                className="w-full border p-2 rounded text-sm"
+                rows={3}
+                value={editingNotes ? editingNotesValue : (template?.notes || '')}
+                onChange={(e) => {
+                  if (editingNotes) {
+                    setEditingNotesValue(e.target.value)
+                  }
+                }}
+                disabled={!editingNotes || loadingTemplate}
+                placeholder={loadingTemplate ? "Loading template..." : "No notes"}
+              />
+            </div>
 
             {/* Show recurrence rule for unconfirmed recurring appointments */}
             {isRecurringUnconfirmed && recurrenceRule && (
@@ -1260,11 +1408,16 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
                   {selected && (
                     <div className="text-sm space-y-1">
                       <div>Appointment Date: {(() => {
-                        const apptDate = typeof selected.date === 'string' ? new Date(selected.date) : selected.date
-                        const year = apptDate.getFullYear()
-                        const month = String(apptDate.getMonth() + 1).padStart(2, '0')
-                        const day = String(apptDate.getDate()).padStart(2, '0')
-                        return `${year}-${month}-${day}`
+                        // Extract date directly from database format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss.sssZ)
+                        // Handle both string and Date object
+                        let dateStr: string
+                        if (typeof selected.date === 'string') {
+                          dateStr = selected.date
+                        } else {
+                          dateStr = (selected.date as any as Date).toISOString()
+                        }
+                        const dateOnly = dateStr.split('T')[0]
+                        return dateOnly
                       })()}</div>
                       <div>Appointment Time: {selected.time}</div>
                       <div>Appointment Type: {selected.type}</div>

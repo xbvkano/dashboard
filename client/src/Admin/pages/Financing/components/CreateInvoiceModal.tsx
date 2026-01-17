@@ -4,6 +4,7 @@ import { API_BASE_URL } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
 import useFormPersistence, {
   loadFormPersistence,
+  clearFormPersistence,
 } from '../../../../useFormPersistence'
 
 interface Props {
@@ -253,7 +254,6 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center p-2 z-30 modal-safe-area"
-      onClick={onClose}
     >
       <div
         className="bg-white p-4 rounded w-full max-w-md space-y-3 max-h-[calc(100dvh-1rem)] overflow-y-auto"
@@ -261,7 +261,10 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       >
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold">Create Invoice</h2>
-          <button onClick={onClose}>X</button>
+          <button onClick={() => {
+            clearFormPersistence(storageKey)
+            onClose()
+          }}>X</button>
         </div>
         <div>
           <label className="text-sm">Client Name</label>
@@ -391,7 +394,10 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         </div>
         <div className="font-medium">Total: ${total.toFixed(2)}</div>
         <div className="flex justify-end gap-2 pt-2">
-          <button className="px-4 py-1" onClick={onClose}>Cancel</button>
+          <button className="px-4 py-1" onClick={() => {
+            clearFormPersistence(storageKey)
+            onClose()
+          }}>Cancel</button>
           <button
             className="px-4 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
             disabled={creating}

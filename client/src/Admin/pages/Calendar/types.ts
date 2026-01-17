@@ -49,6 +49,7 @@ export interface Appointment {
     | 'RECURRING_UNCONFIRMED'
     | 'DELETED'
   familyId?: number
+  templateId?: number
   client?: import('../Clients/components/types').Client
   employees?: import('../Employees/components/types').Employee[]
   admin?: { id: number; name: string | null; email: string }

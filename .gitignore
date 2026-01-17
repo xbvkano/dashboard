@@ -12,3 +12,4 @@ client/.env
 
 # Logs
 *.log
+*.dump

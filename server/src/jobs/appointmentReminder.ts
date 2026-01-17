@@ -37,8 +37,6 @@ export async function sendAppointmentReminders(): Promise<void> {
       },
     })
 
-    console.log(`Found ${appointments.length} appointments for tomorrow`)
-
     const sentMessages: Array<{
       clientId: number
       clientName: string
@@ -59,7 +57,6 @@ export async function sendAppointmentReminders(): Promise<void> {
 
     for (const appointment of appointments) {
       if (!appointment.client || !appointment.client.number) {
-        console.log(`Skipping appointment ${appointment.id} - no client or phone number`)
         continue
       }
 
@@ -68,7 +65,6 @@ export async function sendAppointmentReminders(): Promise<void> {
       // Normalize phone number for Twilio (E.164 format: +1XXXXXXXXXX)
       const normalized = normalizePhone(client.number)
       if (!normalized) {
-        console.log(`Skipping appointment ${appointment.id} - invalid phone number format: ${client.number}`)
         failedMessages.push({
           clientId: client.id,
           clientName: client.name,
@@ -125,8 +121,6 @@ export async function sendAppointmentReminders(): Promise<void> {
           appointmentTime: appointment.time,
           twilioSid: result.sid,
         })
-        
-        console.log(`✓ Sent appointment reminder to client ${client.id} (${client.name}) at ${phoneNumber} for appointment ${appointment.id} on ${appointmentDate.toISOString().slice(0, 10)} at ${appointment.time} (Twilio SID: ${result.sid})`)
       } catch (smsError: any) {
         const errorMessage = smsError?.message || smsError?.toString() || 'Unknown error'
         failedMessages.push({
@@ -139,35 +133,6 @@ export async function sendAppointmentReminders(): Promise<void> {
         console.error(`✗ Failed to send reminder to client ${client.id} (${client.name}) at ${phoneNumber} for appointment ${appointment.id}:`, errorMessage)
       }
     }
-
-    // Summary log
-    console.log('\n=== Appointment Reminder Job Summary ===')
-    console.log(`Total appointments found: ${appointments.length}`)
-    console.log(`Successfully sent: ${sentMessages.length}`)
-    console.log(`Failed: ${failedMessages.length}`)
-    
-    if (sentMessages.length > 0) {
-      console.log('\n--- Successfully Sent Messages ---')
-      sentMessages.forEach((msg) => {
-        console.log(`  Client: ${msg.clientName} (ID: ${msg.clientId})`)
-        console.log(`    Phone: ${msg.phoneNumber}`)
-        console.log(`    Appointment: ${msg.appointmentDate} at ${msg.appointmentTime} (ID: ${msg.appointmentId})`)
-        console.log(`    Twilio SID: ${msg.twilioSid}`)
-        console.log('')
-      })
-    }
-    
-    if (failedMessages.length > 0) {
-      console.log('\n--- Failed Messages ---')
-      failedMessages.forEach((msg) => {
-        console.log(`  Client: ${msg.clientName} (ID: ${msg.clientId})`)
-        console.log(`    Phone: ${msg.phoneNumber}`)
-        console.log(`    Appointment ID: ${msg.appointmentId}`)
-        console.log(`    Error: ${msg.error}`)
-        console.log('')
-      })
-    }
-    console.log('=== End Summary ===\n')
   } catch (error) {
     console.error('Error sending appointment reminders:', error)
     throw error
@@ -178,14 +143,10 @@ export async function sendAppointmentReminders(): Promise<void> {
 export function setupAppointmentReminderJob(): void {
   // Run daily at 08:30 (8:30 AM)
   cron.schedule('30 8 * * *', async () => {
-    console.log('Running daily appointment reminder job...')
     try {
       await sendAppointmentReminders()
-      console.log('Appointment reminder job completed successfully')
     } catch (error) {
       console.error('Appointment reminder job failed:', error)
     }
   })
-  
-  console.log('Appointment reminder cron job scheduled to run daily at 8:30 AM')
 }

@@ -179,7 +179,11 @@ export default function CreateAppointmentModal({
               {initialAppointment ? 'Edit Appointment' : 'Create Appointment'}
             </h2>
             <button
-              onClick={onClose}
+              onClick={() => {
+                localStorage.removeItem('createAppointmentState')
+                localStorage.removeItem('createAppointmentSelectedTemplateId')
+                onClose()
+              }}
               className="text-gray-500 hover:text-gray-700 text-2xl"
             >
               ×
@@ -377,7 +381,11 @@ export default function CreateAppointmentModal({
 
           <div className="flex justify-end gap-2 mt-6">
             <button
-              onClick={onClose}
+              onClick={() => {
+                localStorage.removeItem('createAppointmentState')
+                localStorage.removeItem('createAppointmentSelectedTemplateId')
+                onClose()
+              }}
               className="px-4 py-2 border rounded hover:bg-gray-50"
             >
               Cancel

@@ -175,6 +175,8 @@ export default function Calendar() {
       {createParams && (
         <CreateAppointmentModal
           onClose={() => {
+            localStorage.removeItem('createAppointmentState')
+            localStorage.removeItem('createAppointmentSelectedTemplateId')
             setCreateParams(null)
             setRescheduleOldId(null)
             setDeleteOldId(null)

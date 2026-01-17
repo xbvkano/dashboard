@@ -93,6 +93,8 @@ model Appointment {
   aiCreated       Boolean         @default(false)
   familyId        Int?
   family          RecurrenceFamily? @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  templateId      Int?
+  template        AppointmentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   createdAt       DateTime?       @default(now())
   updatedAt       DateTime?       @updatedAt
 
@@ -105,6 +107,8 @@ model RecurrenceFamily {
   status            String    @default("active") // "active" | "stopped"
   recurrenceRule    String    // JSON string containing rule configuration
   nextAppointmentDate DateTime?
+  templateId        Int?
+  template          AppointmentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -126,6 +130,8 @@ model AppointmentTemplate {
   clientId          Int
   client            Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
   employeeTemplates EmployeeTemplate[]
+  appointments      Appointment[]
+  recurrenceFamilies RecurrenceFamily[]
   createdAt         DateTime?          @default(now())
   updatedAt         DateTime?          @updatedAt
 }

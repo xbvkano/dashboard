@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { API_BASE_URL } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
-import useFormPersistence, { loadFormPersistence } from '../../../../useFormPersistence'
+import useFormPersistence, { loadFormPersistence, clearFormPersistence } from '../../../../useFormPersistence'
 import InvoiceForm from './InvoiceForm'
 import OtherItemsSection from './OtherItemsSection'
 import type { Appointment } from '../../../Calendar/types'
@@ -14,6 +14,11 @@ interface Props {
 export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   const { alert } = useModal()
   const storageKey = 'createInvoiceState'
+  
+  const handleClose = () => {
+    clearFormPersistence(storageKey)
+    onClose()
+  }
   
   const persisted = loadFormPersistence(storageKey, {
     sendEmail: '',
@@ -138,7 +143,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     if (sendRes.ok) {
       setShowEmailModal(false)
       setSending(false)
-      onClose()
+      handleClose()
     } else {
       const text = await sendRes.text()
       await alert(text || 'Failed to send invoice')
@@ -180,7 +185,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         const data = await res.json()
         setInvoiceId(data.id)
         setDirty(false)
-        onClose()
+        handleClose()
       } else {
         await alert('Failed to create invoice')
       }
@@ -194,7 +199,6 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center p-2 z-30 modal-safe-area"
-      onClick={onClose}
     >
       <div
         className="bg-white p-4 rounded w-full max-w-md space-y-3 max-h-[calc(100dvh-1rem)] overflow-y-auto"
@@ -202,7 +206,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       >
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold">Create Invoice</h2>
-          <button onClick={onClose}>X</button>
+          <button onClick={handleClose}>X</button>
         </div>
 
         <InvoiceForm

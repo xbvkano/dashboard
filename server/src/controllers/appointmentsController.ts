@@ -285,6 +285,7 @@ export async function updateAppointment(req: Request, res: Response) {
       carpetPrice,
       carpetEmployees,
       observation,
+      notes,
       noTeam = false,
     } = req.body as {
       clientId?: number
@@ -304,6 +305,7 @@ export async function updateAppointment(req: Request, res: Response) {
       carpetPrice?: number
       carpetEmployees?: number[]
       observation?: string | null
+      notes?: string | null
       noTeam?: boolean
     }
     const data: any = {}
@@ -349,7 +351,9 @@ export async function updateAppointment(req: Request, res: Response) {
     if (adminId !== undefined) data.adminId = adminId
     if (paid !== undefined) data.paid = paid
     if (paymentMethod !== undefined) data.paymentMethod = paymentMethod as any
-    if (paymentMethodNote !== undefined) data.notes = paymentMethodNote
+    // Handle notes: if notes is explicitly provided, use it; otherwise use paymentMethodNote if provided
+    if (notes !== undefined) data.notes = notes
+    else if (paymentMethodNote !== undefined) data.notes = paymentMethodNote
     if (tip !== undefined) data.tip = tip
     if (noTeam !== undefined) data.noTeam = noTeam
     if (observation !== undefined) data.observation = observation

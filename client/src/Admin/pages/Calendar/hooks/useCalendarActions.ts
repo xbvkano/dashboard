@@ -39,9 +39,20 @@ export function useCalendarActions(
       const templates = await fetchJson(
         `${API_BASE_URL}/appointment-templates?clientId=${appt.clientId}`
       )
-      const match = templates.find(
-        (t: any) => t.address === appt.address && t.type === appt.type && t.size === appt.size
-      )
+      // If appointment has templateId, use it directly; otherwise fall back to matching
+      let match: any = null
+      if (appt.templateId) {
+        match = templates.find((t: any) => t.id === appt.templateId)
+      }
+      // Fall back to matching by address, type, and size if templateId not found or not available
+      if (!match) {
+        match = templates.find(
+          (t: any) => 
+            t.address === appt.address && 
+            t.type === appt.type && 
+            (t.size || '') === (appt.size || '')
+        )
+      }
       setCreateParams({ clientId: appt.clientId, templateId: match?.id ?? null, status })
     } catch {
       setCreateParams({ clientId: appt.clientId, status })
@@ -56,9 +67,22 @@ export function useCalendarActions(
       const templates = await fetchJson(
         `${API_BASE_URL}/appointment-templates?clientId=${appt.clientId}`
       )
-      const match = templates.find(
-        (t: any) => t.address === appt.address && t.type === appt.type && t.size === appt.size
-      )
+      
+      // If appointment has templateId, use it directly; otherwise fall back to matching
+      let match: any = null
+      if (appt.templateId) {
+        match = templates.find((t: any) => t.id === appt.templateId)
+      }
+      // Fall back to matching by address, type, and size if templateId not found or not available
+      if (!match) {
+        match = templates.find(
+          (t: any) => 
+            t.address === appt.address && 
+            t.type === appt.type && 
+            (t.size || '') === (appt.size || '')
+        )
+      }
+      
       setCreateParams({
         clientId: appt.clientId,
         templateId: match?.id ?? null,

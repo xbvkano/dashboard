@@ -60,8 +60,9 @@ export function useCalendarData(
   }
 
   const refresh = (d = selected) => {
-    const fetchDay = (day: Date) =>
-      fetchJson(`${API_BASE_URL}/appointments?date=${formatDateAsUTC(day)}`)
+    const fetchDay = (day: Date) => {
+      const dateStr = formatDateAsUTC(day)
+      return fetchJson(`${API_BASE_URL}/appointments?date=${dateStr}`)
         .then((res) => {
           // Convert UTC dates from server to local dates for display
           const appointments = (res as Appointment[]).map((appt) => ({
@@ -70,12 +71,18 @@ export function useCalendarData(
           }))
           return appointments
         })
-        .catch(() => [])
+        .catch((err) => {
+          console.error('Error fetching appointments:', err)
+          return []
+        })
+    }
     Promise.all([
       fetchDay(addDays(d, -1)),
       fetchDay(d),
       fetchDay(addDays(d, 1)),
-    ]).then(([prev, current, next]) => setAppointments({ prev, current, next }))
+    ]).then(([prev, current, next]) => {
+      setAppointments({ prev, current, next })
+    })
   }
 
   // Fetch month info and counts when month changes

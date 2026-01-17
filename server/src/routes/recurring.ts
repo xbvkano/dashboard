@@ -10,6 +10,7 @@ import {
   skipRecurringAppointment,
   moveRecurringAppointment,
   restartRecurrenceFamily,
+  deleteRecurrenceFamily,
 } from '../controllers/recurringController'
 
 const router = express.Router()
@@ -19,6 +20,7 @@ router.get('/recurring/stopped', getStoppedRecurrenceFamilies)
 router.get('/recurring/:id', getRecurrenceFamily)
 router.post('/recurring', createRecurrenceFamily)
 router.put('/recurring/:id', updateRecurrenceFamily)
+router.delete('/recurring/:id', deleteRecurrenceFamily)
 router.post('/recurring/:id/restart', restartRecurrenceFamily)
 router.post('/recurring/appointments/:id/confirm', confirmRecurringAppointment)
 router.post('/recurring/appointments/:id/confirm-reschedule', confirmAndRescheduleRecurringAppointment)

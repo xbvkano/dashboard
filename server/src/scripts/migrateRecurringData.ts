@@ -15,9 +15,6 @@ import { parseLegacyFrequency, ruleToJson, calculateNextAppointmentDate } from '
 const prisma = new PrismaClient()
 
 async function migrateRecurringData() {
-  console.log('Starting migration of recurring appointments...')
-  console.log('NOTE: This script requires old recurring fields to exist in the database.')
-
   try {
     // Try to find appointments with REOCCURRING status
     // Note: We can't query by reoccurring field if it doesn't exist
@@ -32,8 +29,6 @@ async function migrateRecurringData() {
       orderBy: { date: 'asc' },
     })
 
-    console.log(`Found ${recurringAppointments.length} recurring appointments to migrate`)
-
     // Group by lineage
     const lineageGroups = new Map<string, typeof recurringAppointments>()
     for (const appt of recurringAppointments) {
@@ -44,8 +39,6 @@ async function migrateRecurringData() {
         lineageGroups.get(appt.lineage)!.push(appt)
       }
     }
-
-    console.log(`Found ${lineageGroups.size} unique recurrence lineages`)
 
     // For each lineage, create a RecurrenceFamily
     for (const [lineage, appts] of lineageGroups.entries()) {
@@ -97,8 +90,6 @@ async function migrateRecurringData() {
           nextAppointmentDate: nextDate,
         },
       })
-
-      console.log(`Created RecurrenceFamily ${family.id} for lineage ${lineage}`)
 
       // Update all appointments in this lineage to reference the family
       // Convert status from REOCCURRING to APPOINTED for confirmed ones
@@ -178,12 +169,9 @@ async function migrateRecurringData() {
               familyId: family.id,
             },
           })
-          console.log(`Created unconfirmed appointment for family ${family.id}`)
         }
       }
     }
-
-    console.log('Migration completed successfully!')
   } catch (error) {
     console.error('Migration failed:', error)
     throw error
@@ -195,7 +183,6 @@ async function migrateRecurringData() {
 // Run the migration
 migrateRecurringData()
   .then(() => {
-    console.log('Migration script finished')
     process.exit(0)
   })
   .catch((error) => {

@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { API_BASE_URL } from '../../../../../api'
+import { API_BASE_URL, fetchJson } from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
 import { formatPhone } from '../../../../../formatPhone'
 import type { Appointment } from '../../types'
@@ -29,7 +29,6 @@ export default function AppointmentDetails({
   onRequestSkip,
   onRequestConfirm,
 }: AppointmentDetailsProps) {
-  
   const { alert, confirm } = useModal()
   const navigate = useNavigate()
   const [paid, setPaid] = useState(appointment.paid)
@@ -52,8 +51,42 @@ export default function AppointmentDetails({
   const [moveTime, setMoveTime] = useState('')
   const [showPastDateConfirm, setShowPastDateConfirm] = useState(false)
   const [pendingMoveData, setPendingMoveData] = useState<{ date: string; time: string } | null>(null)
+  const [template, setTemplate] = useState<any>(null)
+  const [loadingTemplate, setLoadingTemplate] = useState(false)
+  const [editingTemplateNotes, setEditingTemplateNotes] = useState(false)
+  const [editingTemplateNotesId, setEditingTemplateNotesId] = useState<number | null>(null)
+  const [editingTemplateNotesValue, setEditingTemplateNotesValue] = useState('')
 
   const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  
+  // Fetch template if we have clientId
+  useEffect(() => {
+    if (appointment.clientId) {
+      setLoadingTemplate(true)
+      fetchJson(`${API_BASE_URL}/appointment-templates?clientId=${appointment.clientId}`)
+        .then((templates: any[]) => {
+          // If appointment has templateId, use it directly; otherwise fall back to matching
+          let match: any = null
+          if (appointment.templateId) {
+            match = templates.find((t: any) => t.id === appointment.templateId)
+          }
+          // Fall back to matching by address, type, and size if templateId not found or not available
+          if (!match) {
+            match = templates.find(
+              (t: any) => 
+                t.address === appointment.address && 
+                t.type === appointment.type && 
+                (t.size || '') === (appointment.size || '')
+            )
+          }
+          if (match) {
+            setTemplate(match)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoadingTemplate(false))
+    }
+  }, [appointment.clientId, appointment.templateId, appointment.address, appointment.type, appointment.size])
   
   // Check if this is an unconfirmed recurring appointment - must have both familyId and RECURRING_UNCONFIRMED status
   const statusStr = String(appointment.status || '').toUpperCase()
@@ -336,7 +369,14 @@ export default function AppointmentDetails({
         {/* Appointment Info */}
         <div>
           <p className="text-sm">
-            <span className="font-medium">Date:</span> {new Date(appointment.date).toLocaleDateString()}
+            <span className="font-medium">Date:</span> {(() => {
+              // Display date directly from database (assumed to be stored as local time, not UTC)
+              const apptDate = typeof appointment.date === 'string' ? new Date(appointment.date) : appointment.date
+              const year = apptDate.getFullYear()
+              const month = String(apptDate.getMonth() + 1).padStart(2, '0')
+              const day = String(apptDate.getDate()).padStart(2, '0')
+              return `${year}-${month}-${day}`
+            })()}
           </p>
           <p className="text-sm">
             <span className="font-medium">Time:</span> {appointment.time}
@@ -351,6 +391,78 @@ export default function AppointmentDetails({
           )}
         </div>
 
+        {/* Template Notes */}
+        {loadingTemplate ? (
+          <div className="text-xs text-gray-400 italic">Loading template...</div>
+        ) : template ? (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <label className="font-medium">Notes:</label>
+              {!editingTemplateNotes || editingTemplateNotesId !== template.id ? (
+                <button
+                  type="button"
+                  className="text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap"
+                  onClick={() => {
+                    setEditingTemplateNotes(true)
+                    setEditingTemplateNotesId(template.id)
+                    setEditingTemplateNotesValue(template.notes || '')
+                  }}
+                >
+                  edit
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 whitespace-nowrap"
+                  onClick={async () => {
+                    try {
+                      const updated = await fetchJson(`${API_BASE_URL}/appointment-templates/${template.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ notes: editingTemplateNotesValue }),
+                      })
+                      setTemplate(updated)
+                      
+                      // Also update the appointment notes to match the template
+                      try {
+                        const updatedAppointment = await fetchJson(`${API_BASE_URL}/appointments/${appointment.id}`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ notes: editingTemplateNotesValue || null }),
+                        })
+                        // Notify parent component of the appointment update
+                        onUpdate(updatedAppointment)
+                      } catch (apptError) {
+                        // Don't fail the whole operation if appointment update fails
+                      }
+                      
+                      setEditingTemplateNotes(false)
+                      setEditingTemplateNotesId(null)
+                      setEditingTemplateNotesValue('')
+                    } catch (error) {
+                      await alert('Failed to update template notes')
+                    }
+                  }}
+                >
+                  save
+                </button>
+              )}
+            </div>
+            <textarea
+              className="w-full border p-2 rounded text-sm"
+              rows={3}
+              value={editingTemplateNotes && editingTemplateNotesId === template.id ? editingTemplateNotesValue : (template.notes || '')}
+              onChange={(e) => {
+                if (editingTemplateNotes && editingTemplateNotesId === template.id) {
+                  setEditingTemplateNotesValue(e.target.value)
+                }
+              }}
+              disabled={!editingTemplateNotes || editingTemplateNotesId !== template.id}
+              placeholder="No notes"
+            />
+          </div>
+        ) : null}
+
         {/* Employees */}
         <div>
           <h4 className="font-medium mb-2">Employees</h4>
@@ -359,7 +471,7 @@ export default function AppointmentDetails({
               <div key={employee.id} className="flex justify-between items-center">
                 <span className="text-sm">{employee.name}</span>
                 <button
-                  onClick={() => openExtra(employee.id)}
+                  onClick={() => employee.id && openExtra(employee.id)}
                   className="text-xs text-blue-500 hover:text-blue-700"
                 >
                   + Extra
@@ -386,7 +498,7 @@ export default function AppointmentDetails({
               <>
                 <select
                   value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  onChange={(e) => setPaymentMethod(e.target.value as 'CASH' | 'ZELLE' | 'VENMO' | 'PAYPAL' | 'OTHER' | 'CHECK')}
                   className="w-full border p-2 rounded text-sm"
                 >
                   <option value="CASH">Cash</option>
@@ -552,7 +664,7 @@ export default function AppointmentDetails({
               
               {/* Purple button - Complete */}
               <button
-                onClick={() => updateAppointment({ status: 'COMPLETED' })}
+                onClick={() => updateAppointment({ status: 'APPOINTED' })}
                 className="px-3 py-2 bg-purple-500 text-white rounded text-sm hover:bg-purple-600"
               >
                 Complete
@@ -560,7 +672,7 @@ export default function AppointmentDetails({
               
               {/* Red button - Cancel */}
               <button
-                onClick={() => updateAppointment({ status: 'CANCELLED' })}
+                onClick={() => updateAppointment({ status: 'CANCEL' })}
                 className="px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600"
               >
                 Cancel
