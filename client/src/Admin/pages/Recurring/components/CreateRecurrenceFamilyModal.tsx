@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
+import { formatPhone } from '../../../../formatPhone'
 import type { RecurrenceRule } from '../../../../types'
 
 interface Client {
   id: number
   name: string
   number: string
+  from: string
 }
 
 interface AppointmentTemplate {
@@ -37,6 +39,8 @@ export default function CreateRecurrenceFamilyModal({
 }: Props) {
   const { alert } = useModal()
   const [clients, setClients] = useState<Client[]>([])
+  const [clientSearch, setClientSearch] = useState<string>('')
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [selectedClientId, setSelectedClientId] = useState<number | null>(
     initialClientId || null
   )
@@ -83,10 +87,6 @@ export default function CreateRecurrenceFamilyModal({
   ]
 
   useEffect(() => {
-    fetchJson(`${API_BASE_URL}/clients`)
-      .then((data) => setClients(data))
-      .catch((err) => console.error('Failed to load clients:', err))
-    
     fetchJson(`${API_BASE_URL}/admins`)
       .then((data) => {
         setAdmins(data)
@@ -96,6 +96,40 @@ export default function CreateRecurrenceFamilyModal({
       })
       .catch((err) => console.error('Failed to load admins:', err))
   }, [])
+
+  // Load initial client if initialClientId is provided
+  useEffect(() => {
+    if (initialClientId) {
+      fetchJson(`${API_BASE_URL}/clients`)
+        .then((data: Client[]) => {
+          const client = data.find((c) => c.id === initialClientId)
+          if (client) {
+            setSelectedClient(client)
+            setSelectedClientId(client.id)
+          }
+        })
+        .catch((err) => console.error('Failed to load clients:', err))
+    }
+  }, [initialClientId])
+
+  // Search clients with debounce
+  const searchClients = async (search: string) => {
+    if (search.trim().length < 2) {
+      setClients([])
+      return
+    }
+    try {
+      const data = await fetchJson(`${API_BASE_URL}/clients?search=${encodeURIComponent(search)}`)
+      setClients(data)
+    } catch {
+      setClients([])
+    }
+  }
+
+  useEffect(() => {
+    const timeout = setTimeout(() => searchClients(clientSearch), 300)
+    return () => clearTimeout(timeout)
+  }, [clientSearch])
 
   useEffect(() => {
     if (selectedClientId) {
@@ -230,19 +264,55 @@ export default function CreateRecurrenceFamilyModal({
             <label className="block text-sm font-medium mb-1">
               Client <span className="text-red-500">*</span>
             </label>
-            <select
-              value={selectedClientId || ''}
-              onChange={(e) => setSelectedClientId(parseInt(e.target.value, 10) || null)}
-              className="w-full border p-2 rounded"
-              required
-            >
-              <option value="">Select a client</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
+            {selectedClient ? (
+              <div className="bg-gray-100 p-3 rounded">
+                <div className="font-medium">{selectedClient.name}</div>
+                <div className="text-sm text-gray-600">{formatPhone(selectedClient.number)}</div>
+                <div className="text-sm text-gray-600">From: {selectedClient.from}</div>
+                <button
+                  type="button"
+                  className="text-blue-500 text-sm mt-1 hover:text-blue-700"
+                  onClick={() => {
+                    setSelectedClient(null)
+                    setSelectedClientId(null)
+                    setClientSearch('')
+                    setClients([])
+                  }}
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div>
+                <input
+                  type="text"
+                  className="w-full border p-2 rounded mb-2"
+                  placeholder="Search clients by name or number"
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                />
+                {clients.length > 0 && (
+                  <ul className="max-h-40 overflow-y-auto border rounded divide-y">
+                    {clients.map((client) => (
+                      <li
+                        key={client.id}
+                        className="p-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                        onClick={() => {
+                          setSelectedClient(client)
+                          setSelectedClientId(client.id)
+                          setClientSearch('')
+                          setClients([])
+                        }}
+                      >
+                        <div className="font-medium">{client.name}</div>
+                        <div className="text-sm text-gray-600">{formatPhone(client.number)}</div>
+                        <div className="text-sm text-gray-600">From: {client.from}</div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Template Selection */}
@@ -600,7 +670,7 @@ export default function CreateRecurrenceFamilyModal({
             </button>
             <button
               type="submit"
-              disabled={loading || !selectedClientId || !selectedTemplateId || !date || !time || !selectedAdminId}
+              disabled={loading || !selectedClient || !selectedClientId || !selectedTemplateId || !date || !time || !selectedAdminId}
               className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 disabled:bg-gray-400"
             >
               {loading ? 'Creating...' : 'Create Recurrence Family'}
