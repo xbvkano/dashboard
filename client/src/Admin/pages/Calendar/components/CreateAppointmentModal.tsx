@@ -834,16 +834,6 @@ const preserveTeamRef = useRef(false)
           }
         : {}),
     }
-    
-    // Log template selection for debugging
-    console.log('[CreateAppointmentModal] Submitting appointment:', {
-      isEdit: !!initialAppointment,
-      appointmentId: initialAppointment?.id,
-      selectedTemplate,
-      templateName: templates.find(t => t.id === selectedTemplate)?.templateName,
-      bodyTemplateId: body.templateId,
-      allTemplates: templates.map(t => ({ id: t.id, name: t.templateName })),
-    })
 
     // Legacy recurring removed - use Recurring Appointments page to create recurring appointments
     let url = `${API_BASE_URL}/appointments`
@@ -865,12 +855,6 @@ const preserveTeamRef = useRef(false)
       
       if (res.ok) {
         const appt = await res.json()
-        console.log('[CreateAppointmentModal] Appointment saved:', {
-          appointmentId: appt.id,
-          savedTemplateId: appt.templateId,
-          expectedTemplateId: selectedTemplate,
-          templateMatch: appt.templateId === selectedTemplate,
-        })
         onCreated(appt)
         handleCancel()
       } else {
@@ -1337,12 +1321,6 @@ const preserveTeamRef = useRef(false)
                     onChange={(e) => {
                       resetTemplateRelated()
                       const templateId = Number(e.target.value)
-                      console.log('[CreateAppointmentModal] Template changed:', {
-                        templateId,
-                        templateName: templates.find(t => t.id === templateId)?.templateName,
-                        isEditing: !!initialAppointment,
-                        appointmentId: initialAppointment?.id,
-                      })
                       setSelectedTemplate(templateId)
                       
                       // Auto-populate size field when template is selected

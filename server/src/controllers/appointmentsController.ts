@@ -211,14 +211,6 @@ export async function createAppointment(req: Request, res: Response) {
       }
     }
 
-    console.log('[createAppointment] Creating appointment with templateId:', {
-      templateId,
-      templateName: template.templateName,
-      clientId,
-      date,
-      time,
-    })
-    
     const appt = await prisma.appointment.create({
       data: {
         clientId,              // scalar shortcut instead of nested connect
@@ -264,13 +256,6 @@ export async function createAppointment(req: Request, res: Response) {
     if (!noTeam && employeeIds.length) {
       await syncPayrollItems(appt.id, employeeIds)
     }
-
-    console.log('[createAppointment] Appointment created:', {
-      appointmentId: appt.id,
-      savedTemplateId: appt.templateId,
-      expectedTemplateId: templateId,
-      templateMatch: appt.templateId === templateId,
-    })
 
     return res.json(appt)
   } catch (err) {
@@ -324,12 +309,6 @@ export async function updateAppointment(req: Request, res: Response) {
       notes?: string | null
       noTeam?: boolean
     }
-    console.log('[updateAppointment] Updating appointment:', {
-      appointmentId: id,
-      receivedTemplateId: templateId,
-      currentAppointmentId: id,
-    })
-    
     const data: any = {}
     if (clientId !== undefined) data.clientId = clientId
     if (templateId !== undefined) {
@@ -337,11 +316,6 @@ export async function updateAppointment(req: Request, res: Response) {
         where: { id: templateId },
       })
       if (!template) return res.status(400).json({ error: 'Invalid templateId' })
-      
-      console.log('[updateAppointment] Template found:', {
-        templateId: template.id,
-        templateName: template.templateName,
-      })
       
       // Save templateId to database
       data.templateId = templateId
@@ -580,15 +554,6 @@ export async function updateAppointment(req: Request, res: Response) {
         family: true,
       },
       })
-      
-      console.log('[updateAppointment] Appointment updated:', {
-        appointmentId: appt.id,
-        savedTemplateId: appt.templateId,
-        expectedTemplateId: templateId,
-        templateMatch: appt.templateId === templateId,
-        dataTemplateId: data.templateId,
-      })
-      
       if (appt.status === 'CANCEL' || appt.status === 'DELETED') {
         await prisma.payrollItem.deleteMany({ where: { appointmentId: appt.id } })
       } else if (employeeIds && !noTeam) {
