@@ -189,6 +189,7 @@ export async function createAIAppointment(req: Request, res: Response) {
       data: {
         clientId: client.id,
         adminId,
+        templateId: template.id, // Save templateId to database
         date: appointmentDate,
         time,
         type: serviceType as any, // Use the actual service type (STANDARD, DEEP, MOVE_IN_OUT)
