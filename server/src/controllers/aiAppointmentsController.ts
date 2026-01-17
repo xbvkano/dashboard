@@ -166,7 +166,8 @@ export async function createAIAppointment(req: Request, res: Response) {
     })
 
     if (!template) {
-      // Create new template with AI note
+      // Create new template - use provided notes or default AI note
+      const templateNotes = (notes !== undefined && notes !== null) ? notes : 'Template created by AI'
       template = await prisma.appointmentTemplate.create({
         data: {
           templateName: `AI Template - ${appointmentAddress}`,
@@ -174,10 +175,16 @@ export async function createAIAppointment(req: Request, res: Response) {
           size: mappedSize,
           address: appointmentAddress,
           price: price,
-          notes: 'Template created by AI',
+          notes: templateNotes,
           instructions: '',
           clientId: client.id,
         }
+      })
+    } else if (notes !== undefined && notes !== null) {
+      // Update existing template with provided notes
+      template = await prisma.appointmentTemplate.update({
+        where: { id: template.id },
+        data: { notes: notes },
       })
     }
 
@@ -201,7 +208,7 @@ export async function createAIAppointment(req: Request, res: Response) {
         paymentMethod: 'CASH',
         tip: 0,
         noTeam: true, // AI appointments are always no team by default
-        notes: notes ?? 'Appointment created by AI',
+        notes: template.notes,
         status: 'APPOINTED',
         lineage: 'single',
         aiCreated: true, // Mark as AI created
