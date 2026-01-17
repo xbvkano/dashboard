@@ -193,25 +193,43 @@ const preserveTeamRef = useRef(false)
 
   useEffect(() => {
     if (initialAppointment) {
-      console.log('[EDIT MODAL] ===== Initializing from initialAppointment =====')
-      console.log('[EDIT MODAL] Full initialAppointment:', JSON.stringify(initialAppointment, null, 2))
-      console.log('[EDIT MODAL] initialAppointment.noTeam:', initialAppointment.noTeam)
-      console.log('[EDIT MODAL] initialAppointment.employees:', initialAppointment.employees)
-      console.log('[EDIT MODAL] initialAppointment.employeeIds:', (initialAppointment as any).employeeIds)
-      
       if (initialAppointment.client) setSelectedClient(initialAppointment.client)
       // Display date directly from database (stored as local time, not UTC)
-      const apptDate = typeof initialAppointment.date === 'string' 
-        ? new Date(initialAppointment.date) 
-        : initialAppointment.date
-      const year = apptDate.getFullYear()
-      const month = String(apptDate.getMonth() + 1).padStart(2, '0')
-      const day = String(apptDate.getDate()).padStart(2, '0')
-      setDate(`${year}-${month}-${day}`)
+      // The date comes as either a string like "2026-01-13T00:00:00.000Z" or a Date object
+      // We need to extract the YYYY-MM-DD part directly from the string representation
+      // to avoid timezone conversion issues
+      let dateStr = ''
+      const appointmentDate = initialAppointment.date
+      if (typeof appointmentDate === 'string') {
+        // If it's a string, split by 'T' to get the date part (YYYY-MM-DD) before the time
+        // This avoids any timezone conversion issues
+        const datePart = appointmentDate.split('T')[0]
+        
+        // Verify it's in YYYY-MM-DD format
+        if (datePart && datePart.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          dateStr = datePart
+        } else {
+          // Fallback: try to extract YYYY-MM-DD with regex
+          const dateMatch = appointmentDate.match(/(\d{4}-\d{2}-\d{2})/)
+          if (dateMatch && dateMatch[1]) {
+            dateStr = dateMatch[1]
+          }
+        }
+      } else {
+        // If it's already a Date object, use UTC methods to extract the original date
+        // The date string "2026-01-13T00:00:00.000Z" was parsed as UTC and converted to local
+        // We need to use UTC methods to get back the original UTC date parts
+        const dateObj = appointmentDate as Date
+        const year = dateObj.getUTCFullYear()
+        const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0')
+        const day = String(dateObj.getUTCDate()).padStart(2, '0')
+        dateStr = `${year}-${month}-${day}`
+      }
+      
+      setDate(dateStr)
       setTime(initialAppointment.time)
       if (initialAppointment.employees) {
         const employeeIds = initialAppointment.employees.map((e) => e.id).filter((id): id is number => id !== undefined)
-        console.log('[EDIT MODAL] Setting selectedEmployees from initialAppointment.employees:', employeeIds)
         setSelectedEmployees(employeeIds)
       }
       if (initialAppointment.adminId)
@@ -227,9 +245,7 @@ const preserveTeamRef = useRef(false)
       // Legacy recurring check removed
       // Set noTeam explicitly based on initialAppointment value
       const shouldHaveNoTeam = initialAppointment.noTeam === true
-      console.log('[EDIT MODAL] Setting noTeam to:', shouldHaveNoTeam)
       setNoTeam(shouldHaveNoTeam)
-      console.log('[EDIT MODAL] ===== Initialization complete =====')
       initializedRef.current = true
       localStorage.removeItem('createAppointmentState')
     } else {
@@ -781,17 +797,6 @@ const preserveTeamRef = useRef(false)
     // The date string from input (YYYY-MM-DD) represents the user's local date
     // We send it as-is, and server interprets it as UTC for consistent storage
     
-    console.log('[EDIT MODAL] ===== Creating/Updating Appointment =====')
-    console.log('[EDIT MODAL] Initial appointment:', initialAppointment ? `ID: ${initialAppointment.id}` : 'null')
-    console.log('[EDIT MODAL] Current state values:')
-    console.log('[EDIT MODAL]   - noTeam:', noTeam)
-    console.log('[EDIT MODAL]   - selectedEmployees:', selectedEmployees)
-    console.log('[EDIT MODAL]   - selectedClient:', selectedClient?.id, selectedClient?.name)
-    console.log('[EDIT MODAL]   - selectedTemplate:', selectedTemplate)
-    console.log('[EDIT MODAL]   - date:', date)
-    console.log('[EDIT MODAL]   - time:', time)
-    console.log('[EDIT MODAL]   - adminId:', adminId)
-    
     if (!selectedClient) {
       await alert('Please select a client')
       return
@@ -800,11 +805,9 @@ const preserveTeamRef = useRef(false)
     // Determine status - convert deprecated REOCCURRING to APPOINTED
     let appointmentStatus = newStatus ?? 'APPOINTED'
     if (initialAppointment && initialAppointment.status === 'REOCCURRING') {
-      console.log('[EDIT MODAL] Converting deprecated REOCCURRING status to APPOINTED')
       appointmentStatus = 'APPOINTED'
     } else if (!initialAppointment && appointmentStatus === 'REOCCURRING') {
       // Also handle new appointments with REOCCURRING status
-      console.log('[EDIT MODAL] Converting deprecated REOCCURRING status to APPOINTED')
       appointmentStatus = 'APPOINTED'
     }
     
@@ -831,8 +834,16 @@ const preserveTeamRef = useRef(false)
           }
         : {}),
     }
-
-    console.log('[EDIT MODAL] Body object before payload:', JSON.stringify(body, null, 2))
+    
+    // Log template selection for debugging
+    console.log('[CreateAppointmentModal] Submitting appointment:', {
+      isEdit: !!initialAppointment,
+      appointmentId: initialAppointment?.id,
+      selectedTemplate,
+      templateName: templates.find(t => t.id === selectedTemplate)?.templateName,
+      bodyTemplateId: body.templateId,
+      allTemplates: templates.map(t => ({ id: t.id, name: t.templateName })),
+    })
 
     // Legacy recurring removed - use Recurring Appointments page to create recurring appointments
     let url = `${API_BASE_URL}/appointments`
@@ -844,10 +855,6 @@ const preserveTeamRef = useRef(false)
       url = `${API_BASE_URL}/appointments/${initialAppointment.id}`
     }
 
-    console.log('[EDIT MODAL] Final payload:', JSON.stringify(payload, null, 2))
-    console.log('[EDIT MODAL] Request URL:', url)
-    console.log('[EDIT MODAL] Request method:', method)
-
     setCreating(true)
     try {
       const res = await fetch(url, {
@@ -856,11 +863,14 @@ const preserveTeamRef = useRef(false)
         body: JSON.stringify(payload),
       })
       
-      console.log('[EDIT MODAL] Response status:', res.status, res.statusText)
-      
       if (res.ok) {
         const appt = await res.json()
-        console.log('[EDIT MODAL] Success! Updated appointment:', JSON.stringify(appt, null, 2))
+        console.log('[CreateAppointmentModal] Appointment saved:', {
+          appointmentId: appt.id,
+          savedTemplateId: appt.templateId,
+          expectedTemplateId: selectedTemplate,
+          templateMatch: appt.templateId === selectedTemplate,
+        })
         onCreated(appt)
         handleCancel()
       } else {
@@ -871,9 +881,6 @@ const preserveTeamRef = useRef(false)
         } catch {
           errorData = { raw: errorText }
         }
-        console.error('[EDIT MODAL] Failed to save appointment')
-        console.error('[EDIT MODAL] Status:', res.status, res.statusText)
-        console.error('[EDIT MODAL] Error response:', errorData)
         
         // Show user-friendly error message
         const errorMessage = errorData.error || errorData.raw || 'Failed to save appointment'
@@ -1330,6 +1337,12 @@ const preserveTeamRef = useRef(false)
                     onChange={(e) => {
                       resetTemplateRelated()
                       const templateId = Number(e.target.value)
+                      console.log('[CreateAppointmentModal] Template changed:', {
+                        templateId,
+                        templateName: templates.find(t => t.id === templateId)?.templateName,
+                        isEditing: !!initialAppointment,
+                        appointmentId: initialAppointment?.id,
+                      })
                       setSelectedTemplate(templateId)
                       
                       // Auto-populate size field when template is selected
@@ -1366,22 +1379,17 @@ const preserveTeamRef = useRef(false)
                 checked={noTeam}
                 onChange={async (e) => {
                   const checked = e.target.checked
-                  console.log('[EDIT MODAL] No Team checkbox changed:', checked)
-                  console.log('[EDIT MODAL] Current selectedEmployees before change:', selectedEmployees)
                   if (checked) {
                     const ok = await confirm('Create appointment with no team?')
                     if (!ok) {
-                      console.log('[EDIT MODAL] User cancelled no team confirmation')
                       return
                     }
                   }
                   setNoTeam(checked)
                   if (checked) {
-                    console.log('[EDIT MODAL] Clearing selectedEmployees and carpetEmployees')
                     setSelectedEmployees([])
                     setCarpetEmployees([])
                   }
-                  console.log('[EDIT MODAL] noTeam state set to:', checked)
                 }}
               />
               <span>No Team</span>
@@ -1391,9 +1399,6 @@ const preserveTeamRef = useRef(false)
                 <button
                   className="border px-3 py-2 rounded"
                   onClick={() => {
-                    console.log('[EDIT MODAL] Opening team modal')
-                    console.log('[EDIT MODAL] Current selectedEmployees:', selectedEmployees)
-                    console.log('[EDIT MODAL] Current noTeam:', noTeam)
                     setShowTeamModal(true)
                   }}
                 >
@@ -1662,15 +1667,9 @@ const preserveTeamRef = useRef(false)
                         const newSelected = selectedEmployees.includes(e.id!)
                           ? selectedEmployees.filter((id) => id !== e.id)
                           : [...selectedEmployees, e.id!]
-                        console.log('[EDIT MODAL] Employee selection changed')
-                        console.log('[EDIT MODAL] Employee ID:', e.id, 'Employee name:', e.name)
-                        console.log('[EDIT MODAL] Previous selectedEmployees:', selectedEmployees)
-                        console.log('[EDIT MODAL] New selectedEmployees:', newSelected)
-                        console.log('[EDIT MODAL] Current noTeam state:', noTeam)
                         setSelectedEmployees(newSelected)
                         // If employee is being added and noTeam is true, we should uncheck noTeam
                         if (!selectedEmployees.includes(e.id!) && noTeam) {
-                          console.log('[EDIT MODAL] Employee added but noTeam is true - unchecking noTeam')
                           setNoTeam(false)
                         }
                       }}
@@ -1712,9 +1711,6 @@ const preserveTeamRef = useRef(false)
             <button
               className="px-3 py-2 text-blue-600"
               onClick={() => {
-                console.log('[EDIT MODAL] Closing team modal')
-                console.log('[EDIT MODAL] Final selectedEmployees:', selectedEmployees)
-                console.log('[EDIT MODAL] Current noTeam:', noTeam)
                 setShowTeamModal(false)
               }}
             >

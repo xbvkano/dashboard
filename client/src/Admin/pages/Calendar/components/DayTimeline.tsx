@@ -101,23 +101,48 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
       setLoadingTemplate(true)
       fetchJson(`${API_BASE_URL}/appointment-templates?clientId=${selected.clientId}`)
         .then((templates: any[]) => {
+          console.log('[DayTimeline] Resolving template for appointment:', {
+            appointmentId: selected.id,
+            appointmentTemplateId: selected.templateId,
+            appointmentAddress: selected.address,
+            appointmentType: selected.type,
+            appointmentSize: selected.size,
+            availableTemplates: templates.map((t: any) => ({ id: t.id, name: t.templateName, address: t.address, type: t.type, size: t.size })),
+          })
+          
           // If appointment has templateId, use it directly; otherwise fall back to matching
           let match: any = null
           if (selected.templateId) {
             match = templates.find((t: any) => t.id === selected.templateId)
+            console.log('[DayTimeline] Template lookup by ID:', {
+              searchedId: selected.templateId,
+              found: !!match,
+              matchName: match?.templateName,
+            })
           }
           // Fall back to matching by address, type, and size if templateId not found or not available
           if (!match) {
+            console.log('[DayTimeline] Falling back to address/type/size matching')
             match = templates.find(
               (t: any) => 
                 t.address === selected.address && 
                 t.type === selected.type && 
                 (t.size || '') === (selected.size || '')
             )
+            console.log('[DayTimeline] Fallback match result:', {
+              found: !!match,
+              matchName: match?.templateName,
+              matchId: match?.id,
+            })
           }
           if (match) {
+            console.log('[DayTimeline] Selected template:', {
+              id: match.id,
+              name: match.templateName,
+            })
             setTemplate(match)
           } else {
+            console.log('[DayTimeline] No template match found')
             setTemplate(null)
           }
         })
