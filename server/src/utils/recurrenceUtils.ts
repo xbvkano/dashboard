@@ -39,8 +39,11 @@ export function calculateNextAppointmentDate(
     case 'monthlyPattern':
       if (rule.weekOfMonth && rule.dayOfWeek !== undefined) {
         // First, second, third, fourth, or last occurrence of a day of week
-        const targetMonth = next.getMonth() + 1
-        const targetYear = next.getFullYear()
+        const currentMonth = referenceDate.getMonth() // 0-11
+        const currentYear = referenceDate.getFullYear()
+        const targetMonth = currentMonth + 1 // Next month (may be > 11, Date constructor handles it)
+        const targetYear = currentYear
+        
         const firstDay = new Date(targetYear, targetMonth, 1)
         const firstDayOfWeek = firstDay.getDay()
         let targetDay = 1 + ((rule.dayOfWeek - firstDayOfWeek + 7) % 7)
@@ -53,8 +56,8 @@ export function calculateNextAppointmentDate(
           const daysFromLast = (lastDayOfWeek - rule.dayOfWeek + 7) % 7
           targetDay = lastDay.getDate() - daysFromLast
         }
-        next.setMonth(targetMonth - 1)
-        next.setDate(targetDay)
+        // Use setFullYear to properly handle month/year overflow (e.g., month 12 becomes month 0 of next year)
+        next.setFullYear(targetYear, targetMonth, targetDay)
       } else if (rule.dayOfMonth) {
         // Specific day of month (e.g., 5th of every month)
         next.setMonth(next.getMonth() + 1)
