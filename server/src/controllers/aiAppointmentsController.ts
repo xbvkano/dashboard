@@ -201,7 +201,7 @@ export async function createAIAppointment(req: Request, res: Response) {
         paymentMethod: 'CASH',
         tip: 0,
         noTeam: true, // AI appointments are always no team by default
-        notes: notes || 'Appointment created by AI',
+        notes: notes ?? 'Appointment created by AI',
         status: 'APPOINTED',
         lineage: 'single',
         aiCreated: true, // Mark as AI created
