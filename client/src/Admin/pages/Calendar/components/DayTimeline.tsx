@@ -1315,10 +1315,25 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
                       if (!selected) return
                       navigate(
                         `/dashboard/financing/invoice?date=${(() => {
-                          const apptDate = typeof selected.date === 'string' ? new Date(selected.date) : selected.date
-                          const year = apptDate.getFullYear()
-                          const month = String(apptDate.getMonth() + 1).padStart(2, '0')
-                          const day = String(apptDate.getDate()).padStart(2, '0')
+                          // Extract date directly from string to avoid timezone conversion
+                          // The database stores dates in local time, so we should use the string representation
+                          if (typeof selected.date === 'string') {
+                            // Extract YYYY-MM-DD part directly from the string
+                            const datePart = selected.date.split('T')[0]
+                            if (datePart && datePart.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                              return datePart
+                            }
+                            // Fallback: try to extract YYYY-MM-DD with regex
+                            const dateMatch = selected.date.match(/(\d{4}-\d{2}-\d{2})/)
+                            if (dateMatch && dateMatch[1]) {
+                              return dateMatch[1]
+                            }
+                          }
+                          // If it's a Date object, use UTC methods to get the original date
+                          const apptDate = selected.date as Date
+                          const year = apptDate.getUTCFullYear()
+                          const month = String(apptDate.getUTCMonth() + 1).padStart(2, '0')
+                          const day = String(apptDate.getUTCDate()).padStart(2, '0')
                           return `${year}-${month}-${day}`
                         })()}&appt=${selected.id}`,
                       )
