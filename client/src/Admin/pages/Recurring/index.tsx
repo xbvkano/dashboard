@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { API_BASE_URL, fetchJson } from '../../../api'
 import RecurringFamilyDetail from './components/RecurringFamilyDetail'
@@ -47,6 +47,11 @@ export default function Recurring() {
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'list' | 'detail'>('list')
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const isNavigatingBackRef = useRef(false)
+  
+  // Month and year selection - default to current month/year
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth())
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear())
 
   // Check for familyId in URL params
   useEffect(() => {
@@ -80,7 +85,7 @@ export default function Recurring() {
     try {
       const family = await fetchJson(`${API_BASE_URL}/recurring/${id}`)
       setSelectedFamily(family)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load family detail:', err)
     }
   }
@@ -93,7 +98,7 @@ export default function Recurring() {
     if (selectedFamilyId) {
       loadFamilyDetail(selectedFamilyId)
     }
-  }, [selectedFamilyId])
+  }, [selectedFamilyId, view])
 
   const handleSelectFamily = (familyId: number) => {
     setSelectedFamilyId(familyId)
@@ -102,15 +107,24 @@ export default function Recurring() {
   }
 
   const handleBackToList = () => {
+    isNavigatingBackRef.current = true
     setSelectedFamilyId(null)
     setSelectedFamily(null)
     setView('list')
     setSearchParams({})
+    // Refresh families list when navigating back
+    loadFamilies()
+    // Reset the flag after React has processed the state updates
+    setTimeout(() => {
+      isNavigatingBackRef.current = false
+    }, 200)
   }
 
   const handleFamilyUpdated = () => {
     loadFamilies()
-    if (selectedFamilyId) {
+    // Only reload detail if we're still in detail view and have a selected family
+    // AND we're not in the process of navigating back (which would cause 404 errors)
+    if (!isNavigatingBackRef.current && view === 'detail' && selectedFamilyId) {
       loadFamilyDetail(selectedFamilyId)
     }
   }
@@ -135,6 +149,7 @@ export default function Recurring() {
         <RecurringFamilyDetail
           family={selectedFamily}
           onUpdate={handleFamilyUpdated}
+          onBackToList={handleBackToList}
         />
       </div>
     )
@@ -161,9 +176,54 @@ export default function Recurring() {
         </button>
       </div>
 
+      {/* Month and Year Selector */}
+      <div className="flex items-center gap-4 bg-white rounded-lg shadow p-4">
+        <label className="text-sm font-medium text-gray-700">View Month:</label>
+        <select
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(parseInt(e.target.value, 10))}
+          className="border rounded px-3 py-2 text-sm"
+        >
+          {[
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+          ].map((month, index) => (
+            <option key={month} value={index}>
+              {month}
+            </option>
+          ))}
+        </select>
+        <select
+          value={selectedYear}
+          onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+          className="border rounded px-3 py-2 text-sm"
+        >
+          {Array.from({ length: 5 }, (_, i) => {
+            const year = new Date().getFullYear() - 1 + i
+            return (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            )
+          })}
+        </select>
+        <button
+          onClick={() => {
+            const now = new Date()
+            setSelectedMonth(now.getMonth())
+            setSelectedYear(now.getFullYear())
+          }}
+          className="px-3 py-2 text-sm text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded"
+        >
+          Today
+        </button>
+      </div>
+
       <RecurringAnalytics
         activeFamilies={activeFamilies}
         stoppedFamilies={stoppedFamilies}
+        selectedMonth={selectedMonth}
+        selectedYear={selectedYear}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -183,16 +243,21 @@ export default function Recurring() {
           />
         </div>
         <div className="lg:col-span-1">
-          <RecurringCalendar families={[...activeFamilies, ...stoppedFamilies]} />
+          <RecurringCalendar 
+            families={[...activeFamilies, ...stoppedFamilies]}
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
+          />
         </div>
       </div>
 
       {showCreateModal && (
         <CreateRecurrenceFamilyModal
           onClose={() => setShowCreateModal(false)}
-          onCreated={() => {
+          onCreated={async () => {
             setShowCreateModal(false)
-            loadFamilies()
+            // Reload both active and stopped families to show the newly created recurrence
+            await loadFamilies()
           }}
         />
       )}

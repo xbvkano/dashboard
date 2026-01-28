@@ -34,7 +34,20 @@ export function calculateNextAppointmentDate(
       break
     case 'customMonths':
       const months = rule.interval || 1
-      next.setMonth(next.getMonth() + months)
+      // Preserve the day of month when adding months
+      // Get the original day of month
+      const originalDay = referenceDate.getDate()
+      // Use setFullYear to properly handle month transitions without day overflow
+      const targetMonth = next.getMonth() + months
+      const targetYear = next.getFullYear() + Math.floor(targetMonth / 12)
+      const finalMonth = targetMonth % 12
+      // Set to first day of target month, then set date to preserve day
+      next.setFullYear(targetYear, finalMonth, 1)
+      // Get the last day of the target month
+      const lastDayOfMonth = new Date(targetYear, finalMonth + 1, 0).getDate()
+      // Use the minimum of original day and last day of month to prevent overflow
+      const finalDay = Math.min(originalDay, lastDayOfMonth)
+      next.setDate(finalDay)
       break
     case 'monthlyPattern':
       if (rule.weekOfMonth && rule.dayOfWeek !== undefined) {
@@ -150,4 +163,75 @@ function getOrdinalSuffix(n: number): string {
   if (j === 2 && k !== 12) return 'nd'
   if (j === 3 && k !== 13) return 'rd'
   return 'th'
+}
+
+/**
+ * Calculate how many times a recurrence will happen in a given month
+ * starting from the last booked appointment date
+ */
+export function countOccurrencesInMonth(
+  rule: RecurrenceRule,
+  lastBookedDate: Date,
+  targetMonth: number, // 0-11
+  targetYear: number
+): number {
+  // Start from the last booked date
+  let currentDate = new Date(lastBookedDate)
+  currentDate.setHours(0, 0, 0, 0)
+  
+  // Calculate month boundaries
+  const monthStart = new Date(targetYear, targetMonth, 1)
+  monthStart.setHours(0, 0, 0, 0)
+  const monthEnd = new Date(targetYear, targetMonth + 1, 0)
+  monthEnd.setHours(23, 59, 59, 999)
+  
+  // If last booked date is after the month, no occurrences
+  if (currentDate > monthEnd) {
+    return 0
+  }
+  
+  // For customMonths with interval > 1, check if it will occur in this month
+  if (rule.type === 'customMonths' && rule.interval && rule.interval > 1) {
+    // Calculate how many months from last booked date to target month
+    const lastBookedMonth = currentDate.getFullYear() * 12 + currentDate.getMonth()
+    const targetMonthNum = targetYear * 12 + targetMonth
+    const monthsDiff = targetMonthNum - lastBookedMonth
+    
+    // Check if target month is a multiple of the interval from last booked date
+    if (monthsDiff < 0 || monthsDiff % rule.interval !== 0) {
+      return 0
+    }
+    
+    // Calculate the actual date it would occur on (preserving day of month)
+    const originalDay = currentDate.getDate()
+    const lastDayOfMonth = new Date(targetYear, targetMonth + 1, 0).getDate()
+    const finalDay = Math.min(originalDay, lastDayOfMonth)
+    const occurrenceDate = new Date(targetYear, targetMonth, finalDay)
+    occurrenceDate.setHours(0, 0, 0, 0)
+    
+    // Check if this date falls within the month boundaries
+    if (occurrenceDate >= monthStart && occurrenceDate <= monthEnd) {
+      return 1
+    }
+    
+    return 0
+  }
+  
+  // For all other types, calculate next occurrences and count how many fall in the month
+  let count = 0
+  let nextDate = calculateNextAppointmentDate(rule, currentDate)
+  
+  // Keep calculating next occurrences until we're past the month
+  // Limit to max 5 occurrences to prevent infinite loops (should be enough for any month)
+  let iterations = 0
+  while (nextDate <= monthEnd && iterations < 10) {
+    if (nextDate >= monthStart) {
+      count++
+    }
+    currentDate = new Date(nextDate)
+    nextDate = calculateNextAppointmentDate(rule, currentDate)
+    iterations++
+  }
+  
+  return count
 }

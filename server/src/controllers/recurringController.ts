@@ -355,16 +355,23 @@ export async function createRecurrenceFamily(req: Request, res: Response) {
     }
     const nextDate = calculateNextAppointmentDate(recurrenceRule, firstDate)
 
+    // Check if the first date is in the past - if so, create as stopped
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const firstDateOnly = new Date(firstDate)
+    firstDateOnly.setHours(0, 0, 0, 0)
+    const isPastDate = firstDateOnly < today
+
     // Calculate hours from template (same as normal appointments)
     const { calculateAppointmentHours } = await import('../utils/appointmentUtils')
     const calculatedHours = template.size 
       ? calculateAppointmentHours(template.size, template.type)
       : null
 
-    // Create the family
+    // Create the family - set to stopped if date is in the past
     const family = await prisma.recurrenceFamily.create({
       data: {
-        status: 'active',
+        status: isPastDate ? 'stopped' : 'active',
         recurrenceRule: ruleToJson(recurrenceRule),
         nextAppointmentDate: firstDate, // First appointment is the unconfirmed one
         templateId: templateId, // Store the templateId for future reference
@@ -530,9 +537,25 @@ export async function confirmRecurringAppointment(req: Request, res: Response) {
     // This handles cases where the appointment was moved - it will calculate from the moved date
     const confirmedDate = new Date(confirmed.date)
     const nextDate = calculateNextAppointmentDate(rule, confirmedDate)
+    
+    // Check if this was the last unconfirmed appointment of a stopped family
+    // If so, reactivate the family since we're confirming it
+    const remainingUnconfirmed = await prisma.appointment.count({
+      where: {
+        familyId: family.id,
+        status: 'RECURRING_UNCONFIRMED',
+        id: { not: id }, // Exclude the one we're confirming
+      },
+    })
+    
+    const shouldReactivate = family.status === 'stopped' && remainingUnconfirmed === 0
+    
     await prisma.recurrenceFamily.update({
       where: { id: family.id },
-      data: { nextAppointmentDate: nextDate },
+      data: {
+        nextAppointmentDate: nextDate,
+        ...(shouldReactivate ? { status: 'active' } : {}),
+      },
     })
 
     // Create next unconfirmed instance
@@ -617,9 +640,25 @@ export async function confirmAndRescheduleRecurringAppointment(
 
     // Recalculate next appointment date from the rescheduled and confirmed date
     const nextDate = calculateNextAppointmentDate(rule, rescheduledDate)
+    
+    // Check if this was the last unconfirmed appointment of a stopped family
+    // If so, reactivate the family since we're confirming it
+    const remainingUnconfirmed = await prisma.appointment.count({
+      where: {
+        familyId: family.id,
+        status: 'RECURRING_UNCONFIRMED',
+        id: { not: id }, // Exclude the one we're confirming
+      },
+    })
+    
+    const shouldReactivate = family.status === 'stopped' && remainingUnconfirmed === 0
+    
     await prisma.recurrenceFamily.update({
       where: { id: family.id },
-      data: { nextAppointmentDate: nextDate },
+      data: {
+        nextAppointmentDate: nextDate,
+        ...(shouldReactivate ? { status: 'active' } : {}),
+      },
     })
 
     // Create next unconfirmed instance

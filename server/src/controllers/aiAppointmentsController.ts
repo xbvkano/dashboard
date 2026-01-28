@@ -42,6 +42,7 @@ export async function createAIAppointment(req: Request, res: Response) {
       notes,
       size,
       serviceType,
+      anyDate,
     } = req.body as {
       clientName?: string
       clientPhone?: string
@@ -52,6 +53,7 @@ export async function createAIAppointment(req: Request, res: Response) {
       notes?: string
       size?: string
       serviceType?: string
+      anyDate?: boolean
     }
 
     // Validate required fields
@@ -120,6 +122,17 @@ export async function createAIAppointment(req: Request, res: Response) {
     ))
     if (isNaN(appointmentDate.getTime())) {
       return res.status(400).json({ error: 'Invalid date' })
+    }
+
+    // Check if appointment is for a different year than current year
+    const currentYear = new Date().getFullYear()
+    const appointmentYear = appointmentDate.getUTCFullYear()
+    const anyDateValue = anyDate === true // Default to false if not provided or not explicitly true
+    
+    if (appointmentYear !== currentYear && !anyDateValue) {
+      return res.status(400).json({ 
+        error: `Cannot create appointment for year ${appointmentYear}. The appointment date must be in the current year (${currentYear}). To create an appointment for a different year, set the "anyDate" parameter to true in the request body.` 
+      })
     }
     
     // For the query, we need to check the full day range in UTC

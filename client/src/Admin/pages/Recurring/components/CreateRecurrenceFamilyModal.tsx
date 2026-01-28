@@ -39,7 +39,7 @@ export default function CreateRecurrenceFamilyModal({
   onCreated,
   initialClientId,
 }: Props) {
-  const { alert } = useModal()
+  const { alert, confirm } = useModal()
   const [clients, setClients] = useState<Client[]>([])
   const [clientSearch, setClientSearch] = useState<string>('')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
@@ -66,12 +66,13 @@ export default function CreateRecurrenceFamilyModal({
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [ruleType, setRuleType] = useState<'weekly' | 'biweekly' | 'every3weeks' | 'monthly' | 'customMonths' | 'monthlyPattern'>('weekly')
-  const [interval, setInterval] = useState(1)
+  const [interval, setInterval] = useState<string>('2')
   const [monthlyPatternType, setMonthlyPatternType] = useState<'weekDay' | 'dayOfMonth'>('weekDay')
   const [dayOfWeek, setDayOfWeek] = useState<number | undefined>(undefined)
   const [weekOfMonth, setWeekOfMonth] = useState<number | undefined>(undefined)
   const [dayOfMonth, setDayOfMonth] = useState<number | undefined>(undefined)
   const [loading, setLoading] = useState(false)
+  const [intervalError, setIntervalError] = useState<string>('')
 
   const sizeOptions = [
     '0-1000',
@@ -200,7 +201,7 @@ export default function CreateRecurrenceFamilyModal({
     const rule: RecurrenceRule = { type: ruleType }
     
     if (ruleType === 'customMonths') {
-      rule.interval = interval
+      rule.interval = parseInt(interval, 10) || 2
     } else if (ruleType === 'monthlyPattern') {
       if (monthlyPatternType === 'weekDay' && weekOfMonth && dayOfWeek !== undefined) {
         rule.weekOfMonth = weekOfMonth
@@ -219,6 +220,21 @@ export default function CreateRecurrenceFamilyModal({
     if (!selectedClientId || !selectedTemplateId || !date || !time || !selectedAdminId) {
       await alert('Please fill in all required fields: Client, Template, Date, Time, and Admin')
       return
+    }
+
+    // Check if date is in the past
+    const selectedDate = new Date(date)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    selectedDate.setHours(0, 0, 0, 0)
+    
+    if (selectedDate < today) {
+      const confirmed = await confirm(
+        `Warning: Past Date Selected\n\nYou are creating a recurrence family with a date in the past (${date}). This will create a stopped recurrence family. Do you want to continue?`
+      )
+      if (!confirmed) {
+        return
+      }
     }
 
     const recurrenceRule = buildRecurrenceRule()
@@ -518,6 +534,22 @@ export default function CreateRecurrenceFamilyModal({
               <label className="block text-sm font-medium mb-1">
                 Time <span className="text-red-500">*</span>
               </label>
+              <div className="flex gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setTime('09:00')}
+                  className="px-3 py-1.5 border rounded hover:bg-gray-50 text-sm"
+                >
+                  9:00 AM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTime('14:00')}
+                  className="px-3 py-1.5 border rounded hover:bg-gray-50 text-sm"
+                >
+                  2:00 PM
+                </button>
+              </div>
               <input
                 type="time"
                 value={time}
@@ -586,13 +618,53 @@ export default function CreateRecurrenceFamilyModal({
                 <div>
                   <label className="block text-sm font-medium mb-1">Interval (months)</label>
                   <input
-                    type="number"
-                    min="1"
+                    type="text"
+                    inputMode="numeric"
                     value={interval}
-                    onChange={(e) => setInterval(parseInt(e.target.value, 10) || 1)}
-                    className="w-full border p-2 rounded"
-                    placeholder="e.g., 3 for every 3 months"
+                    onChange={(e) => {
+                      const value = e.target.value
+                      
+                      // Allow empty string for backspacing/clearing
+                      if (value === '') {
+                        setInterval('')
+                        setIntervalError('Interval must be between 2 and 12')
+                        return
+                      }
+                      
+                      // Only allow digits
+                      if (!/^\d+$/.test(value)) {
+                        return
+                      }
+                      
+                      // Allow typing any digits, store as string
+                      setInterval(value)
+                      
+                      // Validate range and set error
+                      const numValue = parseInt(value, 10)
+                      if (numValue < 2 || numValue > 12) {
+                        setIntervalError('Interval must be between 2 and 12')
+                      } else {
+                        setIntervalError('')
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // On blur, if empty or invalid, set to 2
+                      const value = e.target.value
+                      const numValue = parseInt(value, 10)
+                      if (!value || isNaN(numValue) || numValue < 2) {
+                        setInterval('2')
+                        setIntervalError('')
+                      } else if (numValue > 12) {
+                        setInterval('12')
+                        setIntervalError('')
+                      }
+                    }}
+                    className={`w-full border p-2 rounded ${intervalError ? 'border-red-500' : ''}`}
+                    placeholder="e.g., 3 for every 3 months (2-12)"
                   />
+                  {intervalError && (
+                    <p className="text-red-500 text-sm mt-1">{intervalError}</p>
+                  )}
                 </div>
               )}
 
@@ -700,7 +772,7 @@ export default function CreateRecurrenceFamilyModal({
             </button>
             <button
               type="submit"
-              disabled={loading || !selectedClient || !selectedClientId || !selectedTemplateId || !date || !time || !selectedAdminId}
+              disabled={loading || !selectedClient || !selectedClientId || !selectedTemplateId || !date || !time || !selectedAdminId || !!intervalError}
               className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 disabled:bg-gray-400"
             >
               {loading ? 'Creating...' : 'Create Recurrence Family'}

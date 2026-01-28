@@ -8,9 +8,10 @@ import RestartRecurrenceModal from './RestartRecurrenceModal'
 interface Props {
   family: RecurrenceFamily
   onUpdate: () => void
+  onBackToList?: () => void
 }
 
-export default function RecurringFamilyDetail({ family, onUpdate }: Props) {
+export default function RecurringFamilyDetail({ family, onUpdate, onBackToList }: Props) {
   const { alert, confirm } = useModal()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -114,12 +115,17 @@ export default function RecurringFamilyDetail({ family, onUpdate }: Props) {
         method: 'DELETE',
       })
       await alert('Recurrence family deleted successfully')
-      // Clear URL params to prevent trying to load deleted family
-      setSearchParams({})
-      // Navigate back to the recurring list page (this will clear the detail view)
-      navigate('/dashboard/recurring', { replace: true })
-      // Refresh the families list
-      onUpdate()
+      // Navigate back to list view - onBackToList will handle refreshing the families list
+      // Don't call onUpdate() here as it will try to reload the deleted family detail
+      if (onBackToList) {
+        onBackToList()
+      } else {
+        // Fallback to navigation if callback not provided
+        setSearchParams({})
+        navigate('/dashboard/recurring', { replace: true })
+        // In fallback case, we need to refresh manually
+        onUpdate()
+      }
     } catch (err: any) {
       await alert(err.error || 'Failed to delete recurrence family')
     }
@@ -265,6 +271,35 @@ export default function RecurringFamilyDetail({ family, onUpdate }: Props) {
         </div>
 
         <div className="space-y-4">
+          {/* Client Information */}
+          {(() => {
+            const appointments = family.appointments || family.history || []
+            const firstAppointment = appointments.find((a: any) => a.client) || appointments[0]
+            const client = firstAppointment?.client
+            if (client) {
+              return (
+                <div>
+                  <h4 className="font-medium mb-2">Client Information</h4>
+                  <div className="bg-gray-50 rounded-md p-3 space-y-1 text-sm">
+                    <div>
+                      <span className="font-medium">Name:</span> {client.name}
+                    </div>
+                    {client.number && (
+                      <div>
+                        <span className="font-medium">Phone:</span> {client.number}
+                      </div>
+                    )}
+                    {client.email && (
+                      <div>
+                        <span className="font-medium">Email:</span> {client.email}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            }
+            return null
+          })()}
           <div>
             <h4 className="font-medium mb-2">Recurrence Rule</h4>
             {!editingRule ? (
