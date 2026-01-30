@@ -84,10 +84,20 @@ export async function createAIAppointment(req: Request, res: Response) {
     })
 
     if (!client) {
+      // Ensure unique name: if name already exists, append last 4 digits of phone
+      let clientNameToUse = clientName
+      const existingByName = await prisma.client.findFirst({
+        where: { name: clientName }
+      })
+      if (existingByName) {
+        const last4 = normalizedPhone.slice(-4)
+        clientNameToUse = `${clientName} ${last4}`
+      }
+
       // Create new client with AI note
       client = await prisma.client.create({
         data: {
-          name: clientName,
+          name: clientNameToUse,
           number: normalizedPhone,
           from: 'AI',
           notes: 'Client created by AI',
@@ -239,8 +249,40 @@ export async function createAIAppointment(req: Request, res: Response) {
       message: 'AI appointment created successfully'
     })
 
-  } catch (err) {
-    console.error('Error creating AI appointment:', err)
+  } catch (err: unknown) {
+    const prismaErr = err as { code?: string; meta?: { target?: string[] }; message?: string }
+    const errName = err instanceof Error ? err.name : 'UnknownError'
+    const errMessage = err instanceof Error ? err.message : String(err)
+    const errStack = err instanceof Error ? err.stack : undefined
+
+    console.error('[AI Appointment] Error creating AI appointment:', {
+      errorName: errName,
+      message: errMessage,
+      ...(prismaErr.code && { code: prismaErr.code }),
+      ...(prismaErr.meta && { meta: prismaErr.meta }),
+      ...(errStack && { stack: errStack }),
+    })
+
+    // Known Prisma errors: return specific status and message
+    if (prismaErr.code === 'P2002' && prismaErr.meta?.target?.includes('name')) {
+      return res.status(409).json({
+        error: 'CLIENT_NAME_EXISTS',
+        message: 'A client with this name already exists (different phone). Match by phone only; consider using the existing client.',
+      })
+    }
+    if (prismaErr.code === 'P2002' && prismaErr.meta?.target?.includes('number')) {
+      return res.status(409).json({
+        error: 'CLIENT_PHONE_EXISTS',
+        message: 'A client with this phone number already exists.',
+      })
+    }
+    if (errName === 'PrismaClientInitializationError' || errMessage.includes('Can\'t reach database')) {
+      return res.status(503).json({
+        error: 'DATABASE_UNAVAILABLE',
+        message: 'Database server is not reachable. Please try again later.',
+      })
+    }
+
     return res.status(500).json({ error: 'Failed to create AI appointment' })
   }
 }
@@ -263,8 +305,15 @@ export async function getAIAppointments(req: Request, res: Response) {
     })
 
     return res.json(appointments)
-  } catch (err) {
-    console.error('Error fetching AI appointments:', err)
+  } catch (err: unknown) {
+    const errName = err instanceof Error ? err.name : 'UnknownError'
+    const errMessage = err instanceof Error ? err.message : String(err)
+    const errStack = err instanceof Error ? err.stack : undefined
+    console.error('[AI Appointment] Error fetching AI appointments:', {
+      errorName: errName,
+      message: errMessage,
+      ...(errStack && { stack: errStack }),
+    })
     return res.status(500).json({ error: 'Failed to fetch AI appointments' })
   }
 }
