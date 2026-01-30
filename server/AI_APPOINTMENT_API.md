@@ -52,7 +52,7 @@ The AI Appointment endpoint allows AI systems to create appointments automatical
 ## Process Flow
 
 ### 1. Client Lookup/Creation
-- Searches for existing client by name OR phone number
+- Searches for existing client by phone number only (phone is unique; names can repeat)
 - If found: Updates client notes to indicate AI usage
 - If not found: Creates new client with "Client created by AI" note
 
@@ -176,7 +176,7 @@ curl -X POST http://localhost:3000/ai-appointments \
 1. **Phone Number Format**: Accepts various formats, automatically normalizes to 11-digit
 2. **Size Requirement**: Size must be provided by the AI - no automatic estimation
 3. **Template Reuse**: Automatically finds and reuses existing templates when possible
-4. **Client Deduplication**: Prevents duplicate clients by checking name and phone
+4. **Client Deduplication**: Prevents duplicate clients by matching on phone number only
 5. **Audit Trail**: All AI interactions are clearly marked in the database
 6. **Flexibility**: Created appointments can be fully edited through regular endpoints
 

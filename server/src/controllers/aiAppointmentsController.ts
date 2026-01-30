@@ -76,13 +76,10 @@ export async function createAIAppointment(req: Request, res: Response) {
       return res.status(400).json({ error: 'Invalid phone number format' })
     }
 
-    // Step 1: Find or create client
+    // Step 1: Find or create client (match by phone only - names can repeat, phone is unique)
     let client = await prisma.client.findFirst({
       where: {
-        OR: [
-          { name: clientName },
-          { number: normalizedPhone }
-        ]
+        number: normalizedPhone
       }
     })
 
