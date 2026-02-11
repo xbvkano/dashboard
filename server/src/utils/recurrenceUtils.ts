@@ -29,26 +29,38 @@ export function calculateNextAppointmentDate(
     case 'every3weeks':
       next.setDate(next.getDate() + 21)
       break
-    case 'monthly':
-      next.setMonth(next.getMonth() + 1)
-      break
-    case 'customMonths':
-      const months = rule.interval || 1
-      // Preserve the day of month when adding months
-      // Get the original day of month
+    case 'monthly': {
       const originalDay = referenceDate.getDate()
-      // Use setFullYear to properly handle month transitions without day overflow
+      const refMonth = referenceDate.getMonth()
+      const refYear = referenceDate.getFullYear()
+      const lastDayOfRefMonth = new Date(refYear, refMonth + 1, 0).getDate()
+      // If we're on the last day of the ref month (e.g. Feb 28 from Jan 31), use last day of target month
+      const intendedDay = originalDay === lastDayOfRefMonth ? 31 : originalDay
+      const targetMonth = next.getMonth() + 1
+      const targetYear = next.getFullYear() + Math.floor(targetMonth / 12)
+      const finalMonth = targetMonth % 12
+      next.setFullYear(targetYear, finalMonth, 1)
+      const lastDayOfTargetMonth = new Date(targetYear, finalMonth + 1, 0).getDate()
+      const finalDay = Math.min(intendedDay, lastDayOfTargetMonth)
+      next.setDate(finalDay)
+      break
+    }
+    case 'customMonths': {
+      const months = rule.interval || 1
+      const originalDay = referenceDate.getDate()
+      const refMonth = referenceDate.getMonth()
+      const refYear = referenceDate.getFullYear()
+      const lastDayOfRefMonth = new Date(refYear, refMonth + 1, 0).getDate()
+      const intendedDay = originalDay === lastDayOfRefMonth ? 31 : originalDay
       const targetMonth = next.getMonth() + months
       const targetYear = next.getFullYear() + Math.floor(targetMonth / 12)
       const finalMonth = targetMonth % 12
-      // Set to first day of target month, then set date to preserve day
       next.setFullYear(targetYear, finalMonth, 1)
-      // Get the last day of the target month
-      const lastDayOfMonth = new Date(targetYear, finalMonth + 1, 0).getDate()
-      // Use the minimum of original day and last day of month to prevent overflow
-      const finalDay = Math.min(originalDay, lastDayOfMonth)
+      const lastDayOfTargetMonth = new Date(targetYear, finalMonth + 1, 0).getDate()
+      const finalDay = Math.min(intendedDay, lastDayOfTargetMonth)
       next.setDate(finalDay)
       break
+    }
     case 'monthlyPattern':
       if (rule.weekOfMonth && rule.dayOfWeek !== undefined) {
         // First, second, third, fourth, or last occurrence of a day of week
@@ -222,9 +234,10 @@ export function countOccurrencesInMonth(
   let nextDate = calculateNextAppointmentDate(rule, currentDate)
   
   // Keep calculating next occurrences until we're past the month
-  // Limit to max 5 occurrences to prevent infinite loops (should be enough for any month)
+  // Limit to prevent infinite loops (scale with distance: up to ~6 months at 4/week + buffer)
+  const maxIterations = 50
   let iterations = 0
-  while (nextDate <= monthEnd && iterations < 10) {
+  while (nextDate <= monthEnd && iterations < maxIterations) {
     if (nextDate >= monthStart) {
       count++
     }
@@ -234,4 +247,41 @@ export function countOccurrencesInMonth(
   }
   
   return count
+}
+
+/**
+ * Input for projected revenue calculation (simplified from RecurrenceFamily)
+ */
+export interface FamilyForProjection {
+  rule: RecurrenceRule
+  referenceDate: Date
+  price: number
+}
+
+/**
+ * Calculate projected revenue for a month from active recurring families.
+ * Counts ALL occurrences based on recurrence patterns (baseline estimate).
+ * Does NOT exclude dates that already have confirmed/unconfirmed appointments.
+ */
+export function calculateProjectedRevenueForMonth(
+  families: FamilyForProjection[],
+  targetMonth: number, // 0-11
+  targetYear: number
+): { total: number; details: Array<{ occurrences: number; price: number; revenue: number }> } {
+  const details: Array<{ occurrences: number; price: number; revenue: number }> = []
+  let total = 0
+
+  for (const family of families) {
+    const occurrences = countOccurrencesInMonth(
+      family.rule,
+      family.referenceDate,
+      targetMonth,
+      targetYear
+    )
+    const revenue = occurrences * family.price
+    details.push({ occurrences, price: family.price, revenue })
+    total += revenue
+  }
+
+  return { total, details }
 }

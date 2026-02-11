@@ -183,25 +183,44 @@ function getProjectedOccurrences(family: RecurrenceFamily, selectedMonth: number
     let checkDate = new Date(referenceDate)
     let iterations = 0
     
-    while (iterations < 24 && checkDate >= monthStart) {
-      const checkMonth = checkDate.getFullYear() * 12 + checkDate.getMonth()
-      const targetMonthNum = selectedYear * 12 + selectedMonth
-      const monthsDiff = targetMonthNum - checkMonth
-      
-      if (monthsDiff % rule.interval === 0 && monthsDiff >= 0) {
-        const originalDay = checkDate.getDate()
-        const lastDayOfTargetMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate()
-        const finalDay = Math.min(originalDay, lastDayOfTargetMonth)
-        const occurrenceDate = new Date(selectedYear, selectedMonth, finalDay)
-        occurrenceDate.setHours(0, 0, 0, 0)
+    if (referenceDate < monthStart) {
+      // Reference is before target month: walk FORWARD to find if we hit the target month
+      while (iterations < 24 && checkDate <= monthEnd) {
+        const checkMonth = checkDate.getFullYear() * 12 + checkDate.getMonth()
+        const targetMonthNum = selectedYear * 12 + selectedMonth
+        const monthsDiff = targetMonthNum - checkMonth
         
-        if (occurrenceDate >= monthStart && occurrenceDate <= monthEnd) {
+        if (monthsDiff === 0 && checkDate >= monthStart) {
+          const occurrenceDate = new Date(checkDate)
+          occurrenceDate.setHours(0, 0, 0, 0)
           return [occurrenceDate]
         }
+        
+        checkDate = calculateNextDate(rule, checkDate)
+        iterations++
       }
-      
-      checkDate = calculatePreviousDate(rule, checkDate)
-      iterations++
+    } else {
+      // Reference is in or after target month: work backwards from reference
+      while (iterations < 24 && checkDate >= monthStart) {
+        const checkMonth = checkDate.getFullYear() * 12 + checkDate.getMonth()
+        const targetMonthNum = selectedYear * 12 + selectedMonth
+        const monthsDiff = targetMonthNum - checkMonth
+        
+        if (monthsDiff % rule.interval === 0 && monthsDiff >= 0) {
+          const originalDay = checkDate.getDate()
+          const lastDayOfTargetMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate()
+          const finalDay = Math.min(originalDay, lastDayOfTargetMonth)
+          const occurrenceDate = new Date(selectedYear, selectedMonth, finalDay)
+          occurrenceDate.setHours(0, 0, 0, 0)
+          
+          if (occurrenceDate >= monthStart && occurrenceDate <= monthEnd) {
+            return [occurrenceDate]
+          }
+        }
+        
+        checkDate = calculatePreviousDate(rule, checkDate)
+        iterations++
+      }
     }
     return []
   }

@@ -178,39 +178,58 @@ function countOccurrencesThisMonth(
   // For customMonths with interval > 1, check if first occurrence would be in this month
   if (rule?.type === 'customMonths' && rule?.interval && rule.interval > 1) {
     debugInfo.push(`  CustomMonths with interval ${rule.interval}`)
-    debugInfo.push(`  Finding first occurrence in month by working backwards from reference`)
     
-    // Work backwards from reference to find when pattern started
-    let checkDate = new Date(referenceDate)
-    let iterations = 0
     let foundInMonth = false
     let firstOccurrenceInMonth: Date | null = null
+    let checkDate = new Date(referenceDate)
+    let iterations = 0
     
-    // Go back up to 12 months to find the pattern start
-    while (iterations < 24 && checkDate >= monthStart) {
-      const checkMonth = checkDate.getFullYear() * 12 + checkDate.getMonth()
-      const targetMonthNum = selectedYear * 12 + selectedMonth
-      const monthsDiff = targetMonthNum - checkMonth
-      
-      if (monthsDiff % rule.interval === 0 && monthsDiff >= 0) {
-        // Found a date that aligns with the pattern
-        // Calculate the actual date it would occur on (preserving day of month)
-        const originalDay = checkDate.getDate()
-        const lastDayOfTargetMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate()
-        const finalDay = Math.min(originalDay, lastDayOfTargetMonth)
-        const occurrenceDate = new Date(selectedYear, selectedMonth, finalDay)
-        occurrenceDate.setHours(0, 0, 0, 0)
+    if (referenceDate < monthStart) {
+      // Reference is before target month: walk FORWARD to find if we hit the target month
+      debugInfo.push(`  Reference date is before month - calculating forward to find occurrence`)
+      while (iterations < 24 && checkDate <= monthEnd) {
+        const checkMonth = checkDate.getFullYear() * 12 + checkDate.getMonth()
+        const targetMonthNum = selectedYear * 12 + selectedMonth
+        const monthsDiff = targetMonthNum - checkMonth
         
-        if (occurrenceDate >= monthStart && occurrenceDate <= monthEnd) {
-          firstOccurrenceInMonth = occurrenceDate
+        if (monthsDiff === 0 && checkDate >= monthStart) {
+          // We landed in the target month
+          firstOccurrenceInMonth = new Date(checkDate)
+          firstOccurrenceInMonth.setHours(0, 0, 0, 0)
           foundInMonth = true
-          debugInfo.push(`  Found pattern match: ${checkDate.toLocaleDateString()} → ${occurrenceDate.toLocaleDateString()} ✅`)
+          debugInfo.push(`  Found occurrence by walking forward: ${firstOccurrenceInMonth.toLocaleDateString()} ✅`)
           break
         }
+        
+        checkDate = calculateNext(rule, checkDate)
+        iterations++
       }
-      
-      checkDate = calculatePrevious(rule, checkDate)
-      iterations++
+    } else {
+      // Reference is in or after target month: work backwards from reference
+      debugInfo.push(`  Finding first occurrence in month by working backwards from reference`)
+      while (iterations < 24 && checkDate >= monthStart) {
+        const checkMonth = checkDate.getFullYear() * 12 + checkDate.getMonth()
+        const targetMonthNum = selectedYear * 12 + selectedMonth
+        const monthsDiff = targetMonthNum - checkMonth
+        
+        if (monthsDiff % rule.interval === 0 && monthsDiff >= 0) {
+          const originalDay = checkDate.getDate()
+          const lastDayOfTargetMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate()
+          const finalDay = Math.min(originalDay, lastDayOfTargetMonth)
+          const occurrenceDate = new Date(selectedYear, selectedMonth, finalDay)
+          occurrenceDate.setHours(0, 0, 0, 0)
+          
+          if (occurrenceDate >= monthStart && occurrenceDate <= monthEnd) {
+            firstOccurrenceInMonth = occurrenceDate
+            foundInMonth = true
+            debugInfo.push(`  Found pattern match: ${checkDate.toLocaleDateString()} → ${occurrenceDate.toLocaleDateString()} ✅`)
+            break
+          }
+        }
+        
+        checkDate = calculatePrevious(rule, checkDate)
+        iterations++
+      }
     }
     
     if (foundInMonth && firstOccurrenceInMonth) {
