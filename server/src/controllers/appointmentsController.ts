@@ -222,11 +222,12 @@ export async function createAppointment(req: Request, res: Response) {
         address: template.address,
         cityStateZip: template.instructions ?? undefined,
         size: template.size,
+        teamSize: (template as any).teamSize ?? 1,
         hours: hours ?? null,
         price: template.price,
         paid,
         tip,
-        noTeam,
+        noTeam: false, // Team is assigned via Team Options after creation
         carpetRooms: carpetRoomsFinal,
         carpetPrice: finalCarpetPrice ?? null,
         carpetEmployees,

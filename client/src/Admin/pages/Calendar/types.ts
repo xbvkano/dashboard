@@ -3,6 +3,7 @@ export interface AppointmentTemplate {
   templateName: string
   type: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
   size: string
+  teamSize?: number
   address: string
   price: number
   clientId: number
@@ -50,6 +51,7 @@ export interface Appointment {
     | 'DELETED'
   familyId?: number
   templateId?: number
+  teamSize?: number
   client?: import('../Clients/components/types').Client
   employees?: import('../Employees/components/types').Employee[]
   admin?: { id: number; name: string | null; email: string }

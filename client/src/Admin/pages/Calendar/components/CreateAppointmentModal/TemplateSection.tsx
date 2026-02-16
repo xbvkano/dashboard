@@ -29,6 +29,7 @@ interface TemplateSectionProps {
     templateName: string
     type: string
     size: string
+    teamSize: string
     address: string
     price: string
     notes: string
@@ -75,6 +76,7 @@ export default function TemplateSection({
       return
     }
     try {
+      const teamSizeNum = parseInt(templateForm.teamSize, 10)
       const template = await fetchJson(`${API_BASE_URL}/appointment-templates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -83,6 +85,7 @@ export default function TemplateSection({
           templateName: templateForm.templateName,
           type: templateForm.type,
           size: templateForm.size,
+          teamSize: !isNaN(teamSizeNum) ? teamSizeNum : undefined,
           address: templateForm.address,
           price: Number(templateForm.price),
           notes: templateForm.notes,
@@ -97,6 +100,7 @@ export default function TemplateSection({
         templateName: '',
         type: 'STANDARD',
         size: '',
+        teamSize: '1',
         address: '',
         price: '',
         notes: '',
@@ -123,6 +127,7 @@ export default function TemplateSection({
           templateName: templateForm.templateName,
           type: templateForm.type,
           size: templateForm.size,
+          teamSize: !isNaN(parseInt(templateForm.teamSize, 10)) ? parseInt(templateForm.teamSize, 10) : undefined,
           address: templateForm.address,
           price: Number(templateForm.price),
           notes: templateForm.notes,
@@ -137,6 +142,7 @@ export default function TemplateSection({
         templateName: '',
         type: 'STANDARD',
         size: '',
+        teamSize: '1',
         address: '',
         price: '',
         notes: '',
@@ -175,6 +181,17 @@ export default function TemplateSection({
       setTemplates([])
     }
   }, [selectedClient])
+
+  // Auto-fill team size default when size and type change
+  useEffect(() => {
+    if (templateForm.size && templateForm.type) {
+      fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
+        .then((data: { teamSize: number }) => {
+          setTemplateForm((prev) => ({ ...prev, teamSize: String(data.teamSize) }))
+        })
+        .catch(() => {})
+    }
+  }, [templateForm.size, templateForm.type])
 
   const isTemplateReady =
     templateForm.templateName.trim() !== '' &&
@@ -257,6 +274,15 @@ export default function TemplateSection({
               </option>
             ))}
           </select>
+          <input
+            type="number"
+            min="1"
+            placeholder="Team Size"
+            className="w-full border p-2 rounded mb-2"
+            value={templateForm.teamSize}
+            onChange={(e) => setTemplateForm({ ...templateForm, teamSize: e.target.value })}
+            title="Recommended team size based on property size and service type"
+          />
           <input
             type="text"
             placeholder="Address"

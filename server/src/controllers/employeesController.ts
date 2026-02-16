@@ -42,6 +42,35 @@ export async function getEmployees(req: Request, res: Response) {
   }
 }
 
+export async function getAvailableEmployees(req: Request, res: Response) {
+  const dateStr = String(req.query.date || '')
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return res.status(400).json({ error: 'date required (YYYY-MM-DD)' })
+  }
+  try {
+    const employees = await prisma.employee.findMany({
+      where: { disabled: false },
+      include: { schedule: true },
+      orderBy: { name: 'asc' },
+    })
+    const result = employees.map((emp) => {
+      const future = emp.schedule?.futureSchedule ?? []
+      const hasAvailability = future.some((entry) => {
+        const parts = entry.split('-')
+        if (parts.length !== 5) return false
+        const [y, m, d, , status] = parts
+        const entryDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+        return entryDate === dateStr && status === 'F'
+      })
+      return { ...emp, available: hasAvailability }
+    })
+    res.json(result)
+  } catch (error) {
+    console.error('Error fetching available employees:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+}
+
 export async function createEmployee(req: Request, res: Response) {
   try {
     const { name, number, notes, experienced, disabled, password } = req.body as {

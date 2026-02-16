@@ -8,4 +8,5 @@ module.exports = {
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts', '!src/server.ts'],
   coverageDirectory: 'coverage',
   verbose: true,
+  maxWorkers: 1, // Run one test suite at a time to avoid memory issues
 }

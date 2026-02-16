@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { API_BASE_URL, fetchJson } from '../../../api'
+import { createPortal } from 'react-dom'
+import { API_BASE_URL } from '../../../api'
 
 type DayShifts = {
   morning: boolean
@@ -119,6 +120,91 @@ function scheduleToDayShifts(futureSchedule: string[]): Record<string, DayShifts
   return result
 }
 
+// Get new additions: shifts in schedule that are not in savedSchedule, grouped by date
+function getNewAdditionsGrouped(
+  schedule: Record<string, DayShifts>,
+  savedSchedule: Record<string, DayShifts>
+): Array<{ dateStr: string; shifts: ('morning' | 'afternoon')[] }> {
+  const byDate: Record<string, ('morning' | 'afternoon')[]> = {}
+  Object.entries(schedule).forEach(([dateStr, shifts]) => {
+    const saved = savedSchedule[dateStr]
+    const savedMorning = saved?.morning && saved.morningStatus != null
+    const savedAfternoon = saved?.afternoon && saved.afternoonStatus != null
+    const adds: ('morning' | 'afternoon')[] = []
+    if (shifts.morning && !savedMorning) adds.push('morning')
+    if (shifts.afternoon && !savedAfternoon) adds.push('afternoon')
+    if (adds.length > 0) {
+      byDate[dateStr] = adds
+    }
+  })
+  return Object.entries(byDate)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dateStr, shifts]) => ({ dateStr, shifts }))
+}
+
+function InformationSection() {
+  const [isOpen, setIsOpen] = useState(false)
+  return (
+    <div className="mb-5 border border-slate-200 rounded-xl overflow-hidden bg-white">
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+      >
+        <span>Information</span>
+        <svg
+          className={`w-5 h-5 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {isOpen && (
+        <div className="px-4 pb-4 pt-0 text-sm text-slate-600 space-y-4 border-t border-slate-100">
+          <div>
+            <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
+              <span className="w-4 h-4 bg-slate-100 rounded border border-slate-300 shrink-0 inline-block" />
+              Open
+            </h4>
+            <p>You are not available during these time periods and will not be scheduled for jobs. Tap to select and save if you become available.</p>
+          </div>
+          <div>
+            <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
+              <span className="w-4 h-4 bg-blue-500 rounded border border-blue-600 shrink-0 inline-block" />
+              Selected (not yet saved)
+            </h4>
+            <p>You have selected these times but have not saved yet. Tap Save Schedule to confirm.</p>
+          </div>
+          <div>
+            <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
+              <span className="w-4 h-4 bg-violet-600 rounded border border-violet-700 shrink-0 inline-block" />
+              Availability
+            </h4>
+            <p>When you tell the company that you could work during these times. These are saved and cannot be removed from this page — contact your supervisor to change them.</p>
+          </div>
+          <div>
+            <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
+              <span className="w-4 h-4 bg-emerald-600 rounded border border-emerald-700 shrink-0 inline-block" />
+              Scheduled
+            </h4>
+            <p>You have been scheduled for a job during this time. Your assigned jobs can be viewed on the Upcoming Jobs page.</p>
+          </div>
+          <div className="pt-2 border-t border-slate-100">
+            <h4 className="font-semibold text-slate-700 mb-2">Schedule update policy</h4>
+            <ul className="list-disc list-inside space-y-1 text-slate-600">
+              <li>You must update your schedule every Sunday.</li>
+              <li>If it has been more than 7 days since your last update, you will receive a reminder text message each day until you update.</li>
+              <li>If it has been 10 days since your last update, your supervisor will also receive a text message. This continues until you update your schedule or your account is disabled.</li>
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Convert DayShifts to schedule entries
 function dayShiftsToSchedule(schedule: Record<string, DayShifts>): string[] {
   const entries: string[] = []
@@ -147,6 +233,7 @@ export default function Schedule() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
 
   // Load existing schedule
   useEffect(() => {
@@ -219,13 +306,17 @@ export default function Schedule() {
     }))
   }
 
-  async function handleSave() {
+  function handleSaveClick() {
+    setShowConfirmModal(true)
+  }
+
+  async function performSave() {
+    setShowConfirmModal(false)
     try {
       setSaving(true)
       setError('')
       setSuccess('')
       
-      // Allow empty schedule - just update timestamp
       const scheduleEntries = dayShiftsToSchedule(schedule)
       const userName = localStorage.getItem('userName')
       const headers: HeadersInit = { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" }
@@ -246,7 +337,6 @@ export default function Schedule() {
       
       setSuccess('Schedule saved successfully!')
       setTimeout(() => setSuccess(''), 3000)
-      // Reload schedule to update savedSchedule state and lastUpdate
       await loadSchedule()
     } catch (err: any) {
       setError(err.message || 'Failed to save schedule')
@@ -274,16 +364,16 @@ export default function Schedule() {
 
   function getDayStyle(date: Date): string {
     if (isBefore(date, today)) {
-      return 'bg-gray-200 text-gray-400'
+      return 'bg-slate-200 text-slate-400'
     }
     if (isSameDay(date, today)) {
       return 'bg-blue-100 text-blue-900'
     }
     const daysDiff = Math.floor((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     if (daysDiff >= 1 && daysDiff <= 14) {
-      return 'bg-yellow-50 text-yellow-900'
+      return 'bg-amber-50 text-amber-900'
     }
-    return 'bg-white text-gray-900'
+    return 'bg-white text-slate-900'
   }
 
   function canSelect(date: Date): boolean {
@@ -327,21 +417,37 @@ export default function Schedule() {
   const monthName = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   const hasNextMonthDays = daysFromToday.some(d => d.isNextMonth)
 
+  const newAdditionsGrouped = getNewAdditionsGrouped(schedule, savedSchedule)
+  const formatDateDisplay = (dateStr: string) => {
+    const [y, m, d] = dateStr.split('-')
+    const date = new Date(parseInt(y), parseInt(m) - 1, parseInt(d))
+    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  }
+
   if (loading) {
     return (
-      <div className="p-4">
-        <h2 className="text-xl font-semibold mb-4">Schedule</h2>
-        <div className="text-center text-gray-500">Loading...</div>
+      <div className="flex flex-col items-center justify-center min-h-[40vh]">
+        <h1 className="text-xl font-semibold text-slate-800 mb-2">My Schedule</h1>
+        <div className="text-slate-500">Loading...</div>
       </div>
     )
   }
 
   const daysSinceUpdate = getDaysSinceUpdate()
-  const updateColor = daysSinceUpdate !== null && daysSinceUpdate >= 7 ? 'text-orange-600' : 'text-green-600'
+  const updateColor = daysSinceUpdate !== null && daysSinceUpdate >= 7 ? 'text-amber-600' : 'text-emerald-600'
 
   return (
-    <div className="p-4 pb-24">
-      <h2 className="text-xl font-semibold mb-4">Schedule</h2>
+    <div className="pb-4">
+      <h1 className="text-xl md:text-2xl font-semibold text-slate-800 mb-1">My Schedule</h1>
+      <p className="text-sm text-slate-500 mb-4">Tap AM or PM to add your availability for the next 14 days</p>
+      
+      {/* Information dropdown */}
+      <InformationSection />
+
+      {/* Supervisor note */}
+      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+        <strong>Need to remove availability?</strong> Contact your supervisor — you cannot remove saved times from this page.
+      </div>
       
       {/* Last Update Display */}
       {lastUpdate && (
@@ -350,32 +456,29 @@ export default function Schedule() {
         </div>
       )}
       
-      {/* Header */}
-      <div className="flex items-center justify-center mb-4">
-        <h3 className="text-lg font-medium">{monthName}</h3>
-        {hasNextMonthDays && (
-          <span className="ml-2 text-sm text-gray-500">
-            (Next 14 days)
-          </span>
-        )}
-      </div>
+      {/* Calendar card */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-5">
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+          <h2 className="text-base font-medium text-slate-700">{monthName}</h2>
+          {hasNextMonthDays && (
+            <span className="text-xs text-slate-500 ml-1">(next 14 days)</span>
+          )}
+        </div>
 
-      {/* Calendar Grid */}
-      <div className="mb-6">
         {/* Day headers */}
-        <div className="grid grid-cols-7 gap-1 mb-1">
+        <div className="grid grid-cols-7 gap-0.5 md:gap-1 px-2 pt-2">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="text-center text-xs font-medium text-gray-600 p-1">
-              {day}
+            <div key={day} className="text-center text-[10px] md:text-xs font-semibold text-slate-500 py-1">
+              {day.slice(0, 2)}
             </div>
           ))}
         </div>
 
         {/* Calendar days */}
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-0.5 md:gap-1 p-2">
           {days.map((date, idx) => {
             if (!date) {
-              return <div key={idx} className="aspect-square" />
+              return <div key={idx} className="aspect-square min-h-[3.5rem]" />
             }
             
             const key = getDayKey(date)
@@ -386,34 +489,34 @@ export default function Schedule() {
             return (
               <div
                 key={idx}
-                className={`aspect-square border rounded p-1 flex flex-col ${getDayStyle(date)} ${
-                  isNextMonth ? 'border-dashed border-gray-400' : 'border-gray-300'
-                }`}
+                className={`aspect-square min-h-[3.5rem] border rounded-lg p-1 flex flex-col transition-colors ${
+                  isNextMonth ? 'border-dashed border-slate-300' : 'border-slate-200'
+                } ${getDayStyle(date)}`}
               >
-                <div className="text-xs font-medium mb-1 text-center flex items-center justify-center gap-1">
+                <div className="text-[10px] md:text-xs font-semibold mb-0.5 text-center flex items-center justify-center gap-0.5">
                   <span>{date.getDate()}</span>
                   {isNextMonth && (
-                    <span className="text-[8px] text-gray-500 font-normal">→</span>
+                    <span className="text-[8px] text-slate-400 font-normal">→</span>
                   )}
                 </div>
                 {isNextMonth && (
-                  <div className="text-[8px] text-gray-500 text-center mb-0.5">
+                  <div className="text-[8px] text-slate-500 text-center mb-0.5">
                     {date.toLocaleDateString('en-US', { month: 'short' })}
                   </div>
                 )}
                 {canSelectDay ? (
-                  <div className="flex-1 flex flex-col gap-1">
+                  <div className="flex-1 flex flex-col gap-1 min-h-0">
                     <button
                       onClick={() => toggleShift(date, 'morning')}
                       disabled={savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null}
-                      className={`flex-1 text-[10px] rounded px-1 py-0.5 font-medium transition-colors ${
+                      className={`flex-1 min-h-[22px] text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
                         savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null
-                          ? savedSchedule[key]?.morningStatus === 'F'
-                            ? 'bg-green-600 text-white cursor-not-allowed'
-                            : 'bg-purple-600 text-white cursor-not-allowed'
+                          ? savedSchedule[key]?.morningStatus === 'B'
+                            ? 'bg-emerald-600 text-white cursor-not-allowed'
+                            : 'bg-violet-600 text-white cursor-not-allowed'
                           : daySchedule.morning
-                          ? 'bg-blue-400 text-white'
-                          : 'bg-gray-100 hover:bg-gray-200 active:bg-gray-300'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300'
                       }`}
                     >
                       AM
@@ -421,22 +524,22 @@ export default function Schedule() {
                     <button
                       onClick={() => toggleShift(date, 'afternoon')}
                       disabled={savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null}
-                      className={`flex-1 text-[10px] rounded px-1 py-0.5 font-medium transition-colors ${
+                      className={`flex-1 min-h-[22px] text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
                         savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null
-                          ? savedSchedule[key]?.afternoonStatus === 'F'
-                            ? 'bg-green-600 text-white cursor-not-allowed'
-                            : 'bg-purple-600 text-white cursor-not-allowed'
+                          ? savedSchedule[key]?.afternoonStatus === 'B'
+                            ? 'bg-emerald-600 text-white cursor-not-allowed'
+                            : 'bg-violet-600 text-white cursor-not-allowed'
                           : daySchedule.afternoon
-                          ? 'bg-blue-400 text-white'
-                          : 'bg-gray-100 hover:bg-gray-200 active:bg-gray-300'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300'
                       }`}
                     >
                       PM
                     </button>
                   </div>
                 ) : (
-                  <div className="flex-1 flex flex-col gap-1 justify-center items-center">
-                    <div className="text-[9px] text-gray-400">Today</div>
+                  <div className="flex-1 flex items-center justify-center">
+                    <span className="text-[9px] text-slate-400">Today</span>
                   </div>
                 )}
               </div>
@@ -446,47 +549,108 @@ export default function Schedule() {
       </div>
 
       {/* Legend */}
-      <div className="mb-4 text-xs text-gray-600 space-y-1.5">
+      <div className="mb-5 flex flex-wrap gap-4 text-xs text-slate-600">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-gray-200 rounded border border-gray-300"></div>
-          <span>Past days</span>
+          <div className="w-4 h-4 bg-slate-100 rounded border border-slate-300 shrink-0"></div>
+          <span>Open</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-blue-100 rounded border border-gray-300"></div>
-          <span>Today</span>
+          <div className="w-4 h-4 bg-blue-500 rounded border border-blue-600 shrink-0"></div>
+          <span>Selected (not yet saved)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-yellow-50 rounded border border-gray-300"></div>
-          <span>Next 14 days</span>
+          <div className="w-4 h-4 bg-violet-600 rounded border border-violet-700 shrink-0"></div>
+          <span>Availability</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-white rounded border border-gray-300"></div>
-          <span>Future</span>
+          <div className="w-4 h-4 bg-emerald-600 rounded border border-emerald-700 shrink-0"></div>
+          <span>Scheduled</span>
         </div>
       </div>
 
       {/* Messages */}
       {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm">
+        <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-lg text-sm border border-red-100">
           {error}
         </div>
       )}
       {success && (
-        <div className="mb-4 p-3 bg-green-100 text-green-700 rounded text-sm">
+        <div className="mb-4 p-4 bg-emerald-50 text-emerald-700 rounded-lg text-sm border border-emerald-100">
           {success}
         </div>
       )}
 
-      {/* Action Buttons */}
-      <div className="flex gap-3">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex-1 px-4 py-3 bg-blue-500 text-white rounded font-medium hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {saving ? 'Saving...' : 'Save Schedule'}
-        </button>
-      </div>
+      {/* Save Button */}
+      <button
+        onClick={handleSaveClick}
+        disabled={saving}
+        className="w-full px-4 py-3.5 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+      >
+        {saving ? 'Saving...' : 'Save Schedule'}
+      </button>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4 modal-safe-area"
+            onClick={() => setShowConfirmModal(false)}
+          >
+            <div
+              className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[85vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-5 sm:p-6">
+                <h3 className="text-lg font-semibold text-slate-800 mb-3">Confirm Save Schedule</h3>
+                
+                {newAdditionsGrouped.length > 0 ? (
+                  <>
+                    <p className="text-sm text-slate-600 mb-3">You are adding the following availability:</p>
+                    <ul className="mb-4 space-y-2 max-h-40 overflow-y-auto">
+                      {newAdditionsGrouped.map(({ dateStr, shifts }) => (
+                        <li key={dateStr} className="text-sm flex items-start gap-2">
+                          <span className="font-medium text-slate-800 shrink-0">{formatDateDisplay(dateStr)}</span>
+                          <span className="text-slate-500">—</span>
+                          <span>
+                            {shifts.length === 2
+                              ? 'Morning (AM) & Afternoon (PM)'
+                              : shifts[0] === 'morning'
+                                ? 'Morning (AM)'
+                                : 'Afternoon (PM)'}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-600 mb-4">You have no new availability to add.</p>
+                )}
+
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-5">
+                  <p className="text-sm text-amber-800">
+                    <strong>Important:</strong> Once saved, you cannot remove these times from your availability yourself. Contact your supervisor if you need to change your schedule.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowConfirmModal(false)}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={performSave}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-blue-500 text-white font-semibold hover:bg-blue-600 active:bg-blue-700 transition-colors"
+                  >
+                    Save Schedule
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

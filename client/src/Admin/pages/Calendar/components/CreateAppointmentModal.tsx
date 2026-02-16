@@ -32,6 +32,14 @@ const sizeOptions = [
 
 export default function CreateAppointmentModal({ onClose, onCreated, initialClientId, initialTemplateId, newStatus, initialAppointment }: Props) {
   const { alert, confirm } = useModal()
+
+  useEffect(() => {
+    const original = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = original
+    }
+  }, [])
   const persisted = (() => {
     const stored = localStorage.getItem('createAppointmentState')
     if (stored) {
@@ -89,6 +97,7 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     templateName: '',
     type: 'STANDARD',
     size: '',
+    teamSize: '1',
     address: '',
     price: '',
     notes: '',
@@ -116,12 +125,9 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const [paymentMethod, setPaymentMethod] = useState<string>(persisted.paymentMethod ?? '')
   const [otherPayment, setOtherPayment] = useState<string>(persisted.otherPayment ?? '')
 
-  // staff options and employee selection
-  const [staffOptions, setStaffOptions] = useState<{ sem: number; com: number; hours: number }[]>([])
-  const [selectedOption, setSelectedOption] = useState<number>(persisted.selectedOption ?? 0)
+  // employees (for carpet selection; team assigned via Team Options after creation)
   const [employees, setEmployees] = useState<Employee[]>([])
   const [selectedEmployees, setSelectedEmployees] = useState<number[]>(persisted.selectedEmployees ?? [])
-  const [showTeamModal, setShowTeamModal] = useState<boolean>(persisted.showTeamModal ?? false)
   const [employeeSearch, setEmployeeSearch] = useState<string>(persisted.employeeSearch ?? '')
   const [payRate, setPayRate] = useState<number | null>(null)
   const filteredEmployees = employees.filter(
@@ -139,7 +145,6 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const [overrideCarpetPrice, setOverrideCarpetPrice] = useState<boolean>(
     persisted.overrideCarpetPrice ?? false,
   )
-  const [noTeam, setNoTeam] = useState<boolean>(persisted.noTeam ?? false)
 
   const [showPhoneActions, setShowPhoneActions] = useState(false)
   const isMobile =
@@ -171,25 +176,11 @@ const initializedRef = useRef(false)
 const storedTemplateIdRef = useRef<number | null>(storedInitialTemplateId)
 const preserveTeamRef = useRef(false)
 
-  const loadStaffData = (templateId: number) => {
-    const t = templates.find((tt) => tt.id === templateId)
-    if (!t) return
-    
-    // Use template size if available, otherwise use templateForm size (for editing)
-    const size = t.size || templateForm.size
-    const type = t.type || templateForm.type
-    
-    if (!size || !type) return
-    
-    fetchJson(`${API_BASE_URL}/staff-options?size=${encodeURIComponent(size)}&type=${type}`)
-      .then((d) => {
-        setStaffOptions(d)
-      })
-      .catch((err) => console.error(err))
+  useEffect(() => {
     fetchJson(`${API_BASE_URL}/employees?search=&skip=0&take=1000`)
       .then((d) => setEmployees(d))
-      .catch((err) => console.error(err))
-  }
+      .catch(() => setEmployees([]))
+  }, [])
 
   useEffect(() => {
     if (initialAppointment) {
@@ -242,10 +233,6 @@ const preserveTeamRef = useRef(false)
         setCarpetEnabled(true)
         setCarpetRooms(String((initialAppointment as any).carpetRooms))
       }
-      // Legacy recurring check removed
-      // Set noTeam explicitly based on initialAppointment value
-      const shouldHaveNoTeam = initialAppointment.noTeam === true
-      setNoTeam(shouldHaveNoTeam)
       initializedRef.current = true
       localStorage.removeItem('createAppointmentState')
     } else {
@@ -275,14 +262,12 @@ const preserveTeamRef = useRef(false)
           if (s.paymentMethod) setPaymentMethod(s.paymentMethod)
           if (s.otherPayment) setOtherPayment(s.otherPayment)
           if (Array.isArray(s.selectedEmployees)) setSelectedEmployees(s.selectedEmployees)
-          if (typeof s.selectedOption === 'number') setSelectedOption(s.selectedOption)
           if (typeof s.carpetEnabled === 'boolean') setCarpetEnabled(s.carpetEnabled)
           if (s.carpetRooms) setCarpetRooms(s.carpetRooms)
           if (Array.isArray(s.carpetEmployees)) setCarpetEmployees(s.carpetEmployees)
           if (typeof s.overrideCarpetPrice === 'boolean')
             setOverrideCarpetPrice(s.overrideCarpetPrice)
           // Legacy recurring persistence removed
-          if (typeof s.noTeam === 'boolean') setNoTeam(s.noTeam)
         } catch {}
       }
       initializedRef.current = true
@@ -308,20 +293,16 @@ const preserveTeamRef = useRef(false)
       tip,
       paymentMethod,
       otherPayment,
-      showTeamModal,
       employeeSearch,
       selectedEmployees,
-      selectedOption,
       carpetEnabled,
       carpetRooms,
       carpetPrice: templateForm.carpetPrice,
       overrideCarpetPrice,
       carpetEmployees,
-      // Legacy recurring state removed
-      noTeam,
     }
     localStorage.setItem('createAppointmentState', JSON.stringify(data))
-  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, showTeamModal, employeeSearch, selectedEmployees, selectedOption, carpetEnabled, carpetRooms, templateForm.carpetPrice, overrideCarpetPrice, carpetEmployees, noTeam])
+  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, employeeSearch, selectedEmployees, carpetEnabled, carpetRooms, templateForm.carpetPrice, overrideCarpetPrice, carpetEmployees])
 
   useEffect(() => {
     if (selectedTemplate !== null) {
@@ -359,6 +340,7 @@ const preserveTeamRef = useRef(false)
       templateName: '',
       type: 'STANDARD',
       size: '',
+      teamSize: '1',
       address: '',
       price: '',
       notes: '',
@@ -371,11 +353,8 @@ const preserveTeamRef = useRef(false)
     setOverrideCarpetPrice(false)
     setDate('')
     setTime('')
-    setStaffOptions([])
-    setSelectedOption(0)
     setEmployees([])
     setSelectedEmployees([])
-    setShowTeamModal(false)
     setEmployeeSearch('')
     setPayRate(null)
     resetCarpet()
@@ -439,10 +418,9 @@ const preserveTeamRef = useRef(false)
           const match = d.find((t: any) => t.id === storedId)
           if (match && match.id !== undefined) {
             setSelectedTemplate(match.id)
-            loadStaffData(match.id)
             // Auto-populate size field
             if (match.size) {
-              setTemplateForm(prev => ({ ...prev, size: match.size }))
+              setTemplateForm((prev: typeof templateForm) => ({ ...prev, size: match.size }))
             }
             storedTemplateIdRef.current = null
             return
@@ -452,10 +430,9 @@ const preserveTeamRef = useRef(false)
           const match = d.find((t: any) => t.id === initialTemplateId)
           if (match && match.id !== undefined) {
             setSelectedTemplate(match.id)
-            loadStaffData(match.id)
             // Auto-populate size field
             if (match.size) {
-              setTemplateForm(prev => ({ ...prev, size: match.size }))
+              setTemplateForm((prev: typeof templateForm) => ({ ...prev, size: match.size }))
             }
           }
         }
@@ -471,43 +448,37 @@ const preserveTeamRef = useRef(false)
       const match = templates.find((t) => t.id === storedId)
       if (match && match.id !== undefined) {
         setSelectedTemplate(match.id)
-        loadStaffData(match.id)
         // Auto-populate size field
         if (match.size) {
-          setTemplateForm(prev => ({ ...prev, size: match.size }))
+          setTemplateForm((prev: typeof templateForm) => ({ ...prev, size: match.size }))
         }
       }
       storedTemplateIdRef.current = null
     }
-    if (selectedTemplate) loadStaffData(selectedTemplate)
   }, [templates])
 
-  // Load staff options when template selected
   useEffect(() => {
     if (!selectedTemplate) {
-      setStaffOptions([])
       setCarpetEnabled(false)
       setCarpetRooms('')
       return
     }
-    loadStaffData(selectedTemplate)
-    if (preserveTeamRef.current) {
-      preserveTeamRef.current = false
-    } else {
-      setSelectedOption(0)
-    }
     const t = templates.find((tt) => tt.id === selectedTemplate)
     const hasCarpet = t?.carpetEnabled ?? (t?.carpetRooms != null && t.carpetRooms > 0)
     setCarpetEnabled(!!hasCarpet)
-    setCarpetRooms(t?.carpetRooms || '')
+    setCarpetRooms(t?.carpetRooms != null ? String(t.carpetRooms) : '')
   }, [selectedTemplate, templates])
 
-  // Reload staff data when templateForm size changes during editing
+  // Auto-fill team size default when templateForm size/type change
   useEffect(() => {
-    if (selectedTemplate && editing && templateForm.size && templateForm.type) {
-      loadStaffData(selectedTemplate)
+    if (templateForm.size && templateForm.type) {
+      fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
+        .then((d: { teamSize: number }) => {
+          setTemplateForm((prev: typeof templateForm) => ({ ...prev, teamSize: String(d.teamSize) }))
+        })
+        .catch(() => {})
     }
-  }, [templateForm.size, templateForm.type, editing, selectedTemplate])
+  }, [templateForm.size, templateForm.type])
 
   // calculate pay rate when team changes
   useEffect(() => {
@@ -570,7 +541,7 @@ const preserveTeamRef = useRef(false)
     const price = (parseInt(carpetRooms, 10) || 0) * (sqft >= 4000 ? 40 : 35)
     setDefaultCarpetPrice(price)
     if (!overrideCarpetPrice) {
-      setTemplateForm((f) => ({ ...f, carpetPrice: String(price) }))
+      setTemplateForm((prev: typeof templateForm) => ({ ...prev, carpetPrice: String(price) }))
     }
   }, [carpetEnabled, carpetRooms, selectedTemplate, templateForm.size, overrideCarpetPrice])
 
@@ -629,6 +600,7 @@ const preserveTeamRef = useRef(false)
       templateName: `${base}_${max + 1}`,
       type: t.type,
       size: t.size || '',
+      teamSize: String((t as any).teamSize ?? 1),
       address: t.address,
       price: String(t.price),
       notes: t.notes || '',
@@ -659,11 +631,13 @@ const preserveTeamRef = useRef(false)
       await alert('Please provide: ' + missing.join(', '))
       return
     }
+    const teamSizeNum = parseInt(templateForm.teamSize, 10)
     const payload: any = {
       clientId: selectedClient.id,
       templateName: templateForm.templateName,
       type: templateForm.type,
       size: templateForm.size,
+      teamSize: !isNaN(teamSizeNum) ? teamSizeNum : undefined,
       address: templateForm.address,
       price: parseFloat(templateForm.price),
       notes: templateForm.notes || undefined,
@@ -728,15 +702,6 @@ const preserveTeamRef = useRef(false)
     }
   }
 
-  const isValidSelection = () => {
-    if (staffOptions.length === 0) return true
-    const opt = staffOptions[selectedOption]
-    if (!opt) return false
-    const experienced = selectedEmployees.filter((id) => employees.find((e) => e.id === id)?.experienced).length
-    const total = selectedEmployees.length
-    return total >= opt.sem + opt.com && experienced >= opt.com
-  }
-
   const isValidCarpet = () => {
     if (!carpetEnabled) return true
     return carpetRooms !== '' && carpetEmployees.length > 0
@@ -757,14 +722,6 @@ const preserveTeamRef = useRef(false)
     if (!isValidCarpet()) {
       await alert('Please complete carpet cleaning info')
       return
-    }
-    if (!noTeam && selectedEmployees.length < 1) {
-      await alert('Team must have at least one member')
-      return
-    }
-    if (!noTeam && !isValidSelection()) {
-      const proceed = await confirm('Team is less than required. Continue?')
-      if (!proceed) return
     }
     if (time) {
       const hour = parseInt(time.split(':')[0], 10)
@@ -816,8 +773,8 @@ const preserveTeamRef = useRef(false)
       templateId: selectedTemplate,
       date, // Send as YYYY-MM-DD, server will parse as UTC
       time,
-      hours: staffOptions[selectedOption]?.hours,
-      employeeIds: noTeam ? [] : selectedEmployees,
+      hours: undefined, // Server calculates from template
+      employeeIds: [], // Team assigned via Team Options after creation
       adminId: adminId || undefined,
       paid,
       paymentMethod: paid ? (paymentMethod || 'CASH') : 'CASH',
@@ -825,7 +782,7 @@ const preserveTeamRef = useRef(false)
         paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
       tip: paid ? parseFloat(tip) || 0 : 0,
       status: appointmentStatus,
-      noTeam,
+      noTeam: false,
       ...(carpetEnabled
         ? {
             carpetRooms: parseInt(carpetRooms, 10) || 0,
@@ -878,7 +835,7 @@ const preserveTeamRef = useRef(false)
   return (
     <>
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-20 p-2"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-2 overflow-hidden"
     >
       <div
         className="bg-white p-4 sm:p-6 rounded-lg w-full lg:w-3/5 max-w-md lg:max-w-none h-[70vh] overflow-hidden overflow-y-auto overflow-x-hidden space-y-4"
@@ -1074,6 +1031,16 @@ const preserveTeamRef = useRef(false)
                     </option>
                   ))}
                   </select>
+                  <h4 className="font-light">Team Size</h4>
+                <input
+                  type="number"
+                  min="1"
+                  className="w-full border p-2 rounded text-base"
+                  placeholder="Default from size/type"
+                  value={templateForm.teamSize}
+                  onChange={(e) => setTemplateForm({ ...templateForm, teamSize: e.target.value })}
+                  title="Recommended team size based on property size and service type"
+                />
                   <h4 className="font-light">Price: <span className="text-red-500">*</span></h4>
                 <input
                   id="appointment-template-price"
@@ -1227,6 +1194,7 @@ const preserveTeamRef = useRef(false)
                     <div className="text-sm border rounded p-2 mt-1 space-y-1">
                       <div>Type: {t.type}</div>
                       {t.size && <div>Size: {t.size}</div>}
+                      <div>Team size: {t.teamSize ?? 1}</div>
                       <div>Address: {t.address}</div>
                       <div>Price: ${t.price.toFixed(2)}</div>
                       <div className="space-y-1">
@@ -1325,9 +1293,9 @@ const preserveTeamRef = useRef(false)
                       
                       // Auto-populate size field when template is selected
                       if (templateId) {
-                        const selectedTemplate = templates.find(t => t.id === templateId)
-                        if (selectedTemplate?.size) {
-                          setTemplateForm(prev => ({ ...prev, size: selectedTemplate.size }))
+                        const matched = templates.find((t) => t.id === templateId)
+                        if (matched?.size) {
+                          setTemplateForm((prev: typeof templateForm) => ({ ...prev, size: matched.size }))
                         }
                       }
                     }}
@@ -1348,87 +1316,37 @@ const preserveTeamRef = useRef(false)
           </div>
         )}
 
-        {/* Team selection */}
-        {selectedTemplate && (
-          <div className="space-y-1">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={noTeam}
-                onChange={async (e) => {
-                  const checked = e.target.checked
-                  if (checked) {
-                    const ok = await confirm('Create appointment with no team?')
-                    if (!ok) {
-                      return
-                    }
-                  }
-                  setNoTeam(checked)
-                  if (checked) {
-                    setSelectedEmployees([])
-                    setCarpetEmployees([])
-                  }
-                }}
-              />
-              <span>No Team</span>
-            </label>
-            {!noTeam && (
-              <>
-                <button
-                  className="border px-3 py-2 rounded"
-                  onClick={() => {
-                    setShowTeamModal(true)
-                  }}
-                >
-                  {staffOptions.length > 0 ? 'Team Options' : 'Select Team'} <span className="text-red-500">*</span>
-                </button>
-                {selectedEmployees.length > 0 && staffOptions[selectedOption] && (
-                  <>
-                    <div className="text-sm border rounded p-2 space-y-1">
-                      <div>Team:</div>
-                      <ul className="pl-2 list-disc space-y-0.5">
-                    {selectedEmployees.map((id) => {
-                      const emp = employees.find((e) => e.id === id)
-                      if (!emp) return null
-                      return (
-                        <li key={id}>
-                          {emp.name}{' '}
-                          {emp.experienced ? <span className="font-bold">(Exp)</span> : ''}{' '}
-                          {payRate !== null && (
-                            <span className="ml-1 text-sm text-gray-600">${payRate.toFixed(2)}</span>
-                          )}
-                        </li>
+        {/* Team is assigned via Team Options after creation */}
+        {selectedTemplate && carpetEnabled && carpetRooms && (
+          <div className="text-sm border rounded p-2 space-y-2">
+            <div className="font-medium">Carpet Team:</div>
+            <input
+              className="w-full border p-2 rounded text-base"
+              placeholder="Search employees"
+              value={employeeSearch}
+              onChange={(e) => setEmployeeSearch(e.target.value)}
+            />
+            <div className="max-h-32 overflow-y-auto border rounded p-1 space-y-1">
+              {filteredEmployees.map((e) => (
+                <label key={e.id} className="flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={carpetEmployees.includes(e.id!)}
+                    onChange={() => {
+                      setCarpetEmployees((prev) =>
+                        prev.includes(e.id!) ? prev.filter((id) => id !== e.id) : [...prev, e.id!]
                       )
-                    })}
-                  </ul>
-                  <div>
-                    {staffOptions[selectedOption].sem} SEM / {staffOptions[selectedOption].com}{' '}
-                    COM - {staffOptions[selectedOption].hours}h
-                  </div>
-                </div>
-                {carpetEnabled && carpetEmployees.length > 0 && carpetRate !== null && (
-                  <div className="text-sm border rounded p-2 space-y-1">
-                    <div>Carpet Team:</div>
-                    <ul className="pl-2 list-disc space-y-0.5">
-                      {carpetEmployees.map((id) => {
-                        const emp = employees.find((e) => e.id === id)
-                        if (!emp) return null
-                        return (
-                          <li key={id}>
-                            {emp.name}{' '}
-                            {emp.experienced ? <span className="font-bold">(Exp)</span> : ''}{' '}
-                            <span className="ml-1 text-sm text-gray-600">${carpetRate.toFixed(2)}</span>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                    <div>Rooms: {carpetRooms}</div>
-                  </div>
-                )}
-                  </>
-                )}
-              </>
-            )}
+                    }}
+                  />
+                  {e.name}
+                  {e.experienced ? <span className="font-bold">(Exp)</span> : ''}
+                  {carpetEmployees.includes(e.id!) && carpetRate !== null && (
+                    <span className="ml-1 text-sm text-gray-600">${carpetRate.toFixed(2)}</span>
+                  )}
+                </label>
+              ))}
+            </div>
+            {carpetEmployees.length > 0 && <div>Rooms: {carpetRooms}</div>}
           </div>
         )}
 
@@ -1580,124 +1498,6 @@ const preserveTeamRef = useRef(false)
         </div>
       </div>
     </div>
-    {showTeamModal && (
-      <div
-        className="fixed inset-0 bg-black/50 flex items-center justify-center z-30"
-        onClick={() => setShowTeamModal(false)}
-      >
-        <div
-          className="bg-white p-4 rounded w-full max-w-xs max-h-full overflow-y-auto overflow-x-hidden space-y-2"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex justify-between items-center">
-            <h4 className="font-medium">Team Options</h4>
-            <button onClick={() => setShowTeamModal(false)}>X</button>
-          </div>
-          <div className="space-y-2">
-            {staffOptions.length > 0 ? (
-              staffOptions.map((o, idx) => (
-                <button
-                  key={idx}
-                  className={`w-full px-3 py-2 border rounded ${selectedOption === idx ? 'bg-blue-500 text-white' : ''}`}
-                  onClick={() => {
-                    setSelectedOption(idx)
-                    setSelectedEmployees([])
-                    setCarpetEmployees([])
-                    setCarpetRate(null)
-                  }}
-                >
-                  {o.sem} SEM / {o.com} COM - {o.hours}h
-                </button>
-              ))
-            ) : (
-              <div className="text-center text-gray-500 py-4">
-                <p>Please select a size for the template to see team options.</p>
-                <p className="text-sm mt-1">Team options are calculated based on the appointment size and type.</p>
-              </div>
-            )}
-          </div>
-          {staffOptions[selectedOption] && (
-            <div className="space-y-1">
-              {(() => {
-                const opt = staffOptions[selectedOption]
-                const exp = selectedEmployees.filter((id) => employees.find((e) => e.id === id)?.experienced).length
-                const tot = selectedEmployees.length
-                const ok = tot >= opt.sem + opt.com && exp >= opt.com
-                return (
-                  <div className={ok ? 'text-green-600' : 'text-red-600'}>
-                    {tot}/{opt.sem + opt.com} total, {exp}/{opt.com} experienced
-                  </div>
-                )
-              })()}
-              <input
-                className="w-full border p-2 rounded text-base"
-                placeholder="Search employees"
-                value={employeeSearch}
-                onChange={(e) => setEmployeeSearch(e.target.value)}
-              />
-              <div className="max-h-32 overflow-y-auto border rounded p-1 space-y-1">
-                {filteredEmployees.map((e) => (
-                  <label key={e.id} className="flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={selectedEmployees.includes(e.id!)}
-                      onChange={() => {
-                        const newSelected = selectedEmployees.includes(e.id!)
-                          ? selectedEmployees.filter((id) => id !== e.id)
-                          : [...selectedEmployees, e.id!]
-                        setSelectedEmployees(newSelected)
-                        // If employee is being added and noTeam is true, we should uncheck noTeam
-                        if (!selectedEmployees.includes(e.id!) && noTeam) {
-                          setNoTeam(false)
-                        }
-                      }}
-                    />
-                    {e.name}
-                    {e.experienced ? <span className="font-bold">(Exp)</span> : ''}
-                    {selectedEmployees.includes(e.id!) && payRate !== null && (
-                      <span className="ml-1 text-sm text-gray-600">${payRate.toFixed(2)}</span>
-                    )}
-                  </label>
-                ))}
-              </div>
-              {carpetEnabled && (
-                <div className="space-y-1">
-                  <div>Carpet Team:</div>
-                  <div className="max-h-32 overflow-y-auto border rounded p-1 space-y-1">
-                    {employees
-                      .filter((e) => selectedEmployees.includes(e.id!))
-                      .map((e) => (
-                        <label key={e.id} className="flex items-center gap-1">
-                          <input
-                            type="checkbox"
-                            checked={carpetEmployees.includes(e.id!)}
-                            onChange={() => {
-                              setCarpetEmployees((prev) =>
-                                prev.includes(e.id!) ? prev.filter((id) => id !== e.id) : [...prev, e.id!]
-                              )
-                            }}
-                          />
-                          {e.name}
-                        </label>
-                      ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          <div className="text-right">
-            <button
-              className="px-3 py-2 text-blue-600"
-              onClick={() => {
-                setShowTeamModal(false)
-              }}
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
     {/* Legacy recurring modal removed - use Recurring Appointments page */}
     </>
   )

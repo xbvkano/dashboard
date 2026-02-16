@@ -5,6 +5,7 @@ import { API_BASE_URL, fetchJson } from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
 import { formatPhone } from '../../../../../formatPhone'
 import type { Appointment } from '../../types'
+import TeamOptionsModal from '../TeamOptionsModal'
 
 interface AppointmentDetailsProps {
   appointment: Appointment
@@ -56,6 +57,7 @@ export default function AppointmentDetails({
   const [editingTemplateNotes, setEditingTemplateNotes] = useState(false)
   const [editingTemplateNotesId, setEditingTemplateNotesId] = useState<number | null>(null)
   const [editingTemplateNotesValue, setEditingTemplateNotesValue] = useState('')
+  const [showTeamOptions, setShowTeamOptions] = useState(false)
 
   const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
   
@@ -396,6 +398,10 @@ export default function AppointmentDetails({
           <div className="text-xs text-gray-400 italic">Loading template...</div>
         ) : template ? (
           <div className="space-y-1">
+            <div className="text-sm">
+              <span className="font-medium">Team size:</span>{' '}
+              {appointment.teamSize ?? template.teamSize ?? 1}
+            </div>
             <div className="flex items-center justify-between gap-2">
               <label className="font-medium">Notes:</label>
               {!editingTemplateNotes || editingTemplateNotesId !== template.id ? (
@@ -623,6 +629,16 @@ export default function AppointmentDetails({
           </div>
         )}
 
+        {/* Team Options - separate from action panel */}
+        {!isRecurringUnconfirmed && (
+          <button
+            onClick={() => setShowTeamOptions(true)}
+            className="w-full px-3 py-2 bg-indigo-500 text-white rounded text-sm hover:bg-indigo-600 mb-2"
+          >
+            Team Options
+          </button>
+        )}
+
         {/* Actions Panel Toggle - Only show for non-recurring-unconfirmed appointments */}
         {!isRecurringUnconfirmed && (
           <div>
@@ -691,6 +707,17 @@ export default function AppointmentDetails({
           </button>
         )}
       </div>
+
+      {showTeamOptions && (
+        <TeamOptionsModal
+          appointment={appointment}
+          onClose={() => setShowTeamOptions(false)}
+          onSave={(updated) => {
+            onUpdate(updated)
+            setShowTeamOptions(false)
+          }}
+        />
+      )}
 
       {/* Past Date Confirmation Modal */}
       {showPastDateConfirm && pendingMoveData && createPortal(

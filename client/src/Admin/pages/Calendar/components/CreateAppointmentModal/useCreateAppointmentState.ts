@@ -57,6 +57,7 @@ export function useCreateAppointmentState(
     templateName: '',
     type: 'STANDARD',
     size: '',
+    teamSize: '1',
     address: '',
     price: '',
     notes: '',

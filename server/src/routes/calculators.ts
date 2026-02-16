@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { 
-  getStaffOptions, 
+  getTeamSize, 
   getPayRate, 
   getCarpetRate 
 } from '../controllers/calculatorsController'
@@ -8,7 +8,7 @@ import {
 const router = Router()
 
 // Calculator routes
-router.get('/staff-options', getStaffOptions)
+router.get('/team-size', getTeamSize)
 router.get('/pay-rate', getPayRate)
 router.get('/carpet-rate', getCarpetRate)
 
