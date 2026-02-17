@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { API_BASE_URL } from '../../../api'
+import { useEmployeeLanguage } from '../../EmployeeLanguageContext'
 
 type DayShifts = {
   morning: boolean
@@ -144,6 +145,7 @@ function getNewAdditionsGrouped(
 
 function InformationSection() {
   const [isOpen, setIsOpen] = useState(false)
+  const { t } = useEmployeeLanguage()
   return (
     <div className="mb-5 border border-slate-200 rounded-xl overflow-hidden bg-white">
       <button
@@ -151,7 +153,7 @@ function InformationSection() {
         onClick={() => setIsOpen(prev => !prev)}
         className="w-full flex items-center justify-between px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
       >
-        <span>Information</span>
+        <span>{t.information}</span>
         <svg
           className={`w-5 h-5 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
@@ -166,37 +168,37 @@ function InformationSection() {
           <div>
             <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
               <span className="w-4 h-4 bg-slate-100 rounded border border-slate-300 shrink-0 inline-block" />
-              Open
+              {t.open}
             </h4>
-            <p>You are not available during these time periods and will not be scheduled for jobs. Tap to select and save if you become available.</p>
+            <p>{t.openDesc}</p>
           </div>
           <div>
             <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
               <span className="w-4 h-4 bg-blue-500 rounded border border-blue-600 shrink-0 inline-block" />
-              Selected (not yet saved)
+              {t.selectedNotSaved}
             </h4>
-            <p>You have selected these times but have not saved yet. Tap Save Schedule to confirm.</p>
+            <p>{t.selectedNotSavedDesc}</p>
           </div>
           <div>
             <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
               <span className="w-4 h-4 bg-violet-600 rounded border border-violet-700 shrink-0 inline-block" />
-              Availability
+              {t.availability}
             </h4>
-            <p>When you tell the company that you could work during these times. These are saved and cannot be removed from this page — contact your supervisor to change them.</p>
+            <p>{t.availabilityDesc}</p>
           </div>
           <div>
             <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
               <span className="w-4 h-4 bg-emerald-600 rounded border border-emerald-700 shrink-0 inline-block" />
-              Scheduled
+              {t.scheduled}
             </h4>
-            <p>You have been scheduled for a job during this time. Your assigned jobs can be viewed on the Upcoming Jobs page.</p>
+            <p>{t.scheduledDesc}</p>
           </div>
           <div className="pt-2 border-t border-slate-100">
-            <h4 className="font-semibold text-slate-700 mb-2">Schedule update policy</h4>
+            <h4 className="font-semibold text-slate-700 mb-2">{t.scheduleUpdatePolicy}</h4>
             <ul className="list-disc list-inside space-y-1 text-slate-600">
-              <li>You must update your schedule every Sunday.</li>
-              <li>If it has been more than 7 days since your last update, you will receive a reminder text message each day until you update.</li>
-              <li>If it has been 10 days since your last update, your supervisor will also receive a text message. This continues until you update your schedule or your account is disabled.</li>
+              <li>{t.policy1}</li>
+              <li>{t.policy2}</li>
+              <li>{t.policy3}</li>
             </ul>
           </div>
         </div>
@@ -223,6 +225,7 @@ function dayShiftsToSchedule(schedule: Record<string, DayShifts>): string[] {
 }
 
 export default function Schedule() {
+  const { t, locale } = useEmployeeLanguage()
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   
@@ -272,7 +275,7 @@ export default function Schedule() {
       }
       
       const response = await fetch(`${API_BASE_URL}/employee/schedule`, { headers })
-      if (!response.ok) throw new Error('Failed to load schedule')
+      if (!response.ok) throw new Error(t.failedToLoad)
       const data = await response.json()
       
       if (data?.futureSchedule && Array.isArray(data.futureSchedule)) {
@@ -354,14 +357,14 @@ export default function Schedule() {
       
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
-        throw new Error(err.error || 'Failed to save schedule')
+        throw new Error(err.error || t.failedToSave)
       }
       
-      setSuccess('Schedule saved successfully!')
+      setSuccess(t.scheduleSaved)
       setTimeout(() => setSuccess(''), 3000)
       await loadSchedule()
     } catch (err: any) {
-      setError(err.message || 'Failed to save schedule')
+      setError(err.message || t.failedToSave)
     } finally {
       setSaving(false)
     }
@@ -377,10 +380,10 @@ export default function Schedule() {
   
   function formatDaysSinceUpdate(): string {
     const days = getDaysSinceUpdate()
-    if (days === null) return 'Never updated'
-    if (days === 0) return 'Updated today'
-    if (days === 1) return 'Updated 1 day ago'
-    return `Updated ${days} days ago`
+    if (days === null) return t.neverUpdated
+    if (days === 0) return t.updatedToday
+    if (days === 1) return t.updatedOneDayAgo
+    return t.updatedDaysAgo(days)
   }
 
 
@@ -436,21 +439,21 @@ export default function Schedule() {
   // Flatten weeks for grid display
   const days = weeks.flat()
   
-  const monthName = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const monthName = today.toLocaleDateString(locale, { month: 'long', year: 'numeric' })
   const hasNextMonthDays = daysFromToday.some(d => d.isNextMonth)
 
   const newAdditionsGrouped = getNewAdditionsGrouped(schedule, savedSchedule)
   const formatDateDisplay = (dateStr: string) => {
     const [y, m, d] = dateStr.split('-')
     const date = new Date(parseInt(y), parseInt(m) - 1, parseInt(d))
-    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    return date.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' })
   }
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[40vh]">
-        <h1 className="text-xl font-semibold text-slate-800 mb-2">My Schedule</h1>
-        <div className="text-slate-500">Loading...</div>
+        <h1 className="text-xl font-semibold text-slate-800 mb-2">{t.mySchedule}</h1>
+        <div className="text-slate-500">{t.loading}</div>
       </div>
     )
   }
@@ -460,15 +463,15 @@ export default function Schedule() {
 
   return (
     <div className="pb-4">
-      <h1 className="text-xl md:text-2xl font-semibold text-slate-800 mb-1">My Schedule</h1>
-      <p className="text-sm text-slate-500 mb-4">Tap AM or PM to add your availability for the next 14 days</p>
+      <h1 className="text-xl md:text-2xl font-semibold text-slate-800 mb-1">{t.mySchedule}</h1>
+      <p className="text-sm text-slate-500 mb-4">{t.subtitle}</p>
       
       {/* Information dropdown */}
       <InformationSection />
 
       {/* Supervisor note */}
       <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-        <strong>Need to remove availability?</strong> Contact your supervisor — you cannot remove saved times from this page.
+        <strong>{t.removeAvailabilityNote}</strong>
       </div>
       
       {/* Last Update Display */}
@@ -483,13 +486,13 @@ export default function Schedule() {
         <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
           <h2 className="text-base font-medium text-slate-700">{monthName}</h2>
           {hasNextMonthDays && (
-            <span className="text-xs text-slate-500 ml-1">(next 14 days)</span>
+            <span className="text-xs text-slate-500 ml-1">{t.next14Days}</span>
           )}
         </div>
 
         {/* Day headers */}
         <div className="grid grid-cols-7 gap-0.5 md:gap-1 px-2 pt-2">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+          {t.weekdays.map(day => (
             <div key={day} className="text-center text-[10px] md:text-xs font-semibold text-slate-500 py-1">
               {day.slice(0, 2)}
             </div>
@@ -525,7 +528,7 @@ export default function Schedule() {
                 </div>
                 {isNextMonth && (
                   <div className="text-[8px] text-slate-500 text-center mb-0.5">
-                    {date.toLocaleDateString('en-US', { month: 'short' })}
+                    {date.toLocaleDateString(locale, { month: 'short' })}
                   </div>
                 )}
                 {canSelectDay ? (
@@ -567,7 +570,7 @@ export default function Schedule() {
                   </div>
                 ) : (
                   <div className="flex-1 flex items-center justify-center">
-                    <span className="text-[9px] text-slate-400">Today</span>
+                    <span className="text-[9px] text-slate-400">{t.today}</span>
                   </div>
                 )}
               </div>
@@ -580,19 +583,19 @@ export default function Schedule() {
       <div className="mb-5 flex flex-wrap gap-4 text-xs text-slate-600">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-slate-100 rounded border border-slate-300 shrink-0"></div>
-          <span>Open</span>
+          <span>{t.legendOpen}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-blue-500 rounded border border-blue-600 shrink-0"></div>
-          <span>Selected (not yet saved)</span>
+          <span>{t.legendSelected}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-violet-600 rounded border border-violet-700 shrink-0"></div>
-          <span>Availability</span>
+          <span>{t.legendAvailability}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-emerald-600 rounded border border-emerald-700 shrink-0"></div>
-          <span>Scheduled</span>
+          <span>{t.legendScheduled}</span>
         </div>
       </div>
 
@@ -614,7 +617,7 @@ export default function Schedule() {
         disabled={saving}
         className="w-full px-4 py-3.5 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
       >
-        {saving ? 'Saving...' : 'Save Schedule'}
+        {saving ? t.saving : t.saveSchedule}
       </button>
 
       {/* Confirmation Modal */}
@@ -629,11 +632,11 @@ export default function Schedule() {
               onClick={e => e.stopPropagation()}
             >
               <div className="p-5 sm:p-6">
-                <h3 className="text-lg font-semibold text-slate-800 mb-3">Confirm Save Schedule</h3>
+                <h3 className="text-lg font-semibold text-slate-800 mb-3">{t.confirmSaveTitle}</h3>
                 
                 {newAdditionsGrouped.length > 0 ? (
                   <>
-                    <p className="text-sm text-slate-600 mb-3">You are adding the following availability:</p>
+                    <p className="text-sm text-slate-600 mb-3">{t.addingAvailability}</p>
                     <ul className="mb-4 space-y-2 max-h-40 overflow-y-auto">
                       {newAdditionsGrouped.map(({ dateStr, shifts }) => (
                         <li key={dateStr} className="text-sm flex items-start gap-2">
@@ -641,22 +644,22 @@ export default function Schedule() {
                           <span className="text-slate-500">—</span>
                           <span>
                             {shifts.length === 2
-                              ? 'Morning (AM) & Afternoon (PM)'
+                              ? t.morningAndAfternoon
                               : shifts[0] === 'morning'
-                                ? 'Morning (AM)'
-                                : 'Afternoon (PM)'}
+                                ? t.morningOnly
+                                : t.afternoonOnly}
                           </span>
                         </li>
                       ))}
                     </ul>
                   </>
                 ) : (
-                  <p className="text-sm text-slate-600 mb-4">You have no new availability to add.</p>
+                  <p className="text-sm text-slate-600 mb-4">{t.noNewAvailability}</p>
                 )}
 
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-5">
                   <p className="text-sm text-amber-800">
-                    <strong>Important:</strong> Once saved, you cannot remove these times from your availability yourself. Contact your supervisor if you need to change your schedule.
+                    <strong>{t.importantNote}</strong>
                   </p>
                 </div>
 
@@ -665,13 +668,13 @@ export default function Schedule() {
                     onClick={() => setShowConfirmModal(false)}
                     className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 active:bg-slate-100 transition-colors"
                   >
-                    Cancel
+                    {t.cancel}
                   </button>
                   <button
                     onClick={performSave}
                     className="flex-1 py-2.5 px-4 rounded-xl bg-blue-500 text-white font-semibold hover:bg-blue-600 active:bg-blue-700 transition-colors"
                   >
-                    Save Schedule
+                    {t.saveSchedule}
                   </button>
                 </div>
               </div>

@@ -1,5 +1,7 @@
+import { useState, useRef, useEffect } from 'react'
 import { Link, Routes, Route, useNavigate, Outlet } from 'react-router-dom'
 import { isDevToolsEnabled } from '../devTools'
+import { EmployeeLanguageProvider, useEmployeeLanguage, type EmployeeLanguage } from './EmployeeLanguageContext'
 import Schedule from './pages/Schedule'
 import UpcomingJobs from './pages/UpcomingJobs'
 
@@ -10,8 +12,68 @@ interface Props {
   onSwitchRole?: (role: Role, userName?: string) => void
 }
 
+function LanguageSelector() {
+  const { language, setLanguage, t } = useEmployeeLanguage()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false)
+    }
+    if (open) document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [open])
+
+  const options: { lang: EmployeeLanguage; label: string }[] = [
+    { lang: 'en', label: t.languageEnglish },
+    { lang: 'pt', label: t.languagePortuguese },
+    { lang: 'es', label: t.languageSpanish },
+  ]
+  const currentLabel = options.find(o => o.lang === language)?.label ?? t.languageEnglish
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(prev => !prev)}
+        className="inline-flex items-center justify-center min-h-[44px] px-3 py-2.5 rounded-lg font-medium text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition-colors text-sm sm:text-base"
+        title={t.languageName}
+        aria-label={t.languageName}
+      >
+        <span className="w-5 h-5 flex items-center justify-center text-slate-500" aria-hidden>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+            <path d="M5 8l6 6" />
+            <path d="M4 14l6-6 2-3" />
+            <path d="M2 5h12" />
+            <path d="M7 2h1" />
+            <path d="M22 22l-5-10-5 10" />
+            <path d="M14 18l6-6 2 2" />
+          </svg>
+        </span>
+        <span className="ml-1.5 hidden sm:inline">{currentLabel}</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 bottom-full mb-1 sm:bottom-auto sm:top-full sm:mt-1 w-40 py-1 bg-white rounded-lg shadow-lg border border-slate-200 z-50">
+          {options.map(({ lang, label }) => (
+            <button
+              key={lang}
+              type="button"
+              onClick={() => { setLanguage(lang); setOpen(false) }}
+              className={`w-full text-left px-3 py-2 text-sm font-medium transition-colors ${language === lang ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EmployeeLayout({ onLogout, onSwitchRole }: Props) {
   const navigate = useNavigate()
+  const { t } = useEmployeeLanguage()
   const isSafe = localStorage.getItem('safe') === 'true'
   const signOut = () => {
     localStorage.removeItem('role')
@@ -41,7 +103,7 @@ function EmployeeLayout({ onLogout, onSwitchRole }: Props) {
               className="inline-flex items-center justify-center min-h-[44px] px-4 py-2.5 rounded-lg font-medium text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition-colors text-sm sm:text-base whitespace-nowrap"
               to="/dashboard/schedule"
             >
-              Schedule
+              {t.navSchedule}
             </Link>
           </li>
           <li>
@@ -49,8 +111,8 @@ function EmployeeLayout({ onLogout, onSwitchRole }: Props) {
               className="inline-flex items-center justify-center min-h-[44px] px-4 py-2.5 rounded-lg font-medium text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition-colors text-sm sm:text-base whitespace-nowrap"
               to="/dashboard/jobs"
             >
-              <span className="sm:hidden">Jobs</span>
-              <span className="hidden sm:inline">Upcoming Jobs</span>
+              <span className="sm:hidden">{t.navJobs}</span>
+              <span className="hidden sm:inline">{t.navUpcomingJobs}</span>
             </Link>
           </li>
           {isDevToolsEnabled && onSwitchRole && (
@@ -64,13 +126,16 @@ function EmployeeLayout({ onLogout, onSwitchRole }: Props) {
               </button>
             </li>
           )}
+          <li>
+            <LanguageSelector />
+          </li>
           {!isSafe && (
             <li>
               <button
                 className="inline-flex items-center justify-center min-h-[44px] px-4 py-2.5 rounded-lg font-medium text-slate-600 hover:bg-slate-100 active:bg-slate-200 transition-colors text-sm sm:text-base whitespace-nowrap"
                 onClick={signOut}
               >
-                Sign Out
+                {t.navSignOut}
               </button>
             </li>
           )}
@@ -85,13 +150,15 @@ function EmployeeLayout({ onLogout, onSwitchRole }: Props) {
 
 export default function EmployeeDashboard({ onLogout, onSwitchRole }: Props) {
   return (
-    <Routes>
-      <Route element={<EmployeeLayout onLogout={onLogout} onSwitchRole={onSwitchRole} />}>
-        <Route index element={<Schedule />} />
-        <Route path="schedule" element={<Schedule />} />
-        <Route path="jobs" element={<UpcomingJobs />} />
-      </Route>
-    </Routes>
+    <EmployeeLanguageProvider>
+      <Routes>
+        <Route element={<EmployeeLayout onLogout={onLogout} onSwitchRole={onSwitchRole} />}>
+          <Route index element={<Schedule />} />
+          <Route path="schedule" element={<Schedule />} />
+          <Route path="jobs" element={<UpcomingJobs />} />
+        </Route>
+      </Routes>
+    </EmployeeLanguageProvider>
   )
 }
 
