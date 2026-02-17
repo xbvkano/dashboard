@@ -85,7 +85,25 @@ function AppRoutes({ role, onLogin, onLogout }: RoutesProps) {
       />
       <Route
         path="/dashboard/*"
-        element={role ? <Dashboard role={role} onLogout={onLogout} /> : <Navigate to="/" replace />}
+        element={
+          role ? (
+            <Dashboard
+              role={role}
+              onLogout={onLogout}
+              onSwitchRole={(r, userName) => {
+                localStorage.setItem('role', r)
+                if (userName != null) {
+                  localStorage.setItem('userName', userName)
+                  localStorage.setItem('loginMethod', 'password')
+                }
+                onLogin(r)
+                if (r === 'EMPLOYEE') navigate('/dashboard')
+              }}
+            />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
       />
     </Routes>
   )

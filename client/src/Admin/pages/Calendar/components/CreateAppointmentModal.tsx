@@ -1339,7 +1339,6 @@ const preserveTeamRef = useRef(false)
                     }}
                   />
                   {e.name}
-                  {e.experienced ? <span className="font-bold">(Exp)</span> : ''}
                   {carpetEmployees.includes(e.id!) && carpetRate !== null && (
                     <span className="ml-1 text-sm text-gray-600">${carpetRate.toFixed(2)}</span>
                   )}

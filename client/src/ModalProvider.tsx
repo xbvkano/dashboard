@@ -34,7 +34,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       {modal &&
         createPortal(
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10010]"
             onClick={() => close(modal.type === 'confirm' ? false : undefined)}
           >
             <div

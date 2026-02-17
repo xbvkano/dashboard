@@ -351,6 +351,22 @@ export default function AppointmentDetails({
     }
   }
 
+  // When Team Options modal is open, hide the view modal and show only Team Options
+  if (showTeamOptions) {
+    return createPortal(
+      <TeamOptionsModal
+        appointment={appointment}
+        onClose={() => setShowTeamOptions(false)}
+        onSave={(updated) => {
+          onUpdate(updated)
+          setShowTeamOptions(false)
+        }}
+        templateTeamSize={template?.teamSize}
+      />,
+      document.body
+    )
+  }
+
   return (
     <div className="bg-white p-4 rounded-lg shadow-lg max-w-md">
       <div className="flex justify-between items-start mb-4">
@@ -476,12 +492,6 @@ export default function AppointmentDetails({
             {appointment.employees?.map((employee) => (
               <div key={employee.id} className="flex justify-between items-center">
                 <span className="text-sm">{employee.name}</span>
-                <button
-                  onClick={() => employee.id && openExtra(employee.id)}
-                  className="text-xs text-blue-500 hover:text-blue-700"
-                >
-                  + Extra
-                </button>
               </div>
             ))}
           </div>
@@ -707,17 +717,6 @@ export default function AppointmentDetails({
           </button>
         )}
       </div>
-
-      {showTeamOptions && (
-        <TeamOptionsModal
-          appointment={appointment}
-          onClose={() => setShowTeamOptions(false)}
-          onSave={(updated) => {
-            onUpdate(updated)
-            setShowTeamOptions(false)
-          }}
-        />
-      )}
 
       {/* Past Date Confirmation Modal */}
       {showPastDateConfirm && pendingMoveData && createPortal(

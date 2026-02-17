@@ -39,7 +39,8 @@ export async function getPayrollDue(_req: Request, res: Response) {
         })
       }
     }
-    const amount = pay + (carpetIds.includes(e.id) ? carpetShare : 0)
+    const basePay = it.amount != null ? it.amount : pay
+    const amount = basePay + (carpetIds.includes(e.id) ? carpetShare : 0)
     const extras = it.extras.map((ex: any) => ({ id: ex.id, name: ex.name, amount: ex.amount }))
     map[e.id].items.push({
       id: it.id,

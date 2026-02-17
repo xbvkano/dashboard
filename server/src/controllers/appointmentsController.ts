@@ -289,6 +289,8 @@ export async function updateAppointment(req: Request, res: Response) {
       observation,
       notes,
       noTeam = false,
+      payrollAmounts,
+      payrollNote,
     } = req.body as {
       clientId?: number
       templateId?: number
@@ -309,6 +311,8 @@ export async function updateAppointment(req: Request, res: Response) {
       observation?: string | null
       notes?: string | null
       noTeam?: boolean
+      payrollAmounts?: Record<number, number>
+      payrollNote?: string | null
     }
     const data: any = {}
     if (clientId !== undefined) data.clientId = clientId
@@ -359,6 +363,7 @@ export async function updateAppointment(req: Request, res: Response) {
     // Handle notes: if notes is explicitly provided, use it; otherwise use paymentMethodNote if provided
     if (notes !== undefined) data.notes = notes
     else if (paymentMethodNote !== undefined) data.notes = paymentMethodNote
+    if (payrollNote !== undefined) data.payrollNote = payrollNote === '' ? null : payrollNote
     if (tip !== undefined) data.tip = tip
     if (noTeam !== undefined) data.noTeam = noTeam
     if (observation !== undefined) data.observation = observation
@@ -559,8 +564,27 @@ export async function updateAppointment(req: Request, res: Response) {
         await prisma.payrollItem.deleteMany({ where: { appointmentId: appt.id } })
       } else if (employeeIds && !noTeam) {
         await syncPayrollItems(appt.id, employeeIds)
+        if (payrollAmounts && typeof payrollAmounts === 'object') {
+          const items = await prisma.payrollItem.findMany({ where: { appointmentId: appt.id } })
+          for (const item of items) {
+            const amt = payrollAmounts[item.employeeId]
+            if (typeof amt === 'number') {
+              await prisma.payrollItem.update({ where: { id: item.id }, data: { amount: amt } })
+            }
+          }
+        }
       }
-      res.json(appt)
+      const updated = await prisma.appointment.findUnique({
+        where: { id: appt.id },
+        include: {
+          client: true,
+          employees: true,
+          admin: true,
+          payrollItems: { include: { extras: true } },
+          family: true,
+        },
+      })
+      res.json(updated ?? appt)
     }
   } catch (e) {
     console.error('Error updating appointment:', e)
@@ -592,7 +616,7 @@ export async function sendAppointmentInfo(req: Request, res: Response) {
       })
     }
 
-    const pay = calculatePayRate(appt.type, appt.size ?? null, appt.employees.length || 1)
+    const defaultPay = calculatePayRate(appt.type, appt.size ?? null, appt.employees.length || 1)
     const carpetIds = appt.carpetEmployees || []
     const carpetPer =
       appt.carpetRooms && appt.size && carpetIds.length
@@ -600,8 +624,9 @@ export async function sendAppointmentInfo(req: Request, res: Response) {
         : 0
 
     for (const e of appt.employees) {
-      const extras =
-        appt.payrollItems.find((p: any) => p.employeeId === e.id)?.extras || []
+      const pi = appt.payrollItems.find((p: any) => p.employeeId === e.id)
+      const pay = pi?.amount != null ? pi.amount : defaultPay
+      const extras = pi?.extras || []
       const extrasTotal = extras.reduce(
         (sum: number, ex: any) => sum + ex.amount,
         0,

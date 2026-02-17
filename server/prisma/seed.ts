@@ -107,7 +107,7 @@ async function main() {
   const empFourUserName = generateUserName('17255774523')
   const empFourUser = await prisma.user.create({
     data: {
-      name: 'Emp Four',
+      name: 'Marcos Kano',
       userName: empFourUserName,
       password: empFourPassword,
       type: 'password',
@@ -119,7 +119,6 @@ async function main() {
     data: { 
       name: 'Emp One', 
       number: '5553333333', 
-      experienced: true,
       userId: empOneUser.id,
     },
   })
@@ -127,7 +126,6 @@ async function main() {
     data: { 
       name: 'Emp Two', 
       number: '5554444444', 
-      experienced: false,
       userId: empTwoUser.id,
     },
   })
@@ -135,15 +133,13 @@ async function main() {
     data: { 
       name: 'Emp Three', 
       number: '5555555555', 
-      experienced: true,
       userId: empThreeUser.id,
     },
   })
   const empFour = await prisma.employee.create({
     data: { 
-      name: 'Emp Four', 
+      name: 'Marcos Kano', 
       number: '+17255774523', 
-      experienced: true,
       userId: empFourUser.id,
     },
   })
@@ -176,6 +172,7 @@ async function main() {
       address: '789 Test St',
       price: 150,
       clientId: marcos.id,
+      instructions: 'Use side door. Pet in backyard. Leave invoice in mailbox.',
     },
   })
 
@@ -282,6 +279,204 @@ async function main() {
   await createPayroll(futureRecurring)
   await createPayroll(futureSingle)
 
+  // Marcos Kano (empFour) test appointments: past (should NOT show on Upcoming Jobs) and upcoming (within 14 days)
+  const marcosPast1 = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: marcos.id,
+      date: addDays(today, -5),
+      time: '09:00',
+      type: temp3.type,
+      address: temp3.address,
+      size: temp3.size,
+      hours: 4,
+      price: temp3.price,
+      paymentMethod: 'CASH',
+      lineage: 'marcos-past-am',
+      templateId: temp3.id,
+      employees: { connect: [{ id: empFour.id }] },
+    },
+    include: { employees: true },
+  })
+  const marcosPast2 = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: marcos.id,
+      date: addDays(today, -2),
+      time: '14:00',
+      type: temp3.type,
+      address: '456 Past Ave',
+      size: temp3.size,
+      hours: 4,
+      price: temp3.price,
+      paymentMethod: 'CASH',
+      lineage: 'marcos-past-pm',
+      templateId: temp3.id,
+      employees: { connect: [{ id: empFour.id }] },
+    },
+    include: { employees: true },
+  })
+  // Upcoming: day 2 AM only
+  const marcosUp1 = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: marcos.id,
+      date: addDays(today, 2),
+      time: '09:00',
+      type: temp3.type,
+      address: temp3.address,
+      size: temp3.size,
+      hours: 4,
+      price: temp3.price,
+      paymentMethod: 'CASH',
+      lineage: 'marcos-up-am',
+      templateId: temp3.id,
+      employees: { connect: [{ id: empFour.id }] },
+    },
+    include: { employees: true },
+  })
+  // Upcoming: day 5 PM only
+  const marcosUp2 = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: marcos.id,
+      date: addDays(today, 5),
+      time: '15:00',
+      type: temp3.type,
+      address: '100 PM Only St',
+      size: temp3.size,
+      hours: 4,
+      price: temp3.price,
+      paymentMethod: 'CASH',
+      lineage: 'marcos-up-pm',
+      templateId: temp3.id,
+      employees: { connect: [{ id: empFour.id }] },
+    },
+    include: { employees: true },
+  })
+  // Upcoming: day 7 same day AM and PM (two appointments)
+  const marcosUp3Am = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: marcos.id,
+      date: addDays(today, 7),
+      time: '10:00',
+      type: temp3.type,
+      address: temp3.address,
+      size: temp3.size,
+      hours: 4,
+      price: temp3.price,
+      paymentMethod: 'CASH',
+      lineage: 'marcos-up-same-am',
+      templateId: temp3.id,
+      employees: { connect: [{ id: empFour.id }] },
+    },
+    include: { employees: true },
+  })
+  const marcosUp3Pm = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: jane.id,
+      date: addDays(today, 7),
+      time: '14:00',
+      type: temp2.type,
+      address: temp2.address,
+      size: temp2.size,
+      hours: 5,
+      price: temp2.price,
+      paymentMethod: 'VENMO',
+      lineage: 'marcos-up-same-pm',
+      templateId: temp2.id,
+      employees: { connect: [{ id: empFour.id }] },
+    },
+    include: { employees: true },
+  })
+  // Upcoming: day 10 AM only
+  const marcosUp4 = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: marcos.id,
+      date: addDays(today, 10),
+      time: '08:00',
+      type: temp3.type,
+      address: '200 Early AM Rd',
+      size: temp3.size,
+      hours: 4,
+      price: temp3.price,
+      paymentMethod: 'CASH',
+      lineage: 'marcos-up-am2',
+      templateId: temp3.id,
+      employees: { connect: [{ id: empFour.id }] },
+    },
+    include: { employees: true },
+  })
+  // Upcoming: day 13 PM only
+  const marcosUp5 = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: jane.id,
+      date: addDays(today, 13),
+      time: '16:00',
+      type: temp2.type,
+      address: temp2.address,
+      size: temp2.size,
+      hours: 5,
+      price: temp2.price,
+      paymentMethod: 'CASH',
+      lineage: 'marcos-up-pm2',
+      templateId: temp2.id,
+      employees: { connect: [{ id: empFour.id }] },
+    },
+    include: { employees: true },
+  })
+  // Beyond 14 days: should NOT show on Upcoming Jobs
+  const marcosBeyond1 = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: marcos.id,
+      date: addDays(today, 16),
+      time: '10:00',
+      type: temp3.type,
+      address: temp3.address,
+      size: temp3.size,
+      hours: 4,
+      price: temp3.price,
+      paymentMethod: 'CASH',
+      lineage: 'marcos-beyond-1',
+      templateId: temp3.id,
+      employees: { connect: [{ id: empFour.id }] },
+    },
+    include: { employees: true },
+  })
+  const marcosBeyond2 = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: jane.id,
+      date: addDays(today, 20),
+      time: '14:00',
+      type: temp2.type,
+      address: temp2.address,
+      size: temp2.size,
+      hours: 5,
+      price: temp2.price,
+      paymentMethod: 'CASH',
+      lineage: 'marcos-beyond-2',
+      templateId: temp2.id,
+      employees: { connect: [{ id: empFour.id }] },
+    },
+    include: { employees: true },
+  })
+  await createPayroll(marcosPast1)
+  await createPayroll(marcosPast2)
+  await createPayroll(marcosUp1)
+  await createPayroll(marcosUp2)
+  await createPayroll(marcosUp3Am)
+  await createPayroll(marcosUp3Pm)
+  await createPayroll(marcosUp4)
+  await createPayroll(marcosUp5)
+  await createPayroll(marcosBeyond1)
+  await createPayroll(marcosBeyond2)
+
   // Mark one payroll item for each of the first two employees as paid
   const payment1 = await prisma.employeePayment.create({
     data: { employeeId: empOne.id, amount: 100 },
@@ -310,45 +505,58 @@ async function main() {
     return `${year}-${month}-${day}-${type}-${status}`
   }
 
-  // Create schedules for each employee
+  // Create schedules for each employee with a mix of available/unavailable for current week (for Team Options modal testing)
+  // Slot A = AM (before 2pm), M = PM (2pm+). Status F = free/available.
   const employees = [empOne, empTwo, empThree, empFour]
-  
+  const employeeIndex = (emp: { id: number }) => employees.findIndex((e) => e.id === emp.id)
+
   for (const employee of employees) {
     const pastSchedule: string[] = []
     const futureSchedule: string[] = []
-    
+    const idx = employeeIndex(employee)
+
     // Add past schedule entries (5 days ago to yesterday)
     for (let i = 5; i >= 1; i--) {
       const pastDate = new Date(today)
       pastDate.setDate(pastDate.getDate() - i)
-      
-      // Add some morning and afternoon shifts randomly
-      if (i % 2 === 0) {
-        pastSchedule.push(formatScheduleEntry(pastDate, 'M', 'F'))
-      }
-      if (i % 3 === 0) {
-        pastSchedule.push(formatScheduleEntry(pastDate, 'A', 'F'))
+      if (i % 2 === 0) pastSchedule.push(formatScheduleEntry(pastDate, 'M', 'F'))
+      if (i % 3 === 0) pastSchedule.push(formatScheduleEntry(pastDate, 'A', 'F'))
+    }
+
+    // Current week = today and next 6 days (7 days). Different pattern per employee for testing.
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today)
+      d.setDate(d.getDate() + i)
+      if (idx === 0) {
+        // Emp 1: Available both AM and PM every day this week
+        futureSchedule.push(formatScheduleEntry(d, 'A', 'F'))
+        futureSchedule.push(formatScheduleEntry(d, 'M', 'F'))
+      } else if (idx === 1) {
+        // Emp 2: Available AM and PM on even-indexed days (e.g. Mon, Wed, Fri)
+        if (i % 2 === 0) {
+          futureSchedule.push(formatScheduleEntry(d, 'A', 'F'))
+          futureSchedule.push(formatScheduleEntry(d, 'M', 'F'))
+        }
+      } else if (idx === 2) {
+        // Emp 3: Available only AM (before 2pm) this week
+        futureSchedule.push(formatScheduleEntry(d, 'A', 'F'))
+      } else {
+        // Emp 4: No availability this week (all non-available for Team Options testing)
+        // no entries for days 0..6
       }
     }
-    
-    // Add future schedule entries (tomorrow to 14 days ahead)
-    for (let i = 1; i <= 14; i++) {
+
+    // Rest of future (day 7 to 14): all employees get some availability so seed stays usable
+    for (let i = 7; i <= 14; i++) {
       const futureDate = new Date(today)
       futureDate.setDate(futureDate.getDate() + i)
-      
-      // Add some morning and afternoon shifts
-      if (i % 2 === 0) {
-        futureSchedule.push(formatScheduleEntry(futureDate, 'M', 'F'))
-      }
-      if (i % 3 === 0) {
-        futureSchedule.push(formatScheduleEntry(futureDate, 'A', 'F'))
-      }
+      if (i % 2 === 0) futureSchedule.push(formatScheduleEntry(futureDate, 'M', 'F'))
+      if (i % 3 === 0) futureSchedule.push(formatScheduleEntry(futureDate, 'A', 'F'))
     }
-    
-    // Create schedule with employeeUpdate set to 3 days ago (to test reminder system)
+
     const updateDate = new Date(today)
     updateDate.setDate(updateDate.getDate() - 3)
-    
+
     await prisma.schedule.create({
       data: {
         employeeId: employee.id,

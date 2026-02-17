@@ -91,6 +91,7 @@ model Appointment {
   doorCode        String?
   buildingNumber  String?
   notes           String?
+  payrollNote     String?         // Pay note from Team Options (per appointment only)
   aiCreated       Boolean         @default(false)
   familyId        Int?
   family          RecurrenceFamily? @relation(fields: [familyId], references: [id], onDelete: SetNull)
@@ -220,6 +221,7 @@ model PayrollItem {
   id            Int          @id @default(autoincrement())
   appointmentId Int
   employeeId    Int
+  amount        Float?       // override base pay; if null, computed from type/size/count
   paid          Boolean      @default(false)
   paymentId     Int?
   extras        ManualPayrollItem[] @relation("ExtraItems")

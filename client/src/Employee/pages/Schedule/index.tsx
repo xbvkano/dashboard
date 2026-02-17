@@ -234,11 +234,33 @@ export default function Schedule() {
   const [success, setSuccess] = useState('')
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [scheduledByDay, setScheduledByDay] = useState<Record<string, { morning: boolean; afternoon: boolean }>>({})
 
-  // Load existing schedule
+  // Load existing schedule and upcoming appointments (for scheduled blocks)
   useEffect(() => {
     loadSchedule()
+    loadUpcomingAppointments()
   }, [])
+
+  async function loadUpcomingAppointments() {
+    try {
+      const userName = localStorage.getItem('userName')
+      const headers: HeadersInit = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' }
+      if (userName) headers['x-user-name'] = userName
+      const res = await fetch(`${API_BASE_URL}/employee/upcoming-appointments`, { headers })
+      if (!res.ok) return
+      const list = await res.json()
+      const byDay: Record<string, { morning: boolean; afternoon: boolean }> = {}
+      list.forEach((a: { date: string; block: 'AM' | 'PM' }) => {
+        if (!byDay[a.date]) byDay[a.date] = { morning: false, afternoon: false }
+        if (a.block === 'AM') byDay[a.date].morning = true
+        else byDay[a.date].afternoon = true
+      })
+      setScheduledByDay(byDay)
+    } catch {
+      // ignore
+    }
+  }
 
   async function loadSchedule() {
     try {
@@ -485,6 +507,8 @@ export default function Schedule() {
             const daySchedule = schedule[key] || { morning: false, afternoon: false }
             const canSelectDay = canSelect(date)
             const isNextMonth = (date as any).isNextMonth
+            const scheduledMorning = scheduledByDay[key]?.morning ?? false
+            const scheduledAfternoon = scheduledByDay[key]?.afternoon ?? false
             
             return (
               <div
@@ -510,7 +534,9 @@ export default function Schedule() {
                       onClick={() => toggleShift(date, 'morning')}
                       disabled={savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null}
                       className={`flex-1 min-h-[22px] text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
-                        savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null
+                        scheduledMorning
+                          ? 'bg-emerald-600 text-white cursor-default'
+                          : savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null
                           ? savedSchedule[key]?.morningStatus === 'B'
                             ? 'bg-emerald-600 text-white cursor-not-allowed'
                             : 'bg-violet-600 text-white cursor-not-allowed'
@@ -525,7 +551,9 @@ export default function Schedule() {
                       onClick={() => toggleShift(date, 'afternoon')}
                       disabled={savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null}
                       className={`flex-1 min-h-[22px] text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
-                        savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null
+                        scheduledAfternoon
+                          ? 'bg-emerald-600 text-white cursor-default'
+                          : savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null
                           ? savedSchedule[key]?.afternoonStatus === 'B'
                             ? 'bg-emerald-600 text-white cursor-not-allowed'
                             : 'bg-violet-600 text-white cursor-not-allowed'

@@ -6,12 +6,13 @@ type Role = 'ADMIN' | 'OWNER' | 'EMPLOYEE'
 interface DashboardProps {
   role: Role
   onLogout: () => void
+  onSwitchRole?: (role: Role, userName?: string) => void
 }
 
-export default function Dashboard({ role, onLogout }: DashboardProps) {
+export default function Dashboard({ role, onLogout, onSwitchRole }: DashboardProps) {
   return role === 'EMPLOYEE' ? (
-    <EmployeeDashboard onLogout={onLogout} />
+    <EmployeeDashboard onLogout={onLogout} onSwitchRole={onSwitchRole} />
   ) : (
-    <AdminDashboard onLogout={onLogout} />
+    <AdminDashboard onLogout={onLogout} onSwitchRole={onSwitchRole} />
   )
 }

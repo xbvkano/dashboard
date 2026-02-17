@@ -268,4 +268,54 @@ export async function confirmSchedule(req: Request, res: Response) {
   }
 }
 
+// AM = before 2pm (time < '14:00'), PM = 2pm or after
+function getBlockFromTime(time: string): 'AM' | 'PM' {
+  const [h] = (time || '00:00').split(':').map(Number)
+  return h < 14 ? 'AM' : 'PM'
+}
+
+export async function getUpcomingAppointments(req: Request, res: Response) {
+  try {
+    const employeeId = await getEmployeeId(req)
+    if (!employeeId) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+
+    const startOfToday = new Date()
+    startOfToday.setHours(0, 0, 0, 0)
+    const endOfDay14 = new Date(startOfToday)
+    endOfDay14.setDate(endOfDay14.getDate() + 15)
+    endOfDay14.setHours(0, 0, 0, 0)
+
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        employees: { some: { id: employeeId } },
+        date: { gte: startOfToday, lt: endOfDay14 },
+        status: { notIn: ['RESCHEDULE_OLD', 'DELETED', 'CANCEL'] },
+      },
+      include: {
+        template: true,
+      },
+      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+    })
+
+    const result = appointments.map((a) => {
+      const dateStr = a.date.toISOString().slice(0, 10)
+      return {
+        id: a.id,
+        date: dateStr,
+        time: a.time,
+        address: a.address,
+        instructions: a.template?.instructions ?? null,
+        block: getBlockFromTime(a.time),
+      }
+    })
+
+    res.json(result)
+  } catch (e) {
+    console.error('Error fetching upcoming appointments:', e)
+    res.status(500).json({ error: 'Failed to fetch upcoming appointments' })
+  }
+}
+
 

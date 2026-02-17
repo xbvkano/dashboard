@@ -42,11 +42,25 @@ export async function getEmployees(req: Request, res: Response) {
   }
 }
 
+/**
+ * Map appointment time to schedule slot: AM = before 2pm (slot 'A'), PM = 2pm or after (slot 'M').
+ * Schedule entry format: YYYY-MM-DD-T-S (e.g. 2026-01-30-A-F).
+ */
+// Schedule uses M = Morning (AM), A = Afternoon (PM). AM = before 2pm, PM = 2pm or after.
+function getSlotFromTime(timeStr: string): 'M' | 'A' {
+  if (!timeStr || typeof timeStr !== 'string') return 'M'
+  const [h, m] = timeStr.split(':').map((s) => parseInt(s, 10))
+  const minutes = (h ?? 0) * 60 + (m ?? 0)
+  return minutes < 14 * 60 ? 'M' : 'A' // before 2pm = M (AM), 2pm+ = A (PM)
+}
+
 export async function getAvailableEmployees(req: Request, res: Response) {
   const dateStr = String(req.query.date || '')
+  const timeStr = String(req.query.time || '')
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     return res.status(400).json({ error: 'date required (YYYY-MM-DD)' })
   }
+  const slot = timeStr ? getSlotFromTime(timeStr) : null
   try {
     const employees = await prisma.employee.findMany({
       where: { disabled: false },
@@ -58,9 +72,11 @@ export async function getAvailableEmployees(req: Request, res: Response) {
       const hasAvailability = future.some((entry) => {
         const parts = entry.split('-')
         if (parts.length !== 5) return false
-        const [y, m, d, , status] = parts
+        const [y, m, d, t, status] = parts
         const entryDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
-        return entryDate === dateStr && status === 'F'
+        if (entryDate !== dateStr || status !== 'F') return false
+        if (slot != null && t !== slot) return false
+        return true
       })
       return { ...emp, available: hasAvailability }
     })
@@ -73,11 +89,10 @@ export async function getAvailableEmployees(req: Request, res: Response) {
 
 export async function createEmployee(req: Request, res: Response) {
   try {
-    const { name, number, notes, experienced, disabled, password } = req.body as {
+    const { name, number, notes, disabled, password } = req.body as {
       name?: string
       number?: string
       notes?: string
-      experienced?: boolean
       disabled?: boolean
       password?: string
     }
@@ -119,7 +134,6 @@ export async function createEmployee(req: Request, res: Response) {
         name,
         number: normalized,
         notes,
-        experienced: experienced ?? false,
         disabled: disabled ?? false,
         userId: user.id,
       },
@@ -154,11 +168,10 @@ export async function getEmployee(req: Request, res: Response) {
 export async function updateEmployee(req: Request, res: Response) {
   const id = parseInt(req.params.id, 10)
   try {
-    const { name, number, notes, experienced, disabled, password } = req.body as {
+    const { name, number, notes, disabled, password } = req.body as {
       name?: string
       number?: string
       notes?: string
-      experienced?: boolean
       disabled?: boolean
       password?: string
     }
@@ -182,7 +195,6 @@ export async function updateEmployee(req: Request, res: Response) {
       data.number = normalized
     }
     if (notes !== undefined) data.notes = notes
-    if (experienced !== undefined) data.experienced = experienced
     if (disabled !== undefined) data.disabled = disabled
     
     const employee = await prisma.employee.update({ where: { id }, data })

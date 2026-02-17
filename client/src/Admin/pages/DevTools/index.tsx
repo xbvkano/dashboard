@@ -2,7 +2,14 @@ import { useState } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../api'
 import { useModal } from '../../../ModalProvider'
 
-export default function DevTools() {
+// Seed creates Marcos Kano with generateUserName('17255774523') → stored as '7255774523' in User.userName
+const MARCOS_KANO_USER_NAME = '7255774523'
+
+interface DevToolsProps {
+  onSwitchRole?: (role: 'ADMIN' | 'OWNER' | 'EMPLOYEE', userName?: string) => void
+}
+
+export default function DevTools({ onSwitchRole }: DevToolsProps) {
   const { alert } = useModal()
   const [loading, setLoading] = useState<Record<string, boolean>>({})
 
@@ -47,8 +54,24 @@ export default function DevTools() {
   return (
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">DevTools - Cron Job Tester</h2>
+        <h2 className="text-xl font-semibold">DevTools</h2>
       </div>
+
+      {onSwitchRole && (
+        <div className="border rounded-lg p-4 bg-white shadow">
+          <h3 className="text-lg font-semibold mb-2">View as employee</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Switch to the employee side logged in as <strong>Marcos Kano</strong> to see their schedule and view.
+          </p>
+          <button
+            type="button"
+            onClick={() => onSwitchRole('EMPLOYEE', MARCOS_KANO_USER_NAME)}
+            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+          >
+            Open employee view (Marcos Kano)
+          </button>
+        </div>
+      )}
       
       <div className="bg-yellow-50 border border-yellow-200 rounded p-4 mb-4">
         <p className="text-sm text-yellow-800">

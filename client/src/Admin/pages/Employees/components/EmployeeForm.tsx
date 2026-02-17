@@ -18,7 +18,6 @@ export default function EmployeeForm() {
       name: '',
       number: '',
       notes: '',
-      experienced: false,
       disabled: false,
       password: '',
     }),
@@ -28,7 +27,7 @@ export default function EmployeeForm() {
   useEffect(() => {
     if (!isNew) {
       fetchJson(`${API_BASE_URL}/employees/${id}`)
-        .then((d) => setData({ experienced: false, disabled: false, ...d }))
+        .then((d) => setData({ disabled: false, ...d }))
         .catch((err) => console.error(err))
     }
   }, [id, isNew])
@@ -70,7 +69,6 @@ export default function EmployeeForm() {
       name: data.name,
       number: data.number.length === 10 ? '1' + data.number : data.number,
       notes: data.notes,
-      experienced: data.experienced,
       disabled: data.disabled ?? false,
     }
     // Password is required for new employees, optional for updates
@@ -173,16 +171,6 @@ export default function EmployeeForm() {
           required={isNew}
           className="w-full border p-2 rounded"
         />
-      </div>
-      <div className="flex items-center gap-2">
-        <input
-          id="experienced"
-          name="experienced"
-          type="checkbox"
-          checked={data.experienced ?? false}
-          onChange={handleCheckboxChange}
-        />
-        <label htmlFor="experienced" className="text-sm">Experienced</label>
       </div>
       <div className="flex items-center gap-2">
         <input

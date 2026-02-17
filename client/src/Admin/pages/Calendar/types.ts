@@ -26,6 +26,7 @@ export interface Appointment {
   size?: string
   price?: number
   notes?: string
+  payrollNote?: string | null
   hours?: number
   paid?: boolean
   paymentMethod?: 'CASH' | 'ZELLE' | 'VENMO' | 'PAYPAL' | 'OTHER' | 'CHECK'
@@ -58,6 +59,7 @@ export interface Appointment {
   createdAt?: string
   payrollItems?: {
     employeeId: number
+    amount?: number
     extras: { id: number; name: string; amount: number }[]
   }[]
 }

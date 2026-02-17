@@ -11,6 +11,7 @@ import type { Appointment } from '../types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
 import { formatPhone } from '../../../../formatPhone'
+import TeamOptionsModal from './TeamOptionsModal'
 
 function parseSqft(s: string | null | undefined): number | null {
   if (!s) return null
@@ -84,6 +85,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   const [editingNotesValue, setEditingNotesValue] = useState('')
   const [template, setTemplate] = useState<any>(null)
   const [loadingTemplate, setLoadingTemplate] = useState(false)
+  const [showTeamOptions, setShowTeamOptions] = useState(false)
   const isMobile =
     typeof navigator !== 'undefined' &&
     /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
@@ -751,6 +753,22 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
 
       {/* details modal */}
       {selected && (() => {
+        // When Team Options is open, hide the view modal and show only Team Options
+        if (showTeamOptions) {
+          return createPortal(
+            <TeamOptionsModal
+              appointment={selected}
+              onClose={() => setShowTeamOptions(false)}
+              onSave={(updated) => {
+                onUpdate?.(updated)
+                setSelected(updated)
+                setShowTeamOptions(false)
+              }}
+              templateTeamSize={template?.teamSize}
+            />,
+            document.body
+          )
+        }
         // Check if this is an unconfirmed recurring appointment
         // Note: isRecurringUnconfirmed is true when status is RECURRING_UNCONFIRMED and familyId exists
         // This determines which action buttons to show (recurring actions vs regular action panel)
@@ -866,13 +884,16 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
                   {selected.employees.map((e) => {
                     const carpetIds = ((selected as any).carpetEmployees || []) as number[]
                     const onCarpet = carpetIds.includes(e.id!)
+                    const payrollItem = selected.payrollItems?.find((p) => p.employeeId === e.id)
                     const base =
-                      payRate ??
-                      calcPayRate(
-                        selected.type,
-                        selected.size ?? null,
-                        selected.employees.length,
-                      )
+                      (payrollItem as any)?.amount != null
+                        ? (payrollItem as any).amount
+                        : payRate ??
+                          calcPayRate(
+                            selected.type,
+                            selected.size ?? null,
+                            selected.employees.length,
+                          )
                     const carpet =
                       onCarpet &&
                       (carpetRate ??
@@ -886,7 +907,6 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
                     return (
                       <li key={e.id}>
                         {e.name}{' '}
-                        {e.experienced ? <span className="font-bold">(Exp)</span> : null}
                         <span className="ml-1 text-sm text-gray-600">
                           ${base.toFixed(2)}
                           {onCarpet && carpet ? (
@@ -897,12 +917,6 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
                             </>
                           ) : null}
                         </span>
-                        <button
-                          className="text-blue-500 text-xs ml-2"
-                          onClick={() => openExtra(e.id!)}
-                        >
-                          Add extra
-                        </button>
                         {extras.map((ex) => (
                           <div key={ex.id} className="pl-4 flex items-start relative">
                             <div className="absolute left-0 top-0 w-3 h-3 border-l border-b border-gray-400" />
@@ -1207,6 +1221,16 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
               </div>
             )}
 
+            {/* Team Options - only show for non-recurring-unconfirmed appointments */}
+            {!isRecurringUnconfirmed && (
+              <button
+                onClick={() => setShowTeamOptions(true)}
+                className="w-full px-3 py-2 bg-indigo-500 text-white rounded text-sm hover:bg-indigo-600 mb-2"
+              >
+                Team Options
+              </button>
+            )}
+
             {/* Actions Panel Toggle - Only show for non-recurring-unconfirmed appointments */}
             {!isRecurringUnconfirmed && (
               <div className="pt-2">
@@ -1444,13 +1468,16 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
                       {selected.employees.map((e) => {
                         const carpetIds = ((selected as any).carpetEmployees || []) as number[]
                         const onCarpet = carpetIds.includes(e.id!)
+                        const payrollItem = selected.payrollItems?.find((p) => p.employeeId === e.id)
                         const base =
-                          payRate ??
-                          calcPayRate(
-                            selected.type,
-                            selected.size ?? null,
-                            selected.employees.length,
-                          )
+                          (payrollItem as any)?.amount != null
+                            ? (payrollItem as any).amount
+                            : payRate ??
+                              calcPayRate(
+                                selected.type,
+                                selected.size ?? null,
+                                selected.employees.length,
+                              )
                         const carpet =
                           onCarpet &&
                           (carpetRate ??
