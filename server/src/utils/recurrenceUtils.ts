@@ -19,18 +19,21 @@ export function calculateNextAppointmentDate(
 ): Date {
   const next = new Date(referenceDate)
 
+  // Week-based types: add exact multiples of 7 days in UTC so we always land on the same weekday
+  // (e.g. every 4 weeks on Tuesday → 28 days later is always Tuesday). Using UTC avoids timezone
+  // shifts that could change the calendar day when the server is in a different timezone.
   switch (rule.type) {
     case 'weekly':
-      next.setDate(next.getDate() + 7)
+      next.setUTCDate(next.getUTCDate() + 7)
       break
     case 'biweekly':
-      next.setDate(next.getDate() + 14)
+      next.setUTCDate(next.getUTCDate() + 14)
       break
     case 'every3weeks':
-      next.setDate(next.getDate() + 21)
+      next.setUTCDate(next.getUTCDate() + 21)
       break
     case 'every4weeks':
-      next.setDate(next.getDate() + 28)
+      next.setUTCDate(next.getUTCDate() + 28)
       break
     case 'monthly': {
       const originalDay = referenceDate.getDate()
@@ -96,8 +99,8 @@ export function calculateNextAppointmentDate(
       }
       break
     default:
-      // Fallback to weekly
-      next.setDate(next.getDate() + 7)
+      // Fallback to weekly (same weekday guarantee)
+      next.setUTCDate(next.getUTCDate() + 7)
   }
 
   return next

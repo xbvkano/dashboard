@@ -39,6 +39,16 @@ describe('recurrenceUtils', () => {
       expect(next.getMonth()).toBe(1) // Feb 12
     })
 
+    it('every4weeks lands on same weekday (e.g. Tuesday → Tuesday)', () => {
+      // Feb 23, 2025 is a Sunday; 4 weeks later must be Sunday March 23
+      const ref = new Date(Date.UTC(2025, 1, 23, 0, 0, 0, 0))
+      expect(ref.getUTCDay()).toBe(0) // Sunday
+      const next = calculateNextAppointmentDate({ type: 'every4weeks', interval: 4 }, ref)
+      expect(next.getUTCDay()).toBe(0) // still Sunday
+      expect(next.getUTCDate()).toBe(23)
+      expect(next.getUTCMonth()).toBe(2) // March 23
+    })
+
     it('adds 1 month for monthly recurrence', () => {
       const ref = new Date(2025, 0, 15)
       const next = calculateNextAppointmentDate({ type: 'monthly' }, ref)
