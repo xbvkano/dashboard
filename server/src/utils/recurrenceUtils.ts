@@ -133,11 +133,23 @@ export function ruleToJson(rule: RecurrenceRule): string {
 }
 
 /**
- * Parse a JSON string back to a RecurrenceRule
+ * Parse a JSON string back to a RecurrenceRule.
+ * Normalizes rule type (lowercase) and interval 4 => every4weeks so the switch matches correctly.
  */
 export function jsonToRule(json: string): RecurrenceRule {
   try {
-    return JSON.parse(json)
+    const parsed = JSON.parse(json) as RecurrenceRule
+    const type = typeof parsed.type === 'string' ? parsed.type.toLowerCase() : parsed.type
+    // Normalize: interval 4 with a week-based intent => every4weeks (handles legacy/mis-saved rules)
+    if (parsed.interval === 4 && type !== 'every4weeks' && type !== 'custommonths') {
+      return { ...parsed, type: 'every4weeks', interval: 4 }
+    }
+    // Ensure type is a known string so switch() in calculateNextAppointmentDate matches
+    const known: RecurrenceRule['type'][] = ['weekly', 'biweekly', 'every3weeks', 'every4weeks', 'monthly', 'customMonths', 'monthlyPattern']
+    if (known.includes(type as RecurrenceRule['type'])) {
+      return { ...parsed, type: type as RecurrenceRule['type'] }
+    }
+    return parsed
   } catch {
     return { type: 'weekly', interval: 1 }
   }

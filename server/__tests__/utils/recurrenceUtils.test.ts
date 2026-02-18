@@ -142,6 +142,21 @@ describe('recurrenceUtils', () => {
       const parsed = jsonToRule('invalid json {')
       expect(parsed).toEqual({ type: 'weekly', interval: 1 })
     })
+
+    it('parses every4weeks and next date is +28 days', () => {
+      const parsed = jsonToRule('{"type":"every4weeks"}')
+      expect(parsed.type).toBe('every4weeks')
+      const ref = new Date(2025, 1, 23) // Feb 23
+      const next = calculateNextAppointmentDate(parsed, ref)
+      expect(next.getDate()).toBe(23)
+      expect(next.getMonth()).toBe(2) // March 23
+    })
+
+    it('normalizes interval 4 to every4weeks when type was wrong', () => {
+      const parsed = jsonToRule('{"type":"weekly","interval":4}')
+      expect(parsed.type).toBe('every4weeks')
+      expect(parsed.interval).toBe(4)
+    })
   })
 
   describe('formatRecurrenceRule', () => {
