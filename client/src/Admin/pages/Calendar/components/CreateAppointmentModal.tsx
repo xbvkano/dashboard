@@ -95,9 +95,9 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const [editingTemplateNotesValue, setEditingTemplateNotesValue] = useState<string>('')
   const [templateForm, setTemplateForm] = useState({
     templateName: '',
-    type: 'STANDARD',
+    type: '',
     size: '',
-    teamSize: '1',
+    teamSize: '',
     address: '',
     price: '',
     notes: '',
@@ -112,7 +112,11 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
     templateForm.templateName.trim() !== '' &&
     templateForm.address.trim() !== '' &&
     templateForm.price !== '' &&
+    templateForm.type !== '' &&
     templateForm.size !== '' &&
+    templateForm.teamSize.trim() !== '' &&
+    !isNaN(parseInt(templateForm.teamSize, 10)) &&
+    parseInt(templateForm.teamSize, 10) >= 1 &&
     (!templateForm.carpetEnabled || parseInt(templateForm.carpetRooms, 10) >= 1)
 
   const [date, setDate] = useState<string>(persisted.date ?? '')
@@ -338,9 +342,9 @@ const preserveTeamRef = useRef(false)
     setEditingTemplateId(null)
     setTemplateForm({
       templateName: '',
-      type: 'STANDARD',
+      type: '',
       size: '',
-      teamSize: '1',
+      teamSize: '',
       address: '',
       price: '',
       notes: '',
@@ -469,15 +473,14 @@ const preserveTeamRef = useRef(false)
     setCarpetRooms(t?.carpetRooms != null ? String(t.carpetRooms) : '')
   }, [selectedTemplate, templates])
 
-  // Auto-fill team size default when templateForm size/type change
+  // When size or type changes and both are set, update team size to the new default
   useEffect(() => {
-    if (templateForm.size && templateForm.type) {
-      fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
-        .then((d: { teamSize: number }) => {
-          setTemplateForm((prev: typeof templateForm) => ({ ...prev, teamSize: String(d.teamSize) }))
-        })
-        .catch(() => {})
-    }
+    if (!templateForm.size || !templateForm.type) return
+    fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
+      .then((d: { teamSize: number }) => {
+        setTemplateForm((prev: typeof templateForm) => ({ ...prev, teamSize: String(d.teamSize) }))
+      })
+      .catch(() => {})
   }, [templateForm.size, templateForm.type])
 
   // calculate pay rate when team changes
@@ -620,7 +623,12 @@ const preserveTeamRef = useRef(false)
     if (!templateForm.templateName.trim()) missing.push('template name')
     if (!templateForm.address.trim()) missing.push('address')
     if (templateForm.price === '') missing.push('price')
+    if (!templateForm.type) missing.push('type')
     if (!templateForm.size) missing.push('size')
+    const teamSizeNum = parseInt(templateForm.teamSize, 10)
+    if (!templateForm.teamSize.trim() || isNaN(teamSizeNum) || teamSizeNum < 1) {
+      missing.push('team size (required, min 1)')
+    }
     if (templateForm.carpetEnabled) {
       const rooms = parseInt(templateForm.carpetRooms, 10)
       if (isNaN(rooms) || rooms < 1) {
@@ -631,13 +639,12 @@ const preserveTeamRef = useRef(false)
       await alert('Please provide: ' + missing.join(', '))
       return
     }
-    const teamSizeNum = parseInt(templateForm.teamSize, 10)
     const payload: any = {
       clientId: selectedClient.id,
       templateName: templateForm.templateName,
       type: templateForm.type,
       size: templateForm.size,
-      teamSize: !isNaN(teamSizeNum) ? teamSizeNum : undefined,
+      teamSize: teamSizeNum,
       address: templateForm.address,
       price: parseFloat(templateForm.price),
       notes: templateForm.notes || undefined,
@@ -1013,10 +1020,11 @@ const preserveTeamRef = useRef(false)
                   value={templateForm.type}
                   onChange={(e) => setTemplateForm({ ...templateForm, type: e.target.value })}
                 >
+                  {templateForm.type === '' && <option value="">Select type</option>}
+                  <option value="STANDARD">Standard</option>
                   <option value="DEEP">Deep</option>
                   <option value="MOVE_IN_OUT">Move in/out</option>
-                  <option value="STANDARD">Standard</option>
-                  </select>
+                </select>
                   <h4 className="font-light">Size: <span className="text-red-500">*</span></h4>
                 <select
                   id="appointment-template-size"
@@ -1024,22 +1032,38 @@ const preserveTeamRef = useRef(false)
                   value={templateForm.size}
                   onChange={(e) => setTemplateForm({ ...templateForm, size: e.target.value })}
                 >
-                  <option value="">Select size</option>
+                  {templateForm.size === '' && <option value="">Select size</option>}
                   {sizeOptions.map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
                   ))}
-                  </select>
-                  <h4 className="font-light">Team Size</h4>
+                </select>
+                  <h4 className="font-light">Team Size: <span className="text-red-500">*</span></h4>
                 <input
-                  type="number"
-                  min="1"
-                  className="w-full border p-2 rounded text-base"
-                  placeholder="Default from size/type"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  className="w-full border p-2 rounded text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  placeholder={templateForm.size && templateForm.type ? 'Default from size/type' : 'Select size and type first'}
                   value={templateForm.teamSize}
-                  onChange={(e) => setTemplateForm({ ...templateForm, teamSize: e.target.value })}
-                  title="Recommended team size based on property size and service type"
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, '')
+                    setTemplateForm({ ...templateForm, teamSize: v })
+                  }}
+                  onBlur={() => {
+                    const trimmed = templateForm.teamSize.trim()
+                    if (trimmed === '' && templateForm.size && templateForm.type) {
+                      fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
+                        .then((d: { teamSize: number }) => {
+                          setTemplateForm((prev: typeof templateForm) => ({ ...prev, teamSize: String(d.teamSize) }))
+                        })
+                        .catch(() => {})
+                    }
+                  }}
+                  disabled={!templateForm.size || !templateForm.type}
+                  required
+                  title="Required. Recommended team size based on property size and service type."
                 />
                   <h4 className="font-light">Price: <span className="text-red-500">*</span></h4>
                 <input
@@ -1155,7 +1179,23 @@ const preserveTeamRef = useRef(false)
                   <button
                     type="button"
                     className="bg-gray-300 px-3 py-2 rounded"
-                    onClick={() => { setShowNewTemplate(false); setEditing(false) }}
+                    onClick={() => {
+                      setTemplateForm({
+                        templateName: '',
+                        type: '',
+                        size: '',
+                        teamSize: '',
+                        address: '',
+                        price: '',
+                        notes: '',
+                        instructions: '',
+                        carpetEnabled: false,
+                        carpetRooms: '',
+                        carpetPrice: '',
+                      })
+                      setShowNewTemplate(false)
+                      setEditing(false)
+                    }}
                   >
                     Cancel
                   </button>
@@ -1307,7 +1347,26 @@ const preserveTeamRef = useRef(false)
                       </option>
                     ))}
                   </select>
-                  <button className="px-3 py-2 text-sm" onClick={() => { setEditing(false); setShowNewTemplate(true) }}>
+                  <button
+                    className="px-3 py-2 text-sm"
+                    onClick={() => {
+                      setEditing(false)
+                      setTemplateForm({
+                        templateName: '',
+                        type: '',
+                        size: '',
+                        teamSize: '',
+                        address: '',
+                        price: '',
+                        notes: '',
+                        instructions: '',
+                        carpetEnabled: false,
+                        carpetRooms: '',
+                        carpetPrice: '',
+                      })
+                      setShowNewTemplate(true)
+                    }}
+                  >
                     New
                   </button>
                 </div>
