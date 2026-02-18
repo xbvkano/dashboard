@@ -32,6 +32,13 @@ describe('recurrenceUtils', () => {
       expect(next.getMonth()).toBe(1) // Feb 5
     })
 
+    it('adds 28 days for every4weeks recurrence', () => {
+      const ref = new Date(2025, 0, 15)
+      const next = calculateNextAppointmentDate({ type: 'every4weeks', interval: 4 }, ref)
+      expect(next.getDate()).toBe(12)
+      expect(next.getMonth()).toBe(1) // Feb 12
+    })
+
     it('adds 1 month for monthly recurrence', () => {
       const ref = new Date(2025, 0, 15)
       const next = calculateNextAppointmentDate({ type: 'monthly' }, ref)
@@ -108,6 +115,9 @@ describe('recurrenceUtils', () => {
     it('parses EVERY3', () => {
       expect(parseLegacyFrequency('EVERY3')).toEqual({ type: 'every3weeks', interval: 3 })
     })
+    it('parses EVERY4', () => {
+      expect(parseLegacyFrequency('EVERY4')).toEqual({ type: 'every4weeks', interval: 4 })
+    })
     it('parses MONTHLY', () => {
       expect(parseLegacyFrequency('MONTHLY')).toEqual({ type: 'monthly' })
     })
@@ -138,6 +148,7 @@ describe('recurrenceUtils', () => {
     it('formats weekly', () => expect(formatRecurrenceRule({ type: 'weekly' })).toBe('Every week'))
     it('formats biweekly', () => expect(formatRecurrenceRule({ type: 'biweekly' })).toBe('Every 2 weeks'))
     it('formats every3weeks', () => expect(formatRecurrenceRule({ type: 'every3weeks' })).toBe('Every 3 weeks'))
+    it('formats every4weeks', () => expect(formatRecurrenceRule({ type: 'every4weeks' })).toBe('Every 4 weeks'))
     it('formats monthly', () => expect(formatRecurrenceRule({ type: 'monthly' })).toBe('Every month'))
     it('formats customMonths interval 1', () => expect(formatRecurrenceRule({ type: 'customMonths', interval: 1 })).toBe('Every 1 month'))
     it('formats customMonths interval 3', () => expect(formatRecurrenceRule({ type: 'customMonths', interval: 3 })).toBe('Every 3 months'))
@@ -226,6 +237,28 @@ describe('recurrenceUtils', () => {
       const lastBooked = new Date(2025, 0, 22) // Jan 22 + 21 = Feb 12, Feb 12 + 21 = Mar 5, Mar 5 + 21 = Mar 26
       const count = countOccurrencesInMonth({ type: 'every3weeks' }, lastBooked, 2, 2025)
       expect(count).toBe(2)
+    })
+
+    it('adds 28 days for every4weeks: Jan 1 → Jan 29, then Feb 26', () => {
+      const lastBooked = new Date(2025, 0, 1)
+      const next1 = calculateNextAppointmentDate({ type: 'every4weeks', interval: 4 }, lastBooked)
+      expect(next1.getDate()).toBe(29)
+      expect(next1.getMonth()).toBe(0)
+      const next2 = calculateNextAppointmentDate({ type: 'every4weeks', interval: 4 }, next1)
+      expect(next2.getDate()).toBe(26)
+      expect(next2.getMonth()).toBe(1)
+    })
+
+    it('counts 1 every4weeks occurrence in January when starting Jan 1 (Jan 29 only, next Feb 26)', () => {
+      const lastBooked = new Date(2025, 0, 1)
+      const count = countOccurrencesInMonth({ type: 'every4weeks' }, lastBooked, 0, 2025)
+      expect(count).toBe(1)
+    })
+
+    it('counts 1 every4weeks occurrence in March when starting Jan 29 (Mar 26 only)', () => {
+      const lastBooked = new Date(2025, 0, 29) // Jan 29 + 28 = Feb 26, Feb 26 + 28 = Mar 26
+      const count = countOccurrencesInMonth({ type: 'every4weeks' }, lastBooked, 2, 2025) // March: Mar 26 only
+      expect(count).toBe(1)
     })
 
     it('counts 1 monthly occurrence', () => {

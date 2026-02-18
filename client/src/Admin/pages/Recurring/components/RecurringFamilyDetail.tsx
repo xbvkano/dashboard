@@ -61,7 +61,7 @@ export default function RecurringFamilyDetail({ family, onUpdate, onBackToList }
 
   const handleUpdateRule = async () => {
     const rule: any = { type: ruleType }
-    if (ruleType === 'weekly' || ruleType === 'biweekly' || ruleType === 'every3weeks') {
+    if (ruleType === 'weekly' || ruleType === 'biweekly' || ruleType === 'every3weeks' || ruleType === 'every4weeks') {
       rule.interval = interval
     } else if (ruleType === 'customMonths') {
       rule.interval = interval
@@ -322,11 +322,12 @@ export default function RecurringFamilyDetail({ family, onUpdate, onBackToList }
                   <option value="weekly">Every week</option>
                   <option value="biweekly">Every 2 weeks</option>
                   <option value="every3weeks">Every 3 weeks</option>
+                  <option value="every4weeks">Every 4 weeks</option>
                   <option value="monthly">Every month</option>
                   <option value="customMonths">Every X months</option>
                   <option value="monthlyPattern">Monthly pattern</option>
                 </select>
-                {(ruleType === 'weekly' || ruleType === 'biweekly' || ruleType === 'every3weeks' || ruleType === 'customMonths') && (
+                {(ruleType === 'weekly' || ruleType === 'biweekly' || ruleType === 'every3weeks' || ruleType === 'every4weeks' || ruleType === 'customMonths') && (
                   <input
                     type="number"
                     min="1"

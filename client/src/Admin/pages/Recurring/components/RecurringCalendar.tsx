@@ -45,6 +45,9 @@ function calculateNextDate(rule: any, date: Date): Date {
     case 'every3weeks':
       next.setDate(next.getDate() + 21)
       break
+    case 'every4weeks':
+      next.setDate(next.getDate() + 28)
+      break
     case 'monthly':
       next.setMonth(next.getMonth() + 1)
       break
@@ -97,6 +100,9 @@ function calculatePreviousDate(rule: any, date: Date): Date {
       break
     case 'every3weeks':
       prev.setDate(prev.getDate() - 21)
+      break
+    case 'every4weeks':
+      prev.setDate(prev.getDate() - 28)
       break
     case 'monthly':
       prev.setMonth(prev.getMonth() - 1)
@@ -232,7 +238,7 @@ function getProjectedOccurrences(family: RecurrenceFamily, selectedMonth: number
 
   if (referenceDate < monthStart) {
     const daysDiff = (monthStart.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24)
-    const minIntervalDays = rule.type === 'weekly' ? 7 : rule.type === 'biweekly' ? 14 : rule.type === 'every3weeks' ? 21 : 7
+    const minIntervalDays = rule.type === 'weekly' ? 7 : rule.type === 'biweekly' ? 14 : rule.type === 'every3weeks' ? 21 : rule.type === 'every4weeks' ? 28 : 7
     const maxIterationsNeeded = Math.ceil(daysDiff / minIntervalDays) + 5
     const iterationLimit = Math.max(50, maxIterationsNeeded)
     

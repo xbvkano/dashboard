@@ -3,8 +3,8 @@
  */
 
 export type RecurrenceRule = {
-  type: 'weekly' | 'biweekly' | 'every3weeks' | 'monthly' | 'customMonths' | 'monthlyPattern'
-  interval?: number // For weekly/biweekly/every3weeks: 1, 2, 3. For customMonths: number of months
+  type: 'weekly' | 'biweekly' | 'every3weeks' | 'every4weeks' | 'monthly' | 'customMonths' | 'monthlyPattern'
+  interval?: number // For weekly/biweekly/every3weeks/every4weeks: 1, 2, 3, 4. For customMonths: number of months
   dayOfWeek?: number // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
   weekOfMonth?: number // 1 = first, 2 = second, 3 = third, 4 = fourth, -1 = last
   dayOfMonth?: number // 1-31 for monthly pattern
@@ -28,6 +28,9 @@ export function calculateNextAppointmentDate(
       break
     case 'every3weeks':
       next.setDate(next.getDate() + 21)
+      break
+    case 'every4weeks':
+      next.setDate(next.getDate() + 28)
       break
     case 'monthly': {
       const originalDay = referenceDate.getDate()
@@ -111,6 +114,8 @@ export function parseLegacyFrequency(frequency: string, months?: number): Recurr
       return { type: 'biweekly', interval: 2 }
     case 'EVERY3':
       return { type: 'every3weeks', interval: 3 }
+    case 'EVERY4':
+      return { type: 'every4weeks', interval: 4 }
     case 'MONTHLY':
       return { type: 'monthly' }
     case 'CUSTOM':
@@ -149,6 +154,8 @@ export function formatRecurrenceRule(rule: RecurrenceRule): string {
       return 'Every 2 weeks'
     case 'every3weeks':
       return 'Every 3 weeks'
+    case 'every4weeks':
+      return 'Every 4 weeks'
     case 'monthly':
       return 'Every month'
     case 'customMonths':

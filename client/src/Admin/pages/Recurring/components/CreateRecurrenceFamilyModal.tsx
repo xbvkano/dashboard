@@ -65,7 +65,7 @@ export default function CreateRecurrenceFamilyModal({
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null)
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
-  const [ruleType, setRuleType] = useState<'weekly' | 'biweekly' | 'every3weeks' | 'monthly' | 'customMonths' | 'monthlyPattern'>('weekly')
+  const [ruleType, setRuleType] = useState<'weekly' | 'biweekly' | 'every3weeks' | 'every4weeks' | 'monthly' | 'customMonths' | 'monthlyPattern'>('weekly')
   const [interval, setInterval] = useState<string>('2')
   const [monthlyPatternType, setMonthlyPatternType] = useState<'weekDay' | 'dayOfMonth'>('weekDay')
   const [dayOfWeek, setDayOfWeek] = useState<number | undefined>(undefined)
@@ -608,6 +608,7 @@ export default function CreateRecurrenceFamilyModal({
                   <option value="weekly">Every week</option>
                   <option value="biweekly">Every 2 weeks</option>
                   <option value="every3weeks">Every 3 weeks</option>
+                  <option value="every4weeks">Every 4 weeks</option>
                   <option value="monthly">Every month</option>
                   <option value="customMonths">Monthly intervals</option>
                   <option value="monthlyPattern">Monthly pattern</option>
