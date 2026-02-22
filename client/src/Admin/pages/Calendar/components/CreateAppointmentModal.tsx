@@ -111,7 +111,9 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const isTemplateReady =
     templateForm.templateName.trim() !== '' &&
     templateForm.address.trim() !== '' &&
-    templateForm.price !== '' &&
+    templateForm.price.trim() !== '' &&
+    !isNaN(parseFloat(templateForm.price)) &&
+    parseFloat(templateForm.price) > 0 &&
     templateForm.type !== '' &&
     templateForm.size !== '' &&
     templateForm.teamSize.trim() !== '' &&
@@ -473,12 +475,16 @@ const preserveTeamRef = useRef(false)
     setCarpetRooms(t?.carpetRooms != null ? String(t.carpetRooms) : '')
   }, [selectedTemplate, templates])
 
-  // When size or type changes and both are set, update team size to the new default
+  // When size or type changes and both are set, update team size and price to the new defaults
   useEffect(() => {
     if (!templateForm.size || !templateForm.type) return
     fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
-      .then((d: { teamSize: number }) => {
-        setTemplateForm((prev: typeof templateForm) => ({ ...prev, teamSize: String(d.teamSize) }))
+      .then((d: { teamSize: number; price: number }) => {
+        setTemplateForm((prev: typeof templateForm) => ({
+          ...prev,
+          teamSize: String(d.teamSize),
+          price: d.price != null ? String(d.price) : prev.price,
+        }))
       })
       .catch(() => {})
   }, [templateForm.size, templateForm.type])
@@ -622,7 +628,8 @@ const preserveTeamRef = useRef(false)
     const missing: string[] = []
     if (!templateForm.templateName.trim()) missing.push('template name')
     if (!templateForm.address.trim()) missing.push('address')
-    if (templateForm.price === '') missing.push('price')
+    const priceNum = parseFloat(templateForm.price)
+    if (templateForm.price.trim() === '' || isNaN(priceNum) || priceNum <= 0) missing.push('price')
     if (!templateForm.type) missing.push('type')
     if (!templateForm.size) missing.push('size')
     const teamSizeNum = parseInt(templateForm.teamSize, 10)
@@ -1055,8 +1062,12 @@ const preserveTeamRef = useRef(false)
                     const trimmed = templateForm.teamSize.trim()
                     if (trimmed === '' && templateForm.size && templateForm.type) {
                       fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
-                        .then((d: { teamSize: number }) => {
-                          setTemplateForm((prev: typeof templateForm) => ({ ...prev, teamSize: String(d.teamSize) }))
+                        .then((d: { teamSize: number; price: number }) => {
+                          setTemplateForm((prev: typeof templateForm) => ({
+                            ...prev,
+                            teamSize: String(d.teamSize),
+                            ...(d.price != null && prev.price.trim() === '' ? { price: String(d.price) } : {}),
+                          }))
                         })
                         .catch(() => {})
                     }
@@ -1068,11 +1079,31 @@ const preserveTeamRef = useRef(false)
                   <h4 className="font-light">Price: <span className="text-red-500">*</span></h4>
                 <input
                   id="appointment-template-price"
-                  className="w-full border p-2 rounded text-base"
-                  placeholder="Price"
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  className="w-full border p-2 rounded text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  placeholder={templateForm.size && templateForm.type ? 'Default from size/type' : 'Select size and type first'}
                   value={templateForm.price}
-                  onChange={(e) => setTemplateForm({ ...templateForm, price: e.target.value })}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/[^\d.]/g, '').replace(/^(\d*\.)(.*)\./g, '$1$2')
+                    setTemplateForm({ ...templateForm, price: v })
+                  }}
+                  onBlur={() => {
+                    const trimmed = templateForm.price.trim()
+                    if (trimmed === '' && templateForm.size && templateForm.type) {
+                      fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
+                        .then((d: { teamSize: number; price: number }) => {
+                          if (d.price != null) {
+                            setTemplateForm((prev: typeof templateForm) => ({ ...prev, price: String(d.price) }))
+                          }
+                        })
+                        .catch(() => {})
+                    }
+                  }}
+                  disabled={!templateForm.size || !templateForm.type}
+                  required
+                  title="Required. Default price based on property size and service type."
                 />
                   <h4 className="font-light">Address: <span className="text-red-500">*</span></h4>
                 <input

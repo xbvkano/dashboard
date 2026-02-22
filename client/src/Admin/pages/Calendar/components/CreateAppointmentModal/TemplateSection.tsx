@@ -199,12 +199,16 @@ export default function TemplateSection({
     }
   }, [selectedClient])
 
-  // When size or type changes and both are set, update team size to the new default
+  // When size or type changes and both are set, update team size and price to the new defaults
   useEffect(() => {
     if (!templateForm.size || !templateForm.type) return
     fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
-      .then((data: { teamSize: number }) => {
-        setTemplateForm((prev) => ({ ...prev, teamSize: String(data.teamSize) }))
+      .then((data: { teamSize: number; price: number }) => {
+        setTemplateForm((prev) => ({
+          ...prev,
+          teamSize: String(data.teamSize),
+          price: data.price != null ? String(data.price) : prev.price,
+        }))
       })
       .catch(() => {})
   }, [templateForm.size, templateForm.type])
@@ -213,8 +217,24 @@ export default function TemplateSection({
     const trimmed = templateForm.teamSize.trim()
     if (trimmed !== '' || !templateForm.size || !templateForm.type) return
     fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
-      .then((data: { teamSize: number }) => {
-        setTemplateForm((prev) => ({ ...prev, teamSize: String(data.teamSize) }))
+      .then((data: { teamSize: number; price: number }) => {
+        setTemplateForm((prev) => ({
+          ...prev,
+          teamSize: String(data.teamSize),
+          ...(data.price != null && prev.price.trim() === '' ? { price: String(data.price) } : {}),
+        }))
+      })
+      .catch(() => {})
+  }
+
+  const fillDefaultPriceIfEmpty = () => {
+    const trimmed = templateForm.price.trim()
+    if (trimmed !== '' || !templateForm.size || !templateForm.type) return
+    fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
+      .then((data: { teamSize: number; price: number }) => {
+        if (data.price != null) {
+          setTemplateForm((prev) => ({ ...prev, price: String(data.price) }))
+        }
       })
       .catch(() => {})
   }
@@ -223,6 +243,8 @@ export default function TemplateSection({
     templateForm.templateName.trim() !== '' &&
     templateForm.address.trim() !== '' &&
     templateForm.price.trim() !== '' &&
+    !isNaN(parseFloat(templateForm.price)) &&
+    parseFloat(templateForm.price) > 0 &&
     templateForm.type !== '' &&
     templateForm.size !== '' &&
     templateForm.teamSize.trim() !== '' &&
@@ -332,12 +354,22 @@ export default function TemplateSection({
             value={templateForm.address}
             onChange={(e) => setTemplateForm({ ...templateForm, address: e.target.value })}
           />
+          <label className="block text-sm font-medium mb-1">Price: <span className="text-red-500">*</span></label>
           <input
-            type="number"
-            placeholder="Price"
-            className="w-full border p-2 rounded mb-2"
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            placeholder={templateForm.size && templateForm.type ? 'Default from size/type' : 'Select size and type first'}
+            className="w-full border p-2 rounded mb-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
             value={templateForm.price}
-            onChange={(e) => setTemplateForm({ ...templateForm, price: e.target.value })}
+            onChange={(e) => {
+              const v = e.target.value.replace(/[^\d.]/g, '').replace(/^(\d*\.)(.*)\./g, '$1$2')
+              setTemplateForm({ ...templateForm, price: v })
+            }}
+            onBlur={fillDefaultPriceIfEmpty}
+            disabled={!templateForm.size || !templateForm.type}
+            required
+            title="Required. Default price based on property size and service type."
           />
           <textarea
             placeholder="Notes (optional)"

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import { parseSqft, calculatePayRate, calculateCarpetRate } from '../utils/appointmentUtils'
-import { getDefaultTeamSize, getSizeRange } from '../data/teamSizeData'
+import { getDefaultTeamSize, getDefaultPrice, getSizeRange } from '../data/teamSizeData'
 
 export function getTeamSize(req: Request, res: Response) {
   const size = String(req.query.size || '')
@@ -9,7 +9,8 @@ export function getTeamSize(req: Request, res: Response) {
     return res.status(400).json({ error: 'size and type required' })
   }
   const teamSize = getDefaultTeamSize(size, type)
-  res.json({ teamSize })
+  const price = getDefaultPrice(size, type)
+  res.json({ teamSize, price })
 }
 
 export function getPayRate(req: Request, res: Response) {
