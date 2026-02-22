@@ -59,7 +59,9 @@ export async function sendScheduleReminders(): Promise<void> {
 
     const fromNumber = process.env.TWILIO_FROM_NUMBER || ''
     if (!fromNumber) {
-      console.warn('TWILIO_FROM_NUMBER not set; schedule reminders skipped')
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn('TWILIO_FROM_NUMBER not set; schedule reminders skipped')
+      }
       return
     }
 

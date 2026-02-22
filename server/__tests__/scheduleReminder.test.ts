@@ -73,7 +73,10 @@ describe('sendScheduleReminders', () => {
     jest.clearAllMocks()
     jest.useFakeTimers()
     mockMessagesCreate.mockResolvedValue({ sid: 'SM-schedule' })
-    process.env.TWILIO_FROM_NUMBER = '+15551234567'
+    // Use TWILIO_FROM_NUMBER from .env (loaded in jest.setup.js); do not override so .env value is used
+    if (!process.env.TWILIO_FROM_NUMBER) {
+      process.env.TWILIO_FROM_NUMBER = '+15551234567'
+    }
     mockSchedulePolicyFindUnique.mockResolvedValue({
       id: 1,
       updateDayOfWeek: 0,
