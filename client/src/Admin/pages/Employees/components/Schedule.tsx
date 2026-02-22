@@ -322,6 +322,13 @@ export default function Schedule() {
     setSelectedDay(null)
   }
 
+  const handleViewEmployeeSchedule = (emp: EmployeeOption) => {
+    setSelectedEmployee(emp)
+    setViewMode('employee')
+    setShowSelectEmployee(false)
+    setSelectedDay(null)
+  }
+
   const handleEmployeeBlockClick = async (dateKey: string, slot: 'AM' | 'PM') => {
     if (!selectedEmployee) return
     try {
@@ -929,13 +936,20 @@ export default function Schedule() {
                 <div className="p-3 space-y-3">
                   <div>
                     <h5 className="text-xs font-medium text-violet-700 mb-1">Available ({availableAm.length})</h5>
-                    <ul className="text-sm text-slate-700 space-y-0.5">
+                    <ul className="text-sm text-slate-700 space-y-1">
                       {availableAm.length === 0 ? (
                         <li className="text-slate-500">None</li>
                       ) : (
                         availableAm.map((e) => (
-                          <li key={e.id}>
-                            {e.name} — {formatPhone(e.number)}
+                          <li key={e.id} className="flex items-center justify-between gap-2">
+                            <span>{e.name} — {formatPhone(e.number)}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleViewEmployeeSchedule(e)}
+                              className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              View schedule
+                            </button>
                           </li>
                         ))
                       )}
@@ -943,13 +957,20 @@ export default function Schedule() {
                   </div>
                   <div>
                     <h5 className="text-xs font-medium text-emerald-700 mb-1">Scheduled ({scheduledAm.length})</h5>
-                    <ul className="text-sm text-slate-700 space-y-0.5">
+                    <ul className="text-sm text-slate-700 space-y-1">
                       {scheduledAm.length === 0 ? (
                         <li className="text-slate-500">None</li>
                       ) : (
                         scheduledAm.map((e) => (
-                          <li key={e.id}>
-                            {e.name} — {formatPhone(e.number)}
+                          <li key={e.id} className="flex items-center justify-between gap-2">
+                            <span>{e.name} — {formatPhone(e.number)}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleViewEmployeeSchedule(e)}
+                              className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              View schedule
+                            </button>
                           </li>
                         ))
                       )}
@@ -965,13 +986,20 @@ export default function Schedule() {
                 <div className="p-3 space-y-3">
                   <div>
                     <h5 className="text-xs font-medium text-violet-700 mb-1">Available ({availablePm.length})</h5>
-                    <ul className="text-sm text-slate-700 space-y-0.5">
+                    <ul className="text-sm text-slate-700 space-y-1">
                       {availablePm.length === 0 ? (
                         <li className="text-slate-500">None</li>
                       ) : (
                         availablePm.map((e) => (
-                          <li key={e.id}>
-                            {e.name} — {formatPhone(e.number)}
+                          <li key={e.id} className="flex items-center justify-between gap-2">
+                            <span>{e.name} — {formatPhone(e.number)}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleViewEmployeeSchedule(e)}
+                              className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              View schedule
+                            </button>
                           </li>
                         ))
                       )}
@@ -979,13 +1007,20 @@ export default function Schedule() {
                   </div>
                   <div>
                     <h5 className="text-xs font-medium text-emerald-700 mb-1">Scheduled ({scheduledPm.length})</h5>
-                    <ul className="text-sm text-slate-700 space-y-0.5">
+                    <ul className="text-sm text-slate-700 space-y-1">
                       {scheduledPm.length === 0 ? (
                         <li className="text-slate-500">None</li>
                       ) : (
                         scheduledPm.map((e) => (
-                          <li key={e.id}>
-                            {e.name} — {formatPhone(e.number)}
+                          <li key={e.id} className="flex items-center justify-between gap-2">
+                            <span>{e.name} — {formatPhone(e.number)}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleViewEmployeeSchedule(e)}
+                              className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              View schedule
+                            </button>
                           </li>
                         ))
                       )}
