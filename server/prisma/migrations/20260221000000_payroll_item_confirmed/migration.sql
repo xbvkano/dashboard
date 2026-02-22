@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "PayrollItem" ADD COLUMN IF NOT EXISTS "confirmed" BOOLEAN NOT NULL DEFAULT false;

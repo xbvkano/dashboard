@@ -52,9 +52,23 @@ async function main() {
       type: 'Google', // AI Admin uses Google auth
     },
   })
-  
-  // Reset sequence to start after ID 9
-  await prisma.$executeRawUnsafe(`ALTER SEQUENCE "User_id_seq" RESTART WITH 10`)
+
+  // OWNER and SUPERVISOR for supervisor assignment and future text notifications
+  const ritaPassword = await bcrypt.hash('password123', 10)
+  const rita = await prisma.user.create({
+    data: {
+      name: 'Rita Kano',
+      userName: '7255774524',
+      password: ritaPassword,
+      type: 'password',
+      role: 'OWNER',
+    },
+  })
+  // Marcos Kano SUPERVISOR (same user as employee Marcos, used for supervisor dropdown + text)
+  // empFourUser created below with role SUPERVISOR
+
+  // Reset sequence so next users get 11, 12, ... (Rita has 10)
+  await prisma.$executeRawUnsafe(`ALTER SEQUENCE "User_id_seq" RESTART WITH 11`)
 
   const john = await prisma.client.create({
     data: { name: 'John Doe', number: '5551111111', from: 'Yelp' },
@@ -104,43 +118,66 @@ async function main() {
   })
 
   const empFourPassword = await bcrypt.hash('password123', 10)
-  const empFourUserName = generateUserName('17255774523')
+  const empFourUserName = generateUserName('17255774523') // 7255774523 – used for supervisor + text
   const empFourUser = await prisma.user.create({
     data: {
       name: 'Marcos Kano',
       userName: empFourUserName,
       password: empFourPassword,
       type: 'password',
-      role: 'EMPLOYEE',
+      role: 'SUPERVISOR',
     },
   })
 
   const empOne = await prisma.employee.create({
-    data: { 
-      name: 'Emp One', 
-      number: '5553333333', 
+    data: {
+      name: 'Emp One',
+      number: '5553333333',
       userId: empOneUser.id,
+      supervisorId: rita.id,
     },
   })
   const empTwo = await prisma.employee.create({
-    data: { 
-      name: 'Emp Two', 
-      number: '5554444444', 
+    data: {
+      name: 'Emp Two',
+      number: '5554444444',
       userId: empTwoUser.id,
+      supervisorId: rita.id,
     },
   })
   const empThree = await prisma.employee.create({
-    data: { 
-      name: 'Emp Three', 
-      number: '5555555555', 
+    data: {
+      name: 'Emp Three',
+      number: '5555555555',
       userId: empThreeUser.id,
+      supervisorId: rita.id,
     },
   })
   const empFour = await prisma.employee.create({
-    data: { 
-      name: 'Marcos Kano', 
-      number: '+17255774523', 
+    data: {
+      name: 'Marcos Kano',
+      number: '+17255774523',
       userId: empFourUser.id,
+      supervisorId: rita.id,
+    },
+  })
+
+  // Prod-like user: no supervisor, no password (simulates pre-migration account)
+  const empProdUser = await prisma.user.create({
+    data: {
+      name: 'Emp prod',
+      userName: '5550000000',
+      type: 'password',
+      role: 'EMPLOYEE',
+      // no password – hasPassword will be false
+    },
+  })
+  await prisma.employee.create({
+    data: {
+      name: 'Emp prod',
+      number: '5550000000',
+      userId: empProdUser.id,
+      supervisorId: null,
     },
   })
 
@@ -476,6 +513,16 @@ async function main() {
   await createPayroll(marcosUp5)
   await createPayroll(marcosBeyond1)
   await createPayroll(marcosBeyond2)
+  // Mark some upcoming jobs as confirmed so employee can see both states (Upcoming Jobs + Schedule)
+  const setConfirmed = async (appt: { id: number }) => {
+    const item = await prisma.payrollItem.findFirst({
+      where: { appointmentId: appt.id, employeeId: empFour.id },
+    })
+    if (item) await prisma.payrollItem.update({ where: { id: item.id }, data: { confirmed: true } })
+  }
+  await setConfirmed(marcosUp2)
+  await setConfirmed(marcosUp3Pm)
+  await setConfirmed(marcosUp4)
 
   // Mark one payroll item for each of the first two employees as paid
   const payment1 = await prisma.employeePayment.create({

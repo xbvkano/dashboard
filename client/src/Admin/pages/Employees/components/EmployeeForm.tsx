@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useModal } from '../../../../ModalProvider'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { Employee } from './types'
+import { Employee, SupervisorOption } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from '../../../../useFormPersistence'
 import AppointmentsSection from "../../../components/AppointmentsSection"
 import { formatPhone } from '../../../../formatPhone'
+
+function normalizeNumberForCompare(num: string): string {
+  const digits = num.replace(/\D/g, '')
+  return digits.length === 10 ? '1' + digits : digits
+}
 
 export default function EmployeeForm() {
   const { alert, confirm } = useModal()
@@ -20,20 +25,62 @@ export default function EmployeeForm() {
       notes: '',
       disabled: false,
       password: '',
+      supervisorId: null,
     }),
   )
-  useFormPersistence(storageKey, data)
+  const [supervisors, setSupervisors] = useState<SupervisorOption[]>([])
+  const [lastSaved, setLastSaved] = useState<Pick<Employee, 'name' | 'number' | 'notes' | 'disabled' | 'supervisorId'> | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  useFormPersistence(storageKey, { ...data, password: '' })
+
+  useEffect(() => {
+    fetchJson<SupervisorOption[]>(`${API_BASE_URL}/employees/supervisors`)
+      .then(setSupervisors)
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!isNew) {
-      fetchJson(`${API_BASE_URL}/employees/${id}`)
-        .then((d) => setData({ disabled: false, ...d }))
+      fetchJson<Employee>(`${API_BASE_URL}/employees/${id}`)
+        .then((d) => {
+          const base = { disabled: false, ...d }
+          if (base.supervisorId === undefined) base.supervisorId = null
+          setData(base)
+          setLastSaved({
+            name: base.name,
+            number: base.number,
+            notes: base.notes ?? '',
+            disabled: base.disabled ?? false,
+            supervisorId: base.supervisorId ?? null,
+          })
+        })
         .catch((err) => console.error(err))
+    } else {
+      setLastSaved(null)
     }
   }, [id, isNew])
 
+  const hasSaveableChange = ((): boolean => {
+    if (isNew) {
+      const hasRequired = data.name.trim() !== '' && data.number.replace(/\D/g, '').length >= 10 && (data.supervisorId != null && data.supervisorId !== '') && data.password?.trim() !== ''
+      return !!hasRequired
+    }
+    if (lastSaved == null) return false
+    const numCur = normalizeNumberForCompare(data.number)
+    const numSaved = normalizeNumberForCompare(lastSaved.number)
+    if (data.name !== lastSaved.name || numCur !== numSaved || (data.notes ?? '') !== lastSaved.notes || (data.disabled ?? false) !== lastSaved.disabled || (data.supervisorId ?? null) !== lastSaved.supervisorId) return true
+    if (data.password != null && data.password.trim() !== '') return true
+    return false
+  })()
+
+  useEffect(() => {
+    if (!saveSuccess) return
+    const t = setTimeout(() => setSaveSuccess(false), 2500)
+    return () => clearTimeout(t)
+  }, [saveSuccess])
+
   const persist = (updated: Employee) => {
-    // Don't persist password for security
     const { password, ...dataToPersist } = updated
     Object.entries(dataToPersist).forEach(([field, value]) => {
       localStorage.setItem(`${storageKey}-${field}`, JSON.stringify(value))
@@ -42,11 +89,16 @@ export default function EmployeeForm() {
   }
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
   ) => {
-    const updated = { ...data, [e.target.name]: e.target.value }
-    persist(updated)
-    setData(updated)
+    const name = e.target.name
+    const value = e.target.value
+    const updated =
+      name === 'supervisorId'
+        ? { ...data, [name]: value === '' ? null : Number(value) }
+        : { ...data, [name]: value }
+    persist(updated as Employee)
+    setData(updated as Employee)
   }
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,37 +117,57 @@ export default function EmployeeForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const supervisorId = data.supervisorId === '' || data.supervisorId == null ? null : data.supervisorId
+    if (supervisorId == null) {
+      await alert('Assigned supervisor is required')
+      return
+    }
     const payload: any = {
       name: data.name,
       number: data.number.length === 10 ? '1' + data.number : data.number,
       notes: data.notes,
       disabled: data.disabled ?? false,
+      supervisorId,
     }
-    // Password is required for new employees, optional for updates
     if (isNew) {
-      if (!data.password) {
+      if (!data.password || data.password.trim() === '') {
         await alert('Password is required')
         return
       }
       payload.password = data.password
-    } else if (data.password) {
-      // Only include password in update if it's provided
-      payload.password = data.password
+    } else {
+      if (data.password && data.password.trim() !== '') {
+        payload.password = data.password
+      }
     }
+    setSaving(true)
     const res = await fetch(`${API_BASE_URL}/employees${isNew ? '' : '/' + id}` ,{
       method: isNew ? 'POST' : 'PUT',
       headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
       body: JSON.stringify(payload),
     })
+    setSaving(false)
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       await alert(err.error || 'Failed to save')
       return
     }
     clearFormPersistence(storageKey)
-    // Clear password field after successful save
-    setData(prev => ({ ...prev, password: '' }))
-    navigate('..')
+    const normalizedNumber = data.number.length === 10 ? '1' + data.number : data.number
+    setData((prev) => ({
+      ...prev,
+      password: '',
+      hasPassword: true,
+    }))
+    setLastSaved({
+      name: data.name,
+      number: normalizedNumber,
+      notes: data.notes ?? '',
+      disabled: data.disabled ?? false,
+      supervisorId,
+    })
+    setSaveSuccess(true)
+    if (isNew) navigate('/dashboard/employees/accounts')
   }
 
   const handleDelete = async () => {
@@ -116,8 +188,13 @@ export default function EmployeeForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="p-4 pb-16 space-y-3">
-      <Link to=".." className="text-blue-500 text-sm">&larr; Back</Link>
+    <form onSubmit={handleSubmit} className="p-4 pb-16 space-y-3 relative">
+      {saveSuccess && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg shadow-lg">
+          Saved
+        </div>
+      )}
+      <Link to="/dashboard/employees/accounts" className="text-blue-500 text-sm">&larr; Back to accounts</Link>
       <div>
         <label htmlFor="employee-name" className="block text-sm">
           Name <span className="text-red-500">*</span>
@@ -159,18 +236,46 @@ export default function EmployeeForm() {
         <label htmlFor="employee-password" className="block text-sm">
           Password {isNew && <span className="text-red-500">*</span>}
           {!isNew && data.hasPassword && (
-            <span className="text-gray-500 text-xs ml-2">(leave blank to keep current password)</span>
+            <span className="text-gray-500 text-xs ml-2">(password is set; enter a new value to change it)</span>
+          )}
+          {!isNew && !data.hasPassword && (
+            <span className="text-amber-600 text-xs ml-2">(no password set; enter one to enable login)</span>
           )}
         </label>
         <input
           id="employee-password"
           name="password"
-          type="password"
-          value={data.password || ''}
+          type="text"
+          value={data.password ?? ''}
           onChange={handleChange}
           required={isNew}
+          placeholder={!isNew && data.hasPassword ? 'Leave blank to keep current' : ''}
           className="w-full border p-2 rounded"
+          autoComplete={isNew ? 'new-password' : 'off'}
         />
+      </div>
+      <div>
+        <label htmlFor="employee-supervisor" className="block text-sm">
+          Assigned supervisor <span className="text-red-500">*</span>
+        </label>
+        <select
+          id="employee-supervisor"
+          name="supervisorId"
+          value={data.supervisorId ?? ''}
+          onChange={handleChange}
+          required
+          className="w-full border p-2 rounded"
+        >
+          <option value="">Select a supervisor</option>
+          {supervisors.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name || s.userName || `User #${s.id}`} ({s.role})
+            </option>
+          ))}
+        </select>
+        {supervisors.length === 0 && (
+          <p className="text-amber-600 text-xs mt-1">No OWNER or SUPERVISOR users found. Create one first.</p>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <input
@@ -183,18 +288,12 @@ export default function EmployeeForm() {
         <label htmlFor="disabled" className="text-sm">Disable</label>
       </div>
       <div className="flex gap-2">
-        <button className="bg-blue-500 text-white px-4 py-2 rounded" type="submit">
-          Save
-        </button>
         <button
-          type="button"
-          onClick={() => {
-            clearFormPersistence(storageKey)
-            navigate('..')
-          }}
-          className="bg-gray-300 px-4 py-2 rounded"
+          type="submit"
+          disabled={!hasSaveableChange || saving}
+          className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Cancel
+          {saving ? 'Saving…' : 'Save'}
         </button>
         {!isNew && (
           <button

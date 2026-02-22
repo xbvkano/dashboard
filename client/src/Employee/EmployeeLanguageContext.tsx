@@ -45,6 +45,8 @@ const scheduleTranslations = {
     legendSelected: 'Selected (not yet saved)',
     legendAvailability: 'Availability',
     legendScheduled: 'Scheduled',
+    legendUnconfirmed: 'Unconfirmed job',
+    unconfirmedDesc: 'You have been assigned a job for this block but have not confirmed yet. Confirm on the Upcoming Jobs page.',
 
     // Actions & messages
     saving: 'Saving...',
@@ -105,6 +107,8 @@ const scheduleTranslations = {
     legendSelected: 'Selecionado (não salvo)',
     legendAvailability: 'Disponibilidade',
     legendScheduled: 'Agendado',
+    legendUnconfirmed: 'Trabalho não confirmado',
+    unconfirmedDesc: 'Você foi atribuído a um trabalho neste período mas ainda não confirmou. Confirme na página Próximos Trabalhos.',
 
     saving: 'Salvando...',
     saveSchedule: 'Salvar Agenda',
@@ -164,6 +168,8 @@ const scheduleTranslations = {
     legendSelected: 'Seleccionado (no guardado)',
     legendAvailability: 'Disponibilidad',
     legendScheduled: 'Programado',
+    legendUnconfirmed: 'Trabajo sin confirmar',
+    unconfirmedDesc: 'Te han asignado un trabajo en este horario pero aún no lo has confirmado. Confirma en la página Próximos Trabajos.',
 
     saving: 'Guardando...',
     saveSchedule: 'Guardar Horario',

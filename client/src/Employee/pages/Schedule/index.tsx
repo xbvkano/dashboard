@@ -193,6 +193,13 @@ function InformationSection() {
             </h4>
             <p>{t.scheduledDesc}</p>
           </div>
+          <div>
+            <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
+              <span className="w-4 h-4 bg-amber-500 rounded border border-amber-600 shrink-0 inline-block" />
+              {t.legendUnconfirmed}
+            </h4>
+            <p>{t.unconfirmedDesc}</p>
+          </div>
           <div className="pt-2 border-t border-slate-100">
             <h4 className="font-semibold text-slate-700 mb-2">{t.scheduleUpdatePolicy}</h4>
             <ul className="list-disc list-inside space-y-1 text-slate-600">
@@ -237,7 +244,7 @@ export default function Schedule() {
   const [success, setSuccess] = useState('')
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
-  const [scheduledByDay, setScheduledByDay] = useState<Record<string, { morning: boolean; afternoon: boolean }>>({})
+  const [scheduledByDay, setScheduledByDay] = useState<Record<string, { morning: boolean; afternoon: boolean; morningUnconfirmed?: boolean; afternoonUnconfirmed?: boolean }>>({})
 
   // Load existing schedule and upcoming appointments (for scheduled blocks)
   useEffect(() => {
@@ -253,11 +260,16 @@ export default function Schedule() {
       const res = await fetch(`${API_BASE_URL}/employee/upcoming-appointments`, { headers })
       if (!res.ok) return
       const list = await res.json()
-      const byDay: Record<string, { morning: boolean; afternoon: boolean }> = {}
-      list.forEach((a: { date: string; block: 'AM' | 'PM' }) => {
+      const byDay: Record<string, { morning: boolean; afternoon: boolean; morningUnconfirmed?: boolean; afternoonUnconfirmed?: boolean }> = {}
+      list.forEach((a: { date: string; block: 'AM' | 'PM'; confirmed?: boolean }) => {
         if (!byDay[a.date]) byDay[a.date] = { morning: false, afternoon: false }
-        if (a.block === 'AM') byDay[a.date].morning = true
-        else byDay[a.date].afternoon = true
+        if (a.block === 'AM') {
+          byDay[a.date].morning = true
+          if (a.confirmed === false) byDay[a.date].morningUnconfirmed = true
+        } else {
+          byDay[a.date].afternoon = true
+          if (a.confirmed === false) byDay[a.date].afternoonUnconfirmed = true
+        }
       })
       setScheduledByDay(byDay)
     } catch {
@@ -512,6 +524,8 @@ export default function Schedule() {
             const isNextMonth = (date as any).isNextMonth
             const scheduledMorning = scheduledByDay[key]?.morning ?? false
             const scheduledAfternoon = scheduledByDay[key]?.afternoon ?? false
+            const unconfirmedMorning = scheduledByDay[key]?.morningUnconfirmed ?? false
+            const unconfirmedAfternoon = scheduledByDay[key]?.afternoonUnconfirmed ?? false
             
             return (
               <div
@@ -537,7 +551,9 @@ export default function Schedule() {
                       onClick={() => toggleShift(date, 'morning')}
                       disabled={savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null}
                       className={`flex-1 min-h-[22px] text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
-                        scheduledMorning
+                        unconfirmedMorning
+                          ? 'bg-amber-500 text-white cursor-default'
+                          : scheduledMorning
                           ? 'bg-emerald-600 text-white cursor-default'
                           : savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null
                           ? savedSchedule[key]?.morningStatus === 'B'
@@ -554,7 +570,9 @@ export default function Schedule() {
                       onClick={() => toggleShift(date, 'afternoon')}
                       disabled={savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null}
                       className={`flex-1 min-h-[22px] text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
-                        scheduledAfternoon
+                        unconfirmedAfternoon
+                          ? 'bg-amber-500 text-white cursor-default'
+                          : scheduledAfternoon
                           ? 'bg-emerald-600 text-white cursor-default'
                           : savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null
                           ? savedSchedule[key]?.afternoonStatus === 'B'
@@ -596,6 +614,10 @@ export default function Schedule() {
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-emerald-600 rounded border border-emerald-700 shrink-0"></div>
           <span>{t.legendScheduled}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-amber-500 rounded border border-amber-600 shrink-0"></div>
+          <span>{t.legendUnconfirmed}</span>
         </div>
       </div>
 

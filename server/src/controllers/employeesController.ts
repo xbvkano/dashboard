@@ -89,18 +89,23 @@ export async function getAvailableEmployees(req: Request, res: Response) {
 
 export async function createEmployee(req: Request, res: Response) {
   try {
-    const { name, number, notes, disabled, password } = req.body as {
+    const { name, number, notes, disabled, password, supervisorId: rawSupervisorId } = req.body as {
       name?: string
       number?: string
       notes?: string
       disabled?: boolean
       password?: string
+      supervisorId?: number | string
     }
     if (!name || !number) {
       return res.status(400).json({ error: 'Name and number are required' })
     }
     if (!password) {
       return res.status(400).json({ error: 'Password is required' })
+    }
+    const supervisorId = rawSupervisorId === '' || rawSupervisorId == null ? null : Number(rawSupervisorId)
+    if (supervisorId == null || Number.isNaN(supervisorId)) {
+      return res.status(400).json({ error: 'Assigned supervisor is required' })
     }
     const normalized = normalizePhone(number)
     if (!normalized) {
@@ -129,6 +134,15 @@ export async function createEmployee(req: Request, res: Response) {
       },
     })
     
+    // Validate supervisor is OWNER or SUPERVISOR
+    const supervisorUser = await prisma.user.findUnique({
+      where: { id: supervisorId },
+      select: { role: true },
+    })
+    if (!supervisorUser || !['OWNER', 'SUPERVISOR'].includes(supervisorUser.role)) {
+      return res.status(400).json({ error: 'Invalid supervisor' })
+    }
+
     const employee = await prisma.employee.create({
       data: {
         name,
@@ -136,6 +150,7 @@ export async function createEmployee(req: Request, res: Response) {
         notes,
         disabled: disabled ?? false,
         userId: user.id,
+        supervisorId,
       },
     })
     res.json(employee)
@@ -148,19 +163,37 @@ export async function createEmployee(req: Request, res: Response) {
   }
 }
 
+/** List users who can be assigned as supervisors (OWNER and SUPERVISOR only) */
+export async function getSupervisors(req: Request, res: Response) {
+  try {
+    const users = await prisma.user.findMany({
+      where: { role: { in: ['OWNER', 'SUPERVISOR'] } },
+      select: { id: true, name: true, userName: true, role: true },
+      orderBy: [{ role: 'asc' }, { name: 'asc' }],
+    })
+    res.json(users)
+  } catch (e) {
+    console.error('Error fetching supervisors:', e)
+    res.status(500).json({ error: 'Failed to fetch supervisors' })
+  }
+}
+
 export async function getEmployee(req: Request, res: Response) {
   const id = parseInt(req.params.id, 10)
-  const employee = await prisma.employee.findUnique({ 
+  const employee = await prisma.employee.findUnique({
     where: { id },
-    include: { user: true }
+    include: { user: true, supervisor: { select: { id: true, name: true } } },
   })
   if (!employee) return res.status(404).json({ error: 'Not found' })
   // Don't send password hash to client
-  const { user, ...employeeData } = employee
-  const response: any = employeeData
+  const { user, supervisor, ...employeeData } = employee
+  const response: any = { ...employeeData, supervisorId: employee.supervisorId ?? null }
   if (user) {
     response.hasPassword = !!user.password
     response.userType = user.type
+  }
+  if (supervisor) {
+    response.supervisor = supervisor
   }
   res.json(response)
 }
@@ -168,23 +201,41 @@ export async function getEmployee(req: Request, res: Response) {
 export async function updateEmployee(req: Request, res: Response) {
   const id = parseInt(req.params.id, 10)
   try {
-    const { name, number, notes, disabled, password } = req.body as {
+    const { name, number, notes, disabled, password, supervisorId: rawSupervisorId } = req.body as {
       name?: string
       number?: string
       notes?: string
       disabled?: boolean
       password?: string
+      supervisorId?: number | string | null
     }
-    
+
     // Get existing employee to check for user
-    const existingEmployee = await prisma.employee.findUnique({ 
+    const existingEmployee = await prisma.employee.findUnique({
       where: { id },
-      include: { user: true }
+      include: { user: true },
     })
     if (!existingEmployee) {
       return res.status(404).json({ error: 'Employee not found' })
     }
-    
+
+    const newSupervisorId =
+      rawSupervisorId !== undefined
+        ? (rawSupervisorId === '' || rawSupervisorId == null ? null : Number(rawSupervisorId))
+        : undefined
+    if (newSupervisorId !== undefined && (newSupervisorId === null || Number.isNaN(newSupervisorId))) {
+      return res.status(400).json({ error: 'Assigned supervisor is required' })
+    }
+    if (newSupervisorId != null && !Number.isNaN(newSupervisorId)) {
+      const supervisorUser = await prisma.user.findUnique({
+        where: { id: newSupervisorId },
+        select: { role: true },
+      })
+      if (!supervisorUser || !['OWNER', 'SUPERVISOR'].includes(supervisorUser.role)) {
+        return res.status(400).json({ error: 'Invalid supervisor' })
+      }
+    }
+
     const data: any = {}
     if (name !== undefined) data.name = name
     if (number !== undefined) {
@@ -196,7 +247,8 @@ export async function updateEmployee(req: Request, res: Response) {
     }
     if (notes !== undefined) data.notes = notes
     if (disabled !== undefined) data.disabled = disabled
-    
+    if (newSupervisorId !== undefined) data.supervisorId = newSupervisorId
+
     const employee = await prisma.employee.update({ where: { id }, data })
     
     // Update or create user

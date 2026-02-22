@@ -22,6 +22,28 @@ function parseSqft(s: string | null | undefined): number | null {
   return isNaN(n) ? null : n
 }
 
+/** Match server calculateAppointmentHours so block height is correct even when hours is null */
+function calculateAppointmentHours(size: string | null | undefined, serviceType: string): number {
+  const sqft = parseSqft(size)
+  if (sqft === null) return 3
+  let baseHours = 3
+  if (sqft <= 1500) baseHours = 3
+  else if (sqft <= 2000) baseHours = 4
+  else if (sqft <= 2500) baseHours = 5
+  else if (sqft <= 3000) baseHours = 6
+  else if (sqft <= 3500) baseHours = 7
+  else if (sqft <= 4000) baseHours = 8
+  else baseHours = 9
+  switch (serviceType) {
+    case 'DEEP':
+      return baseHours + 1
+    case 'MOVE_IN_OUT':
+      return baseHours + 2
+    default:
+      return baseHours
+  }
+}
+
 function calcPayRate(type: string, size: string | null | undefined, count: number): number {
   const sqft = parseSqft(size)
   const isLarge = sqft != null && sqft > 2500
@@ -54,11 +76,12 @@ interface DayProps {
   onUpdate?: (a: Appointment) => void
   onCreate?: (appt: Appointment, status: Appointment['status']) => void
   onEdit?: (appt: Appointment) => void
+  onRescheduled?: (newAppointment: Appointment) => void
   onNavigateToDate?: (date: Date) => void
   onRefresh?: () => void
 }
 
-function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scrollToApptId, onUpdate, onCreate, onEdit, onNavigateToDate, onRefresh }: DayProps) {
+function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scrollToApptId, onUpdate, onCreate, onEdit, onRescheduled, onNavigateToDate, onRefresh }: DayProps) {
   const { alert, confirm } = useModal()
   const navigate = useNavigate()
   const [selected, setSelected] = useState<Appointment | null>(null)
@@ -616,7 +639,8 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
     .map((a) => {
       const [h, m] = a.time.split(':').map((n) => parseInt(n, 10))
       const start = h * 60 + m
-      const end = start + (a.hours ?? 1) * 60
+      const displayHours = a.hours ?? calculateAppointmentHours(a.size ?? null, a.type) ?? 3
+      const end = start + displayHours * 60
       return { appt: a, start, end, lane: 0 }
     })
     .sort((a, b) => a.start - b.start)
@@ -769,6 +793,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
           onViewChange={setModalView}
           onCreate={onCreate!}
           onEdit={onEdit!}
+          onRescheduled={onRescheduled ? (newAppt) => { setSelected(null); setModalView('details'); onRescheduled(newAppt); } : undefined}
           onNavigateToDate={onNavigateToDate}
           onRefresh={onRefresh}
           onRequestSkip={() => {
@@ -933,6 +958,7 @@ interface Props {
   onUpdate?: (a: Appointment) => void
   onCreate?: (appt: Appointment, status: Appointment['status']) => void
   onEdit?: (appt: Appointment) => void
+  onRescheduled?: (newAppointment: Appointment) => void
   onNavigateToDate?: (date: Date) => void
   onRefresh?: () => void
 }
@@ -950,6 +976,7 @@ export default function DayTimeline({
   onUpdate,
   onCreate,
   onEdit,
+  onRescheduled,
   onNavigateToDate,
   onRefresh,
 }: Props) {
@@ -1095,6 +1122,7 @@ export default function DayTimeline({
           onUpdate={onUpdate}
           onCreate={onCreate}
           onEdit={onEdit}
+          onRescheduled={onRescheduled}
           onNavigateToDate={onNavigateToDate}
           onRefresh={onRefresh}
         />
@@ -1108,6 +1136,7 @@ export default function DayTimeline({
           onUpdate={onUpdate}
           onCreate={onCreate}
           onEdit={onEdit}
+          onRescheduled={onRescheduled}
           onNavigateToDate={onNavigateToDate}
           onRefresh={onRefresh}
         />
@@ -1118,6 +1147,7 @@ export default function DayTimeline({
           onUpdate={onUpdate}
           onCreate={onCreate}
           onEdit={onEdit}
+          onRescheduled={onRescheduled}
           onNavigateToDate={onNavigateToDate}
           onRefresh={onRefresh}
         />

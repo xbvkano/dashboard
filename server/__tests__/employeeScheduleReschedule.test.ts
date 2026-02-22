@@ -6,6 +6,8 @@
 
 const appointmentFindManyCalls: Array<{ where: unknown }> = []
 let mockFindManyResult: unknown[] = []
+const payrollItemFindFirst = jest.fn()
+const payrollItemUpdate = jest.fn()
 
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn().mockImplementation(() => ({
@@ -25,11 +27,15 @@ jest.mock('@prisma/client', () => ({
       update: jest.fn(),
       create: jest.fn(),
     },
+    payrollItem: {
+      findFirst: payrollItemFindFirst,
+      update: payrollItemUpdate,
+    },
   })),
 }))
 
 import { Request, Response } from 'express'
-import { getUpcomingAppointments } from '../src/controllers/employeeScheduleController'
+import { getUpcomingAppointments, confirmJob } from '../src/controllers/employeeScheduleController'
 
 function mockRequest(overrides: Partial<Request> = {}): Request {
   return {
@@ -122,6 +128,12 @@ describe('Employee schedule and reschedule', () => {
           time: '10:00',
           address: '123 Test St',
           template: { instructions: 'Test' },
+          payrollItems: [],
+          employees: [{ id: 1 }],
+          type: 'STANDARD',
+          size: '2000',
+          carpetRooms: null,
+          carpetEmployees: [],
         },
       ]
       const req = mockRequest()
@@ -137,6 +149,58 @@ describe('Employee schedule and reschedule', () => {
       jest.useRealTimers()
     })
 
+    it('returns confirmed: true when payroll item has confirmed true', async () => {
+      jest.useFakeTimers()
+      jest.setSystemTime(new Date('2025-02-20T00:00:00Z'))
+      mockFindManyResult = [
+        {
+          id: 101,
+          date: new Date('2025-03-06T00:00:00Z'),
+          time: '14:00',
+          address: '456 Test Ave',
+          template: { instructions: null },
+          payrollItems: [{ employeeId: 1, amount: 80, confirmed: true, extras: [] }],
+          employees: [{ id: 1 }],
+          type: 'STANDARD',
+          size: '2000',
+          carpetRooms: null,
+          carpetEmployees: [],
+        },
+      ]
+      const req = mockRequest()
+      const res = mockResponse()
+      await getUpcomingAppointments(req, res)
+      const payload = (res.json as jest.Mock).mock.calls[0][0]
+      expect(payload[0].confirmed).toBe(true)
+      jest.useRealTimers()
+    })
+
+    it('returns confirmed: false when payroll item has confirmed false', async () => {
+      jest.useFakeTimers()
+      jest.setSystemTime(new Date('2025-02-20T00:00:00Z'))
+      mockFindManyResult = [
+        {
+          id: 102,
+          date: new Date('2025-03-07T00:00:00Z'),
+          time: '09:00',
+          address: '789 Unconfirmed St',
+          template: { instructions: null },
+          payrollItems: [{ employeeId: 1, amount: 80, confirmed: false, extras: [] }],
+          employees: [{ id: 1 }],
+          type: 'STANDARD',
+          size: '2000',
+          carpetRooms: null,
+          carpetEmployees: [],
+        },
+      ]
+      const req = mockRequest()
+      const res = mockResponse()
+      await getUpcomingAppointments(req, res)
+      const payload = (res.json as jest.Mock).mock.calls[0][0]
+      expect(payload[0].confirmed).toBe(false)
+      jest.useRealTimers()
+    })
+
     it('builds scheduledByDay so March 5 AM block is marked scheduled when in 14-day window', () => {
       const list = [
         { id: 1, date: '2025-03-05', time: '10:00', address: 'A', instructions: null, block: 'AM' as const },
@@ -149,6 +213,49 @@ describe('Employee schedule and reschedule', () => {
       })
       expect(byDay['2025-03-05'].morning).toBe(true)
       expect(byDay['2025-03-05'].afternoon).toBe(false)
+    })
+  })
+
+  describe('confirmJob', () => {
+    beforeEach(() => {
+      payrollItemFindFirst.mockReset()
+      payrollItemUpdate.mockReset()
+    })
+
+    it('returns 400 when appointmentId is missing', async () => {
+      const req = mockRequest({ body: {} }) as Request
+      const res = mockResponse()
+      await confirmJob(req, res)
+      expect(res.status).toHaveBeenCalledWith(400)
+      expect(payrollItemFindFirst).not.toHaveBeenCalled()
+    })
+
+    it('returns 404 when job is not assigned to employee', async () => {
+      payrollItemFindFirst.mockResolvedValue(null)
+      const req = mockRequest({ body: { appointmentId: 999 } }) as Request
+      const res = mockResponse()
+      await confirmJob(req, res)
+      expect(payrollItemFindFirst).toHaveBeenCalledWith({
+        where: { appointmentId: 999, employeeId: 1 },
+      })
+      expect(res.status).toHaveBeenCalledWith(404)
+      expect(payrollItemUpdate).not.toHaveBeenCalled()
+    })
+
+    it('sets confirmed to true and returns success when job is assigned to employee', async () => {
+      payrollItemFindFirst.mockResolvedValue({ id: 50, appointmentId: 100, employeeId: 1 })
+      payrollItemUpdate.mockResolvedValue({})
+      const req = mockRequest({ body: { appointmentId: 100 } }) as Request
+      const res = mockResponse()
+      await confirmJob(req, res)
+      expect(payrollItemFindFirst).toHaveBeenCalledWith({
+        where: { appointmentId: 100, employeeId: 1 },
+      })
+      expect(payrollItemUpdate).toHaveBeenCalledWith({
+        where: { id: 50 },
+        data: { confirmed: true },
+      })
+      expect(res.json).toHaveBeenCalledWith({ success: true, confirmed: true })
     })
   })
 })

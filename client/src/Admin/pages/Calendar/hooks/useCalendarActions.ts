@@ -124,6 +124,19 @@ export function useCalendarActions(
     } catch {}
   }
 
+  const handleRescheduled = (newAppt: Appointment) => {
+    const apptDate = typeof newAppt.date === 'string' ? new Date(newAppt.date) : newAppt.date
+    const appointmentDate = new Date(
+      apptDate.getUTCFullYear(),
+      apptDate.getUTCMonth(),
+      apptDate.getUTCDate()
+    )
+    setSelected(appointmentDate)
+    refresh()
+    refreshMonthCounts(appointmentDate)
+    refreshWeekCounts(appointmentDate)
+  }
+
   const handleCreated = async (appt: Appointment, rescheduleOldId: number | null, deleteOldId: number | null) => {
     if (rescheduleOldId) {
       await markOldReschedule(rescheduleOldId)
@@ -154,5 +167,6 @@ export function useCalendarActions(
     handleCreateFrom,
     handleEdit,
     handleCreated,
+    handleRescheduled,
   }
 }

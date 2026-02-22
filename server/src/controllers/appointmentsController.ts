@@ -1,7 +1,8 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
-import { parseSqft, calculatePayRate, calculateCarpetRate } from '../utils/appointmentUtils'
+import { parseSqft, calculatePayRate, calculateCarpetRate, calculateAppointmentHours } from '../utils/appointmentUtils'
 import { jsonToRule, calculateNextAppointmentDate } from '../utils/recurrenceUtils'
+import { sendEmployeeRemindersForAppointmentIds } from '../jobs/unconfirmedCheck'
 import twilio from 'twilio'
 
 const prisma = new PrismaClient()
@@ -223,7 +224,7 @@ export async function createAppointment(req: Request, res: Response) {
         cityStateZip: template.instructions ?? undefined,
         size: template.size,
         teamSize: (template as any).teamSize ?? 1,
-        hours: hours ?? null,
+        hours: hours ?? calculateAppointmentHours(template.size, template.type),
         price: template.price,
         paid,
         tip,
@@ -256,6 +257,9 @@ export async function createAppointment(req: Request, res: Response) {
 
     if (!noTeam && employeeIds.length) {
       await syncPayrollItems(appt.id, employeeIds)
+      await sendEmployeeRemindersForAppointmentIds([appt.id]).catch((err) =>
+        console.error('Employee reminder send failed:', err)
+      )
     }
 
     return res.json(appt)
@@ -535,6 +539,15 @@ export async function updateAppointment(req: Request, res: Response) {
           data: { ...base, date: newDate, time: newTime },
         })
       }
+      // Sync payroll items for all updated appointments when team was set (same as single-appointment path)
+      if (employeeIds && !noTeam) {
+        for (const appt of targets) {
+          await syncPayrollItems(appt.id, employeeIds)
+        }
+        await sendEmployeeRemindersForAppointmentIds(targets.map((t) => t.id)).catch((err) =>
+          console.error('Employee reminder send failed:', err)
+        )
+      }
 
       const appts = await prisma.appointment.findMany({
         where: { lineage: current.lineage, date: { gte: current.date } },
@@ -573,6 +586,9 @@ export async function updateAppointment(req: Request, res: Response) {
             }
           }
         }
+        await sendEmployeeRemindersForAppointmentIds([appt.id]).catch((err) =>
+          console.error('Employee reminder send failed:', err)
+        )
       }
       const updated = await prisma.appointment.findUnique({
         where: { id: appt.id },

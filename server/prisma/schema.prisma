@@ -25,6 +25,7 @@ model User {
 
   appointments Appointment[] @relation("AdminAppointments")
   employee     Employee?
+  supervisedEmployees Employee[] @relation("SupervisedEmployees")
 }
 
 model Client {
@@ -39,16 +40,18 @@ model Client {
 }
 
 model Employee {
-  id           Int                        @id @default(autoincrement())
-  name         String                     @unique
-  number       String
-  notes        String?
-  experienced  Boolean                    @default(false)
-  disabled     Boolean                    @default(false)
-  userId       Int?                       @unique
-  user         User?                      @relation(fields: [userId], references: [id])
-  appointments Appointment[]              @relation("AppointmentEmployees")
-  schedule     Schedule?
+  id            Int                        @id @default(autoincrement())
+  name          String                     @unique
+  number        String
+  notes         String?
+  experienced   Boolean                    @default(false)
+  disabled      Boolean                    @default(false)
+  userId        Int?                       @unique
+  user          User?                      @relation(fields: [userId], references: [id])
+  supervisorId  Int?
+  supervisor    User?                      @relation("SupervisedEmployees", fields: [supervisorId], references: [id], onDelete: SetNull)
+  appointments  Appointment[]              @relation("AppointmentEmployees")
+  schedule      Schedule?
 
   prevBalance  Float                      @default(0)
   lastPaidAt   DateTime?
@@ -181,6 +184,7 @@ enum Role {
   EMPLOYEE
   ADMIN
   OWNER
+  SUPERVISOR
 }
 
 enum AppointmentStatus {
@@ -218,13 +222,15 @@ model Invoice {
 }
 
 model PayrollItem {
-  id            Int          @id @default(autoincrement())
-  appointmentId Int
-  employeeId    Int
-  amount        Float?       // override base pay; if null, computed from type/size/count
-  paid          Boolean      @default(false)
-  paymentId     Int?
-  extras        ManualPayrollItem[] @relation("ExtraItems")
+  id              Int          @id @default(autoincrement())
+  appointmentId   Int
+  employeeId      Int
+  amount          Float?       // override base pay; if null, computed from type/size/count
+  confirmed       Boolean      @default(false) // employee has confirmed this job (Upcoming Jobs)
+  reminderSentAt  DateTime?    // when we sent the employee an SMS about this unconfirmed job (within 14 days)
+  paid            Boolean      @default(false)
+  paymentId       Int?
+  extras          ManualPayrollItem[] @relation("ExtraItems")
 
   appointment   Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   employee      Employee     @relation("EmployeePayrollItems", fields: [employeeId], references: [id], onDelete: Cascade)

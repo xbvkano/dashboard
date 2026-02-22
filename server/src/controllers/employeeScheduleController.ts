@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
+import { calculatePayRate, calculateCarpetRate } from '../utils/appointmentUtils'
 
 const prisma = new PrismaClient()
 
@@ -295,12 +296,35 @@ export async function getUpcomingAppointments(req: Request, res: Response) {
       },
       include: {
         template: true,
+        // Only load this employee's payroll item so we get their specific pay amount
+        payrollItems: {
+          where: { employeeId },
+          include: { extras: true },
+        },
+        employees: true,
       },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
     })
 
     const result = appointments.map((a) => {
       const dateStr = a.date.toISOString().slice(0, 10)
+      const count = a.employees?.length || 1
+      const defaultPay = calculatePayRate(a.type, a.size ?? null, count)
+      const carpetIds = (a.carpetEmployees as number[]) || []
+      const carpetShare =
+        a.carpetRooms && a.size && carpetIds.length
+          ? calculateCarpetRate(a.size, a.carpetRooms) / carpetIds.length
+          : 0
+      // We filtered payrollItems by employeeId, so at most one item (this employee's)
+      const pi = a.payrollItems?.[0]
+      const basePay =
+        pi != null && pi.amount != null ? Number(pi.amount) : defaultPay
+      const extrasTotal = (pi?.extras || []).reduce(
+        (sum: number, ex: { amount: number }) => sum + Number(ex.amount),
+        0
+      )
+      const pay = basePay + (carpetIds.includes(employeeId) ? carpetShare : 0) + extrasTotal
+
       return {
         id: a.id,
         date: dateStr,
@@ -308,6 +332,8 @@ export async function getUpcomingAppointments(req: Request, res: Response) {
         address: a.address,
         instructions: a.template?.instructions ?? null,
         block: getBlockFromTime(a.time),
+        pay: Math.round(pay * 100) / 100,
+        confirmed: pi?.confirmed ?? false,
       }
     })
 
@@ -315,6 +341,40 @@ export async function getUpcomingAppointments(req: Request, res: Response) {
   } catch (e) {
     console.error('Error fetching upcoming appointments:', e)
     res.status(500).json({ error: 'Failed to fetch upcoming appointments' })
+  }
+}
+
+export async function confirmJob(req: Request, res: Response) {
+  try {
+    const employeeId = await getEmployeeId(req)
+    if (!employeeId) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+
+    const { appointmentId } = req.body as { appointmentId?: number }
+    if (typeof appointmentId !== 'number' || !Number.isInteger(appointmentId)) {
+      return res.status(400).json({ error: 'appointmentId required' })
+    }
+
+    const payrollItem = await prisma.payrollItem.findFirst({
+      where: {
+        appointmentId,
+        employeeId,
+      },
+    })
+    if (!payrollItem) {
+      return res.status(404).json({ error: 'Job not found or not assigned to you' })
+    }
+
+    await prisma.payrollItem.update({
+      where: { id: payrollItem.id },
+      data: { confirmed: true },
+    })
+
+    res.json({ success: true, confirmed: true })
+  } catch (e) {
+    console.error('Error confirming job:', e)
+    res.status(500).json({ error: 'Failed to confirm job' })
   }
 }
 

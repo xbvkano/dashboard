@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
-import { createPortal } from 'react-dom'
 import { API_BASE_URL, fetchJson } from '../../../../../api'
 import type { Appointment } from '../../types'
 import AppointmentDetails from './AppointmentDetails'
 import TeamOptionsModal from './TeamOptionsModal'
 import EditAppointmentModal from './EditAppointmentModal'
+import RescheduleAppointmentModal from './RescheduleAppointmentModal'
 
-export type DayTimelineModalView = 'details' | 'team-options' | 'edit'
+export type DayTimelineModalView = 'details' | 'team-options' | 'edit' | 'reschedule'
 
 interface DayTimelineModalContainerProps {
   view: DayTimelineModalView
@@ -16,6 +16,7 @@ interface DayTimelineModalContainerProps {
   onViewChange: (view: DayTimelineModalView) => void
   onCreate: (appt: Appointment, status: Appointment['status']) => void
   onEdit: (appt: Appointment) => void
+  onRescheduled?: (newAppointment: Appointment) => void
   onNavigateToDate?: (date: Date) => void
   onRefresh?: () => void
   onRequestSkip?: () => void
@@ -34,6 +35,7 @@ export default function DayTimelineModalContainer({
   onViewChange,
   onCreate,
   onEdit,
+  onRescheduled,
   onNavigateToDate,
   onRefresh,
   onRequestSkip,
@@ -66,7 +68,7 @@ export default function DayTimelineModalContainer({
 
   return (
     <>
-      {/* When editing, CreateAppointmentModal has its own overlay; hide ours so we don't get double gray */}
+      {/* When editing or rescheduling, the modal has its own chrome; hide backdrop for edit only */}
       {view !== 'edit' && (
         <div
           className="fixed inset-0 bg-black/50"
@@ -80,7 +82,7 @@ export default function DayTimelineModalContainer({
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className={`w-full max-w-xl max-h-[90vh] min-h-0 overflow-y-auto overflow-x-hidden flex flex-col items-center ${view === 'team-options' || view === 'edit' ? 'justify-center' : 'justify-start'}`}
+          className={`w-full max-w-xl max-h-[90vh] min-h-0 overflow-y-auto overflow-x-hidden flex flex-col items-center ${view === 'team-options' || view === 'edit' || view === 'reschedule' ? 'justify-center' : 'justify-start'}`}
           onClick={(e) => e.stopPropagation()}
         >
           {view === 'details' && (
@@ -96,6 +98,7 @@ export default function DayTimelineModalContainer({
               onRequestConfirm={onRequestConfirm}
               onOpenTeamOptions={() => onViewChange('team-options')}
               onOpenEdit={() => onViewChange('edit')}
+              onOpenReschedule={() => onViewChange('reschedule')}
             />
           )}
           {view === 'team-options' && (
@@ -118,6 +121,13 @@ export default function DayTimelineModalContainer({
                 onUpdate(updated)
                 onViewChange('details')
               }}
+            />
+          )}
+          {view === 'reschedule' && onRescheduled && (
+            <RescheduleAppointmentModal
+              appointment={appointment}
+              onClose={() => onViewChange('details')}
+              onRescheduled={onRescheduled}
             />
           )}
         </div>

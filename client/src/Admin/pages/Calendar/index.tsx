@@ -45,7 +45,7 @@ export default function Calendar() {
     setAppointments
   )
 
-  const { handleUpdate, handleCreateFrom, handleEdit, handleCreated } = useCalendarActions(
+  const { handleUpdate, handleCreateFrom, handleEdit, handleCreated, handleRescheduled } = useCalendarActions(
     setCreateParams,
     setRescheduleOldId,
     setDeleteOldId,
@@ -153,6 +153,7 @@ export default function Calendar() {
           onUpdate={handleUpdate}
           onCreate={(appt, status) => handleCreateFrom(appt, status)}
           onEdit={handleEdit}
+          onRescheduled={handleRescheduled}
           onNavigateToDate={(date) => {
             setSelected(date)
             refresh()

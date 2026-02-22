@@ -1,19 +1,21 @@
 import { Router } from 'express'
-import { 
-  getEmployees, 
+import {
+  getEmployees,
   getAvailableEmployees,
-  createEmployee, 
-  getEmployee, 
-  updateEmployee, 
-  deleteEmployee, 
-  getEmployeeAppointments 
+  getSupervisors,
+  createEmployee,
+  getEmployee,
+  updateEmployee,
+  deleteEmployee,
+  getEmployeeAppointments,
 } from '../controllers/employeesController'
 
 const router = Router()
 
-// Employee routes
+// Employee routes (specific paths before :id)
 router.get('/employees', getEmployees)
 router.get('/employees/available', getAvailableEmployees)
+router.get('/employees/supervisors', getSupervisors)
 router.post('/employees', createEmployee)
 router.get('/employees/:id', getEmployee)
 router.put('/employees/:id', updateEmployee)

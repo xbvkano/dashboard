@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { getSchedule, saveSchedule, confirmSchedule, getUpcomingAppointments } from '../controllers/employeeScheduleController'
+import { getSchedule, saveSchedule, confirmSchedule, getUpcomingAppointments, confirmJob } from '../controllers/employeeScheduleController'
 
 const router = Router()
 
@@ -8,6 +8,7 @@ router.get('/employee/schedule', getSchedule)
 router.post('/employee/schedule', saveSchedule)
 router.post('/employee/schedule/confirm', confirmSchedule)
 router.get('/employee/upcoming-appointments', getUpcomingAppointments)
+router.post('/employee/confirm-job', confirmJob)
 
 export default router
 

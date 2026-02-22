@@ -1,11 +1,13 @@
 import { Router } from 'express'
-import { 
-  testMovePastSchedules, 
+import {
+  testMovePastSchedules,
   testScheduleReminder,
   testScheduleCleanup,
   testScheduleReminderJob,
   testRecurringSync,
-  testAppointmentReminder
+  testAppointmentReminder,
+  testUnconfirmedCheck,
+  testNoonEmployeeReminder,
 } from '../controllers/testController'
 
 const router = Router()
@@ -17,6 +19,8 @@ router.post('/test/jobs/schedule-cleanup', testScheduleCleanup)
 router.post('/test/jobs/schedule-reminder', testScheduleReminderJob)
 router.post('/test/jobs/recurring-sync', testRecurringSync)
 router.post('/test/jobs/appointment-reminder', testAppointmentReminder)
+router.post('/test/jobs/unconfirmed-check', testUnconfirmedCheck)
+router.post('/test/jobs/noon-employee-reminder', testNoonEmployeeReminder)
 
 export default router
 

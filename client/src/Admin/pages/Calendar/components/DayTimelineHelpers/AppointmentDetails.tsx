@@ -49,6 +49,8 @@ interface AppointmentDetailsProps {
   onOpenTeamOptions?: () => void
   /** Called when user opens Edit (so parent can switch to edit view; details go away). */
   onOpenEdit?: () => void
+  /** Called when user opens Reschedule (so parent can switch to reschedule modal). */
+  onOpenReschedule?: () => void
 }
 
 export default function AppointmentDetails({
@@ -63,6 +65,7 @@ export default function AppointmentDetails({
   onRequestConfirm,
   onOpenTeamOptions,
   onOpenEdit,
+  onOpenReschedule,
 }: AppointmentDetailsProps) {
   const { alert, confirm } = useModal()
   const navigate = useNavigate()
@@ -761,7 +764,7 @@ export default function AppointmentDetails({
               </button>
               <button
                 type="button"
-                onClick={() => onCreate(appointment, 'RESCHEDULE_NEW')}
+                onClick={() => onOpenReschedule ? onOpenReschedule() : onCreate(appointment, 'RESCHEDULE_NEW')}
                 className="px-4 py-2.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
               >
                 Reschedule
