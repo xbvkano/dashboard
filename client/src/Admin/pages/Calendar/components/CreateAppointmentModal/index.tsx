@@ -323,17 +323,7 @@ export default function CreateAppointmentModal({
                   />
                 </div>
               </div>
-              <div className="mt-2">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={paid}
-                    onChange={(e) => setPaid(e.target.checked)}
-                    className="mr-2"
-                  />
-                  Paid
-                </label>
-              </div>
+              {/* Paid checkbox only in Appointment Details modal */}
             </div>
 
             {/* Notes Section */}

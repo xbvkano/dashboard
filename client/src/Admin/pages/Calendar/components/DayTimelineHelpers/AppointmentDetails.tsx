@@ -51,6 +51,8 @@ interface AppointmentDetailsProps {
   onOpenEdit?: () => void
   /** Called when user opens Reschedule (so parent can switch to reschedule modal). */
   onOpenReschedule?: () => void
+  /** When provided, show "View in Calendar" button (e.g. when modal is open from Schedule page). */
+  onViewInCalendar?: () => void
 }
 
 export default function AppointmentDetails({
@@ -66,6 +68,7 @@ export default function AppointmentDetails({
   onOpenTeamOptions,
   onOpenEdit,
   onOpenReschedule,
+  onViewInCalendar,
 }: AppointmentDetailsProps) {
   const { alert, confirm } = useModal()
   const navigate = useNavigate()
@@ -625,8 +628,21 @@ export default function AppointmentDetails({
             </div>
           </div>
 
-        {/* Recurring Unconfirmed Actions */}
-        {isRecurringUnconfirmed && (
+        {/* When opened from Schedule: only View in Calendar */}
+        {onViewInCalendar && (
+          <div className="space-y-2 w-full border-t pt-4">
+            <button
+              type="button"
+              onClick={onViewInCalendar}
+              className="w-full px-4 py-2.5 bg-slate-600 text-white rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors"
+            >
+              View in Calendar
+            </button>
+          </div>
+        )}
+
+        {/* Recurring Unconfirmed Actions – hidden when from Schedule */}
+        {!onViewInCalendar && isRecurringUnconfirmed && (
           <div className="space-y-2 border-t pt-4">
             <div className="text-sm font-medium text-blue-700 mb-2">
               Recurring Appointment Actions
@@ -667,14 +683,20 @@ export default function AppointmentDetails({
               </button>
               {appointment.observe ? (
                 <button
-                  onClick={() => updateAppointment({ observe: false })}
+                  onClick={async () => {
+                    if (!(await confirm('Remove observe from this appointment?'))) return
+                    await updateAppointment({ observe: false })
+                  }}
                   className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
                 >
                   Unobserve
                 </button>
               ) : (
                 <button
-                  onClick={() => updateAppointment({ observe: true })}
+                  onClick={async () => {
+                    if (!(await confirm('Mark this appointment as observe?'))) return
+                    await updateAppointment({ observe: true })
+                  }}
                   className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
                 >
                   Observe
@@ -721,8 +743,8 @@ export default function AppointmentDetails({
           </div>
         )}
 
-        {/* Team Options & Action Panel – full width, stacked */}
-        {!isRecurringUnconfirmed && (
+        {/* Team Options & Action Panel – full width, stacked; hidden when from Schedule */}
+        {!onViewInCalendar && !isRecurringUnconfirmed && (
           <div className="space-y-2 w-full">
             <button
               type="button"
@@ -789,7 +811,10 @@ export default function AppointmentDetails({
               {appointment.observe ? (
                 <button
                   type="button"
-                  onClick={() => updateAppointment({ observe: false })}
+                  onClick={async () => {
+                    if (!(await confirm('Remove observe from this appointment?'))) return
+                    await updateAppointment({ observe: false })
+                  }}
                   className="px-4 py-2.5 bg-yellow-500 text-white rounded-lg text-sm font-medium hover:bg-yellow-600 transition-colors"
                 >
                   Unobserve
@@ -797,7 +822,10 @@ export default function AppointmentDetails({
               ) : (
                 <button
                   type="button"
-                  onClick={() => updateAppointment({ observe: true })}
+                  onClick={async () => {
+                    if (!(await confirm('Mark this appointment as observe?'))) return
+                    await updateAppointment({ observe: true })
+                  }}
                   className="px-4 py-2.5 bg-yellow-500 text-white rounded-lg text-sm font-medium hover:bg-yellow-600 transition-colors"
                 >
                   Observe

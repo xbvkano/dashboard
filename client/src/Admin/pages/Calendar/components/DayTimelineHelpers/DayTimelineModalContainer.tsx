@@ -21,6 +21,8 @@ interface DayTimelineModalContainerProps {
   onRefresh?: () => void
   onRequestSkip?: () => void
   onRequestConfirm?: () => void
+  /** When provided, show "View in Calendar" button (e.g. when modal is open from Schedule page). */
+  onViewInCalendar?: () => void
 }
 
 /**
@@ -40,6 +42,7 @@ export default function DayTimelineModalContainer({
   onRefresh,
   onRequestSkip,
   onRequestConfirm,
+  onViewInCalendar,
 }: DayTimelineModalContainerProps) {
   const [template, setTemplate] = useState<{ teamSize?: number } | null>(null)
 
@@ -99,6 +102,7 @@ export default function DayTimelineModalContainer({
               onOpenTeamOptions={() => onViewChange('team-options')}
               onOpenEdit={() => onViewChange('edit')}
               onOpenReschedule={() => onViewChange('reschedule')}
+              onViewInCalendar={onViewInCalendar}
             />
           )}
           {view === 'team-options' && (

@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcrypt'
 import { ruleToJson, calculateNextAppointmentDate } from '../src/utils/recurrenceUtils'
 import { calculateAppointmentHours } from '../src/utils/appointmentUtils'
+import { getNextOrThisUpdateDay } from '../src/utils/schedulePolicyUtils'
 
 const prisma = new PrismaClient()
 
@@ -811,6 +812,36 @@ async function main() {
       familyId: family3.id,
     },
   })
+
+  // Default schedule reminder policy (singleton id=1). Days = after missing the update day.
+  const schedulePolicy = await prisma.schedulePolicy.upsert({
+    where: { id: 1 },
+    create: {
+      id: 1,
+      updateDayOfWeek: 0, // Sunday
+      supervisorNotifyAfterDays: 4,
+      stopRemindingAfterDays: 7,
+    },
+    update: {},
+  })
+
+  // Ensure every employee has a Schedule with nextScheduleUpdateDueAt (next policy day from today).
+  const allEmployees = await prisma.employee.findMany({ select: { id: true } })
+  const nextDue = getNextOrThisUpdateDay(new Date(), schedulePolicy.updateDayOfWeek)
+  for (const emp of allEmployees) {
+    await prisma.schedule.upsert({
+      where: { employeeId: emp.id },
+      create: {
+        employeeId: emp.id,
+        futureSchedule: [],
+        pastSchedule: [],
+        nextScheduleUpdateDueAt: nextDue,
+      },
+      update: {
+        nextScheduleUpdateDueAt: nextDue,
+      },
+    })
+  }
 }
 
 main()

@@ -1451,52 +1451,7 @@ const preserveTeamRef = useRef(false)
           </div>
         )}
 
-        {/* Payment block – hidden when editing or Book Again */}
-        {selectedTemplate && !initialAppointment && !initialTimeProp && (
-          <div className={blockClass}>
-            <h4 className={sectionTitleClass}>Payment</h4>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm text-slate-800">
-                <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
-                Paid
-              </label>
-              {paid && (
-                <>
-                  <input
-                    id="appointment-tip"
-                    type="number"
-                    className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Tip"
-                    value={tip}
-                    onChange={(e) => setTip(e.target.value)}
-                  />
-                  <select
-                    id="appointment-payment-method"
-                    className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                  >
-                    <option value="">Select payment method</option>
-                    <option value="CASH">Cash</option>
-                    <option value="ZELLE">Zelle</option>
-                    <option value="VENMO">Venmo</option>
-                    <option value="PAYPAL">Paypal</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                  {paymentMethod === 'OTHER' && (
-                    <input
-                      id="appointment-other-payment"
-                      className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Payment method"
-                      value={otherPayment}
-                      onChange={(e) => setOtherPayment(e.target.value)}
-                    />
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        )}
+        {/* Payment/Paid is only editable in Appointment Details modal, not in Create/Edit modal */}
 
         {/* Actions */}
         <div className="flex gap-2 justify-end pt-2 border-t border-slate-200">
@@ -1513,7 +1468,7 @@ const preserveTeamRef = useRef(false)
               !time ||
               !isValidCarpet() ||
               !adminId ||
-              (!initialAppointment && !initialTimeProp && paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))) ||
+              false &&
               creating
             }
             onClick={createAppointment}

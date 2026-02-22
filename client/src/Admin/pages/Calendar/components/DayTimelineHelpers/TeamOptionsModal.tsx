@@ -13,6 +13,13 @@ interface EmployeeWithAvailability {
   available: boolean
 }
 
+/** Employees already scheduled at this date+time (from GET /employees/scheduled-at) */
+interface ScheduledAtEmployee {
+  id: number
+  name: string
+  number: string
+}
+
 export interface TeamOptionsModalProps {
   appointment: Appointment
   onClose: () => void
@@ -48,12 +55,14 @@ export default function TeamOptionsModal({
   embed = false,
 }: TeamOptionsModalProps) {
   const [employees, setEmployees] = useState<EmployeeWithAvailability[]>([])
+  const [scheduledAtEmployees, setScheduledAtEmployees] = useState<ScheduledAtEmployee[]>([])
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [showSizeConfirm, setShowSizeConfirm] = useState(false)
   const [showNonAvailableConfirm, setShowNonAvailableConfirm] = useState(false)
   const [showNonAvailableSection, setShowNonAvailableSection] = useState(false)
+  const [showScheduledSection, setShowScheduledSection] = useState(false)
   const [payByEmployee, setPayByEmployee] = useState<Record<number, number>>({})
   const [payNote, setPayNote] = useState((appointment as any).payrollNote ?? '')
 
@@ -78,6 +87,18 @@ export default function TeamOptionsModal({
   }, [dateStr, timeStr])
 
   useEffect(() => {
+    if (dateStr && timeStr) {
+      fetchJson<{ employees: ScheduledAtEmployee[] }>(
+        `${API_BASE_URL}/employees/scheduled-at?date=${encodeURIComponent(dateStr)}&time=${encodeURIComponent(timeStr)}`
+      )
+        .then((data) => setScheduledAtEmployees(data.employees ?? []))
+        .catch(() => setScheduledAtEmployees([]))
+    } else {
+      setScheduledAtEmployees([])
+    }
+  }, [dateStr, timeStr])
+
+  useEffect(() => {
     const ids = appointment.employees?.map((e) => e.id).filter(Boolean) ?? []
     setSelectedIds(ids)
   }, [appointment.employees])
@@ -96,14 +117,22 @@ export default function TeamOptionsModal({
     setPayByEmployee((prev) => ({ ...prev, ...next }))
   }, [selectedIds, defaultPayPerPerson, appointment.payrollItems])
 
-  const available = employees.filter((e) => e.available)
-  const nonAvailable = employees.filter((e) => !e.available)
+  const currentTeamIds = new Set(selectedIds)
+  const scheduledElsewhere = scheduledAtEmployees.filter((e) => !currentTeamIds.has(e.id))
+  const scheduledElsewhereIds = new Set(scheduledElsewhere.map((e) => e.id))
+  const available = employees.filter((e) => e.available && !scheduledElsewhereIds.has(e.id))
+  const nonAvailable = employees.filter((e) => !e.available && !scheduledElsewhereIds.has(e.id))
   const filteredAvailable = available.filter(
     (e) =>
       e.name.toLowerCase().includes(search.toLowerCase()) ||
       e.number.includes(search)
   )
   const filteredNonAvailable = nonAvailable.filter(
+    (e) =>
+      e.name.toLowerCase().includes(search.toLowerCase()) ||
+      e.number.includes(search)
+  )
+  const filteredScheduledElsewhere = scheduledElsewhere.filter(
     (e) =>
       e.name.toLowerCase().includes(search.toLowerCase()) ||
       e.number.includes(search)
@@ -333,6 +362,34 @@ export default function TeamOptionsModal({
               </div>
             )}
           </div>
+
+          {scheduledElsewhere.length > 0 && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowScheduledSection((v) => !v)}
+                className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-slate-900"
+              >
+                {showScheduledSection ? '▼' : '▶'} Scheduled at this time ({scheduledElsewhere.length})
+              </button>
+              {showScheduledSection && (
+                <div className="mt-1 border border-emerald-200 rounded-lg divide-y divide-emerald-100 max-h-48 overflow-y-auto bg-emerald-50">
+                  {filteredScheduledElsewhere.map((emp) => (
+                    <div
+                      key={emp.id}
+                      className="flex items-center gap-3 px-4 py-3 text-emerald-800 bg-emerald-50"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium">{emp.name}</span>
+                        <span className="ml-2 text-xs text-emerald-700">Scheduled</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-slate-500 mt-1">These employees are already on an appointment in this time block and cannot be selected.</p>
+            </div>
+          )}
 
           <div className="pt-2 border-t border-slate-200">
             <h3 className="text-sm font-medium text-slate-700 mb-2">Pay</h3>

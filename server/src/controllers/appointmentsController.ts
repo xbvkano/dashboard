@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
-import { parseSqft, calculatePayRate, calculateCarpetRate, calculateAppointmentHours } from '../utils/appointmentUtils'
+import { parseSqft, calculatePayRate, calculateCarpetRate, calculateAppointmentHours, getSlotFromTime } from '../utils/appointmentUtils'
 import { jsonToRule, calculateNextAppointmentDate } from '../utils/recurrenceUtils'
 import { sendEmployeeRemindersForAppointmentIds } from '../jobs/unconfirmedCheck'
 import twilio from 'twilio'
@@ -30,6 +30,34 @@ function parseDateStringUTC(dateStr: string): Date {
     throw new Error('Invalid date')
   }
   return date
+}
+
+/**
+ * Returns employee IDs that are already scheduled at the given date+time slot (AM/PM).
+ * Excludes appointment excludeAppointmentId when checking (for updates).
+ */
+async function getEmployeesAlreadyInSlot(
+  date: Date,
+  time: string,
+  employeeIds: number[],
+  excludeAppointmentId?: number
+): Promise<number[]> {
+  if (employeeIds.length === 0) return []
+  const slot = getSlotFromTime(time)
+  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+  const endExclusive = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1))
+  const appts = await prisma.appointment.findMany({
+    where: {
+      date: { gte: start, lt: endExclusive },
+      status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+      ...(excludeAppointmentId != null && { id: { not: excludeAppointmentId } }),
+    },
+    select: { time: true, employees: { select: { id: true } } },
+  })
+  const inSlot = appts.filter((a) => getSlotFromTime(a.time ?? '') === slot)
+  const bookedIds = new Set<number>()
+  inSlot.forEach((a) => a.employees.forEach((e) => bookedIds.add(e.id)))
+  return employeeIds.filter((id) => bookedIds.has(id))
 }
 
 export async function syncPayrollItems(apptId: number, employeeIds: number[]) {
@@ -212,6 +240,17 @@ export async function createAppointment(req: Request, res: Response) {
       }
     }
 
+    if (employeeIds.length > 0 && date && time) {
+      const dateObj = parseDateStringUTC(date)
+      const alreadyBooked = await getEmployeesAlreadyInSlot(dateObj, time, employeeIds)
+      if (alreadyBooked.length > 0) {
+        return res.status(409).json({
+          error: 'One or more employees are already scheduled in this time block',
+          employeeIds: alreadyBooked,
+        })
+      }
+    }
+
     const appt = await prisma.appointment.create({
       data: {
         clientId,              // scalar shortcut instead of nested connect
@@ -387,7 +426,20 @@ export async function updateAppointment(req: Request, res: Response) {
     const future = req.query.future === 'true'
     const current = await prisma.appointment.findUnique({ where: { id }, include: { employees: true, client: true, admin: true, family: true } })
     if (!current) return res.status(404).json({ error: 'Not found' })
-    
+
+    if (employeeIds && employeeIds.length > 0) {
+      const effectiveDate = data.date != null ? data.date : current.date
+      const effectiveTime = data.time != null ? data.time : (current.time ?? '')
+      const dateForCheck = effectiveDate instanceof Date ? effectiveDate : new Date(effectiveDate)
+      const alreadyBooked = await getEmployeesAlreadyInSlot(dateForCheck, effectiveTime, employeeIds, id)
+      if (alreadyBooked.length > 0) {
+        return res.status(409).json({
+          error: 'One or more employees are already scheduled in this time block',
+          employeeIds: alreadyBooked,
+        })
+      }
+    }
+
     // When rescheduling a confirmed recurring appointment, find the new rescheduled appointment
     // and update the family's nextAppointmentDate to reflect where it actually is now.
     // Keep the familyId so the appointment remains part of the family and viewable in calendar.

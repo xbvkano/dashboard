@@ -143,9 +143,27 @@ function getNewAdditionsGrouped(
     .map(([dateStr, shifts]) => ({ dateStr, shifts }))
 }
 
-function InformationSection() {
+type SchedulePolicy = { updateDayOfWeek: number; supervisorNotifyAfterDays: number; stopRemindingAfterDays: number }
+
+function InformationSection({
+  policy,
+  nextUpdateDueDateFormatted,
+}: {
+  policy: SchedulePolicy | null
+  nextUpdateDueDateFormatted: string | null
+}) {
   const [isOpen, setIsOpen] = useState(false)
   const { t } = useEmployeeLanguage()
+  const updateDayName = t.dayNamesLong?.[policy?.updateDayOfWeek ?? 0] ?? String(policy?.updateDayOfWeek ?? '')
+  const policySummaryText = policy
+    ? t.policySummary
+        .replace('{updateDay}', updateDayName)
+        .replace('{supervisorDays}', String(policy.supervisorNotifyAfterDays))
+        .replace('{stopDays}', String(policy.stopRemindingAfterDays))
+    : t.policySummary
+        .replace('{updateDay}', t.policyUpdateDayPlaceholder)
+        .replace('{supervisorDays}', t.policySupervisorDaysPlaceholder)
+        .replace('{stopDays}', t.policyStopDaysPlaceholder)
   return (
     <div className="mb-5 border border-slate-200 rounded-xl overflow-hidden bg-white">
       <button
@@ -188,25 +206,26 @@ function InformationSection() {
           </div>
           <div>
             <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
-              <span className="w-4 h-4 bg-emerald-600 rounded border border-emerald-700 shrink-0 inline-block" />
-              {t.scheduled}
-            </h4>
-            <p>{t.scheduledDesc}</p>
-          </div>
-          <div>
-            <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
               <span className="w-4 h-4 bg-amber-500 rounded border border-amber-600 shrink-0 inline-block" />
               {t.legendUnconfirmed}
             </h4>
             <p>{t.unconfirmedDesc}</p>
           </div>
+          <div>
+            <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
+              <span className="w-4 h-4 bg-emerald-600 rounded border border-emerald-700 shrink-0 inline-block" />
+              {t.scheduled}
+            </h4>
+            <p>{t.scheduledDesc}</p>
+          </div>
           <div className="pt-2 border-t border-slate-100">
             <h4 className="font-semibold text-slate-700 mb-2">{t.scheduleUpdatePolicy}</h4>
-            <ul className="list-disc list-inside space-y-1 text-slate-600">
-              <li>{t.policy1}</li>
-              <li>{t.policy2}</li>
-              <li>{t.policy3}</li>
-            </ul>
+            {nextUpdateDueDateFormatted && (
+              <p className="text-slate-700 font-medium mb-2">
+                {t.policyNextUpdateDate.replace('{date}', nextUpdateDueDateFormatted)}
+              </p>
+            )}
+            <p className="text-slate-600">{policySummaryText}</p>
           </div>
         </div>
       )}
@@ -243,14 +262,35 @@ export default function Schedule() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  const [nextScheduleUpdateDueAt, setNextScheduleUpdateDueAt] = useState<string | null>(null) // YYYY-MM-DD
+  const [schedulePolicy, setSchedulePolicy] = useState<SchedulePolicy | null>(null)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [scheduledByDay, setScheduledByDay] = useState<Record<string, { morning: boolean; afternoon: boolean; morningUnconfirmed?: boolean; afternoonUnconfirmed?: boolean }>>({})
 
-  // Load existing schedule and upcoming appointments (for scheduled blocks)
+  // Load existing schedule, upcoming appointments, and schedule policy
   useEffect(() => {
     loadSchedule()
     loadUpcomingAppointments()
+    loadSchedulePolicy()
   }, [])
+
+  async function loadSchedulePolicy() {
+    try {
+      const userName = localStorage.getItem('userName')
+      const headers: HeadersInit = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' }
+      if (userName) headers['x-user-name'] = userName
+      const res = await fetch(`${API_BASE_URL}/employee/schedule-policy`, { headers })
+      if (!res.ok) return
+      const data = await res.json()
+      setSchedulePolicy({
+        updateDayOfWeek: data.updateDayOfWeek ?? 0,
+        supervisorNotifyAfterDays: data.supervisorNotifyAfterDays ?? 4,
+        stopRemindingAfterDays: data.stopRemindingAfterDays ?? 7,
+      })
+    } catch {
+      // ignore
+    }
+  }
 
   async function loadUpcomingAppointments() {
     try {
@@ -297,6 +337,12 @@ export default function Schedule() {
       }
       if (data?.employeeUpdate) {
         setLastUpdate(new Date(data.employeeUpdate))
+      }
+      if (data?.nextScheduleUpdateDueAt) {
+        const d = new Date(data.nextScheduleUpdateDueAt)
+        setNextScheduleUpdateDueAt(getDayKey(d))
+      } else {
+        setNextScheduleUpdateDueAt(null)
       }
     } catch (err) {
       console.error('Failed to load schedule:', err)
@@ -382,35 +428,47 @@ export default function Schedule() {
     }
   }
   
-  function getDaysSinceUpdate(): number | null {
-    if (!lastUpdate) return null
+  const DAY_MS = 86400000
+  function getDaysPastDue(): number | null {
+    if (!schedulePolicy) return null
     const now = new Date()
-    const diffTime = now.getTime() - lastUpdate.getTime()
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
-  }
-  
-  function formatDaysSinceUpdate(): string {
-    const days = getDaysSinceUpdate()
-    if (days === null) return t.neverUpdated
-    if (days === 0) return t.updatedToday
-    if (days === 1) return t.updatedOneDayAgo
-    return t.updatedDaysAgo(days)
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    if (nextScheduleUpdateDueAt) {
+      const [y, m, d] = nextScheduleUpdateDueAt.split('-').map(Number)
+      const dueDate = new Date(y, m - 1, d).getTime()
+      if (todayStart <= dueDate) return null
+      return Math.floor((todayStart - dueDate) / DAY_MS)
+    }
+    const lastDue = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    while (lastDue.getDay() !== schedulePolicy.updateDayOfWeek) {
+      lastDue.setDate(lastDue.getDate() - 1)
+    }
+    const lastDueStart = lastDue.getTime()
+    if (lastUpdate) {
+      const lastUpdateStart = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate()).getTime()
+      if (lastUpdateStart >= lastDueStart) return null
+    }
+    return Math.floor((todayStart - lastDueStart) / DAY_MS)
   }
 
+  const daysPastDue = getDaysPastDue()
+  const showUpdateReminder = schedulePolicy && daysPastDue != null && daysPastDue >= 1 && daysPastDue <= schedulePolicy.stopRemindingAfterDays
+  const updateDayName = schedulePolicy != null ? (t.dayNamesLong?.[schedulePolicy.updateDayOfWeek] ?? '') : ''
 
   function getDayStyle(date: Date): string {
+    const key = getDayKey(date)
+    const isUpdateDueDate = nextScheduleUpdateDueAt != null && key === nextScheduleUpdateDueAt
     if (isBefore(date, today)) {
-      return 'bg-slate-200 text-slate-400'
+      return isUpdateDueDate ? 'bg-slate-200 text-slate-400 ring-2 ring-amber-500 ring-inset' : 'bg-slate-200 text-slate-400'
     }
     if (isSameDay(date, today)) {
-      return 'bg-blue-100 text-blue-900'
+      return isUpdateDueDate ? 'bg-blue-100 text-blue-900 ring-2 ring-amber-500 ring-inset' : 'bg-blue-100 text-blue-900'
     }
     const daysDiff = Math.floor((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     if (daysDiff >= 1 && daysDiff <= 14) {
-      return 'bg-amber-50 text-amber-900'
+      return isUpdateDueDate ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-500' : 'bg-amber-50 text-amber-900'
     }
-    return 'bg-white text-slate-900'
+    return isUpdateDueDate ? 'bg-amber-50 text-amber-900 ring-2 ring-amber-500' : 'bg-white text-slate-900'
   }
 
   function canSelect(date: Date): boolean {
@@ -470,29 +528,41 @@ export default function Schedule() {
     )
   }
 
-  const daysSinceUpdate = getDaysSinceUpdate()
-  const updateColor = daysSinceUpdate !== null && daysSinceUpdate >= 7 ? 'text-amber-600' : 'text-emerald-600'
-
   return (
     <div className="pb-4">
       <h1 className="text-xl md:text-2xl font-semibold text-slate-800 mb-1">{t.mySchedule}</h1>
       <p className="text-sm text-slate-500 mb-4">{t.subtitle}</p>
       
       {/* Information dropdown */}
-      <InformationSection />
+      <InformationSection
+        policy={schedulePolicy}
+        nextUpdateDueDateFormatted={
+          nextScheduleUpdateDueAt
+            ? (() => {
+                const [y, m, d] = nextScheduleUpdateDueAt.split('-').map(Number)
+                return new Date(y, m - 1, d).toLocaleDateString(locale, {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+              })()
+            : null
+        }
+      />
 
       {/* Supervisor note */}
       <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
         <strong>{t.removeAvailabilityNote}</strong>
       </div>
-      
-      {/* Last Update Display */}
-      {lastUpdate && (
-        <div className={`mb-4 text-sm font-medium ${updateColor}`}>
-          {formatDaysSinceUpdate()}
+
+      {/* Schedule update reminder (when policy says they should update) */}
+      {showUpdateReminder && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm font-medium text-amber-800">
+          {t.scheduleUpdateReminder.replace('{updateDay}', updateDayName)}
         </div>
       )}
-      
+
       {/* Calendar card */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-5">
         <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
@@ -612,13 +682,19 @@ export default function Schedule() {
           <span>{t.legendAvailability}</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-emerald-600 rounded border border-emerald-700 shrink-0"></div>
-          <span>{t.legendScheduled}</span>
-        </div>
-        <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-amber-500 rounded border border-amber-600 shrink-0"></div>
           <span>{t.legendUnconfirmed}</span>
         </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-emerald-600 rounded border border-emerald-700 shrink-0"></div>
+          <span>{t.legendScheduled}</span>
+        </div>
+        {nextScheduleUpdateDueAt && (
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded border-2 border-amber-500 bg-amber-50 shrink-0"></div>
+            <span>{t.legendUpdateDueDate}</span>
+          </div>
+        )}
       </div>
 
       {/* Messages */}

@@ -1,35 +1,39 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { calculatePayRate, calculateCarpetRate } from '../utils/appointmentUtils'
+import { getNextOrThisUpdateDay, getNextUpdateDueDate } from '../utils/schedulePolicyUtils'
 
 const prisma = new PrismaClient()
 
-// Helper to get employee ID from request
-async function getEmployeeId(req: Request): Promise<number | null> {
-  // Try to get from header (set by frontend after login)
+/** Result: employee id, disabled, or not authenticated */
+type EmployeeAuth = { employeeId: number } | { disabled: true } | null
+
+// Helper to get employee from request; returns null if not authenticated, { disabled: true } if employee is disabled
+async function getEmployeeAuth(req: Request): Promise<EmployeeAuth> {
   const userId = req.headers['x-user-id'] as string
   if (userId) {
     const user = await prisma.user.findUnique({
       where: { id: parseInt(userId, 10) },
-      include: { employee: true }
+      include: { employee: true },
     })
     if (user?.employee) {
-      return user.employee.id
+      if (user.employee.disabled) return { disabled: true }
+      return { employeeId: user.employee.id }
     }
   }
-  
-  // Fallback: try to get from userName in header
+
   const userName = req.headers['x-user-name'] as string
   if (userName) {
     const user = await prisma.user.findUnique({
       where: { userName },
-      include: { employee: true }
+      include: { employee: true },
     })
     if (user?.employee) {
-      return user.employee.id
+      if (user.employee.disabled) return { disabled: true }
+      return { employeeId: user.employee.id }
     }
   }
-  
+
   return null
 }
 
@@ -69,24 +73,35 @@ function movePastDates(futureSchedule: string[], pastSchedule: string[]): {
 
 export async function getSchedule(req: Request, res: Response) {
   try {
-    const employeeId = await getEmployeeId(req)
-    if (!employeeId) {
-      return res.status(401).json({ error: 'Unauthorized' })
-    }
+    const auth = await getEmployeeAuth(req)
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' })
+    if ('disabled' in auth) return res.status(403).json({ error: 'Account disabled' })
+    const employeeId = auth.employeeId
 
     let schedule = await prisma.schedule.findUnique({
       where: { employeeId }
     })
 
     if (!schedule) {
-      // Create empty schedule if it doesn't exist
+      const policy = await prisma.schedulePolicy.findUnique({ where: { id: 1 } })
+      const updateDay = policy?.updateDayOfWeek ?? 0
+      const nextDue = getNextOrThisUpdateDay(new Date(), updateDay)
       schedule = await prisma.schedule.create({
         data: {
           employeeId,
           futureSchedule: [],
           pastSchedule: [],
-          employeeUpdate: new Date()
+          employeeUpdate: new Date(),
+          nextScheduleUpdateDueAt: nextDue
         }
+      })
+    } else if (schedule.nextScheduleUpdateDueAt == null) {
+      const policy = await prisma.schedulePolicy.findUnique({ where: { id: 1 } })
+      const updateDay = policy?.updateDayOfWeek ?? 0
+      const nextDue = getNextOrThisUpdateDay(new Date(), updateDay)
+      schedule = await prisma.schedule.update({
+        where: { employeeId },
+        data: { nextScheduleUpdateDueAt: nextDue }
       })
     }
 
@@ -107,7 +122,8 @@ export async function getSchedule(req: Request, res: Response) {
     res.json({
       futureSchedule: schedule.futureSchedule,
       pastSchedule: schedule.pastSchedule,
-      employeeUpdate: schedule.employeeUpdate
+      employeeUpdate: schedule.employeeUpdate,
+      nextScheduleUpdateDueAt: schedule.nextScheduleUpdateDueAt
     })
   } catch (e) {
     console.error('Error fetching schedule:', e)
@@ -150,10 +166,10 @@ function validateScheduleEntry(entry: string): boolean {
 
 export async function saveSchedule(req: Request, res: Response) {
   try {
-    const employeeId = await getEmployeeId(req)
-    if (!employeeId) {
-      return res.status(401).json({ error: 'Unauthorized' })
-    }
+    const auth = await getEmployeeAuth(req)
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' })
+    if ('disabled' in auth) return res.status(403).json({ error: 'Account disabled' })
+    const employeeId = auth.employeeId
 
     const { futureSchedule } = req.body as { futureSchedule: string[] }
     
@@ -183,13 +199,18 @@ export async function saveSchedule(req: Request, res: Response) {
     // Move past dates from new schedule (even if empty, this will just return empty arrays)
     const { newFuture, newPast } = movePastDates(futureSchedule, existingPast)
 
+    const policy = await prisma.schedulePolicy.findUnique({ where: { id: 1 } })
+    const updateDay = policy?.updateDayOfWeek ?? 0
+    const nextDue = getNextUpdateDueDate(new Date(), updateDay)
+
     if (schedule) {
       schedule = await prisma.schedule.update({
         where: { employeeId },
         data: {
           futureSchedule: newFuture,
           pastSchedule: newPast,
-          employeeUpdate: new Date()
+          employeeUpdate: new Date(),
+          nextScheduleUpdateDueAt: nextDue
         }
       })
     } else {
@@ -198,7 +219,8 @@ export async function saveSchedule(req: Request, res: Response) {
           employeeId,
           futureSchedule: newFuture,
           pastSchedule: newPast,
-          employeeUpdate: new Date()
+          employeeUpdate: new Date(),
+          nextScheduleUpdateDueAt: nextDue
         }
       })
     }
@@ -212,10 +234,10 @@ export async function saveSchedule(req: Request, res: Response) {
 
 export async function confirmSchedule(req: Request, res: Response) {
   try {
-    const employeeId = await getEmployeeId(req)
-    if (!employeeId) {
-      return res.status(401).json({ error: 'Unauthorized' })
-    }
+    const auth = await getEmployeeAuth(req)
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' })
+    if ('disabled' in auth) return res.status(403).json({ error: 'Account disabled' })
+    const employeeId = auth.employeeId
 
     const { futureSchedule } = req.body as { futureSchedule: string[] }
     
@@ -242,13 +264,18 @@ export async function confirmSchedule(req: Request, res: Response) {
     // Move past dates from new schedule
     const { newFuture, newPast } = movePastDates(futureSchedule, existingPast)
 
+    const policy = await prisma.schedulePolicy.findUnique({ where: { id: 1 } })
+    const updateDay = policy?.updateDayOfWeek ?? 0
+    const nextDue = getNextUpdateDueDate(new Date(), updateDay)
+
     if (schedule) {
       schedule = await prisma.schedule.update({
         where: { employeeId },
         data: {
           futureSchedule: newFuture,
           pastSchedule: newPast,
-          employeeUpdate: new Date()
+          employeeUpdate: new Date(),
+          nextScheduleUpdateDueAt: nextDue
         }
       })
     } else {
@@ -257,7 +284,8 @@ export async function confirmSchedule(req: Request, res: Response) {
           employeeId,
           futureSchedule: newFuture,
           pastSchedule: newPast,
-          employeeUpdate: new Date()
+          employeeUpdate: new Date(),
+          nextScheduleUpdateDueAt: nextDue
         }
       })
     }
@@ -277,10 +305,10 @@ function getBlockFromTime(time: string): 'AM' | 'PM' {
 
 export async function getUpcomingAppointments(req: Request, res: Response) {
   try {
-    const employeeId = await getEmployeeId(req)
-    if (!employeeId) {
-      return res.status(401).json({ error: 'Unauthorized' })
-    }
+    const auth = await getEmployeeAuth(req)
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' })
+    if ('disabled' in auth) return res.status(403).json({ error: 'Account disabled' })
+    const employeeId = auth.employeeId
 
     const startOfToday = new Date()
     startOfToday.setHours(0, 0, 0, 0)
@@ -346,10 +374,10 @@ export async function getUpcomingAppointments(req: Request, res: Response) {
 
 export async function confirmJob(req: Request, res: Response) {
   try {
-    const employeeId = await getEmployeeId(req)
-    if (!employeeId) {
-      return res.status(401).json({ error: 'Unauthorized' })
-    }
+    const auth = await getEmployeeAuth(req)
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' })
+    if ('disabled' in auth) return res.status(403).json({ error: 'Account disabled' })
+    const employeeId = auth.employeeId
 
     const { appointmentId } = req.body as { appointmentId?: number }
     if (typeof appointmentId !== 'number' || !Number.isInteger(appointmentId)) {

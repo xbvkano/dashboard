@@ -1,9 +1,15 @@
 import cron from 'node-cron'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 import twilio from 'twilio'
 import { normalizePhone } from '../utils/phoneUtils'
 
 const prisma = new PrismaClient()
+
+/** Payroll item with employee and appointment (and client) for reminder logic */
+type PayrollItemWithAppointmentAndEmployee = Prisma.PayrollItemGetPayload<{
+  include: { employee: true; appointment: { include: { client: true } } }
+}>
+
 const smsClient = twilio(
   process.env.TWILIO_ACCOUNT_SID || '',
   process.env.TWILIO_AUTH_TOKEN || '',
@@ -119,9 +125,9 @@ export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
   const unconfirmedEntries: UnconfirmedEntry[] = []
   for (const appt of appointments) {
     const payrollByEmployeeId = new Map((appt.payrollItems ?? []).map((pi) => [pi.employeeId, pi]))
-    // From payroll: unconfirmed items
+    // From payroll: unconfirmed items (skip disabled employees – they get no notifications)
     for (const pi of appt.payrollItems ?? []) {
-      if (pi.confirmed === false && pi.employee) {
+      if (pi.confirmed === false && pi.employee && !(pi.employee as { disabled?: boolean }).disabled) {
         unconfirmedEntries.push({
           appt,
           emp: pi.employee,
@@ -129,9 +135,9 @@ export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
         })
       }
     }
-    // From employees: those with no payroll item (we created one above) — use appt.employees for supervisor
+    // From employees: those with no payroll item (we created one above) — use appt.employees for supervisor; skip disabled
     for (const emp of appt.employees ?? []) {
-      if (!payrollByEmployeeId.has(emp.id)) {
+      if (!payrollByEmployeeId.has(emp.id) && !(emp as { disabled?: boolean }).disabled) {
         unconfirmedEntries.push({
           appt,
           emp: { id: emp.id, name: emp.name, number: emp.number, supervisor: emp.supervisor ?? null },
@@ -293,14 +299,15 @@ export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
       appointmentId: { in: appointments14.map((a) => a.id) },
       confirmed: false,
       reminderSentAt: null,
-    },
+      employee: { disabled: false },
+    } as Prisma.PayrollItemWhereInput,
     include: {
       employee: true,
       appointment: {
         include: { client: true },
       },
     },
-  })
+  }) as PayrollItemWithAppointmentAndEmployee[]
   const dateStrOpts = { weekday: 'long' as const, month: 'short' as const, day: 'numeric' as const, timeZone: 'UTC' as const }
   for (const pi of payrollItems14) {
     const appt = pi.appointment
@@ -344,7 +351,7 @@ export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
       })
       await prisma.payrollItem.update({
         where: { id: pi.id },
-        data: { reminderSentAt: new Date() },
+        data: { reminderSentAt: new Date() } as Prisma.PayrollItemUpdateInput,
       })
       employeeSent.push({
         appointmentId: appt.id,
@@ -416,19 +423,20 @@ export async function sendEmployeeRemindersForAppointmentIds(appointmentIds: num
   if (!fromNumber) return
   const asOf = new Date()
   const { start, end } = getEmployeeReminderDateRange(asOf)
-  const items = await prisma.payrollItem.findMany({
+  const items = (await prisma.payrollItem.findMany({
     where: {
       appointmentId: { in: appointmentIds },
       confirmed: false,
       reminderSentAt: null,
-    },
+      employee: { disabled: false },
+    } as Prisma.PayrollItemWhereInput,
     include: {
       employee: true,
       appointment: {
         include: { client: true },
       },
     },
-  })
+  })) as PayrollItemWithAppointmentAndEmployee[]
   const dateStrOpts = { weekday: 'long' as const, month: 'short' as const, day: 'numeric' as const, timeZone: 'UTC' as const }
   for (const pi of items) {
     const appt = pi.appointment
@@ -449,7 +457,7 @@ export async function sendEmployeeRemindersForAppointmentIds(appointmentIds: num
       })
       await prisma.payrollItem.update({
         where: { id: pi.id },
-        data: { reminderSentAt: new Date() },
+        data: { reminderSentAt: new Date() } as Prisma.PayrollItemUpdateInput,
       })
       if (process.env.NODE_ENV !== 'test') {
         console.log('[UnconfirmedCheck] Employee reminder SMS sent (on assign):', {
@@ -497,23 +505,24 @@ export async function runNoonEmployeeReminders(
   const fromNumber = process.env.TWILIO_FROM_NUMBER
   const dateStrOpts = { weekday: 'long' as const, month: 'short' as const, day: 'numeric' as const, timeZone: 'UTC' as const }
 
-  const items = await prisma.payrollItem.findMany({
+  const items = (await prisma.payrollItem.findMany({
     where: {
       confirmed: false,
       reminderSentAt: null,
+      employee: { disabled: false },
       ...(options?.employeeId != null ? { employeeId: options.employeeId } : {}),
       appointment: {
         date: { gte: newDayStart, lt: newDayEnd },
         status: { notIn: ['DELETED', 'CANCEL', 'RESCHEDULE_OLD'] },
       },
-    },
+    } as Prisma.PayrollItemWhereInput,
     include: {
       employee: true,
       appointment: {
         include: { client: true },
       },
     },
-  })
+  })) as PayrollItemWithAppointmentAndEmployee[]
 
   for (const pi of items) {
     const appt = pi.appointment
@@ -557,7 +566,7 @@ export async function runNoonEmployeeReminders(
       })
       await prisma.payrollItem.update({
         where: { id: pi.id },
-        data: { reminderSentAt: new Date() },
+        data: { reminderSentAt: new Date() } as Prisma.PayrollItemUpdateInput,
       })
       sent.push({
         appointmentId: appt.id,
