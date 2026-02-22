@@ -13,6 +13,8 @@ interface Props {
   initialTemplateId?: number
   newStatus?: import('../types').Appointment['status']
   initialAppointment?: import('../types').Appointment
+  /** Pre-fill time when opening from "Book Again" (date is not pre-filled) */
+  initialTime?: string
 }
 
 const sizeOptions = [
@@ -30,7 +32,7 @@ const sizeOptions = [
   '6000+',
 ]
 
-export default function CreateAppointmentModal({ onClose, onCreated, initialClientId, initialTemplateId, newStatus, initialAppointment }: Props) {
+export default function CreateAppointmentModal({ onClose, onCreated, initialClientId, initialTemplateId, newStatus, initialAppointment, initialTime: initialTimeProp }: Props) {
   const { alert, confirm } = useModal()
 
   useEffect(() => {
@@ -279,6 +281,12 @@ const preserveTeamRef = useRef(false)
       initializedRef.current = true
     }
   }, [])
+
+  // Pre-fill time when opening from "Book Again" (no initialAppointment; date is not pre-filled)
+  useEffect(() => {
+    if (initialAppointment) return
+    if (initialTimeProp) setTime(initialTimeProp)
+  }, [initialAppointment, initialTimeProp])
 
   useEffect(() => {
     if (!initializedRef.current) return
@@ -846,43 +854,49 @@ const preserveTeamRef = useRef(false)
     }
   }
 
+  const blockClass = 'rounded-xl border-2 border-slate-200 bg-white p-4 shadow-sm'
+  const sectionTitleClass = 'text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3'
+  const btnPrimary = 'px-4 py-2 text-sm font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+  const btnSecondary = 'text-sm font-medium text-blue-600 hover:text-blue-800 py-1.5 px-3 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors'
+  const btnCancel = 'px-4 py-2 text-sm font-medium bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors'
+  const btnClose = 'text-slate-500 hover:text-slate-700 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200 transition-colors'
+
   return (
     <>
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-2 overflow-hidden"
     >
       <div
-        className="bg-white p-4 sm:p-6 rounded-lg w-full lg:w-3/5 max-w-md lg:max-w-none h-[70vh] overflow-hidden overflow-y-auto overflow-x-hidden space-y-4"
+        className="bg-white rounded-xl shadow-lg w-full max-w-xl overflow-hidden max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center">
-          <h2 className="text-lg font-semibold">
+        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-2 shrink-0">
+          <h2 className="text-lg font-semibold text-slate-800">
             {initialAppointment ? 'Edit Appointment' : 'New Appointment'}
           </h2>
-          <button onClick={handleClose} className="text-gray-500 hover:text-gray-700">
+          <button type="button" onClick={handleClose} className={btnClose}>
             ×
           </button>
         </div>
 
-        {/* Client selection */}
+        <div className="p-4 space-y-4 overflow-y-auto overflow-x-hidden min-h-0 flex-1">
+        {/* Client block */}
         {selectedClient ? (
-          <div className="mb-2">
-            <div className="flex items-center justify-between">
-              <div className="font-medium">Client: {selectedClient.name}</div>
-              <button
-                className="text-sm text-blue-500"
-                onClick={resetAll}
-              >
-                change
+          <div className={blockClass}>
+            <h4 className={sectionTitleClass}>Client</h4>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-medium text-slate-900">{selectedClient.name}</p>
+              <button type="button" className={btnSecondary} onClick={resetAll}>
+                Change
               </button>
             </div>
-            <div className="text-sm border rounded p-2 mt-1 space-y-1">
+            <div className="text-sm text-slate-600 mt-2 space-y-1 border-t border-slate-100 pt-2">
               <div>
                 Number:{' '}
                 {isMobile ? (
                   <button
                     type="button"
-                    className="underline text-blue-500"
+                    className="underline text-blue-600 hover:text-blue-800"
                     onClick={handlePhoneClick}
                   >
                     {formatPhone(selectedClient.number)}
@@ -892,17 +906,17 @@ const preserveTeamRef = useRef(false)
                 )}
               </div>
               {isMobile && showPhoneActions && (
-                <div className="flex gap-2">
+                <div className="flex gap-2 mt-1">
                   <a
                     href={`tel:${selectedClient.number}`}
-                    className="px-2 py-1 bg-blue-500 text-white rounded"
+                    className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
                     onClick={() => setShowPhoneActions(false)}
                   >
                     Call
                   </a>
                   <a
                     href={`sms:${selectedClient.number}`}
-                    className="px-2 py-1 bg-blue-500 text-white rounded"
+                    className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
                     onClick={() => setShowPhoneActions(false)}
                   >
                     Text
@@ -914,28 +928,28 @@ const preserveTeamRef = useRef(false)
             </div>
           </div>
         ) : showNewClient ? (
-          <div className="space-y-2 border p-2 rounded">
-              <h3 className="font-medium">New Client</h3>
-              <h4 className="font-light">Name <span className="text-red-500">*</span></h4>
+          <div className={`${blockClass} space-y-3`}>
+            <h4 className={sectionTitleClass}>New Client</h4>
+              <label className="block text-sm text-slate-600">Name <span className="text-red-500">*</span></label>
             <input
               id="appointment-new-client-name"
-              className="w-full border p-2 rounded text-base"
+              className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Name"
               value={newClient.name}
               onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
             />
-              <h4 className="font-light">Number <span className="text-red-500">*</span></h4>
+              <label className="block text-sm text-slate-600">Number <span className="text-red-500">*</span></label>
             <input
               id="appointment-new-client-number"
-              className="w-full border p-2 rounded text-base"
+              className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Number"
               value={formatPhone(newClient.number)}
               onChange={handleNewClientNumberChange}
             />
-              <h4 className="font-light">From <span className="text-red-500">*</span></h4>
+              <label className="block text-sm text-slate-600">From <span className="text-red-500">*</span></label>
             <select
               id="appointment-new-client-from"
-              className="w-full border p-2 rounded text-base"
+              className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={newClient.from}
               onChange={(e) => setNewClient({ ...newClient, from: e.target.value })}
             >
@@ -948,50 +962,43 @@ const preserveTeamRef = useRef(false)
               <option value="Rita">Rita's phone</option>
               <option value="Marcelo">Marcelo's phone</option>
             </select>
-              <h4 className="font-light">Notes:</h4>
+              <label className="block text-sm text-slate-600">Notes</label>
             <textarea
               id="appointment-new-client-notes"
-              className="w-full border p-2 rounded text-base"
+              className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Notes"
               value={newClient.notes}
               onChange={(e) => setNewClient({ ...newClient, notes: e.target.value })}
             />
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                className="bg-gray-300 px-3 py-2 rounded"
-                onClick={() => setShowNewClient(false)}
-              >
+            <div className="flex gap-2 justify-end pt-2">
+              <button type="button" className={btnCancel} onClick={() => setShowNewClient(false)}>
                 Cancel
               </button>
-              <button
-                type="button"
-                className="bg-blue-500 text-white px-3 py-2 rounded"
-                onClick={createClient}
-              >
+              <button type="button" className={btnPrimary} onClick={createClient}>
                 Save Client
               </button>
             </div>
           </div>
         ) : (
-          <div>
-            <div className="flex gap-2 mb-1">
+          <div className={blockClass}>
+            <h4 className={sectionTitleClass}>Client</h4>
+            <div className="flex gap-2 mb-2">
               <input
                 id="appointment-client-search"
-                className="flex-1 border p-2 rounded text-base"
+                className="flex-1 border border-slate-200 p-2 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Search clients"
                 value={clientSearch}
                 onChange={(e) => setClientSearch(e.target.value)}
               />
-              <button className="px-3 py-2 text-sm" onClick={() => setShowNewClient(true)}>
+              <button type="button" className={btnSecondary} onClick={() => setShowNewClient(true)}>
                 New
               </button>
             </div>
-            <ul className="max-h-32 overflow-y-auto border rounded divide-y">
+            <ul className="max-h-32 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
               {clients.map((c) => (
                 <li
                   key={c.id}
-                  className="p-1 hover:bg-gray-100 cursor-pointer"
+                  className="p-2 hover:bg-slate-50 cursor-pointer text-slate-800"
                   onClick={() => {
                     setSelectedClient(c)
                     resetTemplateRelated()
@@ -1006,24 +1013,24 @@ const preserveTeamRef = useRef(false)
           </div>
         )}
 
-        {/* Template selection */}
+        {/* Template block */}
         {selectedClient && (
-          <div>
+          <div className={blockClass}>
+            <h4 className={sectionTitleClass}>Template</h4>
             {showNewTemplate ? (
-              <div className="space-y-2 border p-2 rounded">
-                  <h3 className="font-medium">{editing ? 'Edit Template' : 'New Template'}</h3>
-                  <h4 className="font-light">Name: <span className="text-red-500">*</span></h4>
+              <div className="space-y-3">
+                  <label className="block text-sm text-slate-600">Name <span className="text-red-500">*</span></label>
                 <input
                   id="appointment-template-name"
-                  className="w-full border p-2 rounded text-base"
+                  className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Name"
                   value={templateForm.templateName}
                   onChange={(e) => setTemplateForm({ ...templateForm, templateName: e.target.value })}
                 />
-                  <h4 className="font-light">Type: <span className="text-red-500">*</span></h4>
+                  <label className="block text-sm text-slate-600">Type <span className="text-red-500">*</span></label>
                 <select
                   id="appointment-template-type"
-                  className="w-full border p-2 rounded text-base"
+                  className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={templateForm.type}
                   onChange={(e) => setTemplateForm({ ...templateForm, type: e.target.value })}
                 >
@@ -1032,10 +1039,10 @@ const preserveTeamRef = useRef(false)
                   <option value="DEEP">Deep</option>
                   <option value="MOVE_IN_OUT">Move in/out</option>
                 </select>
-                  <h4 className="font-light">Size: <span className="text-red-500">*</span></h4>
+                  <label className="block text-sm text-slate-600">Size <span className="text-red-500">*</span></label>
                 <select
                   id="appointment-template-size"
-                  className="w-full border p-2 rounded text-base"
+                  className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={templateForm.size}
                   onChange={(e) => setTemplateForm({ ...templateForm, size: e.target.value })}
                 >
@@ -1046,12 +1053,12 @@ const preserveTeamRef = useRef(false)
                     </option>
                   ))}
                 </select>
-                  <h4 className="font-light">Team Size: <span className="text-red-500">*</span></h4>
+                  <label className="block text-sm text-slate-600">Team Size <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   inputMode="numeric"
                   autoComplete="off"
-                  className="w-full border p-2 rounded text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
                   placeholder={templateForm.size && templateForm.type ? 'Default from size/type' : 'Select size and type first'}
                   value={templateForm.teamSize}
                   onChange={(e) => {
@@ -1076,13 +1083,13 @@ const preserveTeamRef = useRef(false)
                   required
                   title="Required. Recommended team size based on property size and service type."
                 />
-                  <h4 className="font-light">Price: <span className="text-red-500">*</span></h4>
+                  <label className="block text-sm text-slate-600">Price <span className="text-red-500">*</span></label>
                 <input
                   id="appointment-template-price"
                   type="text"
                   inputMode="decimal"
                   autoComplete="off"
-                  className="w-full border p-2 rounded text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
                   placeholder={templateForm.size && templateForm.type ? 'Default from size/type' : 'Select size and type first'}
                   value={templateForm.price}
                   onChange={(e) => {
@@ -1105,28 +1112,28 @@ const preserveTeamRef = useRef(false)
                   required
                   title="Required. Default price based on property size and service type."
                 />
-                  <h4 className="font-light">Address: <span className="text-red-500">*</span></h4>
+                  <label className="block text-sm text-slate-600">Address <span className="text-red-500">*</span></label>
                 <input
                   id="appointment-template-address"
-                  className="w-full border p-2 rounded text-base"
+                  className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Address"
                   value={templateForm.address}
                   onChange={(e) => setTemplateForm({ ...templateForm, address: e.target.value })}
                 />
-                <h4 className="font-light">Instructions: (Gate code, door code, pets, etc)</h4>
+                <label className="block text-sm text-slate-600">Instructions (gate code, door code, pets, etc)</label>
                 <textarea
                   id="appointment-template-instructions"
-                  className="w-full border p-2 rounded text-base"
+                  className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Instructions"
                   value={templateForm.instructions}
                   onChange={(e) =>
                     setTemplateForm({ ...templateForm, instructions: e.target.value })
                   }
                 />
-                <h4 className="font-light">Notes: </h4>
+                <label className="block text-sm text-slate-600">Notes</label>
                 <textarea
                   id="appointment-template-notes"
-                  className="w-full border p-2 rounded text-base"
+                  className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Notes"
                   value={templateForm.notes}
                   onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })}
@@ -1148,12 +1155,12 @@ const preserveTeamRef = useRef(false)
                   </label>
                   {templateForm.carpetEnabled && (
                     <div>
-                      <h4 className="font-light">How many rooms?</h4>
+                      <label className="block text-sm text-slate-600">How many rooms?</label>
                       <input
                         id="appointment-template-carpet-rooms"
                         type="number"
                         min="1"
-                        className="w-full border p-2 rounded text-base"
+                        className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         value={templateForm.carpetRooms}
                         onChange={(e) =>
                           setTemplateForm({ ...templateForm, carpetRooms: e.target.value })
@@ -1162,22 +1169,18 @@ const preserveTeamRef = useRef(false)
                       {editing && defaultCarpetPrice !== null && !overrideCarpetPrice && (
                         <div className="mt-2 flex items-center gap-2">
                           <span>Carpet Price: ${defaultCarpetPrice.toFixed(2)}</span>
-                          <button
-                            type="button"
-                            className="text-sm text-blue-500"
-                            onClick={() => setOverrideCarpetPrice(true)}
-                          >
+                          <button type="button" className={btnSecondary} onClick={() => setOverrideCarpetPrice(true)}>
                             Edit price
                           </button>
                         </div>
                       )}
                       {editing && overrideCarpetPrice && (
                         <div>
-                          <h4 className="font-light mt-2">Carpet Price</h4>
+                          <label className="block text-sm text-slate-600 mt-2">Carpet Price</label>
                           <input
                             id="appointment-template-carpet-price"
                             type="number"
-                            className="w-full border p-2 rounded text-base"
+                            className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             value={templateForm.carpetPrice}
                             onChange={(e) =>
                               setTemplateForm({
@@ -1187,17 +1190,10 @@ const preserveTeamRef = useRef(false)
                             }
                           />
                           {defaultCarpetPrice !== null && (
-                            <button
-                              type="button"
-                              className="text-sm text-blue-500 mt-1"
-                              onClick={() => {
-                                setOverrideCarpetPrice(false)
-                                setTemplateForm({
-                                  ...templateForm,
-                                  carpetPrice: String(defaultCarpetPrice),
-                                })
-                              }}
-                            >
+                            <button type="button" className="text-sm font-medium text-blue-600 hover:text-blue-800 mt-1" onClick={() => {
+                              setOverrideCarpetPrice(false)
+                              setTemplateForm({ ...templateForm, carpetPrice: String(defaultCarpetPrice) })
+                            }}>
                               Use default
                             </button>
                           )}
@@ -1206,63 +1202,37 @@ const preserveTeamRef = useRef(false)
                     </div>
                   )}
                 </>
-                <div className="flex gap-2 justify-end">
-                  <button
-                    type="button"
-                    className="bg-gray-300 px-3 py-2 rounded"
-                    onClick={() => {
-                      setTemplateForm({
-                        templateName: '',
-                        type: '',
-                        size: '',
-                        teamSize: '',
-                        address: '',
-                        price: '',
-                        notes: '',
-                        instructions: '',
-                        carpetEnabled: false,
-                        carpetRooms: '',
-                        carpetPrice: '',
-                      })
-                      setShowNewTemplate(false)
-                      setEditing(false)
-                    }}
-                  >
+                <div className="flex gap-2 justify-end pt-2">
+                  <button type="button" className={btnCancel} onClick={() => {
+                    setTemplateForm({
+                      templateName: '', type: '', size: '', teamSize: '', address: '', price: '', notes: '', instructions: '',
+                      carpetEnabled: false, carpetRooms: '', carpetPrice: '',
+                    })
+                    setShowNewTemplate(false)
+                    setEditing(false)
+                  }}>
                     Cancel
                   </button>
-                  <button
-                    type="button"
-                    className="bg-blue-500 text-white px-3 py-2 rounded disabled:opacity-50"
-                    onClick={createTemplate}
-                    disabled={!isTemplateReady}
-                  >
+                  <button type="button" className={btnPrimary} onClick={createTemplate} disabled={!isTemplateReady}>
                     Save Template
                   </button>
                 </div>
               </div>
             ) : selectedTemplate ? (
-              <div className="mb-2">
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">
-                    Template: {templates.find((t) => t.id === selectedTemplate)?.templateName}
-                  </div>
-                  <div className="flex gap-4">
-                    <button className="text-sm text-blue-500" onClick={resetTemplateRelated}>
-                      change
-                    </button>
-                    <button className="text-sm text-blue-500" onClick={startEditTemplate}>
-                      edit
-                    </button>
-                    <button className="text-sm text-red-500" onClick={deleteTemplate}>
-                      delete
-                    </button>
+              <>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="font-medium text-slate-900">{templates.find((t) => t.id === selectedTemplate)?.templateName}</p>
+                  <div className="flex gap-2">
+                    <button type="button" className={btnSecondary} onClick={resetTemplateRelated}>Change</button>
+                    <button type="button" className={btnSecondary} onClick={startEditTemplate}>Edit</button>
+                    <button type="button" className="text-sm font-medium text-red-600 hover:text-red-800 py-1.5 px-3 rounded-lg border border-red-200 hover:bg-red-50 transition-colors" onClick={deleteTemplate}>Delete</button>
                   </div>
                 </div>
                 {(() => {
                   const t = templates.find((tt) => tt.id === selectedTemplate)
                   if (!t) return null
                   return (
-                    <div className="text-sm border rounded p-2 mt-1 space-y-1">
+                    <div className="text-sm text-slate-600 mt-2 pt-2 border-t border-slate-100 space-y-1">
                       <div>Type: {t.type}</div>
                       {t.size && <div>Size: {t.size}</div>}
                       <div>Team size: {t.teamSize ?? 1}</div>
@@ -1272,21 +1242,16 @@ const preserveTeamRef = useRef(false)
                         <div className="flex items-center justify-between gap-2">
                           <label className="font-medium">Notes:</label>
                           {!editingTemplateNotes || editingTemplateNotesId !== t.id ? (
-                            <button
-                              type="button"
-                              className="text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap"
-                              onClick={() => {
-                                setEditingTemplateNotes(true)
-                                setEditingTemplateNotesId(t.id!)
-                                setEditingTemplateNotesValue(t.notes || '')
-                              }}
-                            >
-                              edit
+                            <button type="button" className="text-sm font-medium text-blue-600 hover:text-blue-800 py-1.5 px-3 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors" onClick={() => {
+                              setEditingTemplateNotes(true)
+                              setEditingTemplateNotesId(t.id!)
+                              setEditingTemplateNotesValue(t.notes || '')
+                            }}>
+                              Edit
                             </button>
                           ) : (
-                            <button
-                              type="button"
-                              className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 whitespace-nowrap"
+                            <button type="button"
+                              className="py-1.5 px-3 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors"
                               onClick={async () => {
                                 try {
                                   const updated = await fetchJson(`${API_BASE_URL}/appointment-templates/${t.id}`, {
@@ -1326,12 +1291,12 @@ const preserveTeamRef = useRef(false)
                                 }
                               }}
                             >
-                              save
+                              Save
                             </button>
                           )}
                         </div>
                         <textarea
-                          className="w-full border p-2 rounded text-sm"
+                          className="w-full border border-slate-200 rounded-lg p-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           rows={3}
                           value={editingTemplateNotes && editingTemplateNotesId === t.id ? editingTemplateNotesValue : (t.notes || '')}
                           onChange={(e) => {
@@ -1350,13 +1315,12 @@ const preserveTeamRef = useRef(false)
                     </div>
                   )
                 })()}
-              </div>
+              </>
             ) : (
-              <div>
-                <div className="flex gap-2 mb-1">
-                  <select
-                    className="flex-1 border p-2 rounded text-base"
-                    value={selectedTemplate ?? ''}
+              <div className="flex gap-2">
+                <select
+                  className="flex-1 border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={selectedTemplate ?? ''}
                     onChange={(e) => {
                       resetTemplateRelated()
                       const templateId = Number(e.target.value)
@@ -1378,47 +1342,34 @@ const preserveTeamRef = useRef(false)
                       </option>
                     ))}
                   </select>
-                  <button
-                    className="px-3 py-2 text-sm"
-                    onClick={() => {
-                      setEditing(false)
-                      setTemplateForm({
-                        templateName: '',
-                        type: '',
-                        size: '',
-                        teamSize: '',
-                        address: '',
-                        price: '',
-                        notes: '',
-                        instructions: '',
-                        carpetEnabled: false,
-                        carpetRooms: '',
-                        carpetPrice: '',
-                      })
-                      setShowNewTemplate(true)
-                    }}
-                  >
-                    New
-                  </button>
-                </div>
+                <button type="button" className={btnSecondary} onClick={() => {
+                  setEditing(false)
+                  setTemplateForm({
+                    templateName: '', type: '', size: '', teamSize: '', address: '', price: '', notes: '', instructions: '',
+                    carpetEnabled: false, carpetRooms: '', carpetPrice: '',
+                  })
+                  setShowNewTemplate(true)
+                }}>
+                  New
+                </button>
               </div>
             )}
           </div>
         )}
 
-        {/* Team is assigned via Team Options after creation */}
+        {/* Carpet team – when template has carpet */}
         {selectedTemplate && carpetEnabled && carpetRooms && (
-          <div className="text-sm border rounded p-2 space-y-2">
-            <div className="font-medium">Carpet Team:</div>
+          <div className={blockClass}>
+            <h4 className={sectionTitleClass}>Carpet Team</h4>
             <input
-              className="w-full border p-2 rounded text-base"
+              className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-2"
               placeholder="Search employees"
               value={employeeSearch}
               onChange={(e) => setEmployeeSearch(e.target.value)}
             />
-            <div className="max-h-32 overflow-y-auto border rounded p-1 space-y-1">
+            <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-lg p-2 space-y-1.5">
               {filteredEmployees.map((e) => (
-                <label key={e.id} className="flex items-center gap-1">
+                <label key={e.id} className="flex items-center gap-2 text-sm text-slate-800">
                   <input
                     type="checkbox"
                     checked={carpetEmployees.includes(e.id!)}
@@ -1430,72 +1381,60 @@ const preserveTeamRef = useRef(false)
                   />
                   {e.name}
                   {carpetEmployees.includes(e.id!) && carpetRate !== null && (
-                    <span className="ml-1 text-sm text-gray-600">${carpetRate.toFixed(2)}</span>
+                    <span className="ml-1 text-slate-600">${carpetRate.toFixed(2)}</span>
                   )}
                 </label>
               ))}
             </div>
-            {carpetEmployees.length > 0 && <div>Rooms: {carpetRooms}</div>}
+            {carpetEmployees.length > 0 && <p className="text-sm text-slate-600 mt-2">Rooms: {carpetRooms}</p>}
           </div>
         )}
 
-        {/* Recurring appointments should be created via the Recurring Appointments page */}
-
-        {/* Date and time */}
+        {/* Date & time block */}
         {selectedTemplate && (
-          <div className="space-y-2">
-            <div>
-              <h4 className="font-light">
-                Date <span className="text-red-500">*</span>
-              </h4>
-              <input
-                id="appointment-date"
-                type="date"
-                className="w-full border p-2 rounded text-base"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <h4 className="font-light">
-                Time <span className="text-red-500">*</span>
-              </h4>
-              <input
-                id="appointment-time"
-                type="time"
-                className="w-full border p-2 rounded text-base"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-              />
-              <div className="flex gap-2 mt-2">
-                <button
-                  type="button"
-                  onClick={() => setTime('09:00')}
-                  className="flex-1 px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
-                >
-                  9:00 AM
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTime('14:00')}
-                  className="flex-1 px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
-                >
-                  2:00 PM
-                </button>
+          <div className={blockClass}>
+            <h4 className={sectionTitleClass}>Date & time</h4>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-slate-600">Date <span className="text-red-500">*</span></label>
+                <input
+                  id="appointment-date"
+                  type="date"
+                  className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600">Time <span className="text-red-500">*</span></label>
+                <input
+                  id="appointment-time"
+                  type="time"
+                  className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                />
+                <div className="flex gap-2 mt-2">
+                  <button type="button" onClick={() => setTime('09:00')} className="flex-1 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors">
+                    9:00 AM
+                  </button>
+                  <button type="button" onClick={() => setTime('14:00')} className="flex-1 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors">
+                    2:00 PM
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-          )}
-          
-          {/* Admin selection */}
+        )}
+
+        {/* Admin block */}
         {selectedTemplate && (
-          <div>
-            <h4 className="font-light">
-              Admin <span className="text-red-500">*</span>
-            </h4>
+          <div className={blockClass}>
+            <h4 className={sectionTitleClass}>Admin</h4>
+            <label className="block text-sm text-slate-600 mb-1">Admin <span className="text-red-500">*</span></label>
             <select
               id="appointment-admin"
-              className="w-full border p-2 rounded text-base"
+              className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={adminId}
               onChange={(e) => {
                 const val = e.target.value
@@ -1512,64 +1451,61 @@ const preserveTeamRef = useRef(false)
           </div>
         )}
 
-        {/* Payment details */}
-        {selectedTemplate && (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  checked={paid}
-                  onChange={(e) => setPaid(e.target.checked)}
-                />
+        {/* Payment block – hidden when editing or Book Again */}
+        {selectedTemplate && !initialAppointment && !initialTimeProp && (
+          <div className={blockClass}>
+            <h4 className={sectionTitleClass}>Payment</h4>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm text-slate-800">
+                <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
                 Paid
               </label>
               {paid && (
-                <input
-                  id="appointment-tip"
-                  type="number"
-                  className="border p-2 rounded text-base flex-1"
-                  placeholder="Tip"
-                  value={tip}
-                  onChange={(e) => setTip(e.target.value)}
-                />
+                <>
+                  <input
+                    id="appointment-tip"
+                    type="number"
+                    className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Tip"
+                    value={tip}
+                    onChange={(e) => setTip(e.target.value)}
+                  />
+                  <select
+                    id="appointment-payment-method"
+                    className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                  >
+                    <option value="">Select payment method</option>
+                    <option value="CASH">Cash</option>
+                    <option value="ZELLE">Zelle</option>
+                    <option value="VENMO">Venmo</option>
+                    <option value="PAYPAL">Paypal</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                  {paymentMethod === 'OTHER' && (
+                    <input
+                      id="appointment-other-payment"
+                      className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Payment method"
+                      value={otherPayment}
+                      onChange={(e) => setOtherPayment(e.target.value)}
+                    />
+                  )}
+                </>
               )}
             </div>
-            {paid && (
-              <div className="flex flex-col gap-1">
-                <select
-                  id="appointment-payment-method"
-                  className="w-full border p-2 rounded text-base"
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                >
-                  <option value="">Select payment method</option>
-                  <option value="CASH">Cash</option>
-                  <option value="ZELLE">Zelle</option>
-                  <option value="VENMO">Venmo</option>
-                  <option value="PAYPAL">Paypal</option>
-                  <option value="OTHER">Other</option>
-                </select>
-                {paymentMethod === 'OTHER' && (
-                  <input
-                    id="appointment-other-payment"
-                    className="w-full border p-2 rounded text-base"
-                    placeholder="Payment method"
-                    value={otherPayment}
-                    onChange={(e) => setOtherPayment(e.target.value)}
-                  />
-                )}
-              </div>
-            )}
           </div>
         )}
 
-        <div className="text-right space-x-2">
-          <button className="px-3 py-2" onClick={handleCancel}>
+        {/* Actions */}
+        <div className="flex gap-2 justify-end pt-2 border-t border-slate-200">
+          <button type="button" className={btnCancel} onClick={handleCancel}>
             Cancel
           </button>
           <button
-            className="bg-blue-500 text-white px-6 py-2 rounded disabled:opacity-50"
+            type="button"
+            className={btnPrimary}
             disabled={
               showNewTemplate ||
               !selectedTemplate ||
@@ -1577,13 +1513,14 @@ const preserveTeamRef = useRef(false)
               !time ||
               !isValidCarpet() ||
               !adminId ||
-              (paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))) ||
+              (!initialAppointment && !initialTimeProp && paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))) ||
               creating
             }
             onClick={createAppointment}
           >
-            Create
+            {initialAppointment ? 'Update' : 'Create'}
           </button>
+        </div>
         </div>
       </div>
     </div>

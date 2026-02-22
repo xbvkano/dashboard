@@ -198,6 +198,7 @@ export default function Calendar() {
           initialTemplateId={createParams.templateId ?? undefined}
           newStatus={createParams.status}
           initialAppointment={createParams.appointment}
+          initialTime={createParams.initialTime}
         />
       )}
     </div>

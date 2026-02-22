@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { API_BASE_URL, fetchJson } from '../../../../api'
+import { API_BASE_URL, fetchJson } from '../../../../../api'
 import type { Appointment } from '../../types'
+
+/** Z-index for the confirm overlay. Above DayTimelineModalContainer content (10000) so confirm shows on top. */
+const CONFIRM_OVERLAY_Z = 10001
 
 interface EmployeeWithAvailability {
   id: number
@@ -10,12 +13,14 @@ interface EmployeeWithAvailability {
   available: boolean
 }
 
-interface TeamOptionsModalProps {
+export interface TeamOptionsModalProps {
   appointment: Appointment
   onClose: () => void
   onSave: (appointment: Appointment) => void
   /** Team size from the appointment's template (source of truth). When provided, overrides appointment.teamSize. */
   templateTeamSize?: number
+  /** When true, render only the inner card (no overlay/portal). Used when embedded in DayTimelineModalContainer. */
+  embed?: boolean
 }
 
 function parseSqft(s: string | null | undefined): number | null {
@@ -40,6 +45,7 @@ export default function TeamOptionsModal({
   onClose,
   onSave,
   templateTeamSize,
+  embed = false,
 }: TeamOptionsModalProps) {
   const [employees, setEmployees] = useState<EmployeeWithAvailability[]>([])
   const [selectedIds, setSelectedIds] = useState<number[]>([])
@@ -51,7 +57,6 @@ export default function TeamOptionsModal({
   const [payByEmployee, setPayByEmployee] = useState<Record<number, number>>({})
   const [payNote, setPayNote] = useState((appointment as any).payrollNote ?? '')
 
-  // Prefer template team size (source of truth when template is set); fall back to appointment.teamSize
   const teamSize = templateTeamSize ?? (appointment as any).teamSize ?? 1
   const dateStr =
     typeof appointment.date === 'string'
@@ -77,7 +82,6 @@ export default function TeamOptionsModal({
     setSelectedIds(ids)
   }, [appointment.employees])
 
-  // Default pay per employee (from appointment type/size and count)
   const defaultPayPerPerson = calcPayRate(
     appointment.type,
     appointment.size ?? null,
@@ -231,11 +235,8 @@ export default function TeamOptionsModal({
     setPayByEmployee((prev) => ({ ...prev, [employeeId]: value }))
   }
 
-  return createPortal(
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4"
-      onClick={onClose}
-    >
+  const innerContent = (
+    <>
       <div
         className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -269,7 +270,6 @@ export default function TeamOptionsModal({
             onChange={(e) => setSearch(e.target.value)}
           />
 
-          {/* Available employees */}
           <div>
             <h3 className="text-sm font-medium text-slate-700 mb-1">Available employees</h3>
             <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-48 overflow-y-auto">
@@ -298,7 +298,6 @@ export default function TeamOptionsModal({
             </div>
           </div>
 
-          {/* Non-available employees (collapsible) */}
           <div>
             <button
               type="button"
@@ -335,7 +334,6 @@ export default function TeamOptionsModal({
             )}
           </div>
 
-          {/* Pay section */}
           <div className="pt-2 border-t border-slate-200">
             <h3 className="text-sm font-medium text-slate-700 mb-2">Pay</h3>
             <p className="text-xs text-slate-500 mb-2">
@@ -395,49 +393,60 @@ export default function TeamOptionsModal({
         </div>
       </div>
 
-      {showConfirmModal &&
-        createPortal(
+      {/* Confirmation modal: rendered inside this component so z-index is correct relative to container (10000). */}
+      {showConfirmModal && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
+          style={{ zIndex: CONFIRM_OVERLAY_Z }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="team-confirm-title"
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+          }}
+        >
           <div
-            className="fixed inset-0 bg-black/60 flex items-center justify-center z-[120] p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="team-confirm-title"
-            onClick={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-            }}
+            className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 id="team-confirm-title" className="text-lg font-semibold text-slate-800 mb-2">
-                {confirmTitle}
-              </h3>
-              <p className="text-sm text-slate-600 mb-5">{confirmMessage}</p>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={dismissConfirm}
-                  className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onConfirm()
-                  }}
-                  disabled={saving}
-                  className="flex-1 px-4 py-2.5 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {saving ? 'Saving...' : 'Yes, continue'}
-                </button>
-              </div>
+            <h3 id="team-confirm-title" className="text-lg font-semibold text-slate-800 mb-2">
+              {confirmTitle}
+            </h3>
+            <p className="text-sm text-slate-600 mb-5">{confirmMessage}</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={dismissConfirm}
+                className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => onConfirm()}
+                disabled={saving}
+                className="flex-1 px-4 py-2.5 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Saving...' : 'Yes, continue'}
+              </button>
             </div>
-          </div>,
-          document.body
-        )}
+          </div>
+        </div>
+      )}
+    </>
+  )
+
+  if (embed) {
+    return <>{innerContent}</>
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4"
+      onClick={onClose}
+    >
+      {innerContent}
     </div>,
     document.body
   )

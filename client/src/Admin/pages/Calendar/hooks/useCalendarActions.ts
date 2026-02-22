@@ -35,6 +35,7 @@ export function useCalendarActions(
     } else {
       setRescheduleOldId(null)
     }
+    const initialTime = status === 'APPOINTED' ? (appt.time || undefined) : undefined
     try {
       const templates = await fetchJson(
         `${API_BASE_URL}/appointment-templates?clientId=${appt.clientId}`
@@ -47,15 +48,24 @@ export function useCalendarActions(
       // Fall back to matching by address, type, and size if templateId not found or not available
       if (!match) {
         match = templates.find(
-          (t: any) => 
-            t.address === appt.address && 
-            t.type === appt.type && 
+          (t: any) =>
+            t.address === appt.address &&
+            t.type === appt.type &&
             (t.size || '') === (appt.size || '')
         )
       }
-      setCreateParams({ clientId: appt.clientId, templateId: match?.id ?? null, status })
+      setCreateParams({
+        clientId: appt.clientId,
+        templateId: match?.id ?? null,
+        status,
+        ...(initialTime ? { initialTime } : {}),
+      })
     } catch {
-      setCreateParams({ clientId: appt.clientId, status })
+      setCreateParams({
+        clientId: appt.clientId,
+        status,
+        ...(initialTime ? { initialTime } : {}),
+      })
     }
   }
 
