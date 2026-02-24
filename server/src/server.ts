@@ -443,7 +443,7 @@ import employeeScheduleRoutes from './routes/employeeSchedule'
 import testRoutes from './routes/test'
 import templatesRoutes from './routes/templates'
 import { setupScheduleCleanupJob } from './jobs/scheduleCleanup'
-// import { setupScheduleReminderJob } from './jobs/scheduleReminder'
+import { setupScheduleReminderJob } from './jobs/scheduleReminder'
 import { setupAppointmentReminderJob } from './jobs/appointmentReminder'
 import { setupUnconfirmedCheckJob, setupNoonEmployeeReminderJob } from './jobs/unconfirmedCheck'
 import appointmentsRoutes from './routes/appointments'
@@ -470,7 +470,7 @@ app.use('/', aiAppointmentRoutes)
 
 // Initialize cron jobs
 setupScheduleCleanupJob()
-// setupScheduleReminderJob() // COMMENTED OUT: Schedule reminder cron job disabled
+setupScheduleReminderJob() 
 setupAppointmentReminderJob()
 setupUnconfirmedCheckJob()
 setupNoonEmployeeReminderJob()
