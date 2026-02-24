@@ -167,7 +167,7 @@ export default function Login({ onLogin }: LoginProps) {
       <form onSubmit={handlePasswordLogin} className="w-full max-w-sm space-y-4">
         <div>
           <label htmlFor="username" className="block text-sm font-medium mb-1">
-            Username
+            Phone Number
           </label>
           <input
             id="username"
@@ -176,7 +176,7 @@ export default function Login({ onLogin }: LoginProps) {
             onChange={(e) => setUsername(e.target.value)}
             required
             className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter your username"
+            placeholder="Enter your phone number"
           />
         </div>
         

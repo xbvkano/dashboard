@@ -36,7 +36,7 @@ export async function getMonthCounts(req: Request, res: Response) {
     const appts = await prisma.appointment.findMany({
       where: {
         date: { gte: start, lt: end },
-        status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+        status: { notIn: ['DELETED', 'RESCHEDULE_OLD', 'CANCEL'] },
       },
       select: { date: true },
     })
@@ -90,7 +90,7 @@ export async function getRangeCounts(req: Request, res: Response) {
     const appts = await prisma.appointment.findMany({
       where: {
         date: { gte: start, lt: endExclusive },
-        status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+        status: { notIn: ['DELETED', 'RESCHEDULE_OLD', 'CANCEL'] },
       },
       select: { date: true },
     })

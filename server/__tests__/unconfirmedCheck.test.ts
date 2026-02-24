@@ -101,19 +101,16 @@ describe('runUnconfirmedCheck', () => {
     process.env = originalEnv
   })
 
-  it('queries appointments for tomorrow and for 14-day employee reminders', async () => {
+  it('queries appointments for tomorrow only (7pm job notifies supervisors only; noon job does employee reminders)', async () => {
     mockFindManyResult = []
     await runUnconfirmedCheck(AS_OF)
-    expect(mockFindMany).toHaveBeenCalledTimes(2)
+    expect(mockFindMany).toHaveBeenCalledTimes(1)
     const tomorrowCall = mockFindMany.mock.calls[0][0]
     const gte = new Date(tomorrowCall.where.date.gte)
     const lt = new Date(tomorrowCall.where.date.lt)
     expect(lt.getTime() - gte.getTime()).toBe(24 * 60 * 60 * 1000)
     expect(tomorrowCall.where.status.notIn).toContain('DELETED')
     expect(tomorrowCall.where.status.notIn).toContain('CANCEL')
-    const range14Call = mockFindMany.mock.calls[1][0]
-    expect(range14Call.where.date.gte).toEqual(tomorrowCall.where.date.gte)
-    expect(new Date(range14Call.where.date.lt).getTime()).toBeGreaterThan(new Date(tomorrowCall.where.date.lt).getTime())
   })
 
   it('includes client, payrollItems, and employees with supervisor', async () => {

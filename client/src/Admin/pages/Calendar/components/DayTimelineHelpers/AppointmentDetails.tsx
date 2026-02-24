@@ -404,7 +404,7 @@ export default function AppointmentDetails({
       <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-2 shrink-0">
         <h3 className="text-lg font-semibold text-slate-800">Appointment Details</h3>
         <div className="flex items-center gap-2 shrink-0">
-          {!isRecurringUnconfirmed && (
+          {!onViewInCalendar && !isRecurringUnconfirmed && (
             <button
               type="button"
               onClick={() => onOpenEdit ? onOpenEdit() : onEdit(appointment)}
@@ -465,6 +465,12 @@ export default function AppointmentDetails({
               </>
             )}
           </dl>
+          {template?.instructions && (
+            <div className="mt-3 pt-3 border-t border-slate-100">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Instructions</p>
+              <p className="text-sm text-slate-800 whitespace-pre-wrap">{template.instructions}</p>
+            </div>
+          )}
         </div>
 
         {/* Notes – kept separate as-is */}

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useState, useRef, useEffect } from 'react'
 import { Link, Routes, Route, useNavigate, Outlet } from 'react-router-dom'
 import { isDevToolsEnabled } from '../devTools'
@@ -75,7 +76,10 @@ function EmployeeLayout({ onLogout, onSwitchRole }: Props) {
   const navigate = useNavigate()
   const { t } = useEmployeeLanguage()
   const isSafe = localStorage.getItem('safe') === 'true'
+  const [showSignOutModal, setShowSignOutModal] = useState(false)
+
   const signOut = () => {
+    setShowSignOutModal(false)
     localStorage.removeItem('role')
     localStorage.removeItem('safe')
     localStorage.removeItem('userName')
@@ -97,7 +101,7 @@ function EmployeeLayout({ onLogout, onSwitchRole }: Props) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <nav className="bg-white shadow-sm fixed bottom-0 left-0 right-0 md:sticky md:top-0 w-full z-50 md:mb-0 border-t md:border-t-0 md:border-b border-slate-200">
-        <ul className="flex flex-wrap justify-center md:justify-start items-center gap-2 p-3 max-w-lg mx-auto md:gap-4 md:px-6 md:py-3">
+        <ul className="flex flex-nowrap justify-center items-center gap-2 p-3 w-full md:gap-4 md:px-6 md:py-3">
           <li>
             <Link
               className="inline-flex items-center justify-center min-h-[44px] px-4 py-2.5 rounded-lg font-medium text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition-colors text-sm sm:text-base whitespace-nowrap"
@@ -132,8 +136,9 @@ function EmployeeLayout({ onLogout, onSwitchRole }: Props) {
           {!isSafe && (
             <li>
               <button
+                type="button"
                 className="inline-flex items-center justify-center min-h-[44px] px-4 py-2.5 rounded-lg font-medium text-slate-600 hover:bg-slate-100 active:bg-slate-200 transition-colors text-sm sm:text-base whitespace-nowrap"
-                onClick={signOut}
+                onClick={() => setShowSignOutModal(true)}
               >
                 {t.navSignOut}
               </button>
@@ -144,6 +149,47 @@ function EmployeeLayout({ onLogout, onSwitchRole }: Props) {
       <main className="flex-1 pb-24 md:pb-8 pt-4 md:pt-6 px-4 md:px-6 max-w-2xl mx-auto">
         <Outlet />
       </main>
+
+      {/* Sign out confirmation modal - centered on all screen sizes */}
+      {showSignOutModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 modal-safe-area"
+            onClick={() => setShowSignOutModal(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="signout-modal-title"
+          >
+            <div
+              className="bg-white w-full max-w-md rounded-2xl shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-5 sm:p-6">
+                <h3 id="signout-modal-title" className="text-lg font-semibold text-slate-800 mb-3">
+                  {t.navSignOut}
+                </h3>
+                <p className="text-sm text-slate-600 mb-5">{t.navSignOutConfirm}</p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowSignOutModal(false)}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={signOut}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-slate-600 text-white font-semibold hover:bg-slate-700 active:bg-slate-800 transition-colors"
+                  >
+                    {t.navSignOut}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

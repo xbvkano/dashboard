@@ -163,6 +163,27 @@ async function main() {
     },
   })
 
+  // Demo employee for demonstrations: 1234567890 / password. Has open dates, availability, unconfirmed and scheduled jobs, and schedule update.
+  const demoPassword = await bcrypt.hash('passwordPlease', 10)
+  const demoUserName = generateUserName('1234567890')
+  const demoUser = await prisma.user.create({
+    data: {
+      name: 'Demo Employee',
+      userName: demoUserName,
+      password: demoPassword,
+      type: 'password',
+      role: 'EMPLOYEE',
+    },
+  })
+  const demoEmployee = await prisma.employee.create({
+    data: {
+      name: 'Demo Employee',
+      number: '1234567890',
+      userId: demoUser.id,
+      supervisorId: rita.id,
+    },
+  })
+
   // Prod-like user: no supervisor, no password (simulates pre-migration account)
   const empProdUser = await prisma.user.create({
     data: {
@@ -525,6 +546,99 @@ async function main() {
   await setConfirmed(marcosUp3Pm)
   await setConfirmed(marcosUp4)
 
+  // Demo employee: one appointment confirmed (scheduled), one unconfirmed – within 14 days
+  const demoApptScheduled = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: john.id,
+      date: addDays(today, 3),
+      time: '09:00',
+      type: temp1.type,
+      address: temp1.address,
+      size: temp1.size,
+      hours: 4,
+      price: temp1.price,
+      paymentMethod: 'CASH',
+      lineage: 'demo-scheduled',
+      templateId: temp1.id,
+      employees: { connect: [{ id: demoEmployee.id }] },
+    },
+    include: { employees: true },
+  })
+  // Unconfirmed job (day 5 PM): use temp3 so it has instructions for demo
+  const demoApptUnconfirmed = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: jane.id,
+      date: addDays(today, 5),
+      time: '14:00',
+      type: temp3.type,
+      address: temp3.address,
+      size: temp3.size,
+      hours: 5,
+      price: temp3.price,
+      paymentMethod: 'CASH',
+      lineage: 'demo-unconfirmed',
+      templateId: temp3.id,
+      employees: { connect: [{ id: demoEmployee.id }] },
+    },
+    include: { employees: true },
+  })
+  // Day 4: both AM and PM confirmed so demo shows a full day (AM + PM) vs day 3 (AM only)
+  const demoApptDay4Am = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: john.id,
+      date: addDays(today, 4),
+      time: '09:00',
+      type: temp1.type,
+      address: temp1.address,
+      size: temp1.size,
+      hours: 4,
+      price: temp1.price,
+      paymentMethod: 'CASH',
+      lineage: 'demo-day4-am',
+      templateId: temp1.id,
+      employees: { connect: [{ id: demoEmployee.id }] },
+    },
+    include: { employees: true },
+  })
+  const demoApptDay4Pm = await prisma.appointment.create({
+    data: {
+      adminId: admin.id,
+      clientId: jane.id,
+      date: addDays(today, 4),
+      time: '14:00',
+      type: temp2.type,
+      address: temp2.address,
+      size: temp2.size,
+      hours: 4,
+      price: temp2.price,
+      paymentMethod: 'CASH',
+      lineage: 'demo-day4-pm',
+      templateId: temp2.id,
+      employees: { connect: [{ id: demoEmployee.id }] },
+    },
+    include: { employees: true },
+  })
+  const demoPayrollScheduled = await createPayroll(demoApptScheduled)
+  const demoPayrollUnconfirmed = await createPayroll(demoApptUnconfirmed)
+  const demoPayrollDay4Am = await createPayroll(demoApptDay4Am)
+  const demoPayrollDay4Pm = await createPayroll(demoApptDay4Pm)
+  await prisma.payrollItem.update({
+    where: { id: demoPayrollScheduled[0].id },
+    data: { confirmed: true },
+  })
+  await prisma.payrollItem.update({
+    where: { id: demoPayrollDay4Am[0].id },
+    data: { confirmed: true },
+  })
+  await prisma.payrollItem.update({
+    where: { id: demoPayrollDay4Pm[0].id },
+    data: { confirmed: true },
+  })
+  // demoPayrollUnconfirmed stays confirmed: false (unconfirmed)
+
   // Mark one payroll item for each of the first two employees as paid
   const payment1 = await prisma.employeePayment.create({
     data: { employeeId: empOne.id, amount: 100 },
@@ -842,6 +956,26 @@ async function main() {
       },
     })
   }
+
+  // Demo employee schedule: day 3 = AM only (B), day 4 = AM + PM (B), day 5 = PM unconfirmed (B); A=AM, M=PM
+  const demoDay3 = addDays(today, 3)
+  const demoDay4 = addDays(today, 4)
+  const demoDay5 = addDays(today, 5)
+  const demoFutureSchedule = [
+    formatScheduleEntry(demoDay3, 'A', 'B'), // day 3: scheduled job AM only (see difference from day 4)
+    formatScheduleEntry(demoDay3, 'M', 'F'),
+    formatScheduleEntry(demoDay4, 'A', 'B'), // day 4 AM confirmed
+    formatScheduleEntry(demoDay4, 'M', 'B'), // day 4 PM confirmed (full day)
+    formatScheduleEntry(demoDay5, 'A', 'F'),
+    formatScheduleEntry(demoDay5, 'M', 'B'), // unconfirmed job PM
+  ]
+  await prisma.schedule.update({
+    where: { employeeId: demoEmployee.id },
+    data: {
+      futureSchedule: demoFutureSchedule,
+      employeeUpdate: today.toISOString(),
+    },
+  })
 }
 
 main()

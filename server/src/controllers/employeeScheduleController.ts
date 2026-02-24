@@ -201,7 +201,22 @@ export async function saveSchedule(req: Request, res: Response) {
 
     const policy = await prisma.schedulePolicy.findUnique({ where: { id: 1 } })
     const updateDay = policy?.updateDayOfWeek ?? 0
-    const nextDue = getNextUpdateDueDate(new Date(), updateDay)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const currentDue = schedule?.nextScheduleUpdateDueAt
+      ? (() => {
+          const d = new Date(schedule.nextScheduleUpdateDueAt)
+          d.setHours(0, 0, 0, 0)
+          return d
+        })()
+      : null
+    // Advance due date when update is on or after current due: update Feb 23 keeps due March 1; update March 1 or March 2 (missed) moves due to March 8
+    const nextDue =
+      currentDue == null
+        ? getNextOrThisUpdateDay(today, updateDay)
+        : today.getTime() < currentDue.getTime()
+          ? currentDue
+          : getNextUpdateDueDate(today, updateDay)
 
     if (schedule) {
       schedule = await prisma.schedule.update({
@@ -266,7 +281,21 @@ export async function confirmSchedule(req: Request, res: Response) {
 
     const policy = await prisma.schedulePolicy.findUnique({ where: { id: 1 } })
     const updateDay = policy?.updateDayOfWeek ?? 0
-    const nextDue = getNextUpdateDueDate(new Date(), updateDay)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const currentDue = schedule?.nextScheduleUpdateDueAt
+      ? (() => {
+          const d = new Date(schedule.nextScheduleUpdateDueAt)
+          d.setHours(0, 0, 0, 0)
+          return d
+        })()
+      : null
+    const nextDue =
+      currentDue == null
+        ? getNextOrThisUpdateDay(today, updateDay)
+        : today.getTime() < currentDue.getTime()
+          ? currentDue
+          : getNextUpdateDueDate(today, updateDay)
 
     if (schedule) {
       schedule = await prisma.schedule.update({

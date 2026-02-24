@@ -9,7 +9,10 @@ const smsClient = twilio(
   process.env.TWILIO_AUTH_TOKEN || '',
 )
 
-// Send reminder to clients about their appointments tomorrow
+/**
+ * Recurring / tomorrow appointment reminder: the only job that sends messages to clients.
+ * Sends SMS to clients about their appointment tomorrow. No other job should message clients.
+ */
 export async function sendAppointmentReminders(): Promise<void> {
   try {
     // Calculate tomorrow's date (start of day)

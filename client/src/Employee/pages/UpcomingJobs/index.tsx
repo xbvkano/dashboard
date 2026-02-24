@@ -1,5 +1,7 @@
+import { createPortal } from 'react-dom'
 import { useState, useEffect } from 'react'
 import { API_BASE_URL } from '../../../api'
+import { useEmployeeLanguage } from '../../EmployeeLanguageContext'
 
 export type UpcomingAppointment = {
   id: number
@@ -61,10 +63,12 @@ function getHeaders(): HeadersInit {
 }
 
 export default function UpcomingJobs() {
+  const { t } = useEmployeeLanguage()
   const [list, setList] = useState<UpcomingAppointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
+  const [confirmModalAppointmentId, setConfirmModalAppointmentId] = useState<number | null>(null)
 
   function loadList() {
     fetch(`${API_BASE_URL}/employee/upcoming-appointments`, { headers: getHeaders() })
@@ -99,6 +103,7 @@ export default function UpcomingJobs() {
   }, [])
 
   async function confirmJob(appointmentId: number) {
+    setConfirmModalAppointmentId(null)
     setConfirmingId(appointmentId)
     setError('')
     try {
@@ -117,7 +122,10 @@ export default function UpcomingJobs() {
     }
   }
 
-  const grouped = groupAppointments(list)
+  const unconfirmedList = list.filter((a) => a.confirmed === false)
+  const scheduledList = list.filter((a) => a.confirmed !== false)
+  const groupedUnconfirmed = groupAppointments(unconfirmedList)
+  const groupedScheduled = groupAppointments(scheduledList)
 
   if (loading) {
     return (
@@ -139,76 +147,169 @@ export default function UpcomingJobs() {
         </div>
       )}
 
-      {grouped.length === 0 && !error && (
+      {list.length === 0 && !error && (
         <p className="text-slate-500">No upcoming jobs scheduled.</p>
       )}
 
-      <div className="space-y-6">
-        {grouped.map(({ dateStr, dateLabel, blocks }) => {
-          const dayTotal = blocks.reduce(
-            (sum, b) =>
-              sum +
-              b.appointments.reduce((s, a) => (a.confirmed ? s + (a.pay ?? 0) : s), 0),
-            0
-          )
-          return (
-            <div key={dateStr} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-4 py-3 bg-blue-600 border-b border-blue-700 flex items-center justify-between">
-                <h2 className="font-semibold text-white">{dateLabel}</h2>
-                <span className="text-white font-semibold">
-                  Day total: ${dayTotal.toFixed(2)}
-                </span>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {blocks.map(({ block, label, appointments }) => (
-                  <div key={block} className="px-4 py-3">
-                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                      {label} block
-                    </h3>
-                    <ul className="space-y-3">
-                      {appointments.map((a) => (
-                        <li key={a.id} className="text-sm">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="font-medium text-slate-800">{a.address}</div>
-                              <div className="text-slate-600">{formatTime(a.time)}</div>
-                              {a.instructions && (
-                                <div className="mt-1 text-slate-600 text-xs whitespace-pre-wrap border-l-2 border-slate-200 pl-2">
-                                  {a.instructions}
-                                </div>
+      {groupedUnconfirmed.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-lg font-semibold text-amber-800 mb-3">{t.unconfirmedJobsTitle}</h2>
+          <p className="text-sm text-slate-600 mb-4">
+            {t.unconfirmedJobsDesc}
+          </p>
+          <div className="space-y-6">
+            {groupedUnconfirmed.map(({ dateStr, dateLabel, blocks }) => (
+              <div key={dateStr} className="bg-white rounded-xl shadow-sm border border-amber-200 overflow-hidden">
+                <div className="px-4 py-3 bg-amber-500 border-b border-amber-600 flex items-center justify-between">
+                  <h3 className="font-semibold text-amber-900">{dateLabel}</h3>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {blocks.map(({ block, label, appointments }) => (
+                    <div key={block} className="px-4 py-3">
+                      <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                        {label} block
+                      </h4>
+                      <ul className="space-y-3">
+                        {appointments.map((a) => (
+                          <li key={a.id} className="text-sm">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="font-medium text-slate-800">{a.address}</div>
+                                <div className="text-slate-600">{formatTime(a.time)}</div>
+                                {a.instructions && (
+                                  <div className="mt-1 text-slate-600 text-xs whitespace-pre-wrap border-l-2 border-slate-200 pl-2">
+                                    {a.instructions}
+                                  </div>
+                                )}
+                              </div>
+                              {a.pay != null && (
+                                <span className="shrink-0 font-semibold text-slate-800">
+                                  ${a.pay.toFixed(2)}
+                                </span>
                               )}
                             </div>
-                            {a.pay != null && (
-                              <span className="shrink-0 font-semibold text-slate-800">
-                                ${a.pay.toFixed(2)}
-                              </span>
-                            )}
-                          </div>
-                          {a.confirmed === false && (
                             <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                               <p className="text-xs text-amber-800 mb-2">
                                 If this job is not confirmed within 24 hours it may be offered to someone else.
                               </p>
                               <button
                                 type="button"
-                                onClick={() => confirmJob(a.id)}
+                                onClick={() => setConfirmModalAppointmentId(a.id)}
                                 disabled={confirmingId === a.id}
                                 className="px-3 py-1.5 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 disabled:opacity-50"
                               >
                                 {confirmingId === a.id ? 'Confirming…' : 'Confirm Job'}
                               </button>
                             </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {groupedScheduled.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800 mb-3">{t.scheduledJobsTitle}</h2>
+          <div className="space-y-6">
+            {groupedScheduled.map(({ dateStr, dateLabel, blocks }) => {
+              const dayTotal = blocks.reduce(
+                (sum, b) =>
+                  sum +
+                  b.appointments.reduce((s, a) => (a.confirmed ? s + (a.pay ?? 0) : s), 0),
+                0
+              )
+              return (
+                <div key={dateStr} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-3 bg-blue-600 border-b border-blue-700 flex items-center justify-between">
+                    <h3 className="font-semibold text-white">{dateLabel}</h3>
+                    <span className="text-white font-semibold">
+                      Day total: ${dayTotal.toFixed(2)}
+                    </span>
                   </div>
-                ))}
+                  <div className="divide-y divide-slate-100">
+                    {blocks.map(({ block, label, appointments }) => (
+                      <div key={block} className="px-4 py-3">
+                        <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                          {label} block
+                        </h4>
+                        <ul className="space-y-3">
+                          {appointments.map((a) => (
+                            <li key={a.id} className="text-sm">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="font-medium text-slate-800">{a.address}</div>
+                                  <div className="text-slate-600">{formatTime(a.time)}</div>
+                                  {a.instructions && (
+                                    <div className="mt-1 text-slate-600 text-xs whitespace-pre-wrap border-l-2 border-slate-200 pl-2">
+                                      {a.instructions}
+                                    </div>
+                                  )}
+                                </div>
+                                {a.pay != null && (
+                                  <span className="shrink-0 font-semibold text-slate-800">
+                                    ${a.pay.toFixed(2)}
+                                  </span>
+                                )}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Confirm job modal - centered on all screen sizes */}
+      {confirmModalAppointmentId != null &&
+        createPortal(
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 modal-safe-area"
+            onClick={() => setConfirmModalAppointmentId(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-job-title"
+          >
+            <div
+              className="bg-white w-full max-w-md rounded-2xl shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-5 sm:p-6">
+                <h3 id="confirm-job-title" className="text-lg font-semibold text-slate-800 mb-3">
+                  {t.confirmJobModalTitle}
+                </h3>
+                <p className="text-sm text-slate-600 mb-5">{t.confirmJobConfirm}</p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmModalAppointmentId(null)}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => confirmJob(confirmModalAppointmentId)}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-amber-600 text-white font-semibold hover:bg-amber-700 active:bg-amber-800 transition-colors"
+                  >
+                    {t.confirmJobConfirmButton}
+                  </button>
+                </div>
               </div>
             </div>
-          )
-        })}
-      </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

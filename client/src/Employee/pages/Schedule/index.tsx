@@ -572,20 +572,20 @@ export default function Schedule() {
           )}
         </div>
 
-        {/* Day headers */}
-        <div className="grid grid-cols-7 gap-0.5 md:gap-1 px-2 pt-2">
+        {/* Day headers - columns stay equal width and don't overflow */}
+        <div className="grid grid-cols-7 gap-0.5 md:gap-1 px-2 pt-2 min-w-0" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
           {t.weekdays.map(day => (
-            <div key={day} className="text-center text-[10px] md:text-xs font-semibold text-slate-500 py-1">
+            <div key={day} className="text-center text-[10px] md:text-xs font-semibold text-slate-500 py-1 min-w-0 truncate">
               {day.slice(0, 2)}
             </div>
           ))}
         </div>
 
-        {/* Calendar days */}
-        <div className="grid grid-cols-7 gap-0.5 md:gap-1 p-2">
+        {/* Calendar days - fixed column width on mobile so nothing spills; extra min-height for tap targets */}
+        <div className="grid grid-cols-7 gap-0.5 md:gap-1 p-2 min-w-0" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
           {days.map((date, idx) => {
             if (!date) {
-              return <div key={idx} className="aspect-square min-h-[3.5rem]" />
+              return <div key={idx} className="min-h-[5.5rem] md:min-h-[3.5rem] min-w-0" />
             }
             
             const key = getDayKey(date)
@@ -600,27 +600,27 @@ export default function Schedule() {
             return (
               <div
                 key={idx}
-                className={`aspect-square min-h-[3.5rem] border rounded-lg p-1 flex flex-col transition-colors ${
+                className={`min-h-[5.5rem] md:min-h-[3.5rem] md:aspect-square border rounded-lg p-0.5 md:p-1 flex flex-col transition-colors min-w-0 overflow-hidden ${
                   isNextMonth ? 'border-dashed border-slate-300' : 'border-slate-200'
                 } ${getDayStyle(date)}`}
               >
-                <div className="text-[10px] md:text-xs font-semibold mb-0.5 text-center flex items-center justify-center gap-0.5">
+                <div className="text-[10px] md:text-xs font-semibold mb-0.5 text-center flex items-center justify-center gap-0.5 min-w-0 shrink-0">
                   <span>{date.getDate()}</span>
                   {isNextMonth && (
-                    <span className="text-[8px] text-slate-400 font-normal">→</span>
+                    <span className="text-[8px] text-slate-400 font-normal hidden sm:inline">→</span>
                   )}
                 </div>
                 {isNextMonth && (
-                  <div className="text-[8px] text-slate-500 text-center mb-0.5">
+                  <div className="text-[8px] text-slate-500 text-center mb-0.5 hidden sm:block">
                     {date.toLocaleDateString(locale, { month: 'short' })}
                   </div>
                 )}
                 {canSelectDay ? (
-                  <div className="flex-1 flex flex-col gap-1 min-h-0">
+                  <div className="flex-1 flex flex-col gap-0.5 md:gap-1 min-h-0 min-w-0">
                     <button
                       onClick={() => toggleShift(date, 'morning')}
                       disabled={savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null}
-                      className={`flex-1 min-h-[22px] text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
+                      className={`flex-1 min-h-[28px] md:min-h-[22px] min-w-0 text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
                         unconfirmedMorning
                           ? 'bg-amber-500 text-white cursor-default'
                           : scheduledMorning
@@ -639,7 +639,7 @@ export default function Schedule() {
                     <button
                       onClick={() => toggleShift(date, 'afternoon')}
                       disabled={savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null}
-                      className={`flex-1 min-h-[22px] text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
+                      className={`flex-1 min-h-[28px] md:min-h-[22px] min-w-0 text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
                         unconfirmedAfternoon
                           ? 'bg-amber-500 text-white cursor-default'
                           : scheduledAfternoon
@@ -718,15 +718,15 @@ export default function Schedule() {
         {saving ? t.saving : t.saveSchedule}
       </button>
 
-      {/* Confirmation Modal */}
+      {/* Confirmation Modal - centered on all screen sizes */}
       {showConfirmModal &&
         createPortal(
           <div
-            className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4 modal-safe-area"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 modal-safe-area"
             onClick={() => setShowConfirmModal(false)}
           >
             <div
-              className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[85vh] overflow-y-auto"
+              className="bg-white w-full max-w-md rounded-2xl shadow-xl max-h-[85vh] overflow-y-auto"
               onClick={e => e.stopPropagation()}
             >
               <div className="p-5 sm:p-6">

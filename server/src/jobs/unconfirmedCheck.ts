@@ -56,7 +56,7 @@ export interface EmployeeReminderNotification {
   error?: string
 }
 
-/** Check tomorrow's appointments for unconfirmed jobs and text supervisors; also text employees with unconfirmed jobs in the next 14 days (once per assignment). Optional asOfDate for testing. */
+/** 7pm job: Check tomorrow's appointments for unconfirmed jobs and text supervisors only (do not text employees; employee reminders are sent by the noon job). Optional asOfDate for testing. */
 export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
   sent: UnconfirmedNotification[]
   skipped: UnconfirmedNotification[]
@@ -263,132 +263,8 @@ export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
     }
   }
 
-  // --- Employee reminders: unconfirmed jobs within the next 14 days (send once per assignment via reminderSentAt) ---
-  const fourteenDaysLocal = new Date(y, m, d + 14)
-  const fourteenDaysEnd = new Date(
-    Date.UTC(fourteenDaysLocal.getFullYear(), fourteenDaysLocal.getMonth(), fourteenDaysLocal.getDate() + 1, 0, 0, 0, 0)
-  )
-  const appointments14 = await prisma.appointment.findMany({
-    where: {
-      date: { gte: tomorrowStart, lt: fourteenDaysEnd },
-      status: { notIn: ['DELETED', 'CANCEL', 'RESCHEDULE_OLD'] },
-    },
-    include: {
-      client: true,
-      payrollItems: {
-        include: {
-          employee: true,
-        },
-      },
-      employees: true,
-    },
-  })
-  for (const appt of appointments14) {
-    const payrollEmployeeIds = new Set((appt.payrollItems ?? []).map((pi) => pi.employeeId))
-    for (const emp of appt.employees ?? []) {
-      if (!payrollEmployeeIds.has(emp.id)) {
-        await prisma.payrollItem.create({
-          data: { appointmentId: appt.id, employeeId: emp.id },
-        })
-        payrollEmployeeIds.add(emp.id)
-      }
-    }
-  }
-  const payrollItems14 = await prisma.payrollItem.findMany({
-    where: {
-      appointmentId: { in: appointments14.map((a) => a.id) },
-      confirmed: false,
-      reminderSentAt: null,
-      employee: { disabled: false },
-    } as Prisma.PayrollItemWhereInput,
-    include: {
-      employee: true,
-      appointment: {
-        include: { client: true },
-      },
-    },
-  }) as PayrollItemWithAppointmentAndEmployee[]
-  const dateStrOpts = { weekday: 'long' as const, month: 'short' as const, day: 'numeric' as const, timeZone: 'UTC' as const }
-  for (const pi of payrollItems14) {
-    const appt = pi.appointment
-    const emp = pi.employee
-    const clientName = appt.client?.name ?? 'Unknown client'
-    const dateStr = new Date(appt.date).toLocaleDateString('en-US', dateStrOpts)
-    const phoneNorm = emp?.number ? normalizePhone(emp.number) : null
-    if (!phoneNorm) {
-      employeeSkipped.push({
-        appointmentId: appt.id,
-        employeeId: emp.id,
-        employeeName: emp.name,
-        phone: '',
-        appointmentDate: dateStr,
-        appointmentTime: appt.time,
-        clientName,
-        error: 'Employee has no phone number',
-      })
-      continue
-    }
-    const phone = '+' + phoneNorm
-    const body = buildEmployeeReminderBody(dateStr, appt.time, clientName, appt.address)
-    if (!fromNumber) {
-      employeeFailed.push({
-        appointmentId: appt.id,
-        employeeId: emp.id,
-        employeeName: emp.name,
-        phone,
-        appointmentDate: dateStr,
-        appointmentTime: appt.time,
-        clientName,
-        error: 'TWILIO_FROM_NUMBER not configured',
-      })
-      continue
-    }
-    try {
-      const result = await smsClient.messages.create({
-        to: phone,
-        from: fromNumber,
-        body,
-      })
-      await prisma.payrollItem.update({
-        where: { id: pi.id },
-        data: { reminderSentAt: new Date() } as Prisma.PayrollItemUpdateInput,
-      })
-      employeeSent.push({
-        appointmentId: appt.id,
-        employeeId: emp.id,
-        employeeName: emp.name,
-        phone,
-        appointmentDate: dateStr,
-        appointmentTime: appt.time,
-        clientName,
-        twilioSid: result.sid,
-      })
-      if (process.env.NODE_ENV !== 'test') {
-        console.log('[UnconfirmedCheck] Employee reminder SMS sent:', {
-          to: phone,
-          employeeName: emp.name,
-          appointmentDate: dateStr,
-          appointmentTime: appt.time,
-          clientName,
-          body,
-        })
-      }
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err)
-      employeeFailed.push({
-        appointmentId: appt.id,
-        employeeId: emp.id,
-        employeeName: emp.name,
-        phone,
-        appointmentDate: dateStr,
-        appointmentTime: appt.time,
-        clientName,
-        error: errorMessage,
-      })
-    }
-  }
-
-  return { sent, skipped, failed, employeeSent, employeeSkipped, employeeFailed }
+  // 7pm job: supervisor notifications only. Employee reminders for 14-day window are sent by the noon job (runNoonEmployeeReminders).
+  return { sent, skipped, failed, employeeSent: [], employeeSkipped: [], employeeFailed: [] }
 }
 
 /** 14-day window (today through today+14) in UTC for employee reminders */
