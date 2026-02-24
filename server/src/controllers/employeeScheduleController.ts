@@ -1,12 +1,32 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
+import twilio from 'twilio'
 import { calculatePayRate, calculateCarpetRate } from '../utils/appointmentUtils'
 import { getNextOrThisUpdateDay, getNextUpdateDueDate } from '../utils/schedulePolicyUtils'
+import { normalizePhone } from '../utils/phoneUtils'
 
 const prisma = new PrismaClient()
+const smsClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID || '',
+  process.env.TWILIO_AUTH_TOKEN || '',
+)
 
 /** Result: employee id, disabled, or not authenticated */
 type EmployeeAuth = { employeeId: number } | { disabled: true } | null
+
+/** Get phone number for a supervisor User (employee number or userName as digits). */
+function getSupervisorPhone(supervisor: { employee?: { number: string } | null; userName: string | null }): string | null {
+  if (supervisor.employee?.number) {
+    return normalizePhone(supervisor.employee.number)
+  }
+  if (supervisor.userName) {
+    const digits = supervisor.userName.replace(/\D/g, '')
+    if (digits.length === 10) return '1' + digits
+    if (digits.length === 11 && digits.startsWith('1')) return digits
+    return null
+  }
+  return null
+}
 
 // Helper to get employee from request; returns null if not authenticated, { disabled: true } if employee is disabled
 async function getEmployeeAuth(req: Request): Promise<EmployeeAuth> {
@@ -428,6 +448,14 @@ export async function confirmJob(req: Request, res: Response) {
         appointmentId,
         employeeId,
       },
+      include: {
+        appointment: { include: { client: true } },
+        employee: {
+          include: {
+            supervisor: { include: { employee: true } },
+          },
+        },
+      },
     })
     if (!payrollItem) {
       return res.status(404).json({ error: 'Job not found or not assigned to you' })
@@ -437,6 +465,41 @@ export async function confirmJob(req: Request, res: Response) {
       where: { id: payrollItem.id },
       data: { confirmed: true },
     })
+
+    // Notify supervisor by SMS (best-effort; do not fail the request)
+    const supervisor = payrollItem.employee?.supervisor
+    const fromNumber = process.env.TWILIO_FROM_NUMBER
+    if (supervisor && fromNumber) {
+      const phoneNorm = getSupervisorPhone(supervisor)
+      if (phoneNorm) {
+        const appt = payrollItem.appointment
+        const clientName = appt?.client?.name ?? 'Unknown client'
+        const employeeName = payrollItem.employee?.name ?? 'Employee'
+        const dateStr = appt?.date
+          ? new Date(appt.date).toLocaleDateString('en-US', {
+              weekday: 'long',
+              month: 'short',
+              day: 'numeric',
+              timeZone: 'UTC',
+            })
+          : ''
+        const timeStr = appt?.time ?? ''
+        const body = [
+          'Evidence Cleaning: Job confirmed.',
+          `Employee: ${employeeName}`,
+          `Client: ${clientName}`,
+          `Day: ${dateStr}`,
+          `Time: ${timeStr}`,
+        ].join('\n')
+        smsClient.messages
+          .create({
+            to: '+' + phoneNorm,
+            from: fromNumber,
+            body,
+          })
+          .catch((err) => console.error('Error sending supervisor job-confirmed SMS:', err))
+      }
+    }
 
     res.json({ success: true, confirmed: true })
   } catch (e) {

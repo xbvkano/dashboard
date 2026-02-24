@@ -237,6 +237,10 @@ describe('Employee schedule and reschedule', () => {
       await confirmJob(req, res)
       expect(payrollItemFindFirst).toHaveBeenCalledWith({
         where: { appointmentId: 999, employeeId: 1 },
+        include: {
+          appointment: { include: { client: true } },
+          employee: { include: { supervisor: { include: { employee: true } } } },
+        },
       })
       expect(res.status).toHaveBeenCalledWith(404)
       expect(payrollItemUpdate).not.toHaveBeenCalled()
@@ -250,6 +254,10 @@ describe('Employee schedule and reschedule', () => {
       await confirmJob(req, res)
       expect(payrollItemFindFirst).toHaveBeenCalledWith({
         where: { appointmentId: 100, employeeId: 1 },
+        include: {
+          appointment: { include: { client: true } },
+          employee: { include: { supervisor: { include: { employee: true } } } },
+        },
       })
       expect(payrollItemUpdate).toHaveBeenCalledWith({
         where: { id: 50 },
