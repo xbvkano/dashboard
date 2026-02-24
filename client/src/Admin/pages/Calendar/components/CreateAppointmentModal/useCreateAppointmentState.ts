@@ -55,8 +55,9 @@ export function useCreateAppointmentState(
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(persisted.editingTemplateId ?? null)
   const [templateForm, setTemplateForm] = useState({
     templateName: '',
-    type: 'STANDARD',
+    type: '',
     size: '',
+    teamSize: '',
     address: '',
     price: '',
     notes: '',

@@ -3,6 +3,7 @@ export interface AppointmentTemplate {
   templateName: string
   type: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
   size: string
+  teamSize?: number
   address: string
   price: number
   clientId: number
@@ -25,6 +26,7 @@ export interface Appointment {
   size?: string
   price?: number
   notes?: string
+  payrollNote?: string | null
   hours?: number
   paid?: boolean
   paymentMethod?: 'CASH' | 'ZELLE' | 'VENMO' | 'PAYPAL' | 'OTHER' | 'CHECK'
@@ -50,12 +52,14 @@ export interface Appointment {
     | 'DELETED'
   familyId?: number
   templateId?: number
+  teamSize?: number
   client?: import('../Clients/components/types').Client
   employees?: import('../Employees/components/types').Employee[]
   admin?: { id: number; name: string | null; email: string }
   createdAt?: string
   payrollItems?: {
     employeeId: number
+    amount?: number
     extras: { id: number; name: string; amount: number }[]
   }[]
 }

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
+import { getDefaultTeamSize, getSizeRange } from '../data/teamSizeData'
 
 const prisma = new PrismaClient()
 
@@ -26,6 +27,7 @@ export async function createAppointmentTemplate(req: Request, res: Response) {
       templateName,
       type,
       size,
+      teamSize,
       address,
       price,
       notes,
@@ -37,6 +39,7 @@ export async function createAppointmentTemplate(req: Request, res: Response) {
       templateName?: string
       type?: any
       size?: string
+      teamSize?: number
       address?: string
       price?: number
       notes?: string
@@ -56,11 +59,15 @@ export async function createAppointmentTemplate(req: Request, res: Response) {
       return res.status(400).json({ error: 'Missing fields' })
     }
 
+    const defaultTeamSize = getDefaultTeamSize(size, type)
+    const finalTeamSize = teamSize !== undefined && teamSize !== null ? teamSize : defaultTeamSize
+
     const template = await prisma.appointmentTemplate.create({
       data: {
         templateName,
         type,
         size,
+        teamSize: finalTeamSize,
         address,
         cityStateZip: null,
         price,
@@ -88,6 +95,7 @@ export async function updateAppointmentTemplate(req: Request, res: Response) {
       templateName,
       type,
       size,
+      teamSize,
       address,
       price,
       notes,
@@ -98,6 +106,7 @@ export async function updateAppointmentTemplate(req: Request, res: Response) {
       templateName?: string
       type?: any
       size?: string
+      teamSize?: number
       address?: string
       price?: number
       notes?: string
@@ -110,6 +119,7 @@ export async function updateAppointmentTemplate(req: Request, res: Response) {
     if (templateName !== undefined) data.templateName = templateName
     if (type !== undefined) data.type = type
     if (size !== undefined) data.size = size
+    if (teamSize !== undefined) data.teamSize = teamSize
     if (address !== undefined) data.address = address
     if (price !== undefined) data.price = price
     if (notes !== undefined) data.notes = notes

@@ -11,6 +11,8 @@ import type { Appointment } from '../types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
 import { formatPhone } from '../../../../formatPhone'
+import DayTimelineModalContainer from './DayTimelineHelpers/DayTimelineModalContainer'
+import type { DayTimelineModalView } from './DayTimelineHelpers/DayTimelineModalContainer'
 
 function parseSqft(s: string | null | undefined): number | null {
   if (!s) return null
@@ -18,6 +20,28 @@ function parseSqft(s: string | null | undefined): number | null {
   let n = parseInt(parts[1] || parts[0])
   if (isNaN(n)) n = parseInt(s)
   return isNaN(n) ? null : n
+}
+
+/** Match server calculateAppointmentHours so block height is correct even when hours is null */
+function calculateAppointmentHours(size: string | null | undefined, serviceType: string): number {
+  const sqft = parseSqft(size)
+  if (sqft === null) return 3
+  let baseHours = 3
+  if (sqft <= 1500) baseHours = 3
+  else if (sqft <= 2000) baseHours = 4
+  else if (sqft <= 2500) baseHours = 5
+  else if (sqft <= 3000) baseHours = 6
+  else if (sqft <= 3500) baseHours = 7
+  else if (sqft <= 4000) baseHours = 8
+  else baseHours = 9
+  switch (serviceType) {
+    case 'DEEP':
+      return baseHours + 1
+    case 'MOVE_IN_OUT':
+      return baseHours + 2
+    default:
+      return baseHours
+  }
 }
 
 function calcPayRate(type: string, size: string | null | undefined, count: number): number {
@@ -52,11 +76,12 @@ interface DayProps {
   onUpdate?: (a: Appointment) => void
   onCreate?: (appt: Appointment, status: Appointment['status']) => void
   onEdit?: (appt: Appointment) => void
+  onRescheduled?: (newAppointment: Appointment) => void
   onNavigateToDate?: (date: Date) => void
   onRefresh?: () => void
 }
 
-function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scrollToApptId, onUpdate, onCreate, onEdit, onNavigateToDate, onRefresh }: DayProps) {
+function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scrollToApptId, onUpdate, onCreate, onEdit, onRescheduled, onNavigateToDate, onRefresh }: DayProps) {
   const { alert, confirm } = useModal()
   const navigate = useNavigate()
   const [selected, setSelected] = useState<Appointment | null>(null)
@@ -84,6 +109,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   const [editingNotesValue, setEditingNotesValue] = useState('')
   const [template, setTemplate] = useState<any>(null)
   const [loadingTemplate, setLoadingTemplate] = useState(false)
+  const [modalView, setModalView] = useState<DayTimelineModalView>('details')
   const isMobile =
     typeof navigator !== 'undefined' &&
     /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
@@ -613,7 +639,8 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
     .map((a) => {
       const [h, m] = a.time.split(':').map((n) => parseInt(n, 10))
       const start = h * 60 + m
-      const end = start + (a.hours ?? 1) * 60
+      const displayHours = a.hours ?? calculateAppointmentHours(a.size ?? null, a.type) ?? 3
+      const end = start + displayHours * 60
       return { appt: a, start, end, lane: 0 }
     })
     .sort((a, b) => a.start - b.start)
@@ -709,6 +736,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
               style={{ top, left: leftStyle, width: apptWidth, height, zIndex: 10 }}
               onClick={() => {
                 setSelected(l.appt)
+                setModalView('details')
               }}
             >
               <div className="flex justify-between items-start p-1">
@@ -749,838 +777,75 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
         )}
       </div>
 
-      {/* details modal */}
-      {selected && (() => {
-        // Check if this is an unconfirmed recurring appointment
-        // Note: isRecurringUnconfirmed is true when status is RECURRING_UNCONFIRMED and familyId exists
-        // This determines which action buttons to show (recurring actions vs regular action panel)
-        const isRecurringUnconfirmed = selected.status === 'RECURRING_UNCONFIRMED' && !!selected.familyId
-        
-        return createPortal(
-          <>
-            {/* Full-page background overlay */}
-            <div
-              className="fixed inset-0 bg-black/50"
-              style={{ zIndex: 9999 }}
-            />
-            {/* Modal content */}
-            <div
-              className="fixed bg-white p-4 rounded space-y-2 w-full max-w-md max-h-[90vh] overflow-y-auto"
-              style={{
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                zIndex: 10000,
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Close button */}
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Appointment Details</h3>
-                <button onClick={() => setSelected(null)} className="text-gray-500 hover:text-gray-700 text-2xl leading-none">
-                  ×
-                </button>
-              </div>
-              
-              {/* Client Info */}
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <h4 className="font-medium">
-                    {selected.client ? selected.client.name : 'Client'}
-                  </h4>
-                  {selected.client?.number && (
-                    <>
-                      <div className="text-sm text-gray-600">
-                        {isMobile ? (
-                          <button
-                            type="button"
-                            className="underline text-blue-500"
-                            onClick={handlePhoneClick}
-                          >
-                            {formatPhone(selected.client.number)}
-                          </button>
-                        ) : (
-                          formatPhone(selected.client.number)
-                        )}
-                      </div>
-                      {isMobile && showPhoneActions && (
-                        <div className="flex gap-2 mt-1">
-                          <a
-                            href={`tel:${selected.client.number}`}
-                            className="px-2 py-1 bg-blue-500 text-white rounded"
-                            onClick={() => setShowPhoneActions(false)}
-                          >
-                            Call
-                          </a>
-                          <a
-                            href={`sms:${selected.client.number}`}
-                            className="px-2 py-1 bg-blue-500 text-white rounded"
-                            onClick={() => setShowPhoneActions(false)}
-                          >
-                            Text
-                          </a>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {selected.client?.from && (
-                    <div className="text-sm text-gray-600">From: {selected.client.from}</div>
-                  )}
-                </div>
-                {!isRecurringUnconfirmed && (
-                  <button
-                    className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
-                    onClick={() => {
-                      const appt = selected!
-                      setSelected(null)
-                      onEdit?.(appt)
-                    }}
-                  >
-                    Edit
-                  </button>
-                )}
-              </div>
-            <div className="text-sm">Address: {selected.address}</div>
-            <div className="text-sm">Type: {selected.type}</div>
-            {selected.admin && (
-              <div className="text-sm">
-                Admin: {selected.admin.name ?? selected.admin.email}
-              </div>
-            )}
-            <div className="text-sm">Date &amp; Time: {(() => {
-              // Extract date directly from database format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss.sssZ)
-              // Handle both string and Date object
-              let dateStr: string
-              if (typeof selected.date === 'string') {
-                dateStr = selected.date
-              } else {
-                dateStr = (selected.date as any as Date).toISOString()
-              }
-              const dateOnly = dateStr.split('T')[0]
-              return dateOnly
-            })()} {selected.time}</div>
-            {selected.employees && selected.employees.length > 0 && (
-              <div className="text-sm">
-                Team:
-                <ul className="pl-4 list-disc">
-                  {selected.employees.map((e) => {
-                    const carpetIds = ((selected as any).carpetEmployees || []) as number[]
-                    const onCarpet = carpetIds.includes(e.id!)
-                    const base =
-                      payRate ??
-                      calcPayRate(
-                        selected.type,
-                        selected.size ?? null,
-                        selected.employees.length,
-                      )
-                    const carpet =
-                      onCarpet &&
-                      (carpetRate ??
-                        (calcCarpetRate(
-                          selected.size ?? null,
-                          (selected as any).carpetRooms || 0,
-                        ) /
-                          (carpetIds.length || 1)))
-                    const extras =
-                      selected.payrollItems?.find((p) => p.employeeId === e.id)?.extras || []
-                    return (
-                      <li key={e.id}>
-                        {e.name}{' '}
-                        {e.experienced ? <span className="font-bold">(Exp)</span> : null}
-                        <span className="ml-1 text-sm text-gray-600">
-                          ${base.toFixed(2)}
-                          {onCarpet && carpet ? (
-                            <>
-                              {' + $'}
-                              {carpet.toFixed(2)} {'= $'}
-                              {(base + carpet).toFixed(2)}
-                            </>
-                          ) : null}
-                        </span>
-                        <button
-                          className="text-blue-500 text-xs ml-2"
-                          onClick={() => openExtra(e.id!)}
-                        >
-                          Add extra
-                        </button>
-                        {extras.map((ex) => (
-                          <div key={ex.id} className="pl-4 flex items-start relative">
-                            <div className="absolute left-0 top-0 w-3 h-3 border-l border-b border-gray-400" />
-                            <div className="ml-3 flex items-center">
-                              {ex.name}: ${ex.amount.toFixed(2)}
-                              <button
-                                className="text-blue-500 text-xs ml-2"
-                                onClick={() => openExtra(e.id!, ex)}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                className="text-red-500 text-xs ml-1"
-                                onClick={() => deleteExtra(ex.id, e.id!)}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            )}
-            {/* Legacy recurring check removed - use familyId to identify recurring appointments */}
-            {template && (
-              <div className="text-sm">Template selected: {template.templateName || 'Unnamed Template'}</div>
-            )}
-            {selected.size && <div className="text-sm">Size: {selected.size}</div>}
-            {selected.hours != null && (
-              <div className="text-sm">Hours: {selected.hours}</div>
-            )}
-            {(() => {
-              const displayPrice = template?.price ?? selected.price
-              return displayPrice != null ? (
-                <div className="text-sm">Price: ${displayPrice}</div>
-              ) : null
-            })()}
-            {selected.cityStateZip && (
-              <div className="text-sm">Instructions: {selected.cityStateZip}</div>
-            )}
-            {/* Notes Section - showing template notes */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <label className="font-medium text-sm">Notes:</label>
-                {loadingTemplate ? (
-                  <span className="text-xs text-gray-400">Loading template...</span>
-                ) : !editingNotes ? (
-                  <button
-                    type="button"
-                    className="text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap"
-                    onClick={() => {
-                      const templateNotes = template?.notes || ''
-                      setEditingNotes(true)
-                      setEditingNotesValue(templateNotes)
-                    }}
-                  >
-                    edit
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 whitespace-nowrap"
-                    onClick={async () => {
-                      if (!template?.id) {
-                        await alert('No template found for this appointment. Cannot save notes.')
-                        return
-                      }
-                      
-                      try {
-                        // Update template notes only (not appointment notes)
-                        const updatedTemplate = await fetchJson(`${API_BASE_URL}/appointment-templates/${template.id}`, {
-                          method: 'PUT',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ notes: editingNotesValue || null }),
-                        })
-                        
-                        // Update the template in state
-                        setTemplate(updatedTemplate)
-                        
-                        // Also update all appointments that match this template
-                        if (selected?.clientId) {
-                          try {
-                            // Find all appointments for this client that match the template
-                            const matchingAppointments = appointments.filter(
-                              (a: any) => 
-                                a.clientId === selected.clientId &&
-                                a.address === template.address &&
-                                a.type === template.type &&
-                                (a.size || '') === (template.size || '')
-                            )
-                            
-                            if (matchingAppointments.length > 0) {
-                              // Update all matching appointments to sync their notes with template
-                              for (const appt of matchingAppointments) {
-                                try {
-                                  await fetchJson(`${API_BASE_URL}/appointments/${appt.id}`, {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ notes: editingNotesValue || null }),
-                                  })
-                                } catch (apptError) {
-                                  // Ignore individual appointment update failures
-                                }
-                              }
-                            }
-                          } catch (syncError) {
-                            // Don't fail the whole operation if sync fails
-                          }
-                        }
-                        
-                        setEditingNotes(false)
-                        setEditingNotesValue('')
-                        
-                        // Refresh to get updated data
-                        onRefresh?.()
-                      } catch (error) {
-                        await alert('Failed to update template notes')
-                      }
-                    }}
-                  >
-                    save
-                  </button>
-                )}
-              </div>
-              <textarea
-                className="w-full border p-2 rounded text-sm"
-                rows={3}
-                value={editingNotes ? editingNotesValue : (template?.notes || '')}
-                onChange={(e) => {
-                  if (editingNotes) {
-                    setEditingNotesValue(e.target.value)
-                  }
-                }}
-                disabled={!editingNotes || loadingTemplate}
-                placeholder={loadingTemplate ? "Loading template..." : "No notes"}
-              />
-            </div>
-
-            {/* Show recurrence rule for unconfirmed recurring appointments */}
-            {isRecurringUnconfirmed && recurrenceRule && (
-              <div className="text-sm font-medium text-blue-600 mt-2 p-2 bg-blue-50 rounded">
-                Recurrence Rule: {recurrenceRule}
-              </div>
-            )}
-
-            {/* Paid checkbox - only show for non-unconfirmed recurring appointments */}
-            {!isRecurringUnconfirmed && (
-              <div className="pt-2 border-t space-y-2">
-                <label className="flex items-center gap-1">
-                  <input
-                    type="checkbox"
-                    checked={paid}
-                    onChange={(e) => setPaid(e.target.checked)}
-                  />
-                  Paid
-                </label>
-                {paid && (
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm">Tip (optional)</label>
-                    <input
-                      type="number"
-                      className="border p-2 rounded text-base"
-                      placeholder="Tip"
-                      value={tip}
-                      onChange={(e) => setTip(e.target.value)}
-                    />
-                    <label className="text-sm">
-                      Payment Method <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      className="border p-2 rounded text-base"
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                    >
-                      <option value="">Select payment method</option>
-                      <option value="CASH">Cash</option>
-                      <option value="ZELLE">Zelle</option>
-                      <option value="VENMO">Venmo</option>
-                      <option value="PAYPAL">Paypal</option>
-                      <option value="OTHER">Other</option>
-                    </select>
-                    {paymentMethod === 'OTHER' && (
-                      <input
-                        className="border p-2 rounded text-base"
-                        placeholder="Payment method"
-                        value={otherPayment}
-                        onChange={(e) => setOtherPayment(e.target.value)}
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {selected.observe && (
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Observation</label>
-                <textarea
-                  className="border p-2 rounded w-full text-base"
-                  value={observation}
-                  onChange={(e) => setObservation(e.target.value)}
-                />
-              </div>
-            )}
-
-            {/* Recurring Unconfirmed Actions */}
-            {isRecurringUnconfirmed && (
-              <div className="pt-2 border-t space-y-2">
-                <div className="text-sm font-medium text-blue-700 mb-2">
-                  Recurring Appointment Actions
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={handleConfirmRecurring}
-                    className="px-3 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600"
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    onClick={handleSkipRecurring}
-                    className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
-                  >
-                    Skip
-                  </button>
-                  <button
-                    onClick={() => {
-                      setMoveTime(selected?.time || '')
-                      setShowMoveModal(true)
-                    }}
-                    className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-                  >
-                    Move
-                  </button>
-                  <button
-                    onClick={handleRecurringSettings}
-                    className="px-3 py-2 bg-purple-500 text-white rounded text-sm hover:bg-purple-600"
-                  >
-                    View Family
-                  </button>
-                  <button
-                    onClick={handleViewClient}
-                    className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-                  >
-                    View Client
-                  </button>
-                  {selected?.observe ? (
-                    <button
-                      onClick={() => updateAppointment({ observe: false })}
-                      className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
-                    >
-                      Unobserve
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => updateAppointment({ observe: true })}
-                      className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
-                    >
-                      Observe
-                    </button>
-                  )}
-                </div>
-                {showMoveModal && (
-                  <div className="mt-2 p-3 bg-gray-50 rounded">
-                    <label className="block text-sm font-medium mb-1">New Date</label>
-                    <input
-                      type="date"
-                      value={moveDate}
-                      onChange={(e) => setMoveDate(e.target.value)}
-                      className="w-full border p-2 rounded text-sm"
-                    />
-                    <label className="block text-sm font-medium mb-1 mt-2">New Time</label>
-                    <input
-                      type="time"
-                      value={moveTime}
-                      onChange={(e) => setMoveTime(e.target.value)}
-                      className="w-full border p-2 rounded text-sm"
-                    />
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        onClick={handleMoveRecurring}
-                        disabled={!moveDate || !moveTime}
-                        className="flex-1 px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 disabled:bg-gray-400"
-                      >
-                        Move
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowMoveModal(false)
-                          setMoveDate('')
-                          setMoveTime('')
-                        }}
-                        className="flex-1 px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Actions Panel Toggle - Only show for non-recurring-unconfirmed appointments */}
-            {!isRecurringUnconfirmed && (
-              <div className="pt-2">
-                <button
-                  onClick={() => setShowActionPanel(!showActionPanel)}
-                  className="w-full px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600 flex items-center justify-center gap-2"
-                >
-                  {showActionPanel ? '▼' : '▶'} Action Panel
-                </button>
-                
-                {showActionPanel && (
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  {/* Blue buttons - Navigation/View/Reschedule */}
-                  {selected.clientId && (
-                    <button
-                      className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-                      onClick={() => {
-                        navigate(`/dashboard/clients/${selected.clientId}`)
-                        setSelected(null)
-                      }}
-                    >
-                      View Client
-                    </button>
-                  )}
-                  <button
-                    className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-                    onClick={() => {
-                      const appt = selected!
-                      setSelected(null)
-                      onCreate?.(appt, 'RESCHEDULE_NEW')
-                    }}
-                  >
-                    Reschedule
-                  </button>
-                  {!selected?.observe && (
-                    <button
-                      className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 disabled:opacity-50"
-                      disabled={
-                        paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))
-                      }
-                      onClick={() => {
-                        const appt = selected!
-                        setSelected(null)
-                        onCreate?.(appt, 'REBOOK')
-                      }}
-                    >
-                      Book Again
-                    </button>
-                  )}
-                  
-                  {/* Yellow buttons - Observe */}
-                  {selected?.observe ? (
-                    <button
-                      className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
-                      onClick={() => updateAppointment({ observe: false })}
-                    >
-                      Unobserve
-                    </button>
-                  ) : (
-                    <button
-                      className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
-                      onClick={() => updateAppointment({ observe: true })}
-                    >
-                      Observe
-                    </button>
-                  )}
-                  
-                  {/* Purple button - Cancel */}
-                  <button
-                    className="px-3 py-2 bg-purple-500 text-white rounded text-sm hover:bg-purple-600"
-                    onClick={() => {
-                      if (selected?.status === 'CANCEL') {
-                        updateAppointment({ status: 'APPOINTED' })
-                      } else if (selected?.observe) {
-                        updateAppointment({ status: 'CANCEL' })
-                      } else {
-                        setShowCancel(true)
-                      }
-                    }}
-                  >
-                    {selected?.status === 'CANCEL' ? 'Uncancel' : 'Cancel'}
-                  </button>
-                  
-                  {/* Red button - Delete */}
-                  <button 
-                    className="px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600" 
-                    onClick={() => setShowDelete(true)}
-                  >
-                    Delete
-                  </button>
-                  
-                  {/* Indigo button - Send Info */}
-                  {!selected?.noTeam && (
-                    <button
-                      className="px-3 py-2 bg-indigo-500 text-white rounded text-sm hover:bg-indigo-600"
-                      onClick={() => setShowSendInfo(true)}
-                    >
-                      Send Info
-                    </button>
-                  )}
-                  
-                  {/* Green buttons - Invoice & Save */}
-                  <button
-                    className="px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-                    onClick={() => {
-                      if (!selected) return
-                      navigate(
-                        `/dashboard/financing/invoice?date=${(() => {
-                          // Extract date directly from string to avoid timezone conversion
-                          // The database stores dates in local time, so we should use the string representation
-                          if (typeof selected.date === 'string') {
-                            // Extract YYYY-MM-DD part directly from the string
-                            const datePart = selected.date.split('T')[0]
-                            if (datePart && datePart.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                              return datePart
-                            }
-                            // Fallback: try to extract YYYY-MM-DD with regex
-                            const dateMatch = selected.date.match(/(\d{4}-\d{2}-\d{2})/)
-                            if (dateMatch && dateMatch[1]) {
-                              return dateMatch[1]
-                            }
-                          }
-                          // If it's a Date object, use UTC methods to get the original date
-                          const apptDate = selected.date as Date
-                          const year = apptDate.getUTCFullYear()
-                          const month = String(apptDate.getUTCMonth() + 1).padStart(2, '0')
-                          const day = String(apptDate.getUTCDate()).padStart(2, '0')
-                          return `${year}-${month}-${day}`
-                        })()}&appt=${selected.id}`,
-                      )
-                    }}
-                  >
-                    Invoice
-                  </button>
-                  <button
-                    className="px-3 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600 disabled:opacity-50"
-                    disabled={paid && (!paymentMethod || (paymentMethod === 'OTHER' && !otherPayment))}
-                    onClick={handleSave}
-                  >
-                    Save
-                  </button>
-                </div>
-                )}
-              </div>
-            )}
-
-            {showDelete && (
-              <div
-                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                onClick={() => setShowDelete(false)}
-              >
-                <div
-                  className="bg-white p-4 rounded space-y-2"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div>Delete this appointment?</div>
-                  <div className="flex justify-end gap-2">
-                    <button className="px-4 py-1 border rounded" onClick={() => setShowDelete(false)}>
-                      No
-                    </button>
-                    <button
-                      className="px-4 py-1 bg-red-500 text-white rounded"
-                      onClick={() => {
-                        if (selected) {
-                          updateAppointment({ status: 'DELETED' })
-                        }
-                        setShowDelete(false)
-                        setSelected(null)
-                      }}
-                    >
-                      Yes
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-            {showCancel && (
-              <div
-                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                onClick={() => setShowCancel(false)}
-              >
-                <div
-                  className="bg-white p-4 rounded space-y-2"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div>Cancel appointment?</div>
-                  <div className="flex justify-end gap-2">
-                    <button className="px-4 py-1 border rounded" onClick={() => setShowCancel(false)}>
-                      No
-                    </button>
-                    <button
-                      className="px-4 py-1 bg-purple-500 text-white rounded"
-                      onClick={() => {
-                        setShowCancel(false)
-                        updateAppointment({ status: 'CANCEL' })
-                      }}
-                    >
-                      Yes
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-            {showSendInfo && (
-              <div
-                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                onClick={() => setShowSendInfo(false)}
-              >
-                <div
-                  className="bg-white p-4 rounded space-y-2 w-full max-w-md"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="font-medium">Send Appointment Info</div>
-                  {selected && (
-                    <div className="text-sm space-y-1">
-                      <div>Appointment Date: {(() => {
-                        // Extract date directly from database format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss.sssZ)
-                        // Handle both string and Date object
-                        let dateStr: string
-                        if (typeof selected.date === 'string') {
-                          dateStr = selected.date
-                        } else {
-                          dateStr = (selected.date as any as Date).toISOString()
-                        }
-                        const dateOnly = dateStr.split('T')[0]
-                        return dateOnly
-                      })()}</div>
-                      <div>Appointment Time: {selected.time}</div>
-                      <div>Appointment Type: {selected.type}</div>
-                      <div>Address: {selected.address}</div>
-                    </div>
-                  )}
-                  {selected?.employees && (
-                    <ul className="pl-4 list-disc text-sm">
-                      {selected.employees.map((e) => {
-                        const carpetIds = ((selected as any).carpetEmployees || []) as number[]
-                        const onCarpet = carpetIds.includes(e.id!)
-                        const base =
-                          payRate ??
-                          calcPayRate(
-                            selected.type,
-                            selected.size ?? null,
-                            selected.employees.length,
-                          )
-                        const carpet =
-                          onCarpet &&
-                          (carpetRate ??
-                            (calcCarpetRate(
-                              selected.size ?? null,
-                              (selected as any).carpetRooms || 0,
-                            ) /
-                              (carpetIds.length || 1)))
-                        const extras =
-                          selected.payrollItems?.find((p) => p.employeeId === e.id)?.extras || []
-                        const extrasTotal = extras.reduce((sum, ex) => sum + ex.amount, 0)
-                        const total = base + (carpet || 0) + extrasTotal
-                        return (
-                          <li key={e.id}>
-                            {e.name} - $
-                            {onCarpet && carpet ? (
-                              `${base.toFixed(2)} + ${carpet.toFixed(2)}$${extrasTotal ? ` + ${extrasTotal.toFixed(2)}` : ''} = ${total.toFixed(2)}`
-                            ) : extrasTotal ? (
-                              `${base.toFixed(2)} + ${extrasTotal.toFixed(2)} = ${total.toFixed(2)}`
-                            ) : (
-                              total.toFixed(2)
-                            )}
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                  {selected?.cityStateZip && (
-                    <div className="text-sm">Instructions: {selected.cityStateZip}</div>
-                  )}
-                  <textarea
-                    className="w-full border p-2 rounded text-sm"
-                    placeholder="Message note"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button className="px-4 py-1" onClick={() => setShowSendInfo(false)}>
-                      Cancel
-                    </button>
-                    <button
-                      className="px-4 py-1 bg-indigo-600 text-white rounded"
-                      onClick={handleSendInfo}
-                    >
-                      Send
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-            {extraFor != null && (
-              <div
-                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                onClick={() => {
-                  setExtraFor(null)
-                  setEditingExtraId(null)
-                }}
-              >
-                <div
-                  className="bg-white p-4 rounded space-y-2"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="font-medium">{editingExtraId ? 'Edit Extra Item' : 'Add Extra Item'}</div>
-                  <input
-                    className="border p-2 rounded w-full"
-                    placeholder="Name"
-                    value={extraName}
-                    onChange={(e) => setExtraName(e.target.value)}
-                  />
-                  <input
-                    type="number"
-                    className="border p-2 rounded w-full"
-                    placeholder="Amount"
-                    value={extraAmount}
-                    onChange={(e) => setExtraAmount(e.target.value)}
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      className="px-4 py-1 border rounded"
-                      onClick={() => {
-                        setExtraFor(null)
-                        setEditingExtraId(null)
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button className="px-4 py-1 bg-blue-500 text-white rounded" onClick={saveExtra}>
-                      {editingExtraId ? 'Update' : 'Add'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-              </div>
-            </>
-          ,
-          document.body
-        )
-      })()}
+      {/* Appointment modal: details or team-options, single overlay via DayTimelineModalContainer */}
+      {selected && createPortal(
+        <DayTimelineModalContainer
+          view={modalView}
+          appointment={selected}
+          onUpdate={(updated) => {
+            onUpdate?.(updated)
+            setSelected(updated)
+          }}
+          onClose={() => {
+            setSelected(null)
+            setModalView('details')
+          }}
+          onViewChange={setModalView}
+          onCreate={onCreate!}
+          onEdit={onEdit!}
+          onRescheduled={onRescheduled ? (newAppt) => { setSelected(null); setModalView('details'); onRescheduled(newAppt); } : undefined}
+          onNavigateToDate={onNavigateToDate}
+          onRefresh={onRefresh}
+          onRequestSkip={() => {
+            if (selected) {
+              setSkipAppointment(selected)
+              setShowSkipConfirm(true)
+            }
+          }}
+          onRequestConfirm={() => {
+            if (selected) {
+              setConfirmAppointment(selected)
+              setShowConfirmConfirm(true)
+            }
+          }}
+        />,
+        document.body
+      )}
 
       {/* Skip Confirmation Modal */}
       {showSkipConfirm && skipAppointment && createPortal(
         <>
           <div
-            className="fixed inset-0 bg-black/50"
-            style={{ zIndex: 10001 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10001]"
             onClick={cancelSkip}
           />
           <div
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-lg max-w-md"
-            style={{ zIndex: 10002 }}
+            className="bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-md w-full overflow-hidden z-[10002]"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold mb-4">Skip Recurring Appointment?</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              This appointment will be marked as canceled and the next one will be generated.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={cancelSkip}
-                className="px-4 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={executeSkipRecurring}
-                className="px-4 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
-              >
-                Skip
-              </button>
+            <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-800">Skip Recurring Appointment?</h3>
+            </div>
+            <div className="p-4">
+              <p className="text-sm text-slate-600 mb-4">
+                This appointment will be marked as canceled and the next one will be generated.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={cancelSkip}
+                  className="px-4 py-2 text-sm font-medium bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={executeSkipRecurring}
+                  className="px-4 py-2 text-sm font-medium bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
+                >
+                  Skip
+                </button>
+              </div>
             </div>
           </div>
         </>,
@@ -1591,32 +856,36 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
       {showConfirmConfirm && confirmAppointment && createPortal(
         <>
           <div
-            className="fixed inset-0 bg-black/50"
-            style={{ zIndex: 10001 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10001]"
             onClick={cancelConfirm}
           />
           <div
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-lg max-w-md"
-            style={{ zIndex: 10002 }}
+            className="bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-md w-full overflow-hidden z-[10002]"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold mb-4">Confirm Recurring Appointment?</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              This appointment will be confirmed and the next unconfirmed appointment will be generated.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={cancelConfirm}
-                className="px-4 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={executeConfirmRecurring}
-                className="px-4 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600"
-              >
-                Confirm
-              </button>
+            <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-800">Confirm Recurring Appointment?</h3>
+            </div>
+            <div className="p-4">
+              <p className="text-sm text-slate-600 mb-4">
+                This appointment will be confirmed and the next unconfirmed appointment will be generated.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={cancelConfirm}
+                  className="px-4 py-2 text-sm font-medium bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={executeConfirmRecurring}
+                  className="px-4 py-2 text-sm font-medium bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                >
+                  Confirm
+                </button>
+              </div>
             </div>
           </div>
         </>,
@@ -1627,42 +896,46 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
       {showPastDateConfirm && pendingMoveData && createPortal(
         <>
           <div
-            className="fixed inset-0 bg-black/50"
-            style={{ zIndex: 10003 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10003]"
             onClick={() => {
               setShowPastDateConfirm(false)
               setPendingMoveData(null)
             }}
           />
           <div
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-lg max-w-md"
-            style={{ zIndex: 10004 }}
+            className="bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-md w-full overflow-hidden z-[10004]"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold mb-4">Move to Past Date?</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              The selected date is in the past. Are you sure you want to move the appointment to this date?
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => {
-                  setShowPastDateConfirm(false)
-                  setPendingMoveData(null)
-                }}
-                className="px-4 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (pendingMoveData) {
-                    executeMoveRecurring(pendingMoveData.date, pendingMoveData.time)
-                  }
-                }}
-                className="px-4 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-              >
-                Move
-              </button>
+            <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-800">Move to Past Date?</h3>
+            </div>
+            <div className="p-4">
+              <p className="text-sm text-slate-600 mb-4">
+                The selected date is in the past. Are you sure you want to move the appointment to this date?
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPastDateConfirm(false)
+                    setPendingMoveData(null)
+                  }}
+                  className="px-4 py-2 text-sm font-medium bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (pendingMoveData) {
+                      executeMoveRecurring(pendingMoveData.date, pendingMoveData.time)
+                    }
+                  }}
+                  className="px-4 py-2 text-sm font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Move
+                </button>
+              </div>
             </div>
           </div>
         </>,
@@ -1685,6 +958,7 @@ interface Props {
   onUpdate?: (a: Appointment) => void
   onCreate?: (appt: Appointment, status: Appointment['status']) => void
   onEdit?: (appt: Appointment) => void
+  onRescheduled?: (newAppointment: Appointment) => void
   onNavigateToDate?: (date: Date) => void
   onRefresh?: () => void
 }
@@ -1702,6 +976,7 @@ export default function DayTimeline({
   onUpdate,
   onCreate,
   onEdit,
+  onRescheduled,
   onNavigateToDate,
   onRefresh,
 }: Props) {
@@ -1847,6 +1122,7 @@ export default function DayTimeline({
           onUpdate={onUpdate}
           onCreate={onCreate}
           onEdit={onEdit}
+          onRescheduled={onRescheduled}
           onNavigateToDate={onNavigateToDate}
           onRefresh={onRefresh}
         />
@@ -1860,6 +1136,7 @@ export default function DayTimeline({
           onUpdate={onUpdate}
           onCreate={onCreate}
           onEdit={onEdit}
+          onRescheduled={onRescheduled}
           onNavigateToDate={onNavigateToDate}
           onRefresh={onRefresh}
         />
@@ -1870,6 +1147,7 @@ export default function DayTimeline({
           onUpdate={onUpdate}
           onCreate={onCreate}
           onEdit={onEdit}
+          onRescheduled={onRescheduled}
           onNavigateToDate={onNavigateToDate}
           onRefresh={onRefresh}
         />

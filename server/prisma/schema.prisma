@@ -25,6 +25,7 @@ model User {
 
   appointments Appointment[] @relation("AdminAppointments")
   employee     Employee?
+  supervisedEmployees Employee[] @relation("SupervisedEmployees")
 }
 
 model Client {
@@ -39,16 +40,18 @@ model Client {
 }
 
 model Employee {
-  id           Int                        @id @default(autoincrement())
-  name         String                     @unique
-  number       String
-  notes        String?
-  experienced  Boolean                    @default(false)
-  disabled     Boolean                    @default(false)
-  userId       Int?                       @unique
-  user         User?                      @relation(fields: [userId], references: [id])
-  appointments Appointment[]              @relation("AppointmentEmployees")
-  schedule     Schedule?
+  id            Int                        @id @default(autoincrement())
+  name          String                     @unique
+  number        String
+  notes         String?
+  experienced   Boolean                    @default(false)
+  disabled      Boolean                    @default(false)
+  userId        Int?                       @unique
+  user          User?                      @relation(fields: [userId], references: [id])
+  supervisorId  Int?
+  supervisor    User?                      @relation("SupervisedEmployees", fields: [supervisorId], references: [id], onDelete: SetNull)
+  appointments  Appointment[]              @relation("AppointmentEmployees")
+  schedule      Schedule?
 
   prevBalance  Float                      @default(0)
   lastPaidAt   DateTime?
@@ -72,6 +75,7 @@ model Appointment {
   address         String
   cityStateZip    String?
   size            String?
+  teamSize        Int             @default(1)
   hours           Int?
   price           Float?
   paid            Boolean         @default(false)
@@ -90,6 +94,7 @@ model Appointment {
   doorCode        String?
   buildingNumber  String?
   notes           String?
+  payrollNote     String?         // Pay note from Team Options (per appointment only)
   aiCreated       Boolean         @default(false)
   familyId        Int?
   family          RecurrenceFamily? @relation(fields: [familyId], references: [id], onDelete: SetNull)
@@ -120,6 +125,7 @@ model AppointmentTemplate {
   templateName      String
   type              AppointmentType
   size              String
+  teamSize          Int                @default(1)
   address           String
   cityStateZip      String?
   price             Float
@@ -178,6 +184,7 @@ enum Role {
   EMPLOYEE
   ADMIN
   OWNER
+  SUPERVISOR
 }
 
 enum AppointmentStatus {
@@ -215,12 +222,15 @@ model Invoice {
 }
 
 model PayrollItem {
-  id            Int          @id @default(autoincrement())
-  appointmentId Int
-  employeeId    Int
-  paid          Boolean      @default(false)
-  paymentId     Int?
-  extras        ManualPayrollItem[] @relation("ExtraItems")
+  id              Int          @id @default(autoincrement())
+  appointmentId   Int
+  employeeId      Int
+  amount          Float?       // override base pay; if null, computed from type/size/count
+  confirmed       Boolean      @default(false) // employee has confirmed this job (Upcoming Jobs)
+  reminderSentAt  DateTime?    // when we sent the employee an SMS about this unconfirmed job (within 14 days)
+  paid            Boolean      @default(false)
+  paymentId       Int?
+  extras          ManualPayrollItem[] @relation("ExtraItems")
 
   appointment   Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   employee      Employee     @relation("EmployeePayrollItems", fields: [employeeId], references: [id], onDelete: Cascade)
@@ -255,13 +265,31 @@ model ManualPayrollItem {
 }
 
 model Schedule {
-  id             Int      @id @default(autoincrement())
-  employeeId     Int      @unique
-  futureSchedule String[] @default([])
-  pastSchedule   String[] @default([])
-  employeeUpdate DateTime? @default(now())
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                      Int       @id @default(autoincrement())
+  employeeId              Int       @unique
+  futureSchedule          String[]  @default([])
+  pastSchedule            String[]  @default([])
+  employeeUpdate          DateTime? @default(now())
+  nextScheduleUpdateDueAt DateTime? // date (start of day) by which employee must update; when they update we set to next policy day
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee                Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// Admin-only: projected team size for days more than 14 days from today (used for capacity display; future: enforce at booking).
+model ScheduleProjection {
+  id          Int      @id @default(autoincrement())
+  amTeamSize  Int      @default(0)
+  pmTeamSize  Int      @default(0)
+  updatedAt   DateTime @updatedAt
+}
+
+// Global schedule reminder policy (single row, id=1). Days are counted after missing the update day (day 1 = first day after update day).
+model SchedulePolicy {
+  id                       Int   @id @default(autoincrement())
+  updateDayOfWeek          Int   @default(0)   // 0=Sunday..6=Saturday – day by which employees should update
+  supervisorNotifyAfterDays Int   @default(4)  // from this day past the update day, also notify supervisor
+  stopRemindingAfterDays   Int   @default(7)   // stop all reminders after this many days past the update day
+  updatedAt                DateTime @updatedAt
 }

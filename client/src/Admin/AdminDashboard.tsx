@@ -1,4 +1,5 @@
 import { Link, Routes, Route, useNavigate } from 'react-router-dom'
+import { isDevToolsEnabled } from '../devTools'
 import Home from './pages/Home'
 import Calendar from './pages/Calendar'
 import Clients from './pages/Clients'
@@ -7,14 +8,18 @@ import Financing from './pages/Financing'
 import Recurring from './pages/Recurring'
 import DevTools from './pages/DevTools'
 
+type Role = 'ADMIN' | 'OWNER' | 'EMPLOYEE'
+
 interface Props {
   onLogout: () => void
+  onSwitchRole?: (role: Role, userName?: string) => void
 }
 
-export default function AdminDashboard({ onLogout }: Props) {
+export default function AdminDashboard({ onLogout, onSwitchRole }: Props) {
   const navigate = useNavigate()
   const isSafe = localStorage.getItem('safe') === 'true'
   const signOut = () => {
+    if (!window.confirm('Are you sure you want to sign out?')) return
     localStorage.removeItem('role')
     localStorage.removeItem('safe')
     localStorage.removeItem('userName')
@@ -33,7 +38,7 @@ export default function AdminDashboard({ onLogout }: Props) {
           <li><Link className="px-2 py-1" to="/dashboard/clients">Clients</Link></li>
           <li><Link className="px-2 py-1" to="/dashboard/employees">Employees</Link></li>
           <li><Link className="px-2 py-1" to="/dashboard/financing">Financing</Link></li>
-          {import.meta.env.VITE_ENABLE_DEVTOOLS === 'true' && (
+          {isDevToolsEnabled && (
             <li><Link className="px-2 py-1" to="/dashboard/devtools">DevTools</Link></li>
           )}
           {!isSafe && (
@@ -53,8 +58,8 @@ export default function AdminDashboard({ onLogout }: Props) {
           <Route path="employees/*" element={<Employees />} />
           <Route path="financing/*" element={<Financing />} />
           <Route path="recurring/*" element={<Recurring />} />
-          {import.meta.env.VITE_ENABLE_DEVTOOLS === 'true' && (
-            <Route path="devtools" element={<DevTools />} />
+          {isDevToolsEnabled && (
+            <Route path="devtools" element={<DevTools onSwitchRole={onSwitchRole} />} />
           )}
         </Routes>
       </main>

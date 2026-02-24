@@ -445,6 +445,7 @@ import templatesRoutes from './routes/templates'
 import { setupScheduleCleanupJob } from './jobs/scheduleCleanup'
 // import { setupScheduleReminderJob } from './jobs/scheduleReminder'
 import { setupAppointmentReminderJob } from './jobs/appointmentReminder'
+import { setupUnconfirmedCheckJob, setupNoonEmployeeReminderJob } from './jobs/unconfirmedCheck'
 import appointmentsRoutes from './routes/appointments'
 import recurringRoutes from './routes/recurring'
 import invoicesRoutes from './routes/invoices'
@@ -471,6 +472,8 @@ app.use('/', aiAppointmentRoutes)
 setupScheduleCleanupJob()
 // setupScheduleReminderJob() // COMMENTED OUT: Schedule reminder cron job disabled
 setupAppointmentReminderJob()
+setupUnconfirmedCheckJob()
+setupNoonEmployeeReminderJob()
 
 // 404 handler for unmatched routes
 app.use((_req: Request, res: Response) => {

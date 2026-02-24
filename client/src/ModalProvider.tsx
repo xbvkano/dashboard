@@ -34,36 +34,49 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       {modal &&
         createPortal(
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10010]"
             onClick={() => close(modal.type === 'confirm' ? false : undefined)}
           >
             <div
-              className="bg-white p-4 rounded max-w-sm w-full"
+              className="bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-sm w-full overflow-hidden max-h-[90vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              <p className="mb-4 whitespace-pre-line">{modal.message}</p>
-              {modal.type === 'alert' ? (
-                <div className="text-right">
-                  <button
-                    className="px-4 py-1 bg-blue-500 text-white rounded"
-                    onClick={() => close(undefined)}
-                  >
-                    OK
-                  </button>
-                </div>
-              ) : (
-                <div className="flex justify-end gap-2">
-                  <button className="px-4 py-1" onClick={() => close(false)}>
-                    Cancel
-                  </button>
-                  <button
-                    className="px-4 py-1 bg-blue-500 text-white rounded"
-                    onClick={() => close(true)}
-                  >
-                    OK
-                  </button>
-                </div>
-              )}
+              <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 shrink-0">
+                <h3 className="text-lg font-semibold text-slate-800">
+                  {modal.type === 'alert' ? 'Notice' : 'Confirm'}
+                </h3>
+              </div>
+              <div className="p-4 overflow-y-auto min-h-0 flex-1">
+                <p className="text-sm text-slate-600 whitespace-pre-line mb-4">{modal.message}</p>
+                {modal.type === 'alert' ? (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      className="px-4 py-2 text-sm font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                      onClick={() => close(undefined)}
+                    >
+                      OK
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      className="px-4 py-2 text-sm font-medium bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors"
+                      onClick={() => close(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="px-4 py-2 text-sm font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                      onClick={() => close(true)}
+                    >
+                      OK
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>,
           document.body,

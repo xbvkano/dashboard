@@ -3,6 +3,7 @@ import {
   calculateAppointmentHours,
   calculatePayRate,
   calculateCarpetRate,
+  getSlotFromTime,
 } from '../../src/utils/appointmentUtils'
 
 describe('appointmentUtils', () => {
@@ -125,6 +126,23 @@ describe('appointmentUtils', () => {
     })
     it('returns 0 when size cannot be parsed', () => {
       expect(calculateCarpetRate('invalid', 5)).toBe(0)
+    })
+  })
+
+  describe('getSlotFromTime', () => {
+    it('returns M (AM) for times before 2pm', () => {
+      expect(getSlotFromTime('08:00')).toBe('M')
+      expect(getSlotFromTime('09:30')).toBe('M')
+      expect(getSlotFromTime('13:59')).toBe('M')
+    })
+    it('returns A (PM) for 2pm and after', () => {
+      expect(getSlotFromTime('14:00')).toBe('A')
+      expect(getSlotFromTime('17:00')).toBe('A')
+    })
+    it('returns M for empty or invalid time', () => {
+      expect(getSlotFromTime('')).toBe('M')
+      expect(getSlotFromTime(null as any)).toBe('M')
+      expect(getSlotFromTime(undefined as any)).toBe('M')
     })
   })
 })

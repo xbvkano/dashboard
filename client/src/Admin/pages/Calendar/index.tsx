@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { API_BASE_URL, fetchJson } from '../../../api'
+import type { Appointment } from './types'
 import { useCalendarState } from './hooks/useCalendarState'
 import { useCalendarData } from './hooks/useCalendarData'
 import { useCalendarActions } from './hooks/useCalendarActions'
@@ -45,7 +48,7 @@ export default function Calendar() {
     setAppointments
   )
 
-  const { handleUpdate, handleCreateFrom, handleEdit, handleCreated } = useCalendarActions(
+  const { handleUpdate, handleCreateFrom, handleEdit, handleCreated, handleRescheduled } = useCalendarActions(
     setCreateParams,
     setRescheduleOldId,
     setDeleteOldId,
@@ -54,6 +57,35 @@ export default function Calendar() {
     refreshWeekCounts,
     setSelected
   )
+
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Open create modal from Schedule "Book Again" link (bookAgain=appointmentId)
+  useEffect(() => {
+    const bookAgainId = searchParams.get('bookAgain')
+    if (!bookAgainId) return
+    const id = parseInt(bookAgainId, 10)
+    if (Number.isNaN(id)) return
+    let cancelled = false
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('bookAgain')
+      return next
+    })
+    fetchJson(`${API_BASE_URL}/appointments/${id}`)
+      .then((appt: Appointment) => {
+        if (cancelled || !appt) return
+        const dateStr = appt.date
+        const parts = dateStr.split('-')
+        if (parts.length === 3) {
+          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
+          if (!isNaN(d.getTime())) setSelected(d)
+        }
+        handleCreateFrom(appt, 'APPOINTED')
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [searchParams])
 
   const weekStart = startOfWeek(selected)
   const days = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i))
@@ -153,6 +185,7 @@ export default function Calendar() {
           onUpdate={handleUpdate}
           onCreate={(appt, status) => handleCreateFrom(appt, status)}
           onEdit={handleEdit}
+          onRescheduled={handleRescheduled}
           onNavigateToDate={(date) => {
             setSelected(date)
             refresh()
@@ -198,6 +231,7 @@ export default function Calendar() {
           initialTemplateId={createParams.templateId ?? undefined}
           newStatus={createParams.status}
           initialAppointment={createParams.appointment}
+          initialTime={createParams.initialTime}
         />
       )}
     </div>

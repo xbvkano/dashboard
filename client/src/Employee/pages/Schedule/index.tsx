@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
-import { API_BASE_URL, fetchJson } from '../../../api'
+import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
+import { API_BASE_URL } from '../../../api'
+import { useEmployeeLanguage } from '../../EmployeeLanguageContext'
 
 type DayShifts = {
   morning: boolean
@@ -119,6 +122,151 @@ function scheduleToDayShifts(futureSchedule: string[]): Record<string, DayShifts
   return result
 }
 
+// Get new additions: shifts in schedule that are not in savedSchedule, grouped by date
+function getNewAdditionsGrouped(
+  schedule: Record<string, DayShifts>,
+  savedSchedule: Record<string, DayShifts>
+): Array<{ dateStr: string; shifts: ('morning' | 'afternoon')[] }> {
+  const byDate: Record<string, ('morning' | 'afternoon')[]> = {}
+  Object.entries(schedule).forEach(([dateStr, shifts]) => {
+    const saved = savedSchedule[dateStr]
+    const savedMorning = saved?.morning && saved.morningStatus != null
+    const savedAfternoon = saved?.afternoon && saved.afternoonStatus != null
+    const adds: ('morning' | 'afternoon')[] = []
+    if (shifts.morning && !savedMorning) adds.push('morning')
+    if (shifts.afternoon && !savedAfternoon) adds.push('afternoon')
+    if (adds.length > 0) {
+      byDate[dateStr] = adds
+    }
+  })
+  return Object.entries(byDate)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dateStr, shifts]) => ({ dateStr, shifts }))
+}
+
+type SchedulePolicy = { updateDayOfWeek: number; supervisorNotifyAfterDays: number; stopRemindingAfterDays: number }
+
+const SCHEDULE_INFO_IDS = {
+  open: 'schedule-info-open',
+  selected: 'schedule-info-selected',
+  availability: 'schedule-info-availability',
+  unconfirmed: 'schedule-info-unconfirmed',
+  scheduled: 'schedule-info-scheduled',
+  policy: 'schedule-info-policy',
+} as const
+
+export type ScheduleInfoKey = keyof typeof SCHEDULE_INFO_IDS
+
+function InformationSection({
+  policy,
+  nextUpdateDueDateFormatted,
+  isOpen,
+  onOpenChange,
+  scrollToKey,
+  onScrolledToKey,
+}: {
+  policy: SchedulePolicy | null
+  nextUpdateDueDateFormatted: string | null
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+  scrollToKey: ScheduleInfoKey | null
+  onScrolledToKey: () => void
+}) {
+  const { t } = useEmployeeLanguage()
+  const updateDayName = t.dayNamesLong?.[policy?.updateDayOfWeek ?? 0] ?? String(policy?.updateDayOfWeek ?? '')
+  const policySummaryText = policy
+    ? t.policySummary
+        .replace('{updateDay}', updateDayName)
+        .replace('{supervisorDays}', String(policy.supervisorNotifyAfterDays))
+        .replace('{stopDays}', String(policy.stopRemindingAfterDays))
+    : t.policySummary
+        .replace('{updateDay}', t.policyUpdateDayPlaceholder)
+        .replace('{supervisorDays}', t.policySupervisorDaysPlaceholder)
+        .replace('{stopDays}', t.policyStopDaysPlaceholder)
+
+  useEffect(() => {
+    if (!isOpen || !scrollToKey) return
+    const id = SCHEDULE_INFO_IDS[scrollToKey]
+    const el = document.getElementById(id)
+    if (el) {
+      const t = setTimeout(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        onScrolledToKey()
+      }, 100)
+      return () => clearTimeout(t)
+    }
+    onScrolledToKey()
+  }, [isOpen, scrollToKey, onScrolledToKey])
+
+  return (
+    <div className="mb-5 border border-slate-200 rounded-xl overflow-hidden bg-white">
+      <button
+        type="button"
+        onClick={() => onOpenChange(!isOpen)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+      >
+        <span>{t.information}</span>
+        <svg
+          className={`w-5 h-5 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {isOpen && (
+        <div className="px-4 pb-4 pt-0 text-sm text-slate-600 space-y-4 border-t border-slate-100">
+          <div id={SCHEDULE_INFO_IDS.open}>
+            <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
+              <span className="w-4 h-4 bg-slate-100 rounded border border-slate-300 shrink-0 inline-block" />
+              {t.open}
+            </h4>
+            <p>{t.openDesc}</p>
+          </div>
+          <div id={SCHEDULE_INFO_IDS.selected}>
+            <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
+              <span className="w-4 h-4 bg-blue-500 rounded border border-blue-600 shrink-0 inline-block" />
+              {t.selectedNotSaved}
+            </h4>
+            <p>{t.selectedNotSavedDesc}</p>
+          </div>
+          <div id={SCHEDULE_INFO_IDS.availability}>
+            <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
+              <span className="w-4 h-4 bg-violet-600 rounded border border-violet-700 shrink-0 inline-block" />
+              {t.availability}
+            </h4>
+            <p>{t.availabilityDesc}</p>
+          </div>
+          <div id={SCHEDULE_INFO_IDS.unconfirmed}>
+            <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
+              <span className="w-4 h-4 bg-amber-500 rounded border border-amber-600 shrink-0 inline-block" />
+              {t.legendUnconfirmed}
+            </h4>
+            <p>{t.unconfirmedDesc}</p>
+          </div>
+          <div id={SCHEDULE_INFO_IDS.scheduled}>
+            <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
+              <span className="w-4 h-4 bg-emerald-600 rounded border border-emerald-700 shrink-0 inline-block" />
+              {t.scheduled}
+            </h4>
+            <p>{t.scheduledDesc}</p>
+          </div>
+          <div id={SCHEDULE_INFO_IDS.policy} className="pt-2 border-t border-slate-100">
+            <h4 className="font-semibold text-slate-700 mb-2">{t.scheduleUpdatePolicy}</h4>
+            {nextUpdateDueDateFormatted && (
+              <p className="text-slate-700 font-medium mb-2">
+                {t.policyNextUpdateDate.replace('{date}', nextUpdateDueDateFormatted)}
+              </p>
+            )}
+            <p className="text-slate-600">{policySummaryText}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Convert DayShifts to schedule entries
 function dayShiftsToSchedule(schedule: Record<string, DayShifts>): string[] {
   const entries: string[] = []
@@ -137,6 +285,7 @@ function dayShiftsToSchedule(schedule: Record<string, DayShifts>): string[] {
 }
 
 export default function Schedule() {
+  const { t, locale } = useEmployeeLanguage()
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   
@@ -147,11 +296,75 @@ export default function Schedule() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  const [nextScheduleUpdateDueAt, setNextScheduleUpdateDueAt] = useState<string | null>(null) // YYYY-MM-DD
+  const [schedulePolicy, setSchedulePolicy] = useState<SchedulePolicy | null>(null)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [scheduledByDay, setScheduledByDay] = useState<Record<string, { morning: boolean; afternoon: boolean; morningUnconfirmed?: boolean; afternoonUnconfirmed?: boolean; morningUnconfirmedAppointmentId?: number; afternoonUnconfirmedAppointmentId?: number }>>({})
+  const [unconfirmedGoToJobsModal, setUnconfirmedGoToJobsModal] = useState<{ appointmentId: number } | null>(null)
+  const [infoOpen, setInfoOpen] = useState(false)
+  const [scrollToInfoKey, setScrollToInfoKey] = useState<ScheduleInfoKey | null>(null)
+  const navigate = useNavigate()
 
-  // Load existing schedule
+  function openInfoAtKey(key: ScheduleInfoKey) {
+    setInfoOpen(true)
+    setScrollToInfoKey(key)
+  }
+
+  // Load existing schedule, upcoming appointments, and schedule policy
   useEffect(() => {
     loadSchedule()
+    loadUpcomingAppointments()
+    loadSchedulePolicy()
   }, [])
+
+  async function loadSchedulePolicy() {
+    try {
+      const userName = localStorage.getItem('userName')
+      const headers: HeadersInit = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' }
+      if (userName) headers['x-user-name'] = userName
+      const res = await fetch(`${API_BASE_URL}/employee/schedule-policy`, { headers })
+      if (!res.ok) return
+      const data = await res.json()
+      setSchedulePolicy({
+        updateDayOfWeek: data.updateDayOfWeek ?? 0,
+        supervisorNotifyAfterDays: data.supervisorNotifyAfterDays ?? 4,
+        stopRemindingAfterDays: data.stopRemindingAfterDays ?? 7,
+      })
+    } catch {
+      // ignore
+    }
+  }
+
+  async function loadUpcomingAppointments() {
+    try {
+      const userName = localStorage.getItem('userName')
+      const headers: HeadersInit = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' }
+      if (userName) headers['x-user-name'] = userName
+      const res = await fetch(`${API_BASE_URL}/employee/upcoming-appointments`, { headers })
+      if (!res.ok) return
+      const list = await res.json()
+      const byDay: Record<string, { morning: boolean; afternoon: boolean; morningUnconfirmed?: boolean; afternoonUnconfirmed?: boolean; morningUnconfirmedAppointmentId?: number; afternoonUnconfirmedAppointmentId?: number }> = {}
+      list.forEach((a: { id: number; date: string; block: 'AM' | 'PM'; confirmed?: boolean }) => {
+        if (!byDay[a.date]) byDay[a.date] = { morning: false, afternoon: false }
+        if (a.block === 'AM') {
+          byDay[a.date].morning = true
+          if (a.confirmed === false) {
+            byDay[a.date].morningUnconfirmed = true
+            if (byDay[a.date].morningUnconfirmedAppointmentId == null) byDay[a.date].morningUnconfirmedAppointmentId = a.id
+          }
+        } else {
+          byDay[a.date].afternoon = true
+          if (a.confirmed === false) {
+            byDay[a.date].afternoonUnconfirmed = true
+            if (byDay[a.date].afternoonUnconfirmedAppointmentId == null) byDay[a.date].afternoonUnconfirmedAppointmentId = a.id
+          }
+        }
+      })
+      setScheduledByDay(byDay)
+    } catch {
+      // ignore
+    }
+  }
 
   async function loadSchedule() {
     try {
@@ -163,7 +376,7 @@ export default function Schedule() {
       }
       
       const response = await fetch(`${API_BASE_URL}/employee/schedule`, { headers })
-      if (!response.ok) throw new Error('Failed to load schedule')
+      if (!response.ok) throw new Error(t.failedToLoad)
       const data = await response.json()
       
       if (data?.futureSchedule && Array.isArray(data.futureSchedule)) {
@@ -173,6 +386,12 @@ export default function Schedule() {
       }
       if (data?.employeeUpdate) {
         setLastUpdate(new Date(data.employeeUpdate))
+      }
+      if (data?.nextScheduleUpdateDueAt) {
+        const d = new Date(data.nextScheduleUpdateDueAt)
+        setNextScheduleUpdateDueAt(getDayKey(d))
+      } else {
+        setNextScheduleUpdateDueAt(null)
       }
     } catch (err) {
       console.error('Failed to load schedule:', err)
@@ -219,13 +438,17 @@ export default function Schedule() {
     }))
   }
 
-  async function handleSave() {
+  function handleSaveClick() {
+    setShowConfirmModal(true)
+  }
+
+  async function performSave() {
+    setShowConfirmModal(false)
     try {
       setSaving(true)
       setError('')
       setSuccess('')
       
-      // Allow empty schedule - just update timestamp
       const scheduleEntries = dayShiftsToSchedule(schedule)
       const userName = localStorage.getItem('userName')
       const headers: HeadersInit = { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" }
@@ -241,49 +464,60 @@ export default function Schedule() {
       
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
-        throw new Error(err.error || 'Failed to save schedule')
+        throw new Error(err.error || t.failedToSave)
       }
       
-      setSuccess('Schedule saved successfully!')
+      setSuccess(t.scheduleSaved)
       setTimeout(() => setSuccess(''), 3000)
-      // Reload schedule to update savedSchedule state and lastUpdate
       await loadSchedule()
     } catch (err: any) {
-      setError(err.message || 'Failed to save schedule')
+      setError(err.message || t.failedToSave)
     } finally {
       setSaving(false)
     }
   }
   
-  function getDaysSinceUpdate(): number | null {
-    if (!lastUpdate) return null
+  const DAY_MS = 86400000
+  function getDaysPastDue(): number | null {
+    if (!schedulePolicy) return null
     const now = new Date()
-    const diffTime = now.getTime() - lastUpdate.getTime()
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
-  }
-  
-  function formatDaysSinceUpdate(): string {
-    const days = getDaysSinceUpdate()
-    if (days === null) return 'Never updated'
-    if (days === 0) return 'Updated today'
-    if (days === 1) return 'Updated 1 day ago'
-    return `Updated ${days} days ago`
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    if (nextScheduleUpdateDueAt) {
+      const [y, m, d] = nextScheduleUpdateDueAt.split('-').map(Number)
+      const dueDate = new Date(y, m - 1, d).getTime()
+      if (todayStart <= dueDate) return null
+      return Math.floor((todayStart - dueDate) / DAY_MS)
+    }
+    const lastDue = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    while (lastDue.getDay() !== schedulePolicy.updateDayOfWeek) {
+      lastDue.setDate(lastDue.getDate() - 1)
+    }
+    const lastDueStart = lastDue.getTime()
+    if (lastUpdate) {
+      const lastUpdateStart = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate()).getTime()
+      if (lastUpdateStart >= lastDueStart) return null
+    }
+    return Math.floor((todayStart - lastDueStart) / DAY_MS)
   }
 
+  const daysPastDue = getDaysPastDue()
+  const showUpdateReminder = schedulePolicy && daysPastDue != null && daysPastDue >= 1 && daysPastDue <= schedulePolicy.stopRemindingAfterDays
+  const updateDayName = schedulePolicy != null ? (t.dayNamesLong?.[schedulePolicy.updateDayOfWeek] ?? '') : ''
 
   function getDayStyle(date: Date): string {
+    const key = getDayKey(date)
+    const isUpdateDueDate = nextScheduleUpdateDueAt != null && key === nextScheduleUpdateDueAt
     if (isBefore(date, today)) {
-      return 'bg-gray-200 text-gray-400'
+      return isUpdateDueDate ? 'bg-slate-200 text-slate-400 ring-2 ring-amber-500 ring-inset' : 'bg-slate-200 text-slate-400'
     }
     if (isSameDay(date, today)) {
-      return 'bg-blue-100 text-blue-900'
+      return isUpdateDueDate ? 'bg-blue-100 text-blue-900 ring-2 ring-amber-500 ring-inset' : 'bg-blue-100 text-blue-900'
     }
     const daysDiff = Math.floor((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     if (daysDiff >= 1 && daysDiff <= 14) {
-      return 'bg-yellow-50 text-yellow-900'
+      return isUpdateDueDate ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-500' : 'bg-amber-50 text-amber-900'
     }
-    return 'bg-white text-gray-900'
+    return isUpdateDueDate ? 'bg-amber-50 text-amber-900 ring-2 ring-amber-500' : 'bg-white text-slate-900'
   }
 
   function canSelect(date: Date): boolean {
@@ -324,119 +558,178 @@ export default function Schedule() {
   // Flatten weeks for grid display
   const days = weeks.flat()
   
-  const monthName = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const monthName = today.toLocaleDateString(locale, { month: 'long', year: 'numeric' })
   const hasNextMonthDays = daysFromToday.some(d => d.isNextMonth)
+
+  const newAdditionsGrouped = getNewAdditionsGrouped(schedule, savedSchedule)
+  const formatDateDisplay = (dateStr: string) => {
+    const [y, m, d] = dateStr.split('-')
+    const date = new Date(parseInt(y), parseInt(m) - 1, parseInt(d))
+    return date.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' })
+  }
 
   if (loading) {
     return (
-      <div className="p-4">
-        <h2 className="text-xl font-semibold mb-4">Schedule</h2>
-        <div className="text-center text-gray-500">Loading...</div>
+      <div className="flex flex-col items-center justify-center min-h-[40vh]">
+        <h1 className="text-xl font-semibold text-slate-800 mb-2">{t.mySchedule}</h1>
+        <div className="text-slate-500">{t.loading}</div>
       </div>
     )
   }
 
-  const daysSinceUpdate = getDaysSinceUpdate()
-  const updateColor = daysSinceUpdate !== null && daysSinceUpdate >= 7 ? 'text-orange-600' : 'text-green-600'
-
   return (
-    <div className="p-4 pb-24">
-      <h2 className="text-xl font-semibold mb-4">Schedule</h2>
+    <div className="pb-16 md:pb-4">
+      <h1 className="text-xl md:text-2xl font-semibold text-slate-800 mb-1">{t.mySchedule}</h1>
+      <p className="text-sm text-slate-500 mb-4">{t.subtitle}</p>
       
-      {/* Last Update Display */}
-      {lastUpdate && (
-        <div className={`mb-4 text-sm font-medium ${updateColor}`}>
-          {formatDaysSinceUpdate()}
-        </div>
-      )}
-      
-      {/* Header */}
-      <div className="flex items-center justify-center mb-4">
-        <h3 className="text-lg font-medium">{monthName}</h3>
-        {hasNextMonthDays && (
-          <span className="ml-2 text-sm text-gray-500">
-            (Next 14 days)
-          </span>
-        )}
+      {/* Information dropdown */}
+      <InformationSection
+        policy={schedulePolicy}
+        nextUpdateDueDateFormatted={
+          nextScheduleUpdateDueAt
+            ? (() => {
+                const [y, m, d] = nextScheduleUpdateDueAt.split('-').map(Number)
+                return new Date(y, m - 1, d).toLocaleDateString(locale, {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+              })()
+            : null
+        }
+        isOpen={infoOpen}
+        onOpenChange={setInfoOpen}
+        scrollToKey={scrollToInfoKey}
+        onScrolledToKey={() => setScrollToInfoKey(null)}
+      />
+
+      {/* Supervisor note */}
+      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+        <strong>{t.removeAvailabilityNote}</strong>
       </div>
 
-      {/* Calendar Grid */}
-      <div className="mb-6">
-        {/* Day headers */}
-        <div className="grid grid-cols-7 gap-1 mb-1">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="text-center text-xs font-medium text-gray-600 p-1">
-              {day}
+      {/* Schedule update reminder (when policy says they should update) */}
+      {showUpdateReminder && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm font-medium text-amber-800">
+          {t.scheduleUpdateReminder.replace('{updateDay}', updateDayName)}
+        </div>
+      )}
+
+      {/* Calendar card */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-5">
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+          <h2 className="text-base font-medium text-slate-700">{monthName}</h2>
+          {hasNextMonthDays && (
+            <span className="text-xs text-slate-500 ml-1">{t.next14Days}</span>
+          )}
+        </div>
+
+        {/* Day headers - columns stay equal width and don't overflow */}
+        <div className="grid grid-cols-7 gap-0.5 md:gap-1 px-2 pt-2 min-w-0" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
+          {t.weekdays.map(day => (
+            <div key={day} className="text-center text-[10px] md:text-xs font-semibold text-slate-500 py-1 min-w-0 truncate">
+              {day.slice(0, 2)}
             </div>
           ))}
         </div>
 
-        {/* Calendar days */}
-        <div className="grid grid-cols-7 gap-1">
+        {/* Calendar days - fixed column width on mobile so nothing spills; extra min-height for tap targets */}
+        <div className="grid grid-cols-7 gap-0.5 md:gap-1 p-2 min-w-0" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
           {days.map((date, idx) => {
             if (!date) {
-              return <div key={idx} className="aspect-square" />
+              return <div key={idx} className="min-h-[5.5rem] md:min-h-[3.5rem] min-w-0" />
             }
             
             const key = getDayKey(date)
             const daySchedule = schedule[key] || { morning: false, afternoon: false }
             const canSelectDay = canSelect(date)
             const isNextMonth = (date as any).isNextMonth
+            const scheduledMorning = scheduledByDay[key]?.morning ?? false
+            const scheduledAfternoon = scheduledByDay[key]?.afternoon ?? false
+            const unconfirmedMorning = scheduledByDay[key]?.morningUnconfirmed ?? false
+            const unconfirmedAfternoon = scheduledByDay[key]?.afternoonUnconfirmed ?? false
             
             return (
               <div
                 key={idx}
-                className={`aspect-square border rounded p-1 flex flex-col ${getDayStyle(date)} ${
-                  isNextMonth ? 'border-dashed border-gray-400' : 'border-gray-300'
-                }`}
+                className={`min-h-[5.5rem] md:min-h-[3.5rem] md:aspect-square border rounded-lg p-0.5 md:p-1 flex flex-col transition-colors min-w-0 overflow-hidden ${
+                  isNextMonth ? 'border-dashed border-slate-300' : 'border-slate-200'
+                } ${getDayStyle(date)}`}
               >
-                <div className="text-xs font-medium mb-1 text-center flex items-center justify-center gap-1">
+                <div className="text-[10px] md:text-xs font-semibold mb-0.5 text-center flex items-center justify-center gap-0.5 min-w-0 shrink-0">
                   <span>{date.getDate()}</span>
                   {isNextMonth && (
-                    <span className="text-[8px] text-gray-500 font-normal">→</span>
+                    <span className="text-[8px] text-slate-400 font-normal hidden sm:inline">→</span>
                   )}
                 </div>
                 {isNextMonth && (
-                  <div className="text-[8px] text-gray-500 text-center mb-0.5">
-                    {date.toLocaleDateString('en-US', { month: 'short' })}
+                  <div className="text-[8px] text-slate-500 text-center mb-0.5 hidden sm:block">
+                    {date.toLocaleDateString(locale, { month: 'short' })}
                   </div>
                 )}
                 {canSelectDay ? (
-                  <div className="flex-1 flex flex-col gap-1">
+                  <div className="flex-1 flex flex-col gap-0.5 md:gap-1 min-h-0 min-w-0">
                     <button
-                      onClick={() => toggleShift(date, 'morning')}
-                      disabled={savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null}
-                      className={`flex-1 text-[10px] rounded px-1 py-0.5 font-medium transition-colors ${
-                        savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null
-                          ? savedSchedule[key]?.morningStatus === 'F'
-                            ? 'bg-green-600 text-white cursor-not-allowed'
-                            : 'bg-purple-600 text-white cursor-not-allowed'
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (unconfirmedMorning && scheduledByDay[key]?.morningUnconfirmedAppointmentId != null) {
+                          setUnconfirmedGoToJobsModal({ appointmentId: scheduledByDay[key].morningUnconfirmedAppointmentId! })
+                          return
+                        }
+                        toggleShift(date, 'morning')
+                      }}
+                      disabled={savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null && !unconfirmedMorning}
+                      className={`flex-1 min-h-[28px] md:min-h-[22px] min-w-0 text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
+                        unconfirmedMorning
+                          ? 'bg-amber-500 text-white cursor-pointer'
+                          : scheduledMorning
+                          ? 'bg-emerald-600 text-white cursor-default'
+                          : savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null
+                          ? savedSchedule[key]?.morningStatus === 'B'
+                            ? 'bg-emerald-600 text-white cursor-not-allowed'
+                            : 'bg-violet-600 text-white cursor-not-allowed'
                           : daySchedule.morning
-                          ? 'bg-blue-400 text-white'
-                          : 'bg-gray-100 hover:bg-gray-200 active:bg-gray-300'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300'
                       }`}
                     >
                       AM
                     </button>
                     <button
-                      onClick={() => toggleShift(date, 'afternoon')}
-                      disabled={savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null}
-                      className={`flex-1 text-[10px] rounded px-1 py-0.5 font-medium transition-colors ${
-                        savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null
-                          ? savedSchedule[key]?.afternoonStatus === 'F'
-                            ? 'bg-green-600 text-white cursor-not-allowed'
-                            : 'bg-purple-600 text-white cursor-not-allowed'
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (unconfirmedAfternoon && scheduledByDay[key]?.afternoonUnconfirmedAppointmentId != null) {
+                          setUnconfirmedGoToJobsModal({ appointmentId: scheduledByDay[key].afternoonUnconfirmedAppointmentId! })
+                          return
+                        }
+                        toggleShift(date, 'afternoon')
+                      }}
+                      disabled={savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null && !unconfirmedAfternoon}
+                      className={`flex-1 min-h-[28px] md:min-h-[22px] min-w-0 text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
+                        unconfirmedAfternoon
+                          ? 'bg-amber-500 text-white cursor-pointer'
+                          : scheduledAfternoon
+                          ? 'bg-emerald-600 text-white cursor-default'
+                          : savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null
+                          ? savedSchedule[key]?.afternoonStatus === 'B'
+                            ? 'bg-emerald-600 text-white cursor-not-allowed'
+                            : 'bg-violet-600 text-white cursor-not-allowed'
                           : daySchedule.afternoon
-                          ? 'bg-blue-400 text-white'
-                          : 'bg-gray-100 hover:bg-gray-200 active:bg-gray-300'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300'
                       }`}
                     >
                       PM
                     </button>
                   </div>
                 ) : (
-                  <div className="flex-1 flex flex-col gap-1 justify-center items-center">
-                    <div className="text-[9px] text-gray-400">Today</div>
+                  <div className="flex-1 flex items-center justify-center">
+                    <span className="text-[9px] text-slate-400">{t.today}</span>
                   </div>
                 )}
               </div>
@@ -445,48 +738,188 @@ export default function Schedule() {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="mb-4 text-xs text-gray-600 space-y-1.5">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-gray-200 rounded border border-gray-300"></div>
-          <span>Past days</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-blue-100 rounded border border-gray-300"></div>
-          <span>Today</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-yellow-50 rounded border border-gray-300"></div>
-          <span>Next 14 days</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-white rounded border border-gray-300"></div>
-          <span>Future</span>
-        </div>
+      {/* Legend - click to open information at that key */}
+      <div className="mb-5 flex flex-wrap gap-4 text-xs text-slate-600">
+        <button
+          type="button"
+          onClick={() => openInfoAtKey('open')}
+          className="flex items-center gap-2 hover:text-slate-800 hover:underline focus:outline-none focus:underline"
+        >
+          <div className="w-4 h-4 bg-slate-100 rounded border border-slate-300 shrink-0"></div>
+          <span>{t.legendOpen}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => openInfoAtKey('selected')}
+          className="flex items-center gap-2 hover:text-slate-800 hover:underline focus:outline-none focus:underline"
+        >
+          <div className="w-4 h-4 bg-blue-500 rounded border border-blue-600 shrink-0"></div>
+          <span>{t.legendSelected}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => openInfoAtKey('availability')}
+          className="flex items-center gap-2 hover:text-slate-800 hover:underline focus:outline-none focus:underline"
+        >
+          <div className="w-4 h-4 bg-violet-600 rounded border border-violet-700 shrink-0"></div>
+          <span>{t.legendAvailability}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => openInfoAtKey('unconfirmed')}
+          className="flex items-center gap-2 hover:text-slate-800 hover:underline focus:outline-none focus:underline"
+        >
+          <div className="w-4 h-4 bg-amber-500 rounded border border-amber-600 shrink-0"></div>
+          <span>{t.legendUnconfirmed}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => openInfoAtKey('scheduled')}
+          className="flex items-center gap-2 hover:text-slate-800 hover:underline focus:outline-none focus:underline"
+        >
+          <div className="w-4 h-4 bg-emerald-600 rounded border border-emerald-700 shrink-0"></div>
+          <span>{t.legendScheduled}</span>
+        </button>
+        {nextScheduleUpdateDueAt && (
+          <button
+            type="button"
+            onClick={() => openInfoAtKey('policy')}
+            className="flex items-center gap-2 hover:text-slate-800 hover:underline focus:outline-none focus:underline"
+          >
+            <div className="w-4 h-4 rounded border-2 border-amber-500 bg-amber-50 shrink-0"></div>
+            <span>{t.legendUpdateDueDate}</span>
+          </button>
+        )}
       </div>
 
       {/* Messages */}
       {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm">
+        <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-lg text-sm border border-red-100">
           {error}
         </div>
       )}
       {success && (
-        <div className="mb-4 p-3 bg-green-100 text-green-700 rounded text-sm">
+        <div className="mb-4 p-4 bg-emerald-50 text-emerald-700 rounded-lg text-sm border border-emerald-100">
           {success}
         </div>
       )}
 
-      {/* Action Buttons */}
-      <div className="flex gap-3">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex-1 px-4 py-3 bg-blue-500 text-white rounded font-medium hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {saving ? 'Saving...' : 'Save Schedule'}
-        </button>
-      </div>
+      {/* Save Button */}
+      <button
+        onClick={handleSaveClick}
+        disabled={saving}
+        className="w-full px-4 py-3.5 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+      >
+        {saving ? t.saving : t.saveSchedule}
+      </button>
+
+      {/* Confirmation Modal - centered on all screen sizes */}
+      {showConfirmModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 modal-safe-area"
+            onClick={() => setShowConfirmModal(false)}
+          >
+            <div
+              className="bg-white w-full max-w-md rounded-2xl shadow-xl max-h-[85vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-5 sm:p-6">
+                <h3 className="text-lg font-semibold text-slate-800 mb-3">{t.confirmSaveTitle}</h3>
+                
+                {newAdditionsGrouped.length > 0 ? (
+                  <>
+                    <p className="text-sm text-slate-600 mb-3">{t.addingAvailability}</p>
+                    <ul className="mb-4 space-y-2 max-h-40 overflow-y-auto">
+                      {newAdditionsGrouped.map(({ dateStr, shifts }) => (
+                        <li key={dateStr} className="text-sm flex items-start gap-2">
+                          <span className="font-medium text-slate-800 shrink-0">{formatDateDisplay(dateStr)}</span>
+                          <span className="text-slate-500">—</span>
+                          <span>
+                            {shifts.length === 2
+                              ? t.morningAndAfternoon
+                              : shifts[0] === 'morning'
+                                ? t.morningOnly
+                                : t.afternoonOnly}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-600 mb-4">{t.noNewAvailability}</p>
+                )}
+
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-5">
+                  <p className="text-sm text-amber-800">
+                    <strong>{t.importantNote}</strong>
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowConfirmModal(false)}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    onClick={performSave}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-blue-500 text-white font-semibold hover:bg-blue-600 active:bg-blue-700 transition-colors"
+                  >
+                    {t.saveSchedule}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Unconfirmed job: go to Upcoming Jobs to confirm */}
+      {unconfirmedGoToJobsModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 modal-safe-area"
+            onClick={() => setUnconfirmedGoToJobsModal(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="unconfirmed-goto-jobs-title"
+          >
+            <div
+              className="bg-white w-full max-w-md rounded-2xl shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-5 sm:p-6">
+                <h3 id="unconfirmed-goto-jobs-title" className="text-lg font-semibold text-slate-800 mb-3">
+                  {t.unconfirmedGoToJobsModalTitle}
+                </h3>
+                <p className="text-sm text-slate-600 mb-5">{t.unconfirmedGoToJobsModalMessage}</p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setUnconfirmedGoToJobsModal(null)}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const id = unconfirmedGoToJobsModal.appointmentId
+                      setUnconfirmedGoToJobsModal(null)
+                      navigate(`/dashboard/jobs?highlight=${id}&from=schedule`)
+                    }}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-amber-600 text-white font-semibold hover:bg-amber-700 active:bg-amber-800 transition-colors"
+                  >
+                    {t.unconfirmedGoToJobsModalGo}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

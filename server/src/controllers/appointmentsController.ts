@@ -1,7 +1,8 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
-import { parseSqft, calculatePayRate, calculateCarpetRate } from '../utils/appointmentUtils'
+import { parseSqft, calculatePayRate, calculateCarpetRate, calculateAppointmentHours, getSlotFromTime } from '../utils/appointmentUtils'
 import { jsonToRule, calculateNextAppointmentDate } from '../utils/recurrenceUtils'
+import { sendEmployeeRemindersForAppointmentIds } from '../jobs/unconfirmedCheck'
 import twilio from 'twilio'
 
 const prisma = new PrismaClient()
@@ -29,6 +30,34 @@ function parseDateStringUTC(dateStr: string): Date {
     throw new Error('Invalid date')
   }
   return date
+}
+
+/**
+ * Returns employee IDs that are already scheduled at the given date+time slot (AM/PM).
+ * Excludes appointment excludeAppointmentId when checking (for updates).
+ */
+async function getEmployeesAlreadyInSlot(
+  date: Date,
+  time: string,
+  employeeIds: number[],
+  excludeAppointmentId?: number
+): Promise<number[]> {
+  if (employeeIds.length === 0) return []
+  const slot = getSlotFromTime(time)
+  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+  const endExclusive = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1))
+  const appts = await prisma.appointment.findMany({
+    where: {
+      date: { gte: start, lt: endExclusive },
+      status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+      ...(excludeAppointmentId != null && { id: { not: excludeAppointmentId } }),
+    },
+    select: { time: true, employees: { select: { id: true } } },
+  })
+  const inSlot = appts.filter((a) => getSlotFromTime(a.time ?? '') === slot)
+  const bookedIds = new Set<number>()
+  inSlot.forEach((a) => a.employees.forEach((e) => bookedIds.add(e.id)))
+  return employeeIds.filter((id) => bookedIds.has(id))
 }
 
 export async function syncPayrollItems(apptId: number, employeeIds: number[]) {
@@ -211,6 +240,17 @@ export async function createAppointment(req: Request, res: Response) {
       }
     }
 
+    if (employeeIds.length > 0 && date && time) {
+      const dateObj = parseDateStringUTC(date)
+      const alreadyBooked = await getEmployeesAlreadyInSlot(dateObj, time, employeeIds)
+      if (alreadyBooked.length > 0) {
+        return res.status(409).json({
+          error: 'One or more employees are already scheduled in this time block',
+          employeeIds: alreadyBooked,
+        })
+      }
+    }
+
     const appt = await prisma.appointment.create({
       data: {
         clientId,              // scalar shortcut instead of nested connect
@@ -222,11 +262,12 @@ export async function createAppointment(req: Request, res: Response) {
         address: template.address,
         cityStateZip: template.instructions ?? undefined,
         size: template.size,
-        hours: hours ?? null,
+        teamSize: (template as any).teamSize ?? 1,
+        hours: hours ?? calculateAppointmentHours(template.size, template.type),
         price: template.price,
         paid,
         tip,
-        noTeam,
+        noTeam: false, // Team is assigned via Team Options after creation
         carpetRooms: carpetRoomsFinal,
         carpetPrice: finalCarpetPrice ?? null,
         carpetEmployees,
@@ -255,6 +296,9 @@ export async function createAppointment(req: Request, res: Response) {
 
     if (!noTeam && employeeIds.length) {
       await syncPayrollItems(appt.id, employeeIds)
+      await sendEmployeeRemindersForAppointmentIds([appt.id]).catch((err) =>
+        console.error('Employee reminder send failed:', err)
+      )
     }
 
     return res.json(appt)
@@ -288,6 +332,8 @@ export async function updateAppointment(req: Request, res: Response) {
       observation,
       notes,
       noTeam = false,
+      payrollAmounts,
+      payrollNote,
     } = req.body as {
       clientId?: number
       templateId?: number
@@ -308,6 +354,8 @@ export async function updateAppointment(req: Request, res: Response) {
       observation?: string | null
       notes?: string | null
       noTeam?: boolean
+      payrollAmounts?: Record<number, number>
+      payrollNote?: string | null
     }
     const data: any = {}
     if (clientId !== undefined) data.clientId = clientId
@@ -358,6 +406,7 @@ export async function updateAppointment(req: Request, res: Response) {
     // Handle notes: if notes is explicitly provided, use it; otherwise use paymentMethodNote if provided
     if (notes !== undefined) data.notes = notes
     else if (paymentMethodNote !== undefined) data.notes = paymentMethodNote
+    if (payrollNote !== undefined) data.payrollNote = payrollNote === '' ? null : payrollNote
     if (tip !== undefined) data.tip = tip
     if (noTeam !== undefined) data.noTeam = noTeam
     if (observation !== undefined) data.observation = observation
@@ -377,7 +426,20 @@ export async function updateAppointment(req: Request, res: Response) {
     const future = req.query.future === 'true'
     const current = await prisma.appointment.findUnique({ where: { id }, include: { employees: true, client: true, admin: true, family: true } })
     if (!current) return res.status(404).json({ error: 'Not found' })
-    
+
+    if (employeeIds && employeeIds.length > 0) {
+      const effectiveDate = data.date != null ? data.date : current.date
+      const effectiveTime = data.time != null ? data.time : (current.time ?? '')
+      const dateForCheck = effectiveDate instanceof Date ? effectiveDate : new Date(effectiveDate)
+      const alreadyBooked = await getEmployeesAlreadyInSlot(dateForCheck, effectiveTime, employeeIds, id)
+      if (alreadyBooked.length > 0) {
+        return res.status(409).json({
+          error: 'One or more employees are already scheduled in this time block',
+          employeeIds: alreadyBooked,
+        })
+      }
+    }
+
     // When rescheduling a confirmed recurring appointment, find the new rescheduled appointment
     // and update the family's nextAppointmentDate to reflect where it actually is now.
     // Keep the familyId so the appointment remains part of the family and viewable in calendar.
@@ -529,6 +591,15 @@ export async function updateAppointment(req: Request, res: Response) {
           data: { ...base, date: newDate, time: newTime },
         })
       }
+      // Sync payroll items for all updated appointments when team was set (same as single-appointment path)
+      if (employeeIds && !noTeam) {
+        for (const appt of targets) {
+          await syncPayrollItems(appt.id, employeeIds)
+        }
+        await sendEmployeeRemindersForAppointmentIds(targets.map((t) => t.id)).catch((err) =>
+          console.error('Employee reminder send failed:', err)
+        )
+      }
 
       const appts = await prisma.appointment.findMany({
         where: { lineage: current.lineage, date: { gte: current.date } },
@@ -558,8 +629,30 @@ export async function updateAppointment(req: Request, res: Response) {
         await prisma.payrollItem.deleteMany({ where: { appointmentId: appt.id } })
       } else if (employeeIds && !noTeam) {
         await syncPayrollItems(appt.id, employeeIds)
+        if (payrollAmounts && typeof payrollAmounts === 'object') {
+          const items = await prisma.payrollItem.findMany({ where: { appointmentId: appt.id } })
+          for (const item of items) {
+            const amt = payrollAmounts[item.employeeId]
+            if (typeof amt === 'number') {
+              await prisma.payrollItem.update({ where: { id: item.id }, data: { amount: amt } })
+            }
+          }
+        }
+        await sendEmployeeRemindersForAppointmentIds([appt.id]).catch((err) =>
+          console.error('Employee reminder send failed:', err)
+        )
       }
-      res.json(appt)
+      const updated = await prisma.appointment.findUnique({
+        where: { id: appt.id },
+        include: {
+          client: true,
+          employees: true,
+          admin: true,
+          payrollItems: { include: { extras: true } },
+          family: true,
+        },
+      })
+      res.json(updated ?? appt)
     }
   } catch (e) {
     console.error('Error updating appointment:', e)
@@ -591,7 +684,7 @@ export async function sendAppointmentInfo(req: Request, res: Response) {
       })
     }
 
-    const pay = calculatePayRate(appt.type, appt.size ?? null, appt.employees.length || 1)
+    const defaultPay = calculatePayRate(appt.type, appt.size ?? null, appt.employees.length || 1)
     const carpetIds = appt.carpetEmployees || []
     const carpetPer =
       appt.carpetRooms && appt.size && carpetIds.length
@@ -599,8 +692,9 @@ export async function sendAppointmentInfo(req: Request, res: Response) {
         : 0
 
     for (const e of appt.employees) {
-      const extras =
-        appt.payrollItems.find((p: any) => p.employeeId === e.id)?.extras || []
+      const pi = appt.payrollItems.find((p: any) => p.employeeId === e.id)
+      const pay = pi?.amount != null ? pi.amount : defaultPay
+      const extras = pi?.extras || []
       const extrasTotal = extras.reduce(
         (sum: number, ex: any) => sum + ex.amount,
         0,

@@ -1,4 +1,14 @@
 /**
+ * Map appointment time to AM/PM slot (same as schedule: before 2pm = M, 2pm+ = A).
+ */
+export function getSlotFromTime(timeStr: string): 'M' | 'A' {
+  if (!timeStr || typeof timeStr !== 'string') return 'M'
+  const [h, m] = timeStr.split(':').map((s) => parseInt(s, 10))
+  const minutes = (h ?? 0) * 60 + (m ?? 0)
+  return minutes < 14 * 60 ? 'M' : 'A'
+}
+
+/**
  * Parse square footage from size string
  */
 export function parseSqft(s: string | null | undefined): number | null {

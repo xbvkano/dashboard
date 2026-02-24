@@ -2,31 +2,7 @@ import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { calculateAppointmentHours, parseSqft } from '../utils/appointmentUtils'
 import { normalizePhone } from '../utils/phoneUtils'
-
-/**
- * Convert a specific size value to the appropriate size range for staff options
- */
-function getSizeRange(size: string): string {
-  // Parse the size value (handles both single values and ranges)
-  const sqft = parseSqft(size)
-  if (sqft === null) {
-    return size // Return original if can't parse
-  }
-  
-  // Map specific sizes to standard ranges
-  if (sqft <= 1000) return '0-1000'
-  if (sqft <= 1500) return '1000-1500'
-  if (sqft <= 2000) return '1500-2000'
-  if (sqft <= 2500) return '2000-2500'
-  if (sqft <= 3000) return '2500-3000'
-  if (sqft <= 3500) return '3000-3500'
-  if (sqft <= 4000) return '3500-4000'
-  if (sqft <= 4500) return '4000-4500'
-  if (sqft <= 5000) return '4500-5000'
-  if (sqft <= 5500) return '5000-5500'
-  if (sqft <= 6000) return '5500-6000'
-  return '6000+'
-}
+import { getDefaultTeamSize, getSizeRange } from '../data/teamSizeData'
 
 const prisma = new PrismaClient()
 
@@ -171,7 +147,7 @@ export async function createAIAppointment(req: Request, res: Response) {
       })
     }
 
-    // Map the size to the standard range format for team options compatibility
+    // Map the size to the standard range format
     const mappedSize = getSizeRange(size)
     console.log(`AI Appointment: Mapped size "${size}" to "${mappedSize}" (parsed as ${parsedSize} sqft)`)
 
@@ -188,11 +164,13 @@ export async function createAIAppointment(req: Request, res: Response) {
     if (!template) {
       // Create new template - use provided notes or default AI note
       const templateNotes = (notes !== undefined && notes !== null) ? notes : 'Template created by AI'
+      const defaultTeamSize = getDefaultTeamSize(mappedSize, serviceType)
       template = await prisma.appointmentTemplate.create({
         data: {
           templateName: `AI Template - ${appointmentAddress}`,
           type: serviceType as any,
           size: mappedSize,
+          teamSize: defaultTeamSize,
           address: appointmentAddress,
           price: price,
           notes: templateNotes,
@@ -227,7 +205,8 @@ export async function createAIAppointment(req: Request, res: Response) {
         paid: false,
         paymentMethod: 'CASH',
         tip: 0,
-        noTeam: true, // AI appointments are always no team by default
+        noTeam: false, // Team assigned via Team Options after creation
+        teamSize: (template as any).teamSize ?? getDefaultTeamSize(mappedSize, serviceType),
         notes: template.notes,
         status: 'APPOINTED',
         lineage: 'single',

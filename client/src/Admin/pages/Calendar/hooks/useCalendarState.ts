@@ -61,6 +61,7 @@ export function useCalendarState() {
     templateId?: number | null
     status?: Appointment['status']
     appointment?: Appointment
+    initialTime?: string
   } | null>(() => {
     const stored = localStorage.getItem('createParams')
     if (stored) {

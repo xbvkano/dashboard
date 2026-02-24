@@ -8,6 +8,7 @@ export default function UserDashboard({ onLogout }: Props) {
   const navigate = useNavigate()
   const isSafe = localStorage.getItem('safe') === 'true'
   const signOut = () => {
+    if (!window.confirm('Are you sure you want to sign out?')) return
     localStorage.removeItem('role')
     localStorage.removeItem('safe')
     localStorage.removeItem('userName')

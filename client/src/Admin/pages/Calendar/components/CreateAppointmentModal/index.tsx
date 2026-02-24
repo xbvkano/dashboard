@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
 import { useCreateAppointmentState } from './useCreateAppointmentState'
@@ -25,6 +25,14 @@ export default function CreateAppointmentModal({
 }: Props) {
   const { alert } = useModal()
   const [creating, setCreating] = useState(false)
+
+  useEffect(() => {
+    const original = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = original
+    }
+  }, [])
 
   const {
     // Client state
@@ -122,10 +130,7 @@ export default function CreateAppointmentModal({
       return
     }
 
-    if (employeeIds.length === 0) {
-      alert('Please select at least one employee')
-      return
-    }
+    // Team is assigned via Team Options after creation
 
     setCreating(true)
 
@@ -136,7 +141,7 @@ export default function CreateAppointmentModal({
         date: new Date(date).toISOString(),
         time,
         hours: hours ? Number(hours) : null,
-        employeeIds,
+        employeeIds: [], // Team assigned via Team Options after creation
         paid,
         paymentMethod,
         paymentMethodNote: paymentMethodNote || undefined,
@@ -145,7 +150,7 @@ export default function CreateAppointmentModal({
         carpetPrice: carpetPrice ? Number(carpetPrice) : null,
         carpetEmployees: carpetEmployees.length > 0 ? carpetEmployees : undefined,
         notes: notes || undefined,
-        noTeam,
+        noTeam: false,
         status: newStatus || status,
         recurring: recurring ? {
           frequency,
@@ -168,10 +173,10 @@ export default function CreateAppointmentModal({
     }
   }
 
-  const isFormValid = selectedClient && date && time && employeeIds.length > 0
+  const isFormValid = selectedClient && date && time
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] overflow-hidden">
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
@@ -288,29 +293,7 @@ export default function CreateAppointmentModal({
               </div>
             </div>
 
-            {/* Employees Section */}
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold mb-2">Employees</h3>
-              <div className="space-y-2">
-                {employees.map((employee) => (
-                  <label key={employee.id} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={employeeIds.includes(employee.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setEmployeeIds([...employeeIds, employee.id])
-                        } else {
-                          setEmployeeIds(employeeIds.filter(id => id !== employee.id))
-                        }
-                      }}
-                      className="mr-2"
-                    />
-                    {employee.name}
-                  </label>
-                ))}
-              </div>
-            </div>
+            {/* Team is assigned via Team Options after creation */}
 
             {/* Payment Section */}
             <div className="mb-4">
@@ -340,17 +323,7 @@ export default function CreateAppointmentModal({
                   />
                 </div>
               </div>
-              <div className="mt-2">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={paid}
-                    onChange={(e) => setPaid(e.target.checked)}
-                    className="mr-2"
-                  />
-                  Paid
-                </label>
-              </div>
+              {/* Paid checkbox only in Appointment Details modal */}
             </div>
 
             {/* Notes Section */}
@@ -365,18 +338,7 @@ export default function CreateAppointmentModal({
               />
             </div>
 
-            {/* Options */}
-            <div className="mb-4">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={noTeam}
-                  onChange={(e) => setNoTeam(e.target.checked)}
-                  className="mr-2"
-                />
-                No team (single employee)
-              </label>
-            </div>
+            {/* Team is assigned via Team Options after creation */}
           </div>
 
           <div className="flex justify-end gap-2 mt-6">

@@ -4,6 +4,7 @@ import { movePastSchedulesForDate } from '../jobs/scheduleCleanup'
 import { sendScheduleReminders } from '../jobs/scheduleReminder'
 import { syncRecurringAppointments } from '../controllers/recurringController'
 import { sendAppointmentReminders } from '../jobs/appointmentReminder'
+import { runUnconfirmedCheck, runNoonEmployeeReminders } from '../jobs/unconfirmedCheck'
 import twilio from 'twilio'
 
 const prisma = new PrismaClient()
@@ -263,14 +264,67 @@ export async function testRecurringSync(req: Request, res: Response) {
 export async function testAppointmentReminder(req: Request, res: Response) {
   try {
     await sendAppointmentReminders()
-    
+
     res.json({
       success: true,
-      message: 'Appointment reminder job completed successfully'
+      message: 'Appointment reminder job completed successfully',
     })
   } catch (error) {
     console.error('Error testing appointment reminder:', error)
     res.status(500).json({ error: 'Failed to test appointment reminder' })
+  }
+}
+
+// Test endpoint to trigger 7pm unconfirmed check (tomorrow's appointments, text supervisors; employees with unconfirmed in 14 days)
+export async function testUnconfirmedCheck(req: Request, res: Response) {
+  try {
+    const result = await runUnconfirmedCheck()
+    res.json({
+      success: true,
+      message: 'Unconfirmed check completed',
+      sent: result.sent.length,
+      skipped: result.skipped.length,
+      failed: result.failed.length,
+      employeeSent: result.employeeSent.length,
+      employeeSkipped: result.employeeSkipped.length,
+      employeeFailed: result.employeeFailed.length,
+      details: result,
+    })
+  } catch (error) {
+    console.error('Error running unconfirmed check:', error)
+    res.status(500).json({ error: 'Failed to run unconfirmed check' })
+  }
+}
+
+// Test endpoint for noon 14-day employee reminder (mock date = start of 14-day period at noon; optional employeeId to send only to that employee)
+export async function testNoonEmployeeReminder(req: Request, res: Response) {
+  try {
+    const body = (req.body || {}) as { date?: string; employeeId?: number }
+    const dateStr = body.date
+    const employeeId = body.employeeId != null ? body.employeeId : undefined
+    // Parse date as local noon to avoid UTC shift: "2026-02-22" => Feb 22 12:00 local
+    let asOf: Date
+    if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const [y, m, d] = dateStr.split('-').map(Number)
+      asOf = new Date(y, m - 1, d, 12, 0, 0, 0)
+    } else {
+      asOf = new Date()
+      asOf.setHours(12, 0, 0, 0)
+    }
+    const result = await runNoonEmployeeReminders(asOf, employeeId != null ? { employeeId } : undefined)
+    res.json({
+      success: true,
+      message: 'Noon employee reminder completed',
+      asOf: asOf.toISOString(),
+      windowStart: new Date(asOf.getFullYear(), asOf.getMonth(), asOf.getDate()).toISOString(),
+      sent: result.sent.length,
+      skipped: result.skipped.length,
+      failed: result.failed.length,
+      details: result,
+    })
+  } catch (error) {
+    console.error('Error running noon employee reminder:', error)
+    res.status(500).json({ error: 'Failed to run noon employee reminder' })
   }
 }
 
