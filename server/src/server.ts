@@ -29,6 +29,7 @@ const client = new OAuth2Client(
   process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173'
 )
 
+// test
 async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
   const pdf = await PDFDocument.create()
   const page = pdf.addPage()
