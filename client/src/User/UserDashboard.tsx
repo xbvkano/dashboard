@@ -10,6 +10,9 @@ export default function UserDashboard({ onLogout }: Props) {
   const signOut = () => {
     localStorage.removeItem('role')
     localStorage.removeItem('safe')
+    localStorage.removeItem('userName')
+    localStorage.removeItem('loginMethod')
+    localStorage.setItem('signedOut', 'true')
     onLogout()
     navigate('/')
   }

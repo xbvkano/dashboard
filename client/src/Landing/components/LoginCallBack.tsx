@@ -27,6 +27,17 @@ export default function LoginCallback() {
         const data = await response.json()
         if (data.role === 'ADMIN' || data.role === 'OWNER' || data.role === 'EMPLOYEE') {
           localStorage.setItem('role', data.role)
+          localStorage.setItem('loginMethod', 'google')
+          if (data.user && typeof data.user.safe !== 'undefined') {
+            localStorage.setItem('safe', data.user.safe ? 'true' : 'false')
+          }
+          if (data.userName) {
+            localStorage.setItem('userName', data.userName)
+          } else if (data.user?.userName) {
+            localStorage.setItem('userName', data.user.userName)
+          } else if (data.user?.email) {
+            localStorage.setItem('userName', data.user.email)
+          }
           navigate('/dashboard')
         } else {
           navigate('/')
