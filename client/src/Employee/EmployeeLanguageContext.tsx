@@ -52,6 +52,9 @@ const scheduleTranslations = {
     legendUnconfirmed: 'Unconfirmed job',
     legendUpdateDueDate: 'Update due date',
     unconfirmedDesc: 'You have been assigned a job for this block but have not confirmed yet. Please confirm on the Upcoming Jobs page so we know you are coming. Unconfirmed jobs may be reassigned after 24 hours.',
+    unconfirmedGoToJobsModalTitle: 'Unconfirmed job',
+    unconfirmedGoToJobsModalMessage: 'Go to Upcoming Jobs to confirm this job?',
+    unconfirmedGoToJobsModalGo: 'Go to Jobs',
 
     // Actions & messages
     saving: 'Saving...',
@@ -126,6 +129,9 @@ const scheduleTranslations = {
     legendUnconfirmed: 'Trabalho não confirmado',
     legendUpdateDueDate: 'Data de atualização',
     unconfirmedDesc: 'Você foi atribuído a um trabalho neste período mas ainda não confirmou. Confirme na página Próximos Trabalhos para confirmar sua presença. Trabalhos não confirmados podem ser reatribuídos após 24 horas.',
+    unconfirmedGoToJobsModalTitle: 'Trabalho não confirmado',
+    unconfirmedGoToJobsModalMessage: 'Ir para Próximos Trabalhos para confirmar este trabalho?',
+    unconfirmedGoToJobsModalGo: 'Ir para Trabalhos',
 
     saving: 'Salvando...',
     saveSchedule: 'Salvar Agenda',
@@ -199,6 +205,9 @@ const scheduleTranslations = {
     legendUnconfirmed: 'Trabajo sin confirmar',
     legendUpdateDueDate: 'Fecha de actualización',
     unconfirmedDesc: 'Te han asignado un trabajo en este horario pero aún no lo has confirmado. Confirma en la página Próximos Trabajos para que sepamos que vendrás. Los trabajos sin confirmar pueden reasignarse después de 24 horas.',
+    unconfirmedGoToJobsModalTitle: 'Trabajo sin confirmar',
+    unconfirmedGoToJobsModalMessage: '¿Ir a Próximos Trabajos para confirmar este trabajo?',
+    unconfirmedGoToJobsModalGo: 'Ir a Trabajos',
 
     saving: 'Guardando...',
     saveSchedule: 'Guardar Horario',

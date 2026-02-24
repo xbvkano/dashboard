@@ -175,6 +175,34 @@ describe('sendScheduleReminders', () => {
     expect(mockMessagesCreate).not.toHaveBeenCalled()
   })
 
+  it('backfill sets due to Sunday week 2 when today is Monday week 1 (reminder uses update day)', async () => {
+    mockScheduleFindMany.mockResolvedValue([
+      scheduleWithEmployee({ nextScheduleUpdateDueAt: null }),
+    ])
+    jest.setSystemTime(new Date(2026, 1, 23, 9, 0, 0, 0)) // Mon Feb 23, 2026 (week 1)
+    await sendScheduleReminders()
+    expect(mockScheduleUpdate).toHaveBeenCalled()
+    const setDue = mockScheduleUpdate.mock.calls[0][0].data.nextScheduleUpdateDueAt as Date
+    expect(setDue.getDay()).toBe(0) // Sunday
+    expect(setDue.getDate()).toBe(1) // Mar 1 = Sunday week 2
+    expect(setDue.getMonth()).toBe(2) // March
+    expect(mockMessagesCreate).not.toHaveBeenCalled()
+  })
+
+  it('sends reminder when due date is Sunday week 2 and today is Monday week 2 (1 day past due)', async () => {
+    const dueDate = new Date(2026, 2, 1, 0, 0, 0, 0) // Sun Mar 1 (week 2)
+    mockScheduleFindMany.mockResolvedValue([
+      scheduleWithEmployee({
+        nextScheduleUpdateDueAt: dueDate,
+        employeeUpdate: new Date(2026, 1, 20),
+      }),
+    ])
+    jest.setSystemTime(new Date(2026, 2, 2, 9, 0, 0, 0)) // Mon Mar 2 (week 2, 1 day past due)
+    await sendScheduleReminders()
+    expect(mockMessagesCreate).toHaveBeenCalledTimes(1)
+    expect(mockMessagesCreate.mock.calls[0][0].body).toContain('update your schedule')
+  })
+
   it('skips when TWILIO_FROM_NUMBER is not set', async () => {
     delete process.env.TWILIO_FROM_NUMBER
     const dueDate = new Date()

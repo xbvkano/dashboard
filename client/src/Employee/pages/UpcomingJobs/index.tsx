@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { API_BASE_URL } from '../../../api'
 import { useEmployeeLanguage } from '../../EmployeeLanguageContext'
 
@@ -64,6 +65,9 @@ function getHeaders(): HeadersInit {
 
 export default function UpcomingJobs() {
   const { t } = useEmployeeLanguage()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const highlightId = searchParams.get('highlight')
+  const fromSchedule = searchParams.get('from') === 'schedule'
   const [list, setList] = useState<UpcomingAppointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -100,6 +104,52 @@ export default function UpcomingJobs() {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
+  }, [])
+
+  // When opened with ?highlight=id from Schedule, scroll to that job and highlight it.
+  // Outline is not removed by a timer; it disappears when the user leaves this page and comes back.
+  const HIGHLIGHT_LEFT_KEY = 'employee-upcoming-jobs-highlight-left'
+  const showingHighlightRef = useRef(false)
+  useEffect(() => {
+    if (!highlightId || loading || list.length === 0) return
+    showingHighlightRef.current = false
+    // User just clicked orange box on Schedule (from=schedule): clear the "left" flag and show outline.
+    if (fromSchedule) {
+      sessionStorage.removeItem(HIGHLIGHT_LEFT_KEY)
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('from')
+        return next
+      }, { replace: true })
+    }
+    // If user had left this page and came back (e.g. Back button), clear highlight so outline is not shown.
+    if (!fromSchedule && sessionStorage.getItem(HIGHLIGHT_LEFT_KEY)) {
+      sessionStorage.removeItem(HIGHLIGHT_LEFT_KEY)
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('highlight')
+        return next
+      })
+      return
+    }
+    const id = highlightId
+    const t = setTimeout(() => {
+      const el = document.querySelector(`[data-appointment-id="${id}"]`) as HTMLElement | null
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.classList.add('ring-2', 'ring-amber-500', 'ring-offset-2', 'rounded-lg')
+        showingHighlightRef.current = true
+      }
+    }, 100)
+    return () => {
+      clearTimeout(t)
+    }
+  }, [highlightId, loading, list.length, setSearchParams])
+  // On unmount, if we were showing the outline, set flag so when user comes back we clear the highlight.
+  useEffect(() => {
+    return () => {
+      if (showingHighlightRef.current) sessionStorage.setItem(HIGHLIGHT_LEFT_KEY, '1')
+    }
   }, [])
 
   async function confirmJob(appointmentId: number) {
@@ -171,7 +221,11 @@ export default function UpcomingJobs() {
                       </h4>
                       <ul className="space-y-3">
                         {appointments.map((a) => (
-                          <li key={a.id} className="text-sm">
+                          <li
+                            key={a.id}
+                            data-appointment-id={a.id}
+                            className={`text-sm ${String(a.id) === highlightId ? 'ring-2 ring-amber-500 ring-offset-2 rounded-lg' : ''}`}
+                          >
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
                                 <div className="font-medium text-slate-800">{a.address}</div>
@@ -240,7 +294,11 @@ export default function UpcomingJobs() {
                         </h4>
                         <ul className="space-y-3">
                           {appointments.map((a) => (
-                            <li key={a.id} className="text-sm">
+                            <li
+                              key={a.id}
+                              data-appointment-id={a.id}
+                              className={`text-sm ${String(a.id) === highlightId ? 'ring-2 ring-amber-500 ring-offset-2 rounded-lg' : ''}`}
+                            >
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
                                   <div className="font-medium text-slate-800">{a.address}</div>

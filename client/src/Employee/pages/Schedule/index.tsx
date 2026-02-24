@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { API_BASE_URL } from '../../../api'
 import { useEmployeeLanguage } from '../../EmployeeLanguageContext'
 
@@ -145,14 +146,32 @@ function getNewAdditionsGrouped(
 
 type SchedulePolicy = { updateDayOfWeek: number; supervisorNotifyAfterDays: number; stopRemindingAfterDays: number }
 
+const SCHEDULE_INFO_IDS = {
+  open: 'schedule-info-open',
+  selected: 'schedule-info-selected',
+  availability: 'schedule-info-availability',
+  unconfirmed: 'schedule-info-unconfirmed',
+  scheduled: 'schedule-info-scheduled',
+  policy: 'schedule-info-policy',
+} as const
+
+export type ScheduleInfoKey = keyof typeof SCHEDULE_INFO_IDS
+
 function InformationSection({
   policy,
   nextUpdateDueDateFormatted,
+  isOpen,
+  onOpenChange,
+  scrollToKey,
+  onScrolledToKey,
 }: {
   policy: SchedulePolicy | null
   nextUpdateDueDateFormatted: string | null
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+  scrollToKey: ScheduleInfoKey | null
+  onScrolledToKey: () => void
 }) {
-  const [isOpen, setIsOpen] = useState(false)
   const { t } = useEmployeeLanguage()
   const updateDayName = t.dayNamesLong?.[policy?.updateDayOfWeek ?? 0] ?? String(policy?.updateDayOfWeek ?? '')
   const policySummaryText = policy
@@ -164,11 +183,26 @@ function InformationSection({
         .replace('{updateDay}', t.policyUpdateDayPlaceholder)
         .replace('{supervisorDays}', t.policySupervisorDaysPlaceholder)
         .replace('{stopDays}', t.policyStopDaysPlaceholder)
+
+  useEffect(() => {
+    if (!isOpen || !scrollToKey) return
+    const id = SCHEDULE_INFO_IDS[scrollToKey]
+    const el = document.getElementById(id)
+    if (el) {
+      const t = setTimeout(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        onScrolledToKey()
+      }, 100)
+      return () => clearTimeout(t)
+    }
+    onScrolledToKey()
+  }, [isOpen, scrollToKey, onScrolledToKey])
+
   return (
     <div className="mb-5 border border-slate-200 rounded-xl overflow-hidden bg-white">
       <button
         type="button"
-        onClick={() => setIsOpen(prev => !prev)}
+        onClick={() => onOpenChange(!isOpen)}
         className="w-full flex items-center justify-between px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
       >
         <span>{t.information}</span>
@@ -183,42 +217,42 @@ function InformationSection({
       </button>
       {isOpen && (
         <div className="px-4 pb-4 pt-0 text-sm text-slate-600 space-y-4 border-t border-slate-100">
-          <div>
+          <div id={SCHEDULE_INFO_IDS.open}>
             <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
               <span className="w-4 h-4 bg-slate-100 rounded border border-slate-300 shrink-0 inline-block" />
               {t.open}
             </h4>
             <p>{t.openDesc}</p>
           </div>
-          <div>
+          <div id={SCHEDULE_INFO_IDS.selected}>
             <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
               <span className="w-4 h-4 bg-blue-500 rounded border border-blue-600 shrink-0 inline-block" />
               {t.selectedNotSaved}
             </h4>
             <p>{t.selectedNotSavedDesc}</p>
           </div>
-          <div>
+          <div id={SCHEDULE_INFO_IDS.availability}>
             <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
               <span className="w-4 h-4 bg-violet-600 rounded border border-violet-700 shrink-0 inline-block" />
               {t.availability}
             </h4>
             <p>{t.availabilityDesc}</p>
           </div>
-          <div>
+          <div id={SCHEDULE_INFO_IDS.unconfirmed}>
             <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
               <span className="w-4 h-4 bg-amber-500 rounded border border-amber-600 shrink-0 inline-block" />
               {t.legendUnconfirmed}
             </h4>
             <p>{t.unconfirmedDesc}</p>
           </div>
-          <div>
+          <div id={SCHEDULE_INFO_IDS.scheduled}>
             <h4 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
               <span className="w-4 h-4 bg-emerald-600 rounded border border-emerald-700 shrink-0 inline-block" />
               {t.scheduled}
             </h4>
             <p>{t.scheduledDesc}</p>
           </div>
-          <div className="pt-2 border-t border-slate-100">
+          <div id={SCHEDULE_INFO_IDS.policy} className="pt-2 border-t border-slate-100">
             <h4 className="font-semibold text-slate-700 mb-2">{t.scheduleUpdatePolicy}</h4>
             {nextUpdateDueDateFormatted && (
               <p className="text-slate-700 font-medium mb-2">
@@ -265,7 +299,16 @@ export default function Schedule() {
   const [nextScheduleUpdateDueAt, setNextScheduleUpdateDueAt] = useState<string | null>(null) // YYYY-MM-DD
   const [schedulePolicy, setSchedulePolicy] = useState<SchedulePolicy | null>(null)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
-  const [scheduledByDay, setScheduledByDay] = useState<Record<string, { morning: boolean; afternoon: boolean; morningUnconfirmed?: boolean; afternoonUnconfirmed?: boolean }>>({})
+  const [scheduledByDay, setScheduledByDay] = useState<Record<string, { morning: boolean; afternoon: boolean; morningUnconfirmed?: boolean; afternoonUnconfirmed?: boolean; morningUnconfirmedAppointmentId?: number; afternoonUnconfirmedAppointmentId?: number }>>({})
+  const [unconfirmedGoToJobsModal, setUnconfirmedGoToJobsModal] = useState<{ appointmentId: number } | null>(null)
+  const [infoOpen, setInfoOpen] = useState(false)
+  const [scrollToInfoKey, setScrollToInfoKey] = useState<ScheduleInfoKey | null>(null)
+  const navigate = useNavigate()
+
+  function openInfoAtKey(key: ScheduleInfoKey) {
+    setInfoOpen(true)
+    setScrollToInfoKey(key)
+  }
 
   // Load existing schedule, upcoming appointments, and schedule policy
   useEffect(() => {
@@ -300,15 +343,21 @@ export default function Schedule() {
       const res = await fetch(`${API_BASE_URL}/employee/upcoming-appointments`, { headers })
       if (!res.ok) return
       const list = await res.json()
-      const byDay: Record<string, { morning: boolean; afternoon: boolean; morningUnconfirmed?: boolean; afternoonUnconfirmed?: boolean }> = {}
-      list.forEach((a: { date: string; block: 'AM' | 'PM'; confirmed?: boolean }) => {
+      const byDay: Record<string, { morning: boolean; afternoon: boolean; morningUnconfirmed?: boolean; afternoonUnconfirmed?: boolean; morningUnconfirmedAppointmentId?: number; afternoonUnconfirmedAppointmentId?: number }> = {}
+      list.forEach((a: { id: number; date: string; block: 'AM' | 'PM'; confirmed?: boolean }) => {
         if (!byDay[a.date]) byDay[a.date] = { morning: false, afternoon: false }
         if (a.block === 'AM') {
           byDay[a.date].morning = true
-          if (a.confirmed === false) byDay[a.date].morningUnconfirmed = true
+          if (a.confirmed === false) {
+            byDay[a.date].morningUnconfirmed = true
+            if (byDay[a.date].morningUnconfirmedAppointmentId == null) byDay[a.date].morningUnconfirmedAppointmentId = a.id
+          }
         } else {
           byDay[a.date].afternoon = true
-          if (a.confirmed === false) byDay[a.date].afternoonUnconfirmed = true
+          if (a.confirmed === false) {
+            byDay[a.date].afternoonUnconfirmed = true
+            if (byDay[a.date].afternoonUnconfirmedAppointmentId == null) byDay[a.date].afternoonUnconfirmedAppointmentId = a.id
+          }
         }
       })
       setScheduledByDay(byDay)
@@ -529,7 +578,7 @@ export default function Schedule() {
   }
 
   return (
-    <div className="pb-4">
+    <div className="pb-16 md:pb-4">
       <h1 className="text-xl md:text-2xl font-semibold text-slate-800 mb-1">{t.mySchedule}</h1>
       <p className="text-sm text-slate-500 mb-4">{t.subtitle}</p>
       
@@ -549,6 +598,10 @@ export default function Schedule() {
               })()
             : null
         }
+        isOpen={infoOpen}
+        onOpenChange={setInfoOpen}
+        scrollToKey={scrollToInfoKey}
+        onScrolledToKey={() => setScrollToInfoKey(null)}
       />
 
       {/* Supervisor note */}
@@ -618,11 +671,20 @@ export default function Schedule() {
                 {canSelectDay ? (
                   <div className="flex-1 flex flex-col gap-0.5 md:gap-1 min-h-0 min-w-0">
                     <button
-                      onClick={() => toggleShift(date, 'morning')}
-                      disabled={savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null}
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (unconfirmedMorning && scheduledByDay[key]?.morningUnconfirmedAppointmentId != null) {
+                          setUnconfirmedGoToJobsModal({ appointmentId: scheduledByDay[key].morningUnconfirmedAppointmentId! })
+                          return
+                        }
+                        toggleShift(date, 'morning')
+                      }}
+                      disabled={savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null && !unconfirmedMorning}
                       className={`flex-1 min-h-[28px] md:min-h-[22px] min-w-0 text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
                         unconfirmedMorning
-                          ? 'bg-amber-500 text-white cursor-default'
+                          ? 'bg-amber-500 text-white cursor-pointer'
                           : scheduledMorning
                           ? 'bg-emerald-600 text-white cursor-default'
                           : savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null
@@ -637,11 +699,20 @@ export default function Schedule() {
                       AM
                     </button>
                     <button
-                      onClick={() => toggleShift(date, 'afternoon')}
-                      disabled={savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null}
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (unconfirmedAfternoon && scheduledByDay[key]?.afternoonUnconfirmedAppointmentId != null) {
+                          setUnconfirmedGoToJobsModal({ appointmentId: scheduledByDay[key].afternoonUnconfirmedAppointmentId! })
+                          return
+                        }
+                        toggleShift(date, 'afternoon')
+                      }}
+                      disabled={savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null && !unconfirmedAfternoon}
                       className={`flex-1 min-h-[28px] md:min-h-[22px] min-w-0 text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
                         unconfirmedAfternoon
-                          ? 'bg-amber-500 text-white cursor-default'
+                          ? 'bg-amber-500 text-white cursor-pointer'
                           : scheduledAfternoon
                           ? 'bg-emerald-600 text-white cursor-default'
                           : savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null
@@ -667,33 +738,57 @@ export default function Schedule() {
         </div>
       </div>
 
-      {/* Legend */}
+      {/* Legend - click to open information at that key */}
       <div className="mb-5 flex flex-wrap gap-4 text-xs text-slate-600">
-        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => openInfoAtKey('open')}
+          className="flex items-center gap-2 hover:text-slate-800 hover:underline focus:outline-none focus:underline"
+        >
           <div className="w-4 h-4 bg-slate-100 rounded border border-slate-300 shrink-0"></div>
           <span>{t.legendOpen}</span>
-        </div>
-        <div className="flex items-center gap-2">
+        </button>
+        <button
+          type="button"
+          onClick={() => openInfoAtKey('selected')}
+          className="flex items-center gap-2 hover:text-slate-800 hover:underline focus:outline-none focus:underline"
+        >
           <div className="w-4 h-4 bg-blue-500 rounded border border-blue-600 shrink-0"></div>
           <span>{t.legendSelected}</span>
-        </div>
-        <div className="flex items-center gap-2">
+        </button>
+        <button
+          type="button"
+          onClick={() => openInfoAtKey('availability')}
+          className="flex items-center gap-2 hover:text-slate-800 hover:underline focus:outline-none focus:underline"
+        >
           <div className="w-4 h-4 bg-violet-600 rounded border border-violet-700 shrink-0"></div>
           <span>{t.legendAvailability}</span>
-        </div>
-        <div className="flex items-center gap-2">
+        </button>
+        <button
+          type="button"
+          onClick={() => openInfoAtKey('unconfirmed')}
+          className="flex items-center gap-2 hover:text-slate-800 hover:underline focus:outline-none focus:underline"
+        >
           <div className="w-4 h-4 bg-amber-500 rounded border border-amber-600 shrink-0"></div>
           <span>{t.legendUnconfirmed}</span>
-        </div>
-        <div className="flex items-center gap-2">
+        </button>
+        <button
+          type="button"
+          onClick={() => openInfoAtKey('scheduled')}
+          className="flex items-center gap-2 hover:text-slate-800 hover:underline focus:outline-none focus:underline"
+        >
           <div className="w-4 h-4 bg-emerald-600 rounded border border-emerald-700 shrink-0"></div>
           <span>{t.legendScheduled}</span>
-        </div>
+        </button>
         {nextScheduleUpdateDueAt && (
-          <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => openInfoAtKey('policy')}
+            className="flex items-center gap-2 hover:text-slate-800 hover:underline focus:outline-none focus:underline"
+          >
             <div className="w-4 h-4 rounded border-2 border-amber-500 bg-amber-50 shrink-0"></div>
             <span>{t.legendUpdateDueDate}</span>
-          </div>
+          </button>
         )}
       </div>
 
@@ -773,6 +868,51 @@ export default function Schedule() {
                     className="flex-1 py-2.5 px-4 rounded-xl bg-blue-500 text-white font-semibold hover:bg-blue-600 active:bg-blue-700 transition-colors"
                   >
                     {t.saveSchedule}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Unconfirmed job: go to Upcoming Jobs to confirm */}
+      {unconfirmedGoToJobsModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 modal-safe-area"
+            onClick={() => setUnconfirmedGoToJobsModal(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="unconfirmed-goto-jobs-title"
+          >
+            <div
+              className="bg-white w-full max-w-md rounded-2xl shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-5 sm:p-6">
+                <h3 id="unconfirmed-goto-jobs-title" className="text-lg font-semibold text-slate-800 mb-3">
+                  {t.unconfirmedGoToJobsModalTitle}
+                </h3>
+                <p className="text-sm text-slate-600 mb-5">{t.unconfirmedGoToJobsModalMessage}</p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setUnconfirmedGoToJobsModal(null)}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const id = unconfirmedGoToJobsModal.appointmentId
+                      setUnconfirmedGoToJobsModal(null)
+                      navigate(`/dashboard/jobs?highlight=${id}&from=schedule`)
+                    }}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-amber-600 text-white font-semibold hover:bg-amber-700 active:bg-amber-800 transition-colors"
+                  >
+                    {t.unconfirmedGoToJobsModalGo}
                   </button>
                 </div>
               </div>

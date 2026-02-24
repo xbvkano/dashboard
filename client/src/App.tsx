@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import Login from './Landing/components/Login'
 import Dashboard from './Landing/Dashboard'
@@ -54,22 +54,21 @@ interface RoutesProps {
 function AppRoutes({ role, onLogin, onLogout }: RoutesProps) {
   const navigate = useNavigate()
   const location = useLocation()
+  const hasRestoredRef = useRef(false)
 
-  // Restore last visited path so modals reopen after refresh
+  // Restore last visited path only once per session when at dashboard index (avoids redirect after opening modal etc.)
   useEffect(() => {
-    if (role) {
-      const last = localStorage.getItem('lastPath')
-      if (last && last !== location.pathname) {
-        navigate(last, { replace: true })
-      }
+    if (!role || location.pathname !== '/dashboard' || hasRestoredRef.current) return
+    hasRestoredRef.current = true
+    const last = localStorage.getItem('lastPath')
+    if (last && last !== '/dashboard' && last.startsWith('/dashboard')) {
+      navigate(last, { replace: true })
     }
-    // only run on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [role, location.pathname, navigate])
 
-  // Persist current path
+  // Persist current path (do not overwrite when a modal is open – we only persist the real route)
   useEffect(() => {
-    if (role) {
+    if (role && location.pathname.startsWith('/dashboard')) {
       localStorage.setItem('lastPath', location.pathname)
     }
   }, [role, location.pathname])
