@@ -280,12 +280,15 @@ function getEmployeeReminderDateRange(asOf: Date): { start: Date; end: Date } {
   return { start, end }
 }
 
+const DASHBOARD_URL = 'https://dashboard.worldwideevidence.com/'
+
 function buildEmployeeReminderBody(dateStr: string, time: string, clientName: string, address: string): string {
   return [
     `Evidence Cleaning: You have an unconfirmed job coming up.`,
     `${dateStr} at ${time} – ${clientName}`,
     `Address: ${address}`,
     `Please confirm in the app so we know you're coming. Unconfirm jobs may be given to someone else after 24 hours.`,
+    `Dashboard: ${DASHBOARD_URL}`,
   ].join('\n')
 }
 
