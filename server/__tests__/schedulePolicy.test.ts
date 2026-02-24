@@ -60,8 +60,8 @@ describe('Schedule policy and nextScheduleUpdateDueAt', () => {
   })
 
   describe('getSchedule', () => {
-    it('returns nextScheduleUpdateDueAt when schedule exists', async () => {
-      const dueDate = new Date(2026, 1, 22, 0, 0, 0, 0) // Sunday
+    it('returns nextScheduleUpdateDueAt as date-only string (YYYY-MM-DD) when schedule exists', async () => {
+      const dueDate = new Date(2026, 1, 22, 0, 0, 0, 0) // Sunday Feb 22, 2026
       mockScheduleFindUnique.mockResolvedValue({
         employeeId: 10,
         futureSchedule: [],
@@ -75,7 +75,7 @@ describe('Schedule policy and nextScheduleUpdateDueAt', () => {
       expect(res.status).not.toHaveBeenCalledWith(401)
       expect(res.json).toHaveBeenCalledTimes(1)
       const payload = (res.json as jest.Mock).mock.calls[0][0]
-      expect(payload.nextScheduleUpdateDueAt).toEqual(dueDate)
+      expect(payload.nextScheduleUpdateDueAt).toBe('2026-02-22')
       expect(payload.futureSchedule).toEqual([])
       expect(payload.employeeUpdate).toBeDefined()
     })

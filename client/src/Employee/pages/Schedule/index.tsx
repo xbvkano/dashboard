@@ -388,8 +388,13 @@ export default function Schedule() {
         setLastUpdate(new Date(data.employeeUpdate))
       }
       if (data?.nextScheduleUpdateDueAt) {
-        const d = new Date(data.nextScheduleUpdateDueAt)
-        setNextScheduleUpdateDueAt(getDayKey(d))
+        // Use date part only (YYYY-MM-DD) so timezone doesn't shift Sunday to Saturday
+        const raw = data.nextScheduleUpdateDueAt
+        const dateOnly =
+          typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw)
+            ? raw.slice(0, 10)
+            : getDayKey(new Date(raw))
+        setNextScheduleUpdateDueAt(dateOnly)
       } else {
         setNextScheduleUpdateDueAt(null)
       }

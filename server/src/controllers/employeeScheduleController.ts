@@ -71,6 +71,14 @@ function movePastDates(futureSchedule: string[], pastSchedule: string[]): {
   return { newFuture, newPast }
 }
 
+/** Format a Date as YYYY-MM-DD (calendar day) so clients don't shift the day due to timezone (e.g. Sunday becoming Saturday). */
+function formatDateOnly(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 export async function getSchedule(req: Request, res: Response) {
   try {
     const auth = await getEmployeeAuth(req)
@@ -124,6 +132,8 @@ export async function getSchedule(req: Request, res: Response) {
       pastSchedule: schedule.pastSchedule,
       employeeUpdate: schedule.employeeUpdate,
       nextScheduleUpdateDueAt: schedule.nextScheduleUpdateDueAt
+        ? formatDateOnly(new Date(schedule.nextScheduleUpdateDueAt))
+        : null,
     })
   } catch (e) {
     console.error('Error fetching schedule:', e)

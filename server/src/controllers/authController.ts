@@ -25,6 +25,7 @@ export async function login(req: Request, res: Response) {
     try {
       const user = await prisma.user.findUnique({
         where: { userName },
+        include: { employee: true },
       })
 
       if (!user) {
@@ -42,6 +43,10 @@ export async function login(req: Request, res: Response) {
       const isValid = await bcrypt.compare(password, user.password)
       if (!isValid) {
         return res.status(401).json({ error: 'Invalid username or password' })
+      }
+
+      if (user.employee?.disabled) {
+        return res.status(401).json({ error: 'This account cannot be used to sign in' })
       }
 
       return res.json({ role: user.role, user, userName: user.userName })
@@ -100,7 +105,12 @@ export async function login(req: Request, res: Response) {
       where: { email },
       update: { name: name || undefined },
       create: { email, name: name || undefined, role: 'EMPLOYEE' },
+      include: { employee: true },
     })
+
+    if (user.employee?.disabled) {
+      return res.status(401).json({ error: 'This account cannot be used to sign in' })
+    }
 
     res.json({ role: user.role, user })
   } catch (e) {
