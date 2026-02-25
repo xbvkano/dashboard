@@ -390,13 +390,17 @@ export default function AppointmentDetails({
     }
   }
 
-  const apptDateStr = (() => {
-    const apptDate = typeof appointment.date === 'string' ? new Date(appointment.date) : appointment.date
-    const year = apptDate.getFullYear()
-    const month = String(apptDate.getMonth() + 1).padStart(2, '0')
-    const day = String(apptDate.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  })()
+  // Use date-only part of string to avoid timezone shifting (e.g. UTC midnight → previous day in local TZ)
+  const apptDateStr =
+    typeof appointment.date === 'string'
+      ? appointment.date.slice(0, 10)
+      : (() => {
+          const d = appointment.date as Date
+          const y = d.getFullYear()
+          const m = String(d.getMonth() + 1).padStart(2, '0')
+          const day = String(d.getDate()).padStart(2, '0')
+          return `${y}-${m}-${day}`
+        })()
   const teamSizeDisplay = appointment.teamSize ?? template?.teamSize ?? 1
 
   return (
@@ -424,7 +428,28 @@ export default function AppointmentDetails({
         <div className="rounded-xl border-2 border-slate-200 bg-white p-4 shadow-sm">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Client</h4>
           <p className="font-medium text-slate-900">{appointment.client?.name}</p>
-          <p className="text-sm text-slate-600 mt-0.5">{formatPhone(appointment.client?.number || '')}</p>
+          {appointment.client?.number ? (
+            <div className="text-sm text-slate-600 mt-0.5">
+              <span>{formatPhone(appointment.client.number)}</span>
+              {isMobile && (() => {
+                const digits = appointment.client.number.replace(/\D/g, '')
+                const e164 = digits.length === 10 ? '1' + digits : (digits.length === 11 && digits.startsWith('1') ? digits : null)
+                if (!e164) return null
+                return (
+                  <span className="ml-2 flex flex-wrap gap-2 mt-1">
+                    <a href={`tel:+${e164}`} className="text-blue-600 underline font-medium active:opacity-80">
+                      Call
+                    </a>
+                    <a href={`sms:+${e164}`} className="text-blue-600 underline font-medium active:opacity-80">
+                      Text
+                    </a>
+                  </span>
+                )
+              })()}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-600 mt-0.5">—</p>
+          )}
           {appointment.admin && (
             <p className="text-sm text-slate-600 mt-2 pt-2 border-t border-slate-100">
               <span className="text-slate-500">Admin:</span> {appointment.admin.name ?? appointment.admin.email}

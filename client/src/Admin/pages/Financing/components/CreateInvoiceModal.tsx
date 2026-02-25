@@ -253,7 +253,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center p-2 z-30 modal-safe-area"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-2 z-[10150] modal-safe-area"
     >
       <div
         className="bg-white p-4 rounded w-full max-w-md space-y-3 max-h-[calc(100dvh-1rem)] overflow-y-auto"
@@ -409,7 +409,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         </div>
       </div>
       {showOtherModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40" onClick={() => setShowOtherModal(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10151]" onClick={() => setShowOtherModal(false)}>
           <div className="bg-white p-4 rounded w-full max-w-xs space-y-2" onClick={(e) => e.stopPropagation()}>
             <h4 className="font-medium">{editingOther !== null ? 'Edit Item' : 'Add Item'}</h4>
             <input
@@ -448,7 +448,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         </div>
       )}
       {showEmailModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40" onClick={() => setShowEmailModal(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10151]" onClick={() => setShowEmailModal(false)}>
           <div className="bg-white p-4 rounded w-full max-w-xs space-y-2" onClick={(e) => e.stopPropagation()}>
             <h4 className="font-medium">Send Invoice</h4>
             <input type="email" className="w-full border p-2 rounded" placeholder="Email" value={sendEmail} onChange={(e) => setSendEmail(e.target.value)} />

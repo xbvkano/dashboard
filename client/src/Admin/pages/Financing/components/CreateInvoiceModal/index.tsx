@@ -198,7 +198,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center p-2 z-30 modal-safe-area"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-2 z-[10150] modal-safe-area"
     >
       <div
         className="bg-white p-4 rounded w-full max-w-md space-y-3 max-h-[calc(100dvh-1rem)] overflow-y-auto"
@@ -274,7 +274,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         </div>
 
         {showEmailModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[10151]">
             <div className="bg-white p-4 rounded w-full max-w-sm">
               <h3 className="text-lg font-semibold mb-4">Send Invoice</h3>
               <div className="space-y-3">
