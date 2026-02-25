@@ -186,7 +186,7 @@ const preserveTeamRef = useRef(false)
 
   useEffect(() => {
     fetchJson(`${API_BASE_URL}/employees?search=&skip=0&take=1000`)
-      .then((d) => setEmployees(d))
+      .then((d: Employee[]) => setEmployees((d ?? []).filter((e) => !e.disabled)))
       .catch(() => setEmployees([]))
   }, [])
 

@@ -63,7 +63,8 @@ export default function TeamOptionsModal({
   const [showNonAvailableConfirm, setShowNonAvailableConfirm] = useState(false)
   const [showNonAvailableSection, setShowNonAvailableSection] = useState(false)
   const [showScheduledSection, setShowScheduledSection] = useState(false)
-  const [payByEmployee, setPayByEmployee] = useState<Record<number, number>>({})
+  /** Pay per employee: stored as string so the input can be fully cleared (empty = 0 for validation). */
+  const [payByEmployee, setPayByEmployee] = useState<Record<number, string>>({})
   const [payNote, setPayNote] = useState((appointment as any).payrollNote ?? '')
 
   const teamSize = templateTeamSize ?? (appointment as any).teamSize ?? 1
@@ -109,13 +110,22 @@ export default function TeamOptionsModal({
     Math.max(selectedIds.length, 1)
   )
   useEffect(() => {
-    const next: Record<number, number> = {}
+    const next: Record<number, string> = {}
     selectedIds.forEach((id) => {
       const existing = (appointment.payrollItems as any)?.find((p: any) => p.employeeId === id)
-      next[id] = existing?.amount != null ? existing.amount : defaultPayPerPerson
+      const amount = existing?.amount != null ? existing.amount : defaultPayPerPerson
+      next[id] = String(amount)
     })
     setPayByEmployee((prev) => ({ ...prev, ...next }))
   }, [selectedIds, defaultPayPerPerson, appointment.payrollItems])
+
+  /** Numeric pay for an employee; empty or invalid string = 0. */
+  const getPay = (id: number): number => {
+    const s = payByEmployee[id]
+    if (s === undefined || s === '') return 0
+    const n = parseFloat(s)
+    return Number.isNaN(n) ? 0 : n
+  }
 
   const currentTeamIds = new Set(selectedIds)
   const scheduledElsewhere = scheduledAtEmployees.filter((e) => !currentTeamIds.has(e.id))
@@ -171,14 +181,20 @@ export default function TeamOptionsModal({
     }
     if (payNote.trim() !== initialSnapshot.payNote.trim()) return true
     for (const id of selectedIds) {
-      const current = payByEmployee[id] ?? defaultPayPerPerson
+      const current = getPay(id)
       const initial = initialSnapshot.payByEmployee[id] ?? defaultPayPerPerson
       if (current !== initial) return true
     }
     return false
   })()
 
+  const showConfirmModal = showSizeConfirm || showNonAvailableConfirm
+  const allHavePositivePay =
+    selectedIds.length > 0 && selectedIds.every((id) => getPay(id) > 0)
+  const canSave = hasChanges && allHavePositivePay && !saving && !showConfirmModal
+
   const handleSave = async (skipSizeConfirm = false, skipNonAvailableConfirm = false) => {
+    if (!allHavePositivePay) return
     const sizeDiff = selectedIds.length !== teamSize
     if (sizeDiff && !skipSizeConfirm && !showSizeConfirm) {
       setShowSizeConfirm(true)
@@ -193,8 +209,8 @@ export default function TeamOptionsModal({
     try {
       const payrollAmounts: Record<number, number> = {}
       selectedIds.forEach((id) => {
-        const amt = payByEmployee[id]
-        payrollAmounts[id] = typeof amt === 'number' ? amt : defaultPayPerPerson
+        const amt = getPay(id)
+        payrollAmounts[id] = amt > 0 ? amt : defaultPayPerPerson
       })
       const body: any = {
         employeeIds: selectedIds,
@@ -241,7 +257,6 @@ export default function TeamOptionsModal({
   const confirmSizeAndSave = () => void handleSave(true, false)
   const confirmNonAvailableAndSave = () => void handleSave(true, true)
 
-  const showConfirmModal = showSizeConfirm || showNonAvailableConfirm
   const confirmTitle = showSizeConfirm
     ? 'Confirm team size'
     : 'Confirm non-available employees'
@@ -260,7 +275,7 @@ export default function TeamOptionsModal({
     )
   }
 
-  const setPay = (employeeId: number, value: number) => {
+  const setPay = (employeeId: number, value: string) => {
     setPayByEmployee((prev) => ({ ...prev, [employeeId]: value }))
   }
 
@@ -394,13 +409,16 @@ export default function TeamOptionsModal({
           <div className="pt-2 border-t border-slate-200">
             <h3 className="text-sm font-medium text-slate-700 mb-2">Pay</h3>
             <p className="text-xs text-slate-500 mb-2">
-              Default: ${defaultPayPerPerson.toFixed(2)} per person (auto). You can edit below.
+              Default: ${defaultPayPerPerson.toFixed(2)} per person (auto). You can edit below. Save is disabled until every employee has pay above $0.
             </p>
             {selectedIds.length > 0 && (
               <div className="space-y-2">
                 {selectedIds.map((id) => {
                   const emp = employees.find((e) => e.id === id)
-                  const value = payByEmployee[id] ?? defaultPayPerPerson
+                  const displayValue =
+                    payByEmployee[id] !== undefined
+                      ? payByEmployee[id]
+                      : String(defaultPayPerPerson)
                   return (
                     <div key={id} className="flex items-center gap-2">
                       <label className="flex-1 text-sm text-slate-700 truncate">
@@ -408,12 +426,15 @@ export default function TeamOptionsModal({
                       </label>
                       <span className="text-slate-500">$</span>
                       <input
-                        type="number"
-                        min={0}
-                        step={1}
+                        type="text"
+                        inputMode="decimal"
                         className="w-20 border border-slate-300 rounded px-2 py-1 text-sm"
-                        value={value}
-                        onChange={(e) => setPay(id, parseFloat(e.target.value) || 0)}
+                        value={displayValue}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          if (v === '' || /^\d*\.?\d*$/.test(v)) setPay(id, v)
+                        }}
+                        placeholder="0"
                       />
                     </div>
                   )
@@ -441,7 +462,7 @@ export default function TeamOptionsModal({
             </button>
             <button
               onClick={() => handleSave(false, false)}
-              disabled={saving || !hasChanges || showConfirmModal}
+              disabled={!canSave}
               className="flex-1 px-4 py-2.5 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
               {saving ? 'Saving...' : 'Save Team'}

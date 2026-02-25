@@ -60,6 +60,9 @@ export default function EmployeeList(_: EmployeeListProps) {
     }
   }, [hasMore])
 
+  const enabledItems = items.filter((c) => !c.disabled)
+  const disabledItems = items.filter((c) => c.disabled)
+
   return (
     <div className="p-4 pb-16">
       <Link to=".." className="text-blue-500 text-sm">&larr; Back</Link>
@@ -75,16 +78,47 @@ export default function EmployeeList(_: EmployeeListProps) {
           New
         </Link>
       </div>
-      <ul className="divide-y">
-        {items.map((c) => (
-          <li key={c.id} className="py-2">
-            <Link to={String(c.id)} className="block">
-              <div className="font-medium">{c.name}</div>
-              <div className="text-sm text-gray-600">{formatPhone(c.number)}</div>
-            </Link>
-          </li>
-        ))}
-      </ul>
+
+      <section className="mb-8">
+        <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2">
+          Enabled ({enabledItems.length})
+        </h3>
+        <ul className="divide-y border border-slate-200 rounded-lg overflow-hidden">
+          {enabledItems.length === 0 ? (
+            <li className="py-3 px-3 text-sm text-slate-500">No enabled employees</li>
+          ) : (
+            enabledItems.map((c) => (
+              <li key={c.id} className="bg-white">
+                <Link to={String(c.id)} className="block py-2 px-3 hover:bg-slate-50">
+                  <div className="font-medium">{c.name}</div>
+                  <div className="text-sm text-gray-600">{formatPhone(c.number)}</div>
+                </Link>
+              </li>
+            ))
+          )}
+        </ul>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2">
+          Disabled ({disabledItems.length})
+        </h3>
+        <ul className="divide-y border border-red-200 rounded-lg overflow-hidden bg-red-50">
+          {disabledItems.length === 0 ? (
+            <li className="py-3 px-3 text-sm text-slate-500 bg-red-50">No disabled employees</li>
+          ) : (
+            disabledItems.map((c) => (
+              <li key={c.id} className="bg-red-50">
+                <Link to={String(c.id)} className="block py-2 px-3 hover:bg-red-100">
+                  <div className="font-medium text-slate-700">{c.name}</div>
+                  <div className="text-sm text-slate-500">{formatPhone(c.number)}</div>
+                </Link>
+              </li>
+            ))
+          )}
+        </ul>
+      </section>
+
       <div ref={loader} className="h-5" />
     </div>
   )

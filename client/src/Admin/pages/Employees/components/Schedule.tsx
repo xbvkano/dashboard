@@ -216,9 +216,9 @@ export default function Schedule() {
   useEffect(() => {
     if (!showSelectEmployee) return
     fetchJson<EmployeeOption[]>(
-      `${API_BASE_URL}/employees?search=${encodeURIComponent(selectEmployeeDebounced)}&skip=0&take=30&all=true`
+      `${API_BASE_URL}/employees?search=${encodeURIComponent(selectEmployeeDebounced)}&skip=0&take=30`
     )
-      .then(setSelectEmployeeList)
+      .then((list) => setSelectEmployeeList((list ?? []).filter((e) => !(e as { disabled?: boolean }).disabled)))
       .catch(() => setSelectEmployeeList([]))
   }, [showSelectEmployee, selectEmployeeDebounced])
 
