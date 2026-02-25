@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import { API_BASE_URL, fetchJson } from '../../../api'
 import type { Appointment } from '../Calendar/types'
@@ -15,6 +16,12 @@ export default function Invoice() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [selected, setSelected] = useState<Appointment | null>(null)
   const initialAppt = params.get('appt')
+  const dateFromUrl = params.get('date')
+
+  // When navigating with ?date=...&appt=..., use the URL date so we fetch the right day and can open the modal
+  useEffect(() => {
+    if (dateFromUrl && dateFromUrl !== date) setDate(dateFromUrl)
+  }, [dateFromUrl])
 
   useEffect(() => {
     localStorage.setItem('createInvoiceDate', date)
@@ -78,9 +85,11 @@ export default function Invoice() {
           </div>
         ))}
       </div>
-      {selected && (
-        <CreateInvoiceModal appointment={selected} onClose={() => setSelected(null)} />
-      )}
+      {selected &&
+        createPortal(
+          <CreateInvoiceModal appointment={selected} onClose={() => setSelected(null)} />,
+          document.body
+        )}
     </div>
   )
 }
