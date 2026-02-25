@@ -812,15 +812,20 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
         document.body
       )}
 
-      {/* Skip Confirmation Modal */}
+      {/* Skip Confirmation Modal - wrapper z-[10100] so it appears above view appointment details (10000) */}
       {showSkipConfirm && skipAppointment && createPortal(
-        <>
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 z-[10100]"
+          role="dialog"
+          aria-modal="true"
+        >
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10001]"
+            className="absolute inset-0 bg-black/50"
             onClick={cancelSkip}
+            aria-hidden="true"
           />
           <div
-            className="bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-md w-full overflow-hidden z-[10002]"
+            className="relative bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-md w-full overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
@@ -848,19 +853,24 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
               </div>
             </div>
           </div>
-        </>,
+        </div>,
         document.body
       )}
 
-      {/* Confirm Confirmation Modal */}
+      {/* Confirm Confirmation Modal - wrapper z-[10100] so it appears above view appointment details (10000) */}
       {showConfirmConfirm && confirmAppointment && createPortal(
-        <>
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 z-[10100]"
+          role="dialog"
+          aria-modal="true"
+        >
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10001]"
+            className="absolute inset-0 bg-black/50"
             onClick={cancelConfirm}
+            aria-hidden="true"
           />
           <div
-            className="bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-md w-full overflow-hidden z-[10002]"
+            className="relative bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-md w-full overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
@@ -888,22 +898,27 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
               </div>
             </div>
           </div>
-        </>,
+        </div>,
         document.body
       )}
 
-      {/* Past Date Confirmation Modal */}
+      {/* Past Date Confirmation Modal - wrapper z-[10100] so it appears above view appointment details (10000) */}
       {showPastDateConfirm && pendingMoveData && createPortal(
-        <>
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 z-[10100]"
+          role="dialog"
+          aria-modal="true"
+        >
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10003]"
+            className="absolute inset-0 bg-black/50"
             onClick={() => {
               setShowPastDateConfirm(false)
               setPendingMoveData(null)
             }}
+            aria-hidden="true"
           />
           <div
-            className="bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-md w-full overflow-hidden z-[10004]"
+            className="relative bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-md w-full overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
@@ -938,7 +953,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
               </div>
             </div>
           </div>
-        </>,
+        </div>,
         document.body
       )}
     </div>

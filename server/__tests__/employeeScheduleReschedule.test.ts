@@ -8,6 +8,13 @@ const appointmentFindManyCalls: Array<{ where: unknown }> = []
 let mockFindManyResult: unknown[] = []
 const payrollItemFindFirst = jest.fn()
 const payrollItemUpdate = jest.fn()
+const mockMessagesCreate = jest.fn().mockResolvedValue({ sid: 'SM123' })
+
+jest.mock('twilio', () =>
+  jest.fn().mockReturnValue({
+    messages: { create: (...args: unknown[]) => mockMessagesCreate(...args) },
+  })
+)
 
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn().mockImplementation(() => ({
@@ -264,6 +271,55 @@ describe('Employee schedule and reschedule', () => {
         data: { confirmed: true },
       })
       expect(res.json).toHaveBeenCalledWith({ success: true, confirmed: true })
+    })
+
+    it('sends SMS to supervisor when employee has supervisor with phone and TWILIO_FROM_NUMBER is set', async () => {
+      const fromNumber = '+15551234567'
+      const originalFrom = process.env.TWILIO_FROM_NUMBER
+      process.env.TWILIO_FROM_NUMBER = fromNumber
+      mockMessagesCreate.mockClear()
+
+      payrollItemFindFirst.mockResolvedValue({
+        id: 50,
+        appointmentId: 100,
+        employeeId: 1,
+        appointment: {
+          id: 100,
+          date: new Date('2025-03-15'),
+          time: '10:00',
+          client: { id: 1, name: 'Test Client' },
+        },
+        employee: {
+          id: 1,
+          name: 'Jane Doe',
+          supervisorId: 5,
+          supervisor: {
+            id: 5,
+            userName: '7255774524',
+            employee: { number: '7255774524' },
+          },
+        },
+      })
+      payrollItemUpdate.mockResolvedValue({})
+
+      const req = mockRequest({ body: { appointmentId: 100 } }) as Request
+      const res = mockResponse()
+      await confirmJob(req, res)
+
+      expect(mockMessagesCreate).toHaveBeenCalledTimes(1)
+      expect(mockMessagesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from: fromNumber,
+          to: expect.stringMatching(/^\+1\d{10}$/),
+          body: expect.stringContaining('Evidence Cleaning: Job confirmed.'),
+        })
+      )
+      const body = mockMessagesCreate.mock.calls[0][0].body
+      expect(body).toContain('Jane Doe')
+      expect(body).toContain('Test Client')
+      expect(body).toContain('10:00')
+
+      process.env.TWILIO_FROM_NUMBER = originalFrom
     })
   })
 })

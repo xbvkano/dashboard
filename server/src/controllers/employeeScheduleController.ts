@@ -466,7 +466,8 @@ export async function confirmJob(req: Request, res: Response) {
       data: { confirmed: true },
     })
 
-    // Notify supervisor by SMS (best-effort; do not fail the request)
+    // Notify supervisor by SMS (best-effort; do not fail the request).
+    // Requires TWILIO_FROM_NUMBER and supervisor with phone: supervisor.employee?.number or supervisor.userName as 10/11 digits.
     const supervisor = payrollItem.employee?.supervisor
     const fromNumber = process.env.TWILIO_FROM_NUMBER
     if (supervisor && fromNumber) {
