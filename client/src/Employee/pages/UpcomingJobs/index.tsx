@@ -13,6 +13,15 @@ export type UpcomingAppointment = {
   block: 'AM' | 'PM'
   pay?: number
   confirmed?: boolean
+  type?: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
+}
+
+function formatType(type: UpcomingAppointment['type']): string {
+  if (!type) return ''
+  if (type === 'STANDARD') return 'Standard'
+  if (type === 'DEEP') return 'Deep'
+  if (type === 'MOVE_IN_OUT') return 'Move in move out'
+  return type.replace(/_/g, ' ')
 }
 
 function formatTime(t: string): string {
@@ -230,6 +239,11 @@ export default function UpcomingJobs() {
                               <div className="min-w-0">
                                 <div className="font-medium text-slate-800">{a.address}</div>
                                 <div className="text-slate-600">{formatTime(a.time)}</div>
+                                {a.type && (
+                                  <div className="text-slate-500 text-xs mt-0.5">
+                                    {formatType(a.type)}
+                                  </div>
+                                )}
                                 {a.instructions && (
                                   <div className="mt-1 text-slate-600 text-xs whitespace-pre-wrap border-l-2 border-slate-200 pl-2">
                                     {a.instructions}
@@ -303,6 +317,11 @@ export default function UpcomingJobs() {
                                 <div className="min-w-0">
                                   <div className="font-medium text-slate-800">{a.address}</div>
                                   <div className="text-slate-600">{formatTime(a.time)}</div>
+                                  {a.type && (
+                                    <div className="text-slate-500 text-xs mt-0.5">
+                                      {formatType(a.type)}
+                                    </div>
+                                  )}
                                   {a.instructions && (
                                     <div className="mt-1 text-slate-600 text-xs whitespace-pre-wrap border-l-2 border-slate-200 pl-2">
                                       {a.instructions}

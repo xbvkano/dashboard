@@ -96,7 +96,10 @@ function AppRoutes({ role, onLogin, onLogout }: RoutesProps) {
                   localStorage.setItem('loginMethod', 'password')
                 }
                 onLogin(r)
-                if (r === 'EMPLOYEE') navigate('/dashboard')
+                if (r === 'EMPLOYEE') {
+                  localStorage.setItem('lastPath', '/dashboard')
+                  navigate('/dashboard')
+                }
               }}
             />
           ) : (

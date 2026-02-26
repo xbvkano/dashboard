@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useState, useRef, useEffect } from 'react'
-import { Link, Routes, Route, useNavigate, Outlet } from 'react-router-dom'
+import { Link, Routes, Route, useNavigate, Outlet, Navigate } from 'react-router-dom'
 import { isDevToolsEnabled } from '../devTools'
 import { EmployeeLanguageProvider, useEmployeeLanguage, type EmployeeLanguage } from './EmployeeLanguageContext'
 import Schedule from './pages/Schedule'
@@ -202,6 +202,7 @@ export default function EmployeeDashboard({ onLogout, onSwitchRole }: Props) {
           <Route index element={<Schedule />} />
           <Route path="schedule" element={<Schedule />} />
           <Route path="jobs" element={<UpcomingJobs />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>
     </EmployeeLanguageProvider>

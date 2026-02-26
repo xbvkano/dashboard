@@ -421,6 +421,7 @@ export async function getUpcomingAppointments(req: Request, res: Response) {
         block: getBlockFromTime(a.time),
         pay: Math.round(pay * 100) / 100,
         confirmed: pi?.confirmed ?? false,
+        type: a.type,
       }
     })
 
