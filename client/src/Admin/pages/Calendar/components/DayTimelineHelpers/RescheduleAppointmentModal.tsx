@@ -9,11 +9,20 @@ interface RescheduleAppointmentModalProps {
   onRescheduled: (newAppointment: Appointment) => void
 }
 
+/** Format appointment date as YYYY-MM-DD for the date input. Use UTC components so the calendar day matches the stored date (avoids off-by-one in timezones behind UTC). */
 function getDateStr(appointment: Appointment): string {
-  const apptDate = typeof appointment.date === 'string' ? new Date(appointment.date) : appointment.date
-  const year = apptDate.getFullYear()
-  const month = String(apptDate.getMonth() + 1).padStart(2, '0')
-  const day = String(apptDate.getDate()).padStart(2, '0')
+  const raw = appointment.date
+  if (typeof raw === 'string') {
+    const d = new Date(raw)
+    const year = d.getUTCFullYear()
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(d.getUTCDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  const d = raw as Date
+  const year = d.getUTCFullYear()
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 

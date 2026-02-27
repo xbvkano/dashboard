@@ -206,14 +206,74 @@ async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
 
   y = tY - 20
 
-  page.drawRectangle({ x: margin, y: y - 60 - secHeader, width: contentWidth, height: 60 + secHeader, color: rgb(1, 1, 1) })
+  // Comments section: size box so it always fits above the footer
+  const footerGap = 30
+  const footerLinesHeight = 42
+  const minFooterY = margin + footerLinesHeight
+  const maxCommentBodyHeight = Math.max(0, y - secHeader - footerGap - minFooterY)
+  const commentBodyHeight = Math.max(24, Math.min(120, maxCommentBodyHeight))
+  const commentBoxHeight = secHeader + commentBodyHeight
+
+  page.drawRectangle({ x: margin, y: y - commentBoxHeight, width: contentWidth, height: commentBoxHeight, color: rgb(1, 1, 1) })
   page.drawRectangle({ x: margin, y: y - secHeader, width: contentWidth, height: secHeader, color: darkBlue })
   page.drawText('Other comments', { x: margin + 6, y: y - 13, font: bold, size: 12, color: rgb(1, 1, 1) })
+
   if (inv.comment) {
-    page.drawText(String(inv.comment), { x: margin + 6, y: y - secHeader - 14, font, size: 11 })
+    const commentStr = String(inv.comment)
+    const commentPadding = 12
+    const commentLineHeight = 13
+    const maxCommentWidth = contentWidth - commentPadding
+    const wrapLine = (text: string, size: number): string[] => {
+      const words = text.split(/\s+/).filter(Boolean)
+      const lines: string[] = []
+      let line = ''
+      const fit = (s: string) => font.widthOfTextAtSize(s, size) <= maxCommentWidth
+      const pushWord = (w: string) => {
+        if (!w) return
+        if (fit(line ? line + ' ' + w : w)) {
+          line = line ? line + ' ' + w : w
+          return
+        }
+        if (line) {
+          lines.push(line)
+          line = ''
+        }
+        if (fit(w)) {
+          line = w
+          return
+        }
+        for (let i = 1; i <= w.length; i++) {
+          const chunk = w.slice(0, i)
+          if (!fit(chunk) && chunk.length > 1) {
+            lines.push(w.slice(0, i - 1))
+            pushWord(w.slice(i - 1))
+            return
+          }
+        }
+        lines.push(w)
+      }
+      words.forEach(pushWord)
+      if (line) lines.push(line)
+      return lines
+    }
+    const maxLines = Math.floor((commentBodyHeight - 8) / commentLineHeight)
+    let commentSize = 11
+    let commentLines = wrapLine(commentStr, commentSize)
+    if (commentLines.length > maxLines && maxLines > 0) {
+      commentSize = 10
+      commentLines = wrapLine(commentStr, commentSize)
+      if (commentLines.length > maxLines) {
+        commentLines = commentLines.slice(0, maxLines)
+      }
+    }
+    let lineY = y - secHeader - 14
+    for (let i = 0; i < commentLines.length && i < maxLines; i++) {
+      page.drawText(commentLines[i], { x: margin + 6, y: lineY, font, size: commentSize })
+      lineY -= commentLineHeight
+    }
   }
 
-  y = y - 60 - secHeader - 30
+  y = y - commentBoxHeight - footerGap
 
   const qText = 'If you have any questions about this invoice, please contact'
   const cText = 'Marcelo Kano, contact@worldwideevidence.com'
