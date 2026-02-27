@@ -89,15 +89,16 @@ export default function TeamOptionsModal({
 
   useEffect(() => {
     if (dateStr && timeStr) {
+      const exclude = appointment.id != null ? `&excludeAppointmentId=${encodeURIComponent(String(appointment.id))}` : ''
       fetchJson<{ employees: ScheduledAtEmployee[] }>(
-        `${API_BASE_URL}/employees/scheduled-at?date=${encodeURIComponent(dateStr)}&time=${encodeURIComponent(timeStr)}`
+        `${API_BASE_URL}/employees/scheduled-at?date=${encodeURIComponent(dateStr)}&time=${encodeURIComponent(timeStr)}${exclude}`
       )
         .then((data) => setScheduledAtEmployees(data.employees ?? []))
         .catch(() => setScheduledAtEmployees([]))
     } else {
       setScheduledAtEmployees([])
     }
-  }, [dateStr, timeStr])
+  }, [dateStr, timeStr, appointment.id])
 
   useEffect(() => {
     const ids = appointment.employees?.map((e) => e.id).filter(Boolean) ?? []
@@ -189,12 +190,12 @@ export default function TeamOptionsModal({
   })()
 
   const showConfirmModal = showSizeConfirm || showNonAvailableConfirm
-  const allHavePositivePay =
-    selectedIds.length > 0 && selectedIds.every((id) => getPay(id) > 0)
-  const canSave = hasChanges && allHavePositivePay && !saving && !showConfirmModal
+  const canSaveWithPay =
+    selectedIds.length === 0 || (selectedIds.length > 0 && selectedIds.every((id) => getPay(id) > 0))
+  const canSave = hasChanges && canSaveWithPay && !saving && !showConfirmModal
 
   const handleSave = async (skipSizeConfirm = false, skipNonAvailableConfirm = false) => {
-    if (!allHavePositivePay) return
+    if (!canSaveWithPay) return
     const sizeDiff = selectedIds.length !== teamSize
     if (sizeDiff && !skipSizeConfirm && !showSizeConfirm) {
       setShowSizeConfirm(true)
@@ -214,7 +215,7 @@ export default function TeamOptionsModal({
       })
       const body: any = {
         employeeIds: selectedIds,
-        noTeam: false,
+        noTeam: selectedIds.length === 0,
         payrollAmounts,
         payrollNote: payNote.trim() || null,
       }
@@ -261,7 +262,9 @@ export default function TeamOptionsModal({
     ? 'Confirm team size'
     : 'Confirm non-available employees'
   const confirmMessage = showSizeConfirm
-    ? `Selected ${selectedIds.length} employee(s); recommended team size is ${teamSize}. Continue anyway?`
+    ? selectedIds.length === 0
+      ? `You have selected 0 employees; recommended team size is ${teamSize}. Save with no team assigned?`
+      : `Selected ${selectedIds.length} employee(s); recommended team size is ${teamSize}. Continue anyway?`
     : `${selectedNonAvailableCount} selected employee(s) are not available for this time. Continue anyway?`
   const onConfirm = showSizeConfirm ? confirmSizeAndSave : confirmNonAvailableAndSave
   const dismissConfirm = () => {

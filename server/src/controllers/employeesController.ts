@@ -455,12 +455,18 @@ export async function deleteEmployee(req: Request, res: Response) {
 }
 
 /**
- * GET /employees/scheduled-at?date=YYYY-MM-DD&time=HH:mm
+ * GET /employees/scheduled-at?date=YYYY-MM-DD&time=HH:mm&excludeAppointmentId=123
  * Returns employees already scheduled at that date and time slot (AM/PM). Used in Team Options to show who can't be selected.
+ * When excludeAppointmentId is provided, employees scheduled only on that appointment are excluded (so the current job's team can be unchecked without showing as "Scheduled").
  */
 export async function getScheduledAt(req: Request, res: Response) {
   const dateStr = String(req.query.date || '').trim()
   const timeStr = String(req.query.time || '').trim()
+  const excludeIdRaw = req.query.excludeAppointmentId
+  const excludeAppointmentId =
+    excludeIdRaw !== undefined && excludeIdRaw !== ''
+      ? parseInt(String(excludeIdRaw), 10)
+      : null
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     return res.status(400).json({ error: 'date required (YYYY-MM-DD)' })
   }
@@ -477,11 +483,12 @@ export async function getScheduledAt(req: Request, res: Response) {
         date: { gte: start, lt: endExclusive },
         status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
       },
-      select: { time: true, employees: { select: { id: true, name: true, number: true } } },
+      select: { id: true, time: true, employees: { select: { id: true, name: true, number: true } } },
     })
     const inSlot = appts.filter((a) => getSlotFromTime(a.time ?? '') === slot)
     const byId = new Map<number, { id: number; name: string; number: string }>()
     inSlot.forEach((a) => {
+      if (excludeAppointmentId != null && a.id === excludeAppointmentId) return
       a.employees.forEach((e) => byId.set(e.id, e))
     })
     res.json({ employees: Array.from(byId.values()) })
