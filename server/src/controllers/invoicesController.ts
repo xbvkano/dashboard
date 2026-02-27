@@ -137,7 +137,7 @@ async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
   // Section 3 - Table
   const tableHeaderHeight = 20
   const rowHeight = 18
-  const rows = 16
+  const rows = 11
   const descWidth = contentWidth * 0.6
   const taxWidth = contentWidth * 0.1
   const amtWidth = contentWidth * 0.3
