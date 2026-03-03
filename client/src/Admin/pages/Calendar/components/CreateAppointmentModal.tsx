@@ -483,9 +483,17 @@ const preserveTeamRef = useRef(false)
     setCarpetRooms(t?.carpetRooms != null ? String(t.carpetRooms) : '')
   }, [selectedTemplate, templates])
 
-  // When size or type changes and both are set, update team size and price to the new defaults
+  // When size or type changes and both are set, update team size and price to the new defaults.
+  // When editing an existing template, keep its price/teamSize unless the user changed type or size.
+  const editingTemplate =
+    editingTemplateId != null ? templates.find((tt) => tt.id === editingTemplateId) : null
+  const keepExistingPriceAndSize =
+    editingTemplate &&
+    templateForm.type === editingTemplate.type &&
+    templateForm.size === (editingTemplate.size ?? '')
   useEffect(() => {
     if (!templateForm.size || !templateForm.type) return
+    if (keepExistingPriceAndSize) return
     fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
       .then((d: { teamSize: number; price: number }) => {
         setTemplateForm((prev: typeof templateForm) => ({
@@ -495,7 +503,7 @@ const preserveTeamRef = useRef(false)
         }))
       })
       .catch(() => {})
-  }, [templateForm.size, templateForm.type])
+  }, [templateForm.size, templateForm.type, keepExistingPriceAndSize])
 
   // calculate pay rate when team changes
   useEffect(() => {

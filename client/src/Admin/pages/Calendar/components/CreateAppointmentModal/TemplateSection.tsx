@@ -199,9 +199,16 @@ export default function TemplateSection({
     }
   }, [selectedClient])
 
-  // When size or type changes and both are set, update team size and price to the new defaults
+  // When size or type changes and both are set, update team size and price to the new defaults.
+  // When editing an existing template, keep its price/teamSize unless the user changed type or size.
+  const editingTemplate = editingTemplateId != null ? templates.find((t) => t.id === editingTemplateId) : null
+  const keepExistingPriceAndSize =
+    editingTemplate &&
+    templateForm.type === editingTemplate.type &&
+    templateForm.size === (editingTemplate.size ?? '')
   useEffect(() => {
     if (!templateForm.size || !templateForm.type) return
+    if (keepExistingPriceAndSize) return
     fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
       .then((data: { teamSize: number; price: number }) => {
         setTemplateForm((prev) => ({
@@ -211,7 +218,7 @@ export default function TemplateSection({
         }))
       })
       .catch(() => {})
-  }, [templateForm.size, templateForm.type])
+  }, [templateForm.size, templateForm.type, keepExistingPriceAndSize])
 
   const fillDefaultTeamSizeIfEmpty = () => {
     const trimmed = templateForm.teamSize.trim()
@@ -228,6 +235,7 @@ export default function TemplateSection({
   }
 
   const fillDefaultPriceIfEmpty = () => {
+    if (editingTemplateId != null) return
     const trimmed = templateForm.price.trim()
     if (trimmed !== '' || !templateForm.size || !templateForm.type) return
     fetchJson(`${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`)
