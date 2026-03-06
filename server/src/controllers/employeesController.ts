@@ -548,6 +548,82 @@ export async function getEmployeeScheduleView(req: Request, res: Response) {
   }
 }
 
+/** Validate schedule entry format: YYYY-MM-DD-T-S (T=M|A, S=F|B) */
+function validateScheduleEntry(entry: string): boolean {
+  const parts = entry.split('-')
+  if (parts.length !== 5) return false
+  const [y, m, d, type, status] = parts
+  if (isNaN(parseInt(y)) || isNaN(parseInt(m)) || isNaN(parseInt(d))) return false
+  if (type !== 'M' && type !== 'A') return false
+  if (status !== 'F' && status !== 'B') return false
+  const date = new Date(parseInt(y), parseInt(m) - 1, parseInt(d))
+  return date.getFullYear() === parseInt(y) && date.getMonth() === parseInt(m) - 1 && date.getDate() === parseInt(d)
+}
+
+/** Move past dates from futureSchedule into pastSchedule */
+function movePastScheduleDates(futureSchedule: string[], pastSchedule: string[]): { newFuture: string[]; newPast: string[] } {
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  yesterday.setHours(23, 59, 59, 999)
+  const newFuture: string[] = []
+  const newPast = [...pastSchedule]
+  for (const entry of futureSchedule) {
+    const parts = entry.split('-')
+    if (parts.length !== 5) continue
+    const [year, month, day] = parts
+    const entryDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+    if (entryDate <= yesterday) newPast.push(entry)
+    else newFuture.push(entry)
+  }
+  return { newFuture, newPast }
+}
+
+/**
+ * Admin: update an employee's schedule (futureSchedule). Used e.g. to remove availability slots.
+ * PUT /employees/:id/schedule
+ */
+export async function updateEmployeeSchedule(req: Request, res: Response) {
+  const id = parseInt(req.params.id, 10)
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
+  const { futureSchedule } = req.body as { futureSchedule: string[] }
+  if (!Array.isArray(futureSchedule)) {
+    return res.status(400).json({ error: 'Invalid schedule format' })
+  }
+  if (futureSchedule.length > 0) {
+    const invalid = futureSchedule.filter((e) => !validateScheduleEntry(e))
+    if (invalid.length > 0) {
+      return res.status(400).json({ error: 'Invalid schedule entries', invalidEntries: invalid.slice(0, 5) })
+    }
+  }
+  try {
+    const schedule = await prisma.schedule.findUnique({ where: { employeeId: id } })
+    const existingPast = schedule?.pastSchedule ?? []
+    const { newFuture, newPast } = movePastScheduleDates(futureSchedule, existingPast)
+    if (schedule) {
+      await prisma.schedule.update({
+        where: { employeeId: id },
+        data: { futureSchedule: newFuture, pastSchedule: newPast },
+      })
+    } else {
+      const policy = await prisma.schedulePolicy.findUnique({ where: { id: 1 } })
+      const updateDay = policy?.updateDayOfWeek ?? 0
+      const nextDue = getNextOrThisUpdateDay(new Date(), updateDay)
+      await prisma.schedule.create({
+        data: {
+          employeeId: id,
+          futureSchedule: newFuture,
+          pastSchedule: newPast,
+          nextScheduleUpdateDueAt: nextDue,
+        },
+      })
+    }
+    res.json({ success: true, futureSchedule: newFuture })
+  } catch (e) {
+    console.error('Error updating employee schedule:', e)
+    res.status(500).json({ error: 'Failed to update schedule' })
+  }
+}
+
 export async function getEmployeeAppointments(req: Request, res: Response) {
   const id = parseInt(req.params.id, 10)
   const skip = parseInt(String(req.query.skip || '0'), 10)

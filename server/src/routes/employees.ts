@@ -15,6 +15,7 @@ import {
   deleteEmployee,
   getEmployeeAppointments,
   getEmployeeScheduleView,
+  updateEmployeeSchedule,
 } from '../controllers/employeesController'
 
 const router = Router()
@@ -31,6 +32,7 @@ router.put('/employees/schedule-policy', updateSchedulePolicy)
 router.get('/employees/scheduled-at', getScheduledAt)
 router.post('/employees', createEmployee)
 router.get('/employees/:id/schedule-view', getEmployeeScheduleView)
+router.put('/employees/:id/schedule', updateEmployeeSchedule)
 router.get('/employees/:id', getEmployee)
 router.put('/employees/:id', updateEmployee)
 router.delete('/employees/:id', deleteEmployee)

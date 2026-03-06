@@ -196,6 +196,9 @@ export default function Schedule() {
   const [selectEmployeeList, setSelectEmployeeList] = useState<EmployeeOption[]>([])
   const [employeeViewAppointment, setEmployeeViewAppointment] = useState<Appointment | null>(null)
   const [employeeModalView, setEmployeeModalView] = useState<DayTimelineModalView>('details')
+  /** Selected availability slots for deletion (only purple "Available" blocks). Keys: "YYYY-MM-DD-AM" | "YYYY-MM-DD-PM" */
+  const [selectedAvailabilitySlots, setSelectedAvailabilitySlots] = useState<Set<string>>(new Set())
+  const [deletingAvailability, setDeletingAvailability] = useState(false)
   const [showSchedulePolicyModal, setShowSchedulePolicyModal] = useState(false)
   const [schedulePolicy, setSchedulePolicy] = useState<{
     updateDayOfWeek: number
@@ -313,6 +316,46 @@ export default function Schedule() {
     setSelectedEmployee(null)
     setViewMode('all')
     setShowSelectEmployee(false)
+    setSelectedAvailabilitySlots(new Set())
+  }
+
+  /** Toggle selection of an availability slot (purple only). Key: "YYYY-MM-DD-AM" | "YYYY-MM-DD-PM" */
+  const toggleAvailabilitySelection = (dateKey: string, slot: 'AM' | 'PM') => {
+    const key = `${dateKey}-${slot}`
+    setSelectedAvailabilitySlots((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const deleteSelectedAvailability = async () => {
+    if (!selectedEmployee || !employeeScheduleView || selectedAvailabilitySlots.size === 0) return
+    setDeletingAvailability(true)
+    try {
+      const current = employeeScheduleView.futureSchedule ?? []
+      const toRemove = new Set(selectedAvailabilitySlots)
+      const newFuture = current.filter((entry) => {
+        const parsed = parseScheduleEntry(entry)
+        if (!parsed || parsed.status !== 'F') return true
+        const slotKey = `${parsed.date}-${parsed.type === 'M' ? 'AM' : 'PM'}`
+        return !toRemove.has(slotKey)
+      })
+      const res = await fetch(`${API_BASE_URL}/employees/${selectedEmployee.id}/schedule`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ futureSchedule: newFuture }),
+      })
+      if (!res.ok) throw new Error('Failed to update schedule')
+      setEmployeeScheduleView({ ...employeeScheduleView, futureSchedule: newFuture })
+      setSelectedAvailabilitySlots(new Set())
+    } catch (e) {
+      console.error(e)
+      alert('Failed to remove availability. Please try again.')
+    } finally {
+      setDeletingAvailability(false)
+    }
   }
 
   const handleSelectEmployee = (emp: EmployeeOption) => {
@@ -442,6 +485,14 @@ export default function Schedule() {
               >
                 Clear
               </button>
+              <button
+                type="button"
+                onClick={deleteSelectedAvailability}
+                disabled={selectedAvailabilitySlots.size === 0 || deletingAvailability}
+                className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {deletingAvailability ? 'Removing…' : `Delete selected availability (${selectedAvailabilitySlots.size})`}
+              </button>
             </>
           ) : (
             <>
@@ -551,6 +602,8 @@ export default function Schedule() {
                 const scheduledPm = sched?.afternoon ?? false
                 const unconfirmedAm = sched?.morningUnconfirmed ?? false
                 const unconfirmedPm = sched?.afternoonUnconfirmed ?? false
+                const availableAm = !beyond14 && !scheduledAm && !unconfirmedAm && !!(shifts?.morning && shifts.morningStatus !== null)
+                const availablePm = !beyond14 && !scheduledPm && !unconfirmedPm && !!(shifts?.afternoon && shifts.afternoonStatus !== null)
                 const getAmClass = () => {
                   if (beyond14) return 'bg-slate-200 text-slate-400'
                   if (unconfirmedAm) return 'bg-amber-500 text-white'
@@ -565,8 +618,10 @@ export default function Schedule() {
                   if (shifts?.afternoon && shifts.afternoonStatus !== null) return 'bg-violet-600 text-white'
                   return 'bg-slate-100 text-slate-500'
                 }
-                const amClickable = !beyond14 && (scheduledAm || unconfirmedAm)
-                const pmClickable = !beyond14 && (scheduledPm || unconfirmedPm)
+                const amClickableAppt = !beyond14 && (scheduledAm || unconfirmedAm)
+                const pmClickableAppt = !beyond14 && (scheduledPm || unconfirmedPm)
+                const amSelected = selectedAvailabilitySlots.has(`${key}-AM`)
+                const pmSelected = selectedAvailabilitySlots.has(`${key}-PM`)
                 return (
                   <div
                     key={key}
@@ -576,11 +631,19 @@ export default function Schedule() {
                   >
                     <div className="text-xs font-semibold shrink-0">{date.getDate()}</div>
                     <div className="flex-1 flex flex-col gap-1 min-h-0">
-                      {amClickable ? (
+                      {amClickableAppt ? (
                         <button
                           type="button"
                           onClick={() => handleEmployeeBlockClick(key, 'AM')}
                           className={`rounded px-1 py-1 flex flex-col min-h-[36px] justify-center w-full text-left cursor-pointer hover:opacity-90 ${getAmClass()}`}
+                        >
+                          <div className="text-[9px] font-semibold uppercase tracking-wide opacity-90">AM</div>
+                        </button>
+                      ) : availableAm ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleAvailabilitySelection(key, 'AM')}
+                          className={`rounded px-1 py-1 flex flex-col min-h-[36px] justify-center w-full text-left cursor-pointer hover:opacity-90 ${getAmClass()} ${amSelected ? 'ring-2 ring-red-500 ring-inset' : ''}`}
                         >
                           <div className="text-[9px] font-semibold uppercase tracking-wide opacity-90">AM</div>
                         </button>
@@ -589,11 +652,19 @@ export default function Schedule() {
                           <div className="text-[9px] font-semibold uppercase tracking-wide opacity-90">AM</div>
                         </div>
                       )}
-                      {pmClickable ? (
+                      {pmClickableAppt ? (
                         <button
                           type="button"
                           onClick={() => handleEmployeeBlockClick(key, 'PM')}
                           className={`rounded px-1 py-1 flex flex-col min-h-[36px] justify-center w-full text-left cursor-pointer hover:opacity-90 ${getPmClass()}`}
+                        >
+                          <div className="text-[9px] font-semibold uppercase tracking-wide opacity-90">PM</div>
+                        </button>
+                      ) : availablePm ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleAvailabilitySelection(key, 'PM')}
+                          className={`rounded px-1 py-1 flex flex-col min-h-[36px] justify-center w-full text-left cursor-pointer hover:opacity-90 ${getPmClass()} ${pmSelected ? 'ring-2 ring-red-500 ring-inset' : ''}`}
                         >
                           <div className="text-[9px] font-semibold uppercase tracking-wide opacity-90">PM</div>
                         </button>
@@ -672,7 +743,7 @@ export default function Schedule() {
               Unconfirmed
             </span>
             <span className="text-slate-500">Days beyond 14 from today show gray (no data).</span>
-            <span className="text-slate-500">Click a Scheduled or Unconfirmed block to open that appointment.</span>
+            <span className="text-slate-500">Click a Scheduled or Unconfirmed block to open that appointment. Click Available (purple) blocks to select for removal, then use Delete selected availability.</span>
           </>
         ) : (
           <>
