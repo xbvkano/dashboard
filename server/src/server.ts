@@ -512,6 +512,7 @@ import invoicesRoutes from './routes/invoices'
 import payrollRoutes from './routes/payroll'
 import aiAppointmentRoutes from './routes/aiAppointments'
 import couponsRoutes from './routes/coupons'
+import websiteApiRoutes from './routes/websiteApi'
 
 // Use all route files
 app.use('/', basicRoutes)
@@ -529,6 +530,7 @@ app.use('/', invoicesRoutes)
 app.use('/', payrollRoutes)
 app.use('/', aiAppointmentRoutes)
 app.use('/api', couponsRoutes)
+app.use('/api', websiteApiRoutes)
 
 // Initialize cron jobs
 setupScheduleCleanupJob()
