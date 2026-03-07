@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../api'
 
-type RangePreset = 'week' | 'month' | 'custom'
+type RangePreset = 'week' | 'month' | 'year' | 'custom'
 
 /** GET /api/stats response. See Evidence Cleaning Server API. */
 interface StatsResponse {
@@ -79,6 +79,16 @@ function getPreviousWeekRange(anchor: Date): { start: Date; end: Date } {
 function getPreviousMonthRange(anchor: Date): { start: Date; end: Date } {
   const d = new Date(anchor.getFullYear(), anchor.getMonth(), 0)
   return getMonthRange(d)
+}
+
+function getYearRange(year: number): { start: Date; end: Date } {
+  const start = new Date(year, 0, 1)
+  const end = new Date(year, 11, 31)
+  return { start: startOfDay(start), end: startOfDay(end) }
+}
+
+function getPreviousYearRange(year: number): { start: Date; end: Date } {
+  return getYearRange(year - 1)
 }
 
 const SOURCE_COLORS = [
@@ -195,6 +205,7 @@ function toYYYYMM(date: Date): string {
 export default function StatsSection() {
   const [rangePreset, setRangePreset] = useState<RangePreset>('week')
   const [selectedMonth, setSelectedMonth] = useState(() => toYYYYMM(new Date()))
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear())
   const [customStart, setCustomStart] = useState(() => toYYYYMMDD(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)))
   const [customEnd, setCustomEnd] = useState(() => toYYYYMMDD(new Date()))
   const [current, setCurrent] = useState<StatsResponse | null>(null)
@@ -232,6 +243,18 @@ export default function StatsSection() {
         previousLabel: 'Previous month',
       }
     }
+    if (rangePreset === 'year') {
+      const { start, end } = getYearRange(selectedYear)
+      const { start: pStart, end: pEnd } = getPreviousYearRange(selectedYear)
+      return {
+        start,
+        end,
+        previousStart: pStart,
+        previousEnd: pEnd,
+        label: String(selectedYear),
+        previousLabel: 'Previous year',
+      }
+    }
     const start = startOfDay(new Date(customStart))
     const end = startOfDay(new Date(customEnd))
     const days = Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) || 1
@@ -247,7 +270,7 @@ export default function StatsSection() {
       label: 'Custom range',
       previousLabel: 'Previous period',
     }
-  }, [rangePreset, selectedMonth, customStart, customEnd])
+  }, [rangePreset, selectedMonth, selectedYear, customStart, customEnd])
 
   useEffect(() => {
     setLoading(true)
@@ -322,7 +345,7 @@ export default function StatsSection() {
         <h3 className="text-lg font-semibold text-slate-800">Form submissions & calls</h3>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-slate-600">Range:</span>
-          {(['week', 'month', 'custom'] as const).map((preset) => (
+          {(['week', 'month', 'year', 'custom'] as const).map((preset) => (
             <button
               key={preset}
               type="button"
@@ -340,6 +363,20 @@ export default function StatsSection() {
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+            />
+          )}
+          {rangePreset === 'year' && (
+            <input
+              type="number"
+              min={new Date().getFullYear() - 10}
+              max={new Date().getFullYear() + 1}
+              value={selectedYear}
+              onChange={(e) => {
+                const y = parseInt(e.target.value, 10)
+                const curr = new Date().getFullYear()
+                if (!Number.isNaN(y)) setSelectedYear(Math.min(curr + 1, Math.max(curr - 10, y)))
+              }}
+              className="rounded border border-slate-300 px-2 py-1.5 text-sm w-20"
             />
           )}
           {rangePreset === 'custom' && (
