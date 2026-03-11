@@ -90,9 +90,17 @@ export function calculateNextAppointmentDate(
         // Use setFullYear to properly handle month/year overflow (e.g., month 12 becomes month 0 of next year)
         next.setFullYear(targetYear, targetMonth, targetDay)
       } else if (rule.dayOfMonth) {
-        // Specific day of month (e.g., 5th of every month)
-        next.setMonth(next.getMonth() + 1)
-        next.setDate(rule.dayOfMonth)
+        // Specific day of month (e.g., 31st of every month). If the target month has fewer days,
+        // use the last day of that month (e.g. 31st → Feb 28/29, Apr 30).
+        const currentMonth = referenceDate.getMonth()
+        const currentYear = referenceDate.getFullYear()
+        const targetMonth = currentMonth + 1
+        const targetYear = currentYear + Math.floor(targetMonth / 12)
+        const finalMonth = targetMonth % 12
+        next.setFullYear(targetYear, finalMonth, 1)
+        const lastDayOfTargetMonth = new Date(targetYear, finalMonth + 1, 0).getDate()
+        const finalDay = Math.min(rule.dayOfMonth, lastDayOfTargetMonth)
+        next.setDate(finalDay)
       } else {
         // Fallback to monthly
         next.setMonth(next.getMonth() + 1)

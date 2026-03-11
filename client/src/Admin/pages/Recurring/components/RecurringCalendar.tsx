@@ -76,8 +76,15 @@ function calculateNextDate(rule: any, date: Date): Date {
           next.setMonth(next.getMonth() + 1)
         }
       } else if (rule.dayOfMonth) {
-        next.setMonth(next.getMonth() + 1)
-        next.setDate(rule.dayOfMonth)
+        const currentMonth = date.getMonth()
+        const currentYear = date.getFullYear()
+        const targetMonth = currentMonth + 1
+        const targetYear = currentYear + Math.floor(targetMonth / 12)
+        const finalMonth = targetMonth % 12
+        next.setFullYear(targetYear, finalMonth, 1)
+        const lastDayOfTargetMonth = new Date(targetYear, finalMonth + 1, 0).getDate()
+        const finalDay = Math.min(rule.dayOfMonth, lastDayOfTargetMonth)
+        next.setDate(finalDay)
       } else {
         next.setMonth(next.getMonth() + 1)
       }
@@ -132,8 +139,15 @@ function calculatePreviousDate(rule: any, date: Date): Date {
           prev.setMonth(prev.getMonth() - 1)
         }
       } else if (rule.dayOfMonth) {
-        prev.setMonth(prev.getMonth() - 1)
-        prev.setDate(rule.dayOfMonth)
+        const currentMonth = date.getMonth()
+        const currentYear = date.getFullYear()
+        const targetMonth = currentMonth - 1
+        const targetYear = currentYear + Math.floor(targetMonth / 12)
+        const finalMonth = (targetMonth % 12 + 12) % 12
+        prev.setFullYear(targetYear, finalMonth, 1)
+        const lastDayOfTargetMonth = new Date(targetYear, finalMonth + 1, 0).getDate()
+        const finalDay = Math.min(rule.dayOfMonth, lastDayOfTargetMonth)
+        prev.setDate(finalDay)
       } else {
         prev.setMonth(prev.getMonth() - 1)
       }

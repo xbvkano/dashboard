@@ -113,6 +113,63 @@ describe('recurrenceUtils', () => {
       const next = calculateNextAppointmentDate({ type: 'weekly' as any }, ref)
       expect(next.getDate()).toBe(22)
     })
+
+    describe('monthlyPattern with dayOfMonth (clamp to last day when month has fewer days)', () => {
+      it('day 31: Jan 31 → Feb 28 (non-leap year)', () => {
+        const ref = new Date(2025, 0, 31) // Jan 31, 2025
+        const next = calculateNextAppointmentDate({ type: 'monthlyPattern', dayOfMonth: 31 }, ref)
+        expect(next.getDate()).toBe(28)
+        expect(next.getMonth()).toBe(1) // February
+        expect(next.getFullYear()).toBe(2025)
+      })
+
+      it('day 31: Jan 31 → Feb 29 in leap year', () => {
+        const ref = new Date(2024, 0, 31) // Jan 31, 2024 (leap year)
+        const next = calculateNextAppointmentDate({ type: 'monthlyPattern', dayOfMonth: 31 }, ref)
+        expect(next.getDate()).toBe(29)
+        expect(next.getMonth()).toBe(1)
+        expect(next.getFullYear()).toBe(2024)
+      })
+
+      it('day 31: Feb 28 → Mar 31', () => {
+        const ref = new Date(2025, 1, 28) // Feb 28
+        const next = calculateNextAppointmentDate({ type: 'monthlyPattern', dayOfMonth: 31 }, ref)
+        expect(next.getDate()).toBe(31)
+        expect(next.getMonth()).toBe(2) // March
+        expect(next.getFullYear()).toBe(2025)
+      })
+
+      it('day 31: Mar 31 → Apr 30', () => {
+        const ref = new Date(2025, 2, 31) // Mar 31
+        const next = calculateNextAppointmentDate({ type: 'monthlyPattern', dayOfMonth: 31 }, ref)
+        expect(next.getDate()).toBe(30)
+        expect(next.getMonth()).toBe(3) // April
+        expect(next.getFullYear()).toBe(2025)
+      })
+
+      it('day 31: Apr 30 → May 31', () => {
+        const ref = new Date(2025, 3, 30) // Apr 30 (occurrence was 30th)
+        const next = calculateNextAppointmentDate({ type: 'monthlyPattern', dayOfMonth: 31 }, ref)
+        expect(next.getDate()).toBe(31)
+        expect(next.getMonth()).toBe(4) // May
+        expect(next.getFullYear()).toBe(2025)
+      })
+
+      it('day 31: May 31 → Jun 30', () => {
+        const ref = new Date(2025, 4, 31) // May 31
+        const next = calculateNextAppointmentDate({ type: 'monthlyPattern', dayOfMonth: 31 }, ref)
+        expect(next.getDate()).toBe(30)
+        expect(next.getMonth()).toBe(5) // June
+        expect(next.getFullYear()).toBe(2025)
+      })
+
+      it('day of month 15: always 15th when month has 15+ days', () => {
+        const ref = new Date(2025, 0, 15)
+        const next = calculateNextAppointmentDate({ type: 'monthlyPattern', dayOfMonth: 15 }, ref)
+        expect(next.getDate()).toBe(15)
+        expect(next.getMonth()).toBe(1) // February
+      })
+    })
   })
 
   describe('parseLegacyFrequency', () => {
@@ -315,6 +372,40 @@ describe('recurrenceUtils', () => {
       // Jan, Apr, Jul, Oct
       expect(countOccurrencesInMonth({ type: 'customMonths', interval: 3 }, lastBooked, 3, 2025)).toBe(1) // April
       expect(countOccurrencesInMonth({ type: 'customMonths', interval: 3 }, lastBooked, 1, 2025)).toBe(0) // Feb
+    })
+
+    describe('monthlyPattern with dayOfMonth 31 (occurrence on last day when month has fewer days)', () => {
+      it('counts 1 in February when ref is Jan 31 (occurrence on Feb 28)', () => {
+        const lastBooked = new Date(2025, 0, 31) // Jan 31
+        const count = countOccurrencesInMonth(
+          { type: 'monthlyPattern', dayOfMonth: 31 },
+          lastBooked,
+          1,
+          2025
+        ) // February
+        expect(count).toBe(1)
+      })
+
+      it('counts 1 in April when ref is before April (occurrence on Apr 30)', () => {
+        const lastBooked = new Date(2025, 0, 31) // Jan 31 → Feb 28, Mar 31, Apr 30
+        const count = countOccurrencesInMonth(
+          { type: 'monthlyPattern', dayOfMonth: 31 },
+          lastBooked,
+          3,
+          2025
+        ) // April
+        expect(count).toBe(1)
+      })
+
+      it('counts 1 in every month for dayOfMonth 31 (no skipped months)', () => {
+        const lastBooked = new Date(2025, 0, 31) // Start Jan 31; next occurrences: Feb 28, Mar 31, Apr 30, May 31, Jun 30
+        expect(countOccurrencesInMonth({ type: 'monthlyPattern', dayOfMonth: 31 }, lastBooked, 0, 2025)).toBe(0) // Jan: no next after Jan 31
+        expect(countOccurrencesInMonth({ type: 'monthlyPattern', dayOfMonth: 31 }, lastBooked, 1, 2025)).toBe(1) // Feb (28th)
+        expect(countOccurrencesInMonth({ type: 'monthlyPattern', dayOfMonth: 31 }, lastBooked, 2, 2025)).toBe(1) // Mar (31st)
+        expect(countOccurrencesInMonth({ type: 'monthlyPattern', dayOfMonth: 31 }, lastBooked, 3, 2025)).toBe(1) // Apr (30th)
+        expect(countOccurrencesInMonth({ type: 'monthlyPattern', dayOfMonth: 31 }, lastBooked, 4, 2025)).toBe(1) // May (31st)
+        expect(countOccurrencesInMonth({ type: 'monthlyPattern', dayOfMonth: 31 }, lastBooked, 5, 2025)).toBe(1) // Jun (30th)
+      })
     })
   })
 })
