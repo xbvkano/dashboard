@@ -174,14 +174,15 @@ describe('updateEmployeeSchedule (PUT /employees/:id/schedule)', () => {
       })
       mockScheduleUpdate.mockResolvedValue({})
 
+      // Use dates far in the future so they stay in futureSchedule (not moved to past)
       const req = mockRequest({
         params: { id: '6' },
         body: {
           futureSchedule: [
-            '2026-03-15-M-F',
-            '2026-03-15-A-F',
-            '2026-03-16-M-B',
-            '2026-03-16-A-B',
+            '2030-03-15-M-F',
+            '2030-03-15-A-F',
+            '2030-03-16-M-B',
+            '2030-03-16-A-B',
           ],
         },
       })

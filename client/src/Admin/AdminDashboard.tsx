@@ -2,8 +2,8 @@ import { Link, Routes, Route, useNavigate } from 'react-router-dom'
 import { isDevToolsEnabled } from '../devTools'
 import Home from './pages/Home'
 import Calendar from './pages/Calendar'
-import Clients from './pages/Clients'
-import Employees from './pages/Employees'
+import Accounts from './pages/Accounts'
+import Messages from './pages/Messages'
 import Financing from './pages/Financing'
 import Recurring from './pages/Recurring'
 import DevTools from './pages/DevTools'
@@ -35,8 +35,8 @@ export default function AdminDashboard({ onLogout, onSwitchRole }: Props) {
         <ul className="flex flex-wrap justify-around p-2 text-sm">
           <li><Link className="px-2 py-1" to="/dashboard">Home</Link></li>
           <li><Link className="px-2 py-1" to="/dashboard/calendar">Calendar</Link></li>
-          <li><Link className="px-2 py-1" to="/dashboard/clients">Clients</Link></li>
-          <li><Link className="px-2 py-1" to="/dashboard/employees">Employees</Link></li>
+          <li><Link className="px-2 py-1" to="/dashboard/messages">Messages</Link></li>
+          <li><Link className="px-2 py-1" to="/dashboard/accounts">Accounts</Link></li>
           <li><Link className="px-2 py-1" to="/dashboard/financing">Financing</Link></li>
           {isDevToolsEnabled && (
             <li><Link className="px-2 py-1" to="/dashboard/devtools">DevTools</Link></li>
@@ -54,8 +54,8 @@ export default function AdminDashboard({ onLogout, onSwitchRole }: Props) {
         <Routes>
           <Route index element={<Home />} />
           <Route path="calendar" element={<Calendar />} />
-          <Route path="clients/*" element={<Clients />} />
-          <Route path="employees/*" element={<Employees />} />
+          <Route path="accounts/*" element={<Accounts />} />
+          <Route path="messages/*" element={<Messages />} />
           <Route path="financing/*" element={<Financing />} />
           <Route path="recurring/*" element={<Recurring />} />
           {isDevToolsEnabled && (

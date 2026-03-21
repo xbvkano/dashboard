@@ -167,7 +167,7 @@ export default function EmployeeForm() {
       supervisorId,
     })
     setSaveSuccess(true)
-    if (isNew) navigate('/dashboard/employees/accounts')
+    if (isNew) navigate('/dashboard/accounts/employees/accounts')
   }
 
   const handleDelete = async () => {
@@ -194,7 +194,7 @@ export default function EmployeeForm() {
           Saved
         </div>
       )}
-      <Link to="/dashboard/employees/accounts" className="text-blue-500 text-sm">&larr; Back to accounts</Link>
+      <Link to="/dashboard/accounts/employees/accounts" className="text-blue-500 text-sm">&larr; Back to accounts</Link>
       <div>
         <label htmlFor="employee-name" className="block text-sm">
           Name <span className="text-red-500">*</span>
