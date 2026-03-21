@@ -47,11 +47,11 @@ export default function Leads() {
   }, [])
 
   return (
-    <div className="p-4 pb-24 md:pb-8 flex flex-col h-[calc(100vh-5rem)] md:h-[calc(100vh-4rem)] min-h-0">
-      <h2 className="text-xl font-semibold text-slate-900 mb-4 shrink-0">Leads</h2>
+    <div className="p-2 md:p-3 flex flex-col h-[calc(100dvh-3.5rem)] md:h-[calc(100vh-3.5rem)] min-h-0">
+      <h2 className="text-xl font-semibold text-slate-900 mb-2 shrink-0">Leads</h2>
 
       {/* Mobile: switch between Forms and Calls */}
-      <div className="md:hidden mb-3 shrink-0 flex gap-0 rounded-lg border border-slate-300 overflow-hidden">
+      <div className="md:hidden mb-2 shrink-0 flex gap-0 rounded-lg border border-slate-300 overflow-hidden">
         <button
           type="button"
           onClick={() => setMobileTab('forms')}
@@ -76,7 +76,7 @@ export default function Leads() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 flex-1 min-h-0">
         <div className={`flex flex-col min-h-0 ${mobileTab !== 'forms' ? 'hidden md:flex' : ''}`}>
           <FormList sources={sources} />
         </div>

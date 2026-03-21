@@ -1,8 +1,10 @@
 import type { FormData } from '../../../../../external_prisma_schemas/website_schema'
 import { formatPhone } from '../../../../../formatPhone'
+import { API_BASE_URL } from '../../../../../api'
 
 interface FormCardProps {
   form: FormData
+  onMarkVisited?: () => void
 }
 
 function formatDate(value: string | Date): string {
@@ -24,13 +26,40 @@ function toE164(digits: string): string | null {
   return null
 }
 
-export default function FormCard({ form }: FormCardProps) {
+export default function FormCard({ form, onMarkVisited }: FormCardProps) {
   const digits = (form.number || '').replace(/\D/g, '')
   const e164 = toE164(digits)
   const hasPhone = !!e164
+  const isUnvisited = form.visited === false
+
+  async function handlePhoneAction(url: string) {
+    if (isUnvisited && onMarkVisited) {
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (import.meta.env.VITE_NGROK === 'true' || import.meta.env.VITE_NGROK === '1') {
+          headers['ngrok-skip-browser-warning'] = '1'
+        }
+        await fetch(`${API_BASE_URL}/api/quotes/${form.id}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ visited: true }),
+        })
+        onMarkVisited()
+      } catch {
+        // Still open tel/sms on failure
+      }
+    }
+    window.location.href = url
+  }
 
   return (
-    <article className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+    <article
+      className={`rounded-xl border shadow-sm overflow-hidden hover:shadow-md transition-shadow ${
+        isUnvisited
+          ? 'bg-blue-50 border-blue-200 ring-2 ring-blue-200/50'
+          : 'bg-white border-slate-200'
+      }`}
+    >
       <div className="p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -40,18 +69,20 @@ export default function FormCard({ form }: FormCardProps) {
           </div>
           {hasPhone && (
             <div className="flex gap-2 shrink-0 md:hidden">
-              <a
-                href={`tel:+${e164}`}
-                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90 no-underline"
+              <button
+                type="button"
+                onClick={() => handlePhoneAction(`tel:+${e164}`)}
+                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
               >
                 Call
-              </a>
-              <a
-                href={`sms:+${e164}`}
-                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90 no-underline"
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePhoneAction(`sms:+${e164}`)}
+                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
               >
                 Text
-              </a>
+              </button>
             </div>
           )}
         </div>

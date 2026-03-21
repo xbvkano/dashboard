@@ -102,7 +102,17 @@ export default function FormList({ sources = [] }: FormListProps) {
               No form submissions yet
             </div>
           ) : (
-            pageItems.map((form) => <FormCard key={form.id} form={form} />)
+            pageItems.map((form) => (
+              <FormCard
+                key={form.id}
+                form={form}
+                onMarkVisited={() =>
+                  setItems((prev) =>
+                    prev.map((f) => (f.id === form.id ? { ...f, visited: true } : f))
+                  )
+                }
+              />
+            ))
           )}
         </div>
       </div>

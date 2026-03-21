@@ -100,7 +100,17 @@ export default function CallList({ sections = [] }: CallListProps) {
           ) : pageItems.length === 0 ? (
             <div className="p-8 text-center text-slate-500">No calls yet</div>
           ) : (
-            pageItems.map((call) => <CallCard key={call.id} call={call} />)
+            pageItems.map((call) => (
+              <CallCard
+                key={call.id}
+                call={call}
+                onMarkVisited={() =>
+                  setItems((prev) =>
+                    prev.map((c) => (c.id === call.id ? { ...c, visited: true } : c))
+                  )
+                }
+              />
+            ))
           )}
         </div>
       </div>

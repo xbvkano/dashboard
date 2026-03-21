@@ -27,6 +27,7 @@ export interface FormData {
   source: string
   otherSource: string | null
   dateCreated: Date
+  visited?: boolean
 }
 
 export interface Call {
@@ -38,6 +39,7 @@ export interface Call {
   service: string
   section: string
   price: number | null
+  visited?: boolean
 }
 
 export interface Coupon {
