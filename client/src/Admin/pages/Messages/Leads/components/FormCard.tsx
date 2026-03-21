@@ -32,22 +32,19 @@ export default function FormCard({ form, onMarkVisited }: FormCardProps) {
   const hasPhone = !!e164
   const isUnvisited = form.visited === false
 
-  async function handlePhoneAction(url: string) {
+  function handlePhoneAction(url: string) {
     if (isUnvisited && onMarkVisited) {
-      try {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-        if (import.meta.env.VITE_NGROK === 'true' || import.meta.env.VITE_NGROK === '1') {
-          headers['ngrok-skip-browser-warning'] = '1'
-        }
-        await fetch(`${API_BASE_URL}/api/quotes/${form.id}`, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({ visited: true }),
-        })
-        onMarkVisited()
-      } catch {
-        // Still open tel/sms on failure
+      onMarkVisited()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (import.meta.env.VITE_NGROK === 'true' || import.meta.env.VITE_NGROK === '1') {
+        headers['ngrok-skip-browser-warning'] = '1'
       }
+      fetch(`${API_BASE_URL}/api/quotes/${form.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ visited: true }),
+        keepalive: true,
+      }).catch(() => {})
     }
     window.location.href = url
   }
