@@ -1,6 +1,9 @@
+import { useMemo, useState } from 'react'
 import type { Call } from '../../../../../external_prisma_schemas/website_schema'
 import { formatPhone } from '../../../../../formatPhone'
 import { API_BASE_URL } from '../../../../../api'
+import { buildDefaultCallMessage } from '../leadMessageDefaults'
+import LeadMessageModal from './LeadMessageModal'
 
 interface CallCardProps {
   call: Call
@@ -27,6 +30,8 @@ function toE164(digits: string): string | null {
 }
 
 export default function CallCard({ call, onMarkVisited }: CallCardProps) {
+  const [messageOpen, setMessageOpen] = useState(false)
+  const defaultMessageText = useMemo(() => buildDefaultCallMessage(call), [call])
   const digits = (call.caller || '').replace(/\D/g, '')
   const e164 = toE164(digits)
   const hasPhone = !!e164
@@ -65,24 +70,33 @@ export default function CallCard({ call, onMarkVisited }: CallCardProps) {
             </h3>
             <p className="text-sm text-slate-600 mt-0.5">Called: {formatPhone(call.called)}</p>
           </div>
-          {hasPhone && (
-            <div className="flex gap-2 shrink-0 md:hidden">
-              <button
-                type="button"
-                onClick={() => handlePhoneAction(`tel:+${e164}`)}
-                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
-              >
-                Call
-              </button>
-              <button
-                type="button"
-                onClick={() => handlePhoneAction(`sms:+${e164}`)}
-                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
-              >
-                Text
-              </button>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2 shrink-0 md:hidden">
+            {hasPhone && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handlePhoneAction(`tel:+${e164}`)}
+                  className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
+                >
+                  Call
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePhoneAction(`sms:+${e164}`)}
+                  className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
+                >
+                  Text
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => setMessageOpen(true)}
+              className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
+            >
+              Default message
+            </button>
+          </div>
         </div>
 
         <dl className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-sm">
@@ -110,6 +124,13 @@ export default function CallCard({ call, onMarkVisited }: CallCardProps) {
           {formatDate(call.createdAt)}
         </p>
       </div>
+
+      <LeadMessageModal
+        open={messageOpen}
+        onClose={() => setMessageOpen(false)}
+        defaultText={defaultMessageText}
+        title="Default message"
+      />
     </article>
   )
 }

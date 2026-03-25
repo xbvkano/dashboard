@@ -9,6 +9,15 @@ export type CouponType = 'percent' | 'flat' | 'item'
 
 // --- Models ---
 
+export interface Coupon {
+  id: string
+  name: string
+  type: CouponType
+  value: string
+  expireDate: Date | string
+  useCount: number
+}
+
 export interface FormData {
   id: number
   name: string
@@ -28,6 +37,10 @@ export interface FormData {
   otherSource: string | null
   dateCreated: Date
   visited?: boolean
+  /** Set when a valid coupon was applied at submit time */
+  couponId?: string | null
+  /** Nested coupon from GET /api/quotes (null if no coupon) */
+  coupon?: Coupon | null
 }
 
 export interface Call {
@@ -40,13 +53,4 @@ export interface Call {
   section: string
   price: number | null
   visited?: boolean
-}
-
-export interface Coupon {
-  id: string
-  name: string
-  type: CouponType
-  value: string
-  expireDate: Date
-  useCount: number
 }

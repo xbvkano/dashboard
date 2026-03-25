@@ -1,6 +1,9 @@
-import type { FormData } from '../../../../../external_prisma_schemas/website_schema'
+import { useMemo, useState } from 'react'
+import type { Coupon, FormData } from '../../../../../external_prisma_schemas/website_schema'
 import { formatPhone } from '../../../../../formatPhone'
 import { API_BASE_URL } from '../../../../../api'
+import { buildDefaultFormMessage } from '../leadMessageDefaults'
+import LeadMessageModal from './LeadMessageModal'
 
 interface FormCardProps {
   form: FormData
@@ -26,7 +29,25 @@ function toE164(digits: string): string | null {
   return null
 }
 
+function formatCouponValue(c: Coupon): string {
+  if (c.type === 'percent') return `${c.value}% off`
+  if (c.type === 'flat') return `$${c.value} off`
+  return c.value
+}
+
+function formatCouponExpire(value: Date | string): string {
+  const d = new Date(value as string)
+  if (isNaN(d.getTime())) return String(value)
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 export default function FormCard({ form, onMarkVisited }: FormCardProps) {
+  const [messageOpen, setMessageOpen] = useState(false)
+  const defaultMessageText = useMemo(() => buildDefaultFormMessage(form), [form])
   const digits = (form.number || '').replace(/\D/g, '')
   const e164 = toE164(digits)
   const hasPhone = !!e164
@@ -64,24 +85,33 @@ export default function FormCard({ form, onMarkVisited }: FormCardProps) {
             <p className="text-sm text-slate-600 mt-0.5">{formatPhone(form.number)}</p>
             <p className="text-sm text-slate-500 mt-1 truncate">{form.address}</p>
           </div>
-          {hasPhone && (
-            <div className="flex gap-2 shrink-0 md:hidden">
-              <button
-                type="button"
-                onClick={() => handlePhoneAction(`tel:+${e164}`)}
-                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
-              >
-                Call
-              </button>
-              <button
-                type="button"
-                onClick={() => handlePhoneAction(`sms:+${e164}`)}
-                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
-              >
-                Text
-              </button>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2 shrink-0 md:hidden">
+            {hasPhone && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handlePhoneAction(`tel:+${e164}`)}
+                  className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
+                >
+                  Call
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePhoneAction(`sms:+${e164}`)}
+                  className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
+                >
+                  Text
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => setMessageOpen(true)}
+              className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
+            >
+              Default message
+            </button>
+          </div>
         </div>
 
         <dl className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-sm">
@@ -110,6 +140,22 @@ export default function FormCard({ form, onMarkVisited }: FormCardProps) {
             <dd className="font-medium text-slate-800">{form.otherSource || form.source}</dd>
           </div>
         </dl>
+
+        {form.coupon && (
+          <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/90 px-3 py-2.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Coupon</p>
+            <p className="text-sm font-semibold text-emerald-950 mt-0.5">{form.coupon.name}</p>
+            <p className="text-sm text-emerald-800 mt-0.5">
+              {formatCouponValue(form.coupon)}
+              <span className="text-emerald-700">
+                {' · '}
+                Expires {formatCouponExpire(form.coupon.expireDate)}
+                {' · '}
+                {form.coupon.useCount} {form.coupon.useCount === 1 ? 'use' : 'uses'}
+              </span>
+            </p>
+          </div>
+        )}
 
         {(form.baseboards || form.fridgeInside || form.ovenInside) && (
           <div className="mt-3 flex flex-wrap gap-2">
@@ -141,6 +187,13 @@ export default function FormCard({ form, onMarkVisited }: FormCardProps) {
           Submitted {formatDate(form.dateCreated)}
         </p>
       </div>
+
+      <LeadMessageModal
+        open={messageOpen}
+        onClose={() => setMessageOpen(false)}
+        defaultText={defaultMessageText}
+        title="Default message"
+      />
     </article>
   )
 }
