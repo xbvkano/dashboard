@@ -1,8 +1,8 @@
 import { createPortal } from 'react-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { API_BASE_URL } from '../../../api'
-import { useEmployeeLanguage } from '../../EmployeeLanguageContext'
+import { useEmployeeLanguage, type ScheduleTranslations } from '../../EmployeeLanguageContext'
 
 export type UpcomingAppointment = {
   id: number
@@ -21,7 +21,76 @@ function formatType(type: UpcomingAppointment['type']): string {
   if (type === 'STANDARD') return 'Standard'
   if (type === 'DEEP') return 'Deep'
   if (type === 'MOVE_IN_OUT') return 'Move in move out'
-  return type.replace(/_/g, ' ')
+  return ''
+}
+
+function typeBadgeClasses(type: UpcomingAppointment['type']): string {
+  if (type === 'DEEP') return 'bg-violet-100 text-violet-900 border-violet-200'
+  if (type === 'MOVE_IN_OUT') return 'bg-teal-100 text-teal-900 border-teal-200'
+  if (type === 'STANDARD') return 'bg-sky-100 text-sky-900 border-sky-200'
+  return 'bg-slate-100 text-slate-800 border-slate-200'
+}
+
+function AppointmentJobCard({
+  appointment: a,
+  highlight,
+  t,
+  jobIndex,
+  jobTotal,
+  footer,
+}: {
+  appointment: UpcomingAppointment
+  highlight: boolean
+  t: ScheduleTranslations
+  jobIndex?: number
+  jobTotal?: number
+  footer?: ReactNode
+}) {
+  const showSlotLabel = jobTotal != null && jobTotal > 1 && jobIndex != null
+
+  return (
+    <div
+      className={`rounded-xl border border-slate-200 bg-white p-3 shadow-sm ${
+        highlight ? 'ring-2 ring-amber-500 ring-offset-2' : ''
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold text-slate-900">{a.address}</div>
+          <div className="text-slate-600 mt-0.5 text-sm">{formatTime(a.time)}</div>
+          {a.instructions && (
+            <div className="mt-2 text-slate-600 text-xs whitespace-pre-wrap border-l-2 border-slate-200 pl-2">
+              {a.instructions}
+            </div>
+          )}
+          <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+              {t.jobTypeLabel}
+            </span>
+            {showSlotLabel && (
+              <span className="text-[10px] font-medium tabular-nums text-slate-400">
+                ({t.jobIndexInBlock(jobIndex + 1, jobTotal)})
+              </span>
+            )}
+            {a.type ? (
+              <span
+                className={`inline-flex max-w-full items-center rounded-md border px-2 py-0.5 text-xs font-semibold leading-none ${typeBadgeClasses(a.type)}`}
+              >
+                {formatType(a.type)}
+              </span>
+            ) : (
+              <span className="text-xs text-slate-400">—</span>
+            )}
+          </div>
+        </div>
+        {a.pay != null && (
+          <span className="shrink-0 font-semibold text-slate-800 tabular-nums text-sm">${a.pay.toFixed(2)}</span>
+        )}
+      </div>
+
+      {footer}
+    </div>
+  )
 }
 
 function formatTime(t: string): string {
@@ -228,47 +297,31 @@ export default function UpcomingJobs() {
                       <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
                         {label} block
                       </h4>
-                      <ul className="space-y-3">
-                        {appointments.map((a) => (
-                          <li
-                            key={a.id}
-                            data-appointment-id={a.id}
-                            className={`text-sm ${String(a.id) === highlightId ? 'ring-2 ring-amber-500 ring-offset-2 rounded-lg' : ''}`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <div className="font-medium text-slate-800">{a.address}</div>
-                                <div className="text-slate-600">{formatTime(a.time)}</div>
-                                {a.type && (
-                                  <div className="text-slate-500 text-xs mt-0.5">
-                                    {formatType(a.type)}
-                                  </div>
-                                )}
-                                {a.instructions && (
-                                  <div className="mt-1 text-slate-600 text-xs whitespace-pre-wrap border-l-2 border-slate-200 pl-2">
-                                    {a.instructions}
-                                  </div>
-                                )}
-                              </div>
-                              {a.pay != null && (
-                                <span className="shrink-0 font-semibold text-slate-800">
-                                  ${a.pay.toFixed(2)}
-                                </span>
-                              )}
-                            </div>
-                            <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                              <p className="text-xs text-amber-800 mb-2">
-                                If this job is not confirmed within 24 hours it may be offered to someone else.
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => setConfirmModalAppointmentId(a.id)}
-                                disabled={confirmingId === a.id}
-                                className="px-3 py-1.5 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 disabled:opacity-50"
-                              >
-                                {confirmingId === a.id ? 'Confirming…' : 'Confirm Job'}
-                              </button>
-                            </div>
+                      <ul className="space-y-4">
+                        {appointments.map((a, idx) => (
+                          <li key={a.id} data-appointment-id={a.id} className="text-sm">
+                            <AppointmentJobCard
+                              appointment={a}
+                              highlight={String(a.id) === highlightId}
+                              t={t}
+                              jobIndex={idx}
+                              jobTotal={appointments.length}
+                              footer={
+                                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                  <p className="text-xs text-amber-800 mb-2">
+                                    If this job is not confirmed within 24 hours it may be offered to someone else.
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmModalAppointmentId(a.id)}
+                                    disabled={confirmingId === a.id}
+                                    className="px-3 py-1.5 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                                  >
+                                    {confirmingId === a.id ? 'Confirming…' : 'Confirm Job'}
+                                  </button>
+                                </div>
+                              }
+                            />
                           </li>
                         ))}
                       </ul>
@@ -306,34 +359,16 @@ export default function UpcomingJobs() {
                         <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
                           {label} block
                         </h4>
-                        <ul className="space-y-3">
-                          {appointments.map((a) => (
-                            <li
-                              key={a.id}
-                              data-appointment-id={a.id}
-                              className={`text-sm ${String(a.id) === highlightId ? 'ring-2 ring-amber-500 ring-offset-2 rounded-lg' : ''}`}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="font-medium text-slate-800">{a.address}</div>
-                                  <div className="text-slate-600">{formatTime(a.time)}</div>
-                                  {a.type && (
-                                    <div className="text-slate-500 text-xs mt-0.5">
-                                      {formatType(a.type)}
-                                    </div>
-                                  )}
-                                  {a.instructions && (
-                                    <div className="mt-1 text-slate-600 text-xs whitespace-pre-wrap border-l-2 border-slate-200 pl-2">
-                                      {a.instructions}
-                                    </div>
-                                  )}
-                                </div>
-                                {a.pay != null && (
-                                  <span className="shrink-0 font-semibold text-slate-800">
-                                    ${a.pay.toFixed(2)}
-                                  </span>
-                                )}
-                              </div>
+                        <ul className="space-y-4">
+                          {appointments.map((a, idx) => (
+                            <li key={a.id} data-appointment-id={a.id} className="text-sm">
+                              <AppointmentJobCard
+                                appointment={a}
+                                highlight={String(a.id) === highlightId}
+                                t={t}
+                                jobIndex={idx}
+                                jobTotal={appointments.length}
+                              />
                             </li>
                           ))}
                         </ul>
