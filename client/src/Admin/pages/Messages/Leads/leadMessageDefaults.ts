@@ -12,7 +12,7 @@ export function buildDefaultFormMessage(form: FormData): string {
       ? `$${form.price}`
       : '—'
 
-  return `Hi ${name}, this is Evidence Cleaning,
+  return `Hi ${name}😊! This is Evidence Cleaning, your trusted choice for top-quality cleaning services in Las Vegas! We're proud to be top-rated on Yelp and Google. Feel free to check out what our amazing clients are saying about us! ⭐️⭐️⭐️⭐️⭐️
 
 We got your request for a ${service}
 At: ${address}
@@ -20,8 +20,7 @@ Size: ${size}
 Date: ${date}
 the price for this cleaning is ${price}
 
-To schedule your cleaning I will only need your gate code (if any).
-We are a highly recommended company by Yelp and Google, our cleaners have a lot of experience in this type of cleaning. If you are interested, let me know, thanks
+To schedule your cleaning I will only need your gate code (if any) and the time that works best you.
 
 reminder: while the appointment has not been finalized, the time slot remains available and may be booked by other clients. 😊`
 }
@@ -30,9 +29,11 @@ reminder: while the appointment has not been finalized, the time slot remains av
 export function buildDefaultCallMessage(call: Call): string {
   const service = call.service?.trim() || 'cleaning'
 
-  return `Hi, this is Evidence Cleaning and we got your request for a ${service}.
+  return `Hi😊! This is Evidence Cleaning, we got your request for a ${service}. We're proud to be top-rated on Yelp and Google. Feel free to check out what our amazing clients are saying about us! ⭐️⭐️⭐️⭐️⭐️
+  
 Before scheduling, could you please confirm the size of the house in square feet (sqft) so I can make sure the estimate is correct?
+  
+To schedule your cleaning, I would also need your full address, name, and door/gate code (if any).
 
-To schedule your cleaning, I will need your full address, name, and door/gate code (if any).
-We are a highly recommended company on Yelp and Google, and our cleaners have a lot of experience with this type of cleaning.`
+reminder: while the appointment has not been finalized, the time slot remains available and may be booked by other clients. 😊`
 }
