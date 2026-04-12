@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt'
 import { ruleToJson, calculateNextAppointmentDate } from '../src/utils/recurrenceUtils'
 import { calculateAppointmentHours } from '../src/utils/appointmentUtils'
 import { getNextOrThisUpdateDay } from '../src/utils/schedulePolicyUtils'
+import { normalizePhone } from '../src/utils/phoneUtils'
 
 const prisma = new PrismaClient()
 
@@ -19,6 +20,11 @@ async function main() {
   await prisma.payrollItem.deleteMany()
   await prisma.employeePayment.deleteMany()
   await prisma.schedule.deleteMany() // Delete schedules before employees
+  await prisma.message.deleteMany()
+  await prisma.appointment.updateMany({ data: { conversationSessionId: null } })
+  await prisma.conversationSession.deleteMany()
+  await prisma.conversation.deleteMany()
+  await prisma.contactPoint.deleteMany()
   await prisma.appointment.deleteMany()
   await prisma.recurrenceFamily.deleteMany() // Delete recurrence families before clients
   await prisma.employeeTemplate.deleteMany()
@@ -975,6 +981,132 @@ async function main() {
       futureSchedule: demoFutureSchedule,
       employeeUpdate: today.toISOString(),
     },
+  })
+
+  // --- SMS inbox demo (GET /messaging/conversations, etc.) ---
+  const bizE164 = normalizePhone('7255774523')!
+  const cpBiz = await prisma.contactPoint.create({
+    data: { type: 'PHONE', value: bizE164, displayValue: 'Main SMS line' },
+  })
+  const cpUnknown = await prisma.contactPoint.create({
+    data: { type: 'PHONE', value: '+16105550199', displayValue: 'Unknown lead' },
+  })
+  const cpJaneSms = await prisma.contactPoint.create({
+    data: {
+      type: 'PHONE',
+      value: normalizePhone(jane.number)!,
+      clientId: jane.id,
+    },
+  })
+
+  const convUnknown = await prisma.conversation.create({
+    data: {
+      channel: 'SMS',
+      status: 'OPEN',
+      contactPointId: cpUnknown.id,
+      businessNumber: bizE164,
+    },
+  })
+
+  const inactiveClosedAt = addDays(today, -1)
+  inactiveClosedAt.setHours(12, 0, 0, 0)
+  const sessOld = await prisma.conversationSession.create({
+    data: {
+      conversationId: convUnknown.id,
+      openedAt: addDays(today, -3),
+      closedAt: inactiveClosedAt,
+      closeReason: 'INACTIVITY',
+    },
+  })
+  const sessNew = await prisma.conversationSession.create({
+    data: { conversationId: convUnknown.id },
+  })
+
+  const oldMsgAt = addDays(today, -2)
+  oldMsgAt.setHours(9, 0, 0, 0)
+  await prisma.message.create({
+    data: {
+      conversationId: convUnknown.id,
+      sessionId: sessOld.id,
+      direction: 'INBOUND',
+      senderType: 'CUSTOMER',
+      fromContactPointId: cpUnknown.id,
+      toContactPointId: cpBiz.id,
+      body: 'Older session: asking about availability last week.',
+      status: 'RECEIVED',
+      receivedAt: oldMsgAt,
+    },
+  })
+
+  const nowMsgAt = new Date()
+  await prisma.message.create({
+    data: {
+      conversationId: convUnknown.id,
+      sessionId: sessNew.id,
+      direction: 'OUTBOUND',
+      senderType: 'STAFF',
+      fromContactPointId: cpBiz.id,
+      toContactPointId: cpUnknown.id,
+      userId: admin.id,
+      body: 'Thanks — this is a new session after 12h inactivity.',
+      status: 'SENT',
+      sentAt: nowMsgAt,
+    },
+  })
+  await prisma.conversation.update({
+    where: { id: convUnknown.id },
+    data: { lastMessageAt: nowMsgAt },
+  })
+
+  const convJane = await prisma.conversation.create({
+    data: {
+      channel: 'SMS',
+      status: 'OPEN',
+      contactPointId: cpJaneSms.id,
+      businessNumber: bizE164,
+      clientId: jane.id,
+    },
+  })
+  const janeSess = await prisma.conversationSession.create({
+    data: { conversationId: convJane.id },
+  })
+  await prisma.message.createMany({
+    data: [
+      {
+        conversationId: convJane.id,
+        sessionId: janeSess.id,
+        direction: 'INBOUND',
+        senderType: 'CUSTOMER',
+        fromContactPointId: cpJaneSms.id,
+        toContactPointId: cpBiz.id,
+        clientId: jane.id,
+        body: 'Please confirm both bookings on my account.',
+        status: 'RECEIVED',
+        receivedAt: nowMsgAt,
+      },
+      {
+        conversationId: convJane.id,
+        sessionId: janeSess.id,
+        direction: 'OUTBOUND',
+        senderType: 'STAFF',
+        fromContactPointId: cpBiz.id,
+        toContactPointId: cpJaneSms.id,
+        userId: admin.id,
+        clientId: jane.id,
+        body: 'Confirmed — linked to your upcoming appointments.',
+        status: 'SENT',
+        sentAt: nowMsgAt,
+      },
+    ],
+  })
+  await prisma.conversation.update({
+    where: { id: convJane.id },
+    data: { lastMessageAt: nowMsgAt },
+  })
+
+  await prisma.appointment.updateMany({
+    where: { id: { in: [futureSingle.id, demoApptUnconfirmed.id] } },
+    data: { conversationSessionId: janeSess.id },
   })
 }
 

@@ -73,7 +73,8 @@ describe('sendScheduleReminders', () => {
     jest.clearAllMocks()
     jest.useFakeTimers()
     mockMessagesCreate.mockResolvedValue({ sid: 'SM-schedule' })
-    // Use TWILIO_FROM_NUMBER from .env (loaded in jest.setup.js); do not override so .env value is used
+    // Force `from`-based sends in these tests (not Messaging Service)
+    delete process.env.TWILIO_MESSAGING_SERVICE_SID
     if (!process.env.TWILIO_FROM_NUMBER) {
       process.env.TWILIO_FROM_NUMBER = '+15551234567'
     }
@@ -203,7 +204,8 @@ describe('sendScheduleReminders', () => {
     expect(mockMessagesCreate.mock.calls[0][0].body).toContain('update your schedule')
   })
 
-  it('skips when TWILIO_FROM_NUMBER is not set', async () => {
+  it('skips when neither Messaging Service nor From number is set', async () => {
+    delete process.env.TWILIO_MESSAGING_SERVICE_SID
     delete process.env.TWILIO_FROM_NUMBER
     const dueDate = new Date()
     dueDate.setDate(dueDate.getDate() - 2)

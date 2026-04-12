@@ -26,6 +26,7 @@ model User {
   appointments Appointment[] @relation("AdminAppointments")
   employee     Employee?
   supervisedEmployees Employee[] @relation("SupervisedEmployees")
+  sentMessages Message[] @relation("UserSentMessages")
 }
 
 model Client {
@@ -37,6 +38,9 @@ model Client {
   disabled             Boolean                @default(false)
   appointments         Appointment[]
   appointmentTemplates AppointmentTemplate[]
+  contactPoints        ContactPoint[]
+  conversations      Conversation[]
+  messages             Message[]
 }
 
 model Employee {
@@ -105,6 +109,10 @@ model Appointment {
 
   employees       Employee[]      @relation("AppointmentEmployees")
   payrollItems   PayrollItem[]
+
+  conversationSessionId Int?
+  conversationSession   ConversationSession? @relation(fields: [conversationSessionId], references: [id], onDelete: SetNull)
+  messages              Message[]
 }
 
 model RecurrenceFamily {
@@ -292,4 +300,198 @@ model SchedulePolicy {
   supervisorNotifyAfterDays Int   @default(4)  // from this day past the update day, also notify supervisor
   stopRemindingAfterDays   Int   @default(7)   // stop all reminders after this many days past the update day
   updatedAt                DateTime @updatedAt
+}
+
+// --- SMS / messaging (CRM inbox; Twilio wiring can plug in later) ---
+
+enum ContactPointType {
+  PHONE
+  EMAIL
+}
+
+enum ConversationChannel {
+  SMS
+}
+
+enum ConversationStatus {
+  OPEN
+  ARCHIVED
+}
+
+enum SessionCloseReason {
+  INACTIVITY
+  MANUAL
+  APPOINTMENT_BOOKED
+  OTHER
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageSenderType {
+  CUSTOMER
+  STAFF
+  SYSTEM
+  UNKNOWN
+}
+
+enum MessageDeliveryStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  UNDELIVERED
+  RECEIVED
+}
+
+model ContactPoint {
+  id             Int               @id @default(autoincrement())
+  type           ContactPointType
+  /// Normalized identity; for PHONE use E.164 (e.g. +15551234567)
+  value          String
+  displayValue   String?
+  twilioAddress  String?
+  blocked        Boolean           @default(false)
+  notes          String?
+  clientId       Int?
+  client         Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  conversations Conversation[]
+  fromMessages  Message[]        @relation("MessageFromContactPoint")
+  toMessages    Message[]        @relation("MessageToContactPoint")
+
+  @@unique([type, value])
+  @@index([clientId])
+  @@index([value])
+}
+
+model Conversation {
+  id               Int                  @id @default(autoincrement())
+  channel          ConversationChannel
+  status           ConversationStatus   @default(OPEN)
+  contactPointId   Int
+  contactPoint     ContactPoint         @relation(fields: [contactPointId], references: [id], onDelete: Restrict)
+  /// Business-owned Twilio number (E.164)
+  businessNumber   String
+  clientId         Int?
+  client           Client?              @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  lastMessageAt    DateTime?
+  openedAt         DateTime             @default(now())
+  archivedAt       DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  sessions ConversationSession[]
+  messages Message[]
+
+  @@unique([contactPointId, businessNumber])
+  @@index([clientId])
+  @@index([status])
+  @@index([lastMessageAt])
+  @@index([businessNumber])
+}
+
+model ConversationSession {
+  id              Int                 @id @default(autoincrement())
+  conversationId  Int
+  conversation    Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  openedAt        DateTime            @default(now())
+  closedAt        DateTime?
+  closeReason     SessionCloseReason?
+  summary         String?
+  extractedData   Json?
+  bookingIntent   String?
+  confidence      Float?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  appointments Appointment[]
+  messages     Message[]
+
+  @@index([conversationId])
+  @@index([closedAt])
+}
+
+model Message {
+  id                   Int                   @id @default(autoincrement())
+  conversationId       Int
+  conversation         Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sessionId            Int?
+  session              ConversationSession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  twilioSid            String?               @unique
+  twilioAccountSid     String?
+  twilioMessagingSid   String?
+  twilioStatusRaw      String?
+  direction            MessageDirection
+  senderType           MessageSenderType
+  fromContactPointId   Int?
+  fromContactPoint     ContactPoint?         @relation("MessageFromContactPoint", fields: [fromContactPointId], references: [id], onDelete: SetNull)
+  toContactPointId     Int?
+  toContactPoint       ContactPoint?         @relation("MessageToContactPoint", fields: [toContactPointId], references: [id], onDelete: SetNull)
+  userId               Int?
+  user                 User?                 @relation("UserSentMessages", fields: [userId], references: [id], onDelete: SetNull)
+  clientId             Int?
+  client               Client?               @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  appointmentId        Int?
+  appointment          Appointment?          @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  body                 String
+  mediaCount           Int                   @default(0)
+  numSegments          Int?
+  price                Float?
+  errorCode            String?
+  errorMessage         String?
+  status               MessageDeliveryStatus
+  sentAt               DateTime?
+  deliveredAt          DateTime?
+  failedAt             DateTime?
+  receivedAt           DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  rawPayload           Json?
+
+  /**
+   * Attachments for this message (images/MMS). Binary bytes live in Supabase Storage;
+   * Postgres only stores metadata + storage path + public URL for Twilio/CRM.
+   */
+  media MessageMedia[]
+
+  @@index([conversationId])
+  @@index([sessionId])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+/**
+ * One row per file attached to a Message (inbound MMS re-hosted from Twilio, or outbound CRM uploads).
+ * Keeps blobs out of Postgres; Supabase Storage holds bytes; Twilio only receives HTTPS URLs.
+ */
+enum MessageMediaSource {
+  INBOUND_TWILIO
+  OUTBOUND_CRM
+}
+
+model MessageMedia {
+  id         Int                @id @default(autoincrement())
+  messageId  Int
+  message    Message            @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  /** Object path inside the configured Supabase bucket (e.g. messaging/conv/12/msg/45/0.jpg) */
+  storageKey String
+  /** Public or signed URL Twilio fetched at send time; CRM uses the same for <img src> */
+  publicUrl  String?
+  mimeType   String
+  fileName   String?
+  fileSize   Int?
+  width      Int?
+  height     Int?
+  source     MessageMediaSource
+  /** Order when a message has multiple images */
+  sortOrder  Int                @default(0)
+  createdAt  DateTime           @default(now())
+
+  @@index([messageId])
+  @@index([source])
 }

@@ -94,6 +94,7 @@ describe('runUnconfirmedCheck', () => {
     jest.clearAllMocks()
     mockFindManyResult = []
     mockMessagesCreate.mockResolvedValue({ sid: 'SM123' })
+    delete process.env.TWILIO_MESSAGING_SERVICE_SID
     process.env.TWILIO_FROM_NUMBER = '+15551234567'
   })
 

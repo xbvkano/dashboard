@@ -5,6 +5,7 @@ import { sendScheduleReminders } from '../jobs/scheduleReminder'
 import { syncRecurringAppointments } from '../controllers/recurringController'
 import { sendAppointmentReminders } from '../jobs/appointmentReminder'
 import { runUnconfirmedCheck, runNoonEmployeeReminders } from '../jobs/unconfirmedCheck'
+import { twilioMessageCreateParams } from '../utils/twilioSms'
 import twilio from 'twilio'
 
 const prisma = new PrismaClient()
@@ -185,11 +186,7 @@ export async function testScheduleReminder(req: Request, res: Response) {
     const message = `Hi ${employee.name}, this is a reminder from Evidence Cleaning. Please update your schedule in the app. It's been ${daysSinceUpdate} days since your last update. Thank you!`
 
     // Send SMS using same logic as cron job
-    const result = await smsClient.messages.create({
-      to: phoneNumber,
-      from: process.env.TWILIO_FROM_NUMBER || '',
-      body: message,
-    })
+    const result = await smsClient.messages.create(twilioMessageCreateParams(phoneNumber, message))
 
     res.json({
       success: true,

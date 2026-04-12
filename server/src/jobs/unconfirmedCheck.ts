@@ -1,7 +1,8 @@
 import cron from 'node-cron'
 import { PrismaClient, Prisma } from '@prisma/client'
 import twilio from 'twilio'
-import { normalizePhone } from '../utils/phoneUtils'
+import { normalizePhone, supervisorPhoneE164 } from '../utils/phoneUtils'
+import { isTwilioOutboundConfigured, twilioMessageCreateParams, TWILIO_OUTBOUND_NOT_CONFIGURED } from '../utils/twilioSms'
 
 const prisma = new PrismaClient()
 
@@ -14,20 +15,6 @@ const smsClient = twilio(
   process.env.TWILIO_ACCOUNT_SID || '',
   process.env.TWILIO_AUTH_TOKEN || '',
 )
-
-/** Get phone number for a supervisor User (employee number or userName as digits) */
-function getSupervisorPhone(supervisor: { employee?: { number: string } | null; userName: string | null }): string | null {
-  if (supervisor.employee?.number) {
-    return normalizePhone(supervisor.employee.number)
-  }
-  if (supervisor.userName) {
-    const digits = supervisor.userName.replace(/\D/g, '')
-    if (digits.length === 10) return '1' + digits
-    if (digits.length === 11 && digits.startsWith('1')) return digits
-    return null
-  }
-  return null
-}
 
 export interface UnconfirmedNotification {
   appointmentId: number
@@ -153,8 +140,6 @@ export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
   const employeeSent: EmployeeReminderNotification[] = []
   const employeeSkipped: EmployeeReminderNotification[] = []
   const employeeFailed: EmployeeReminderNotification[] = []
-  const fromNumber = process.env.TWILIO_FROM_NUMBER
-
   for (const { appt, emp, supervisor } of unconfirmedEntries) {
     // Use UTC so the calendar day is correct (appointments are stored as UTC midnight for YYYY-MM-DD)
     const dateStr = new Date(appt.date).toLocaleDateString('en-US', {
@@ -182,7 +167,7 @@ export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
       continue
     }
 
-    const phoneNorm = getSupervisorPhone(supervisor)
+    const phoneNorm = supervisorPhoneE164(supervisor)
     if (!phoneNorm) {
       skipped.push({
         appointmentId: appt.id,
@@ -200,7 +185,7 @@ export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
       continue
     }
 
-    const phone = '+' + phoneNorm
+    const phone = phoneNorm
     const body = [
       `Evidence Cleaning: Unconfirmed job for tomorrow.`,
       `Employee: ${emp.name} (${emp.number})`,
@@ -209,7 +194,7 @@ export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
       `Please follow up with the employee to confirm.`,
     ].join('\n')
 
-    if (!fromNumber) {
+    if (!isTwilioOutboundConfigured()) {
       failed.push({
         appointmentId: appt.id,
         appointmentDate: dateStr,
@@ -221,17 +206,13 @@ export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
         supervisorId: supervisor.id,
         supervisorName: supervisor.name ?? supervisor.userName,
         phone,
-        error: 'TWILIO_FROM_NUMBER not configured',
+        error: TWILIO_OUTBOUND_NOT_CONFIGURED,
       })
       continue
     }
 
     try {
-      const result = await smsClient.messages.create({
-        to: phone,
-        from: fromNumber,
-        body,
-      })
+      const result = await smsClient.messages.create(twilioMessageCreateParams(phone, body))
       sent.push({
         appointmentId: appt.id,
         appointmentDate: dateStr,
@@ -298,8 +279,7 @@ function buildEmployeeReminderBody(dateStr: string, time: string, clientName: st
  */
 export async function sendEmployeeRemindersForAppointmentIds(appointmentIds: number[]): Promise<void> {
   if (appointmentIds.length === 0) return
-  const fromNumber = process.env.TWILIO_FROM_NUMBER
-  if (!fromNumber) return
+  if (!isTwilioOutboundConfigured()) return
   const asOf = new Date()
   const { start, end } = getEmployeeReminderDateRange(asOf)
   const items = (await prisma.payrollItem.findMany({
@@ -326,14 +306,10 @@ export async function sendEmployeeRemindersForAppointmentIds(appointmentIds: num
     const dateStr = apptDate.toLocaleDateString('en-US', dateStrOpts)
     const phoneNorm = emp?.number ? normalizePhone(emp.number) : null
     if (!phoneNorm) continue
-    const phone = '+' + phoneNorm
+    const phone = phoneNorm
     const body = buildEmployeeReminderBody(dateStr, appt.time, clientName, appt.address)
     try {
-      await smsClient.messages.create({
-        to: phone,
-        from: fromNumber,
-        body,
-      })
+      await smsClient.messages.create(twilioMessageCreateParams(phone, body))
       await prisma.payrollItem.update({
         where: { id: pi.id },
         data: { reminderSentAt: new Date() } as Prisma.PayrollItemUpdateInput,
@@ -381,7 +357,6 @@ export async function runNoonEmployeeReminders(
   const sent: EmployeeReminderNotification[] = []
   const skipped: EmployeeReminderNotification[] = []
   const failed: EmployeeReminderNotification[] = []
-  const fromNumber = process.env.TWILIO_FROM_NUMBER
   const dateStrOpts = { weekday: 'long' as const, month: 'short' as const, day: 'numeric' as const, timeZone: 'UTC' as const }
 
   const items = (await prisma.payrollItem.findMany({
@@ -422,9 +397,9 @@ export async function runNoonEmployeeReminders(
       })
       continue
     }
-    const phone = '+' + phoneNorm
+    const phone = phoneNorm
     const body = buildEmployeeReminderBody(dateStr, appt.time, clientName, appt.address)
-    if (!fromNumber) {
+    if (!isTwilioOutboundConfigured()) {
       failed.push({
         appointmentId: appt.id,
         employeeId: emp.id,
@@ -433,16 +408,12 @@ export async function runNoonEmployeeReminders(
         appointmentDate: dateStr,
         appointmentTime: appt.time,
         clientName,
-        error: 'TWILIO_FROM_NUMBER not configured',
+        error: TWILIO_OUTBOUND_NOT_CONFIGURED,
       })
       continue
     }
     try {
-      const result = await smsClient.messages.create({
-        to: phone,
-        from: fromNumber,
-        body,
-      })
+      const result = await smsClient.messages.create(twilioMessageCreateParams(phone, body))
       await prisma.payrollItem.update({
         where: { id: pi.id },
         data: { reminderSentAt: new Date() } as Prisma.PayrollItemUpdateInput,

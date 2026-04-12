@@ -1,8 +1,9 @@
 import cron from 'node-cron'
 import { PrismaClient } from '@prisma/client'
 import twilio from 'twilio'
-import { normalizePhone } from '../utils/phoneUtils'
+import { normalizePhone, supervisorPhoneE164 } from '../utils/phoneUtils'
 import { getNextOrThisUpdateDay } from '../utils/schedulePolicyUtils'
+import { isTwilioOutboundConfigured, twilioMessageCreateParams } from '../utils/twilioSms'
 
 const prisma = new PrismaClient()
 const smsClient = twilio(
@@ -11,16 +12,6 @@ const smsClient = twilio(
 )
 
 const DAY_MS = 1000 * 60 * 60 * 24
-
-function getSupervisorPhone(supervisor: { employee?: { number: string } | null; userName: string | null }): string | null {
-  if (supervisor.employee?.number) return normalizePhone(supervisor.employee.number)
-  if (supervisor.userName) {
-    const digits = supervisor.userName.replace(/\D/g, '')
-    if (digits.length === 10) return '1' + digits
-    if (digits.length === 11 && digits.startsWith('1')) return digits
-  }
-  return null
-}
 
 /**
  * Send schedule reminders using each employee's stored nextScheduleUpdateDueAt.
@@ -57,10 +48,11 @@ export async function sendScheduleReminders(): Promise<void> {
       },
     })
 
-    const fromNumber = process.env.TWILIO_FROM_NUMBER || ''
-    if (!fromNumber) {
+    if (!isTwilioOutboundConfigured()) {
       if (process.env.NODE_ENV !== 'test') {
-        console.warn('TWILIO_FROM_NUMBER not set; schedule reminders skipped')
+        console.warn(
+          'Twilio outbound not configured (TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM_NUMBER); schedule reminders skipped'
+        )
       }
       return
     }
@@ -90,10 +82,12 @@ export async function sendScheduleReminders(): Promise<void> {
 
       // Remind employee every day from day 1 through stop day
       if (employee.number) {
-        const phone = employee.number.startsWith('+') ? employee.number : `+${normalizePhone(employee.number)}`
+        const phone = employee.number.startsWith('+')
+          ? employee.number
+          : normalizePhone(employee.number) ?? employee.number
         const message = `Hi ${employee.name}, this is a reminder from Evidence Cleaning. Please update your schedule in the app by your required day. Thank you!`
         try {
-          await smsClient.messages.create({ to: phone, from: fromNumber, body: message })
+          await smsClient.messages.create(twilioMessageCreateParams(phone, message))
           if (process.env.NODE_ENV !== 'test') {
             console.log(`[ScheduleReminder] Employee reminder sent to ${employee.name} (${employee.id})`)
           }
@@ -106,12 +100,12 @@ export async function sendScheduleReminders(): Promise<void> {
       if (daysPastDue >= policy.supervisorNotifyAfterDays) {
         const supervisor = employee.supervisor
         if (supervisor) {
-          const phoneNorm = getSupervisorPhone(supervisor)
+          const phoneNorm = supervisorPhoneE164(supervisor)
           if (phoneNorm) {
-            const phone = '+' + phoneNorm
+            const phone = phoneNorm
             const message = `Evidence Cleaning: ${employee.name} has not updated their schedule (${daysPastDue} days past due). Last update: ${lastUpdate ? lastUpdate.toLocaleDateString() : 'never'}. Please follow up.`
             try {
-              await smsClient.messages.create({ to: phone, from: fromNumber, body: message })
+              await smsClient.messages.create(twilioMessageCreateParams(phone, message))
               if (process.env.NODE_ENV !== 'test') {
                 console.log(`[ScheduleReminder] Supervisor notified for employee ${employee.name} (${employee.id})`)
               }

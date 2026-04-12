@@ -331,12 +331,38 @@ app.use(cors({
     'ngrok-skip-browser-warning',
     'x-user-name',
     'x-user-id',
+    'x-messaging-mock-sms',
   ],
 }))
 app.use(express.json())
+// Twilio SMS webhooks send application/x-www-form-urlencoded (From, To, Body, …)
+app.use(express.urlencoded({ extended: true }))
+
+/**
+ * Inbox polls these GETs every few seconds — omit from default HTTP logs to avoid flooding.
+ * Set MESSAGING_POLL_HTTP_LOG=1 for one-line poll logs when debugging.
+ */
+function isMessagingPollRequest(req: Request): boolean {
+  if (req.method !== 'GET') return false
+  const p = req.path
+  if (p === '/messaging/conversations') return true
+  if (/^\/messaging\/conversations\/\d+$/.test(p)) return true
+  return false
+}
 
 // Enhanced request/response logging middleware
 app.use((req: Request, res: Response, next) => {
+  if (isMessagingPollRequest(req)) {
+    if (process.env.MESSAGING_POLL_HTTP_LOG === '1') {
+      const startTime = Date.now()
+      res.on('finish', () => {
+        const ms = Date.now() - startTime
+        console.log(`[messaging-poll] ${req.method} ${req.path} ${res.statusCode} ${ms}ms`)
+      })
+    }
+    return next()
+  }
+
   const startTime = Date.now()
   const timestamp = new Date().toISOString()
   
@@ -513,6 +539,8 @@ import payrollRoutes from './routes/payroll'
 import aiAppointmentRoutes from './routes/aiAppointments'
 import couponsRoutes from './routes/coupons'
 import websiteApiRoutes from './routes/websiteApi'
+import messagingRoutes from './routes/messaging'
+import { verifySupabaseMessagingBucketOnStartup } from './services/supabaseStorage'
 
 // Use all route files
 app.use('/', basicRoutes)
@@ -531,6 +559,7 @@ app.use('/', payrollRoutes)
 app.use('/', aiAppointmentRoutes)
 app.use('/api', couponsRoutes)
 app.use('/api', websiteApiRoutes)
+app.use('/', messagingRoutes)
 
 // Initialize cron jobs
 setupScheduleCleanupJob()
@@ -558,9 +587,11 @@ if (keyPath && certPath) {
   const cert = fs.readFileSync(path.resolve(certPath))
   https.createServer({ key, cert }, app).listen(port, () => {
     console.log(`HTTPS server listening on port ${port}`)
+    void verifySupabaseMessagingBucketOnStartup()
   })
 } else {
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`)
+    void verifySupabaseMessagingBucketOnStartup()
   })
 }

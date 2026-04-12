@@ -3,7 +3,8 @@ import { PrismaClient } from '@prisma/client'
 import twilio from 'twilio'
 import { calculatePayRate, calculateCarpetRate } from '../utils/appointmentUtils'
 import { getNextOrThisUpdateDay, getNextUpdateDueDate } from '../utils/schedulePolicyUtils'
-import { normalizePhone } from '../utils/phoneUtils'
+import { supervisorPhoneE164 } from '../utils/phoneUtils'
+import { isTwilioOutboundConfigured, twilioMessageCreateParams } from '../utils/twilioSms'
 
 const prisma = new PrismaClient()
 const smsClient = twilio(
@@ -13,20 +14,6 @@ const smsClient = twilio(
 
 /** Result: employee id, disabled, or not authenticated */
 type EmployeeAuth = { employeeId: number } | { disabled: true } | null
-
-/** Get phone number for a supervisor User (employee number or userName as digits). */
-function getSupervisorPhone(supervisor: { employee?: { number: string } | null; userName: string | null }): string | null {
-  if (supervisor.employee?.number) {
-    return normalizePhone(supervisor.employee.number)
-  }
-  if (supervisor.userName) {
-    const digits = supervisor.userName.replace(/\D/g, '')
-    if (digits.length === 10) return '1' + digits
-    if (digits.length === 11 && digits.startsWith('1')) return digits
-    return null
-  }
-  return null
-}
 
 // Helper to get employee from request; returns null if not authenticated, { disabled: true } if employee is disabled
 async function getEmployeeAuth(req: Request): Promise<EmployeeAuth> {
@@ -468,11 +455,10 @@ export async function confirmJob(req: Request, res: Response) {
     })
 
     // Notify supervisor by SMS (best-effort; do not fail the request).
-    // Requires TWILIO_FROM_NUMBER and supervisor with phone: supervisor.employee?.number or supervisor.userName as 10/11 digits.
+    // Requires TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM_NUMBER, and supervisor phone.
     const supervisor = payrollItem.employee?.supervisor
-    const fromNumber = process.env.TWILIO_FROM_NUMBER
-    if (supervisor && fromNumber) {
-      const phoneNorm = getSupervisorPhone(supervisor)
+    if (supervisor && isTwilioOutboundConfigured()) {
+      const phoneNorm = supervisorPhoneE164(supervisor)
       if (phoneNorm) {
         const appt = payrollItem.appointment
         const clientName = appt?.client?.name ?? 'Unknown client'
@@ -494,11 +480,7 @@ export async function confirmJob(req: Request, res: Response) {
           `Time: ${timeStr}`,
         ].join('\n')
         smsClient.messages
-          .create({
-            to: '+' + phoneNorm,
-            from: fromNumber,
-            body,
-          })
+          .create(twilioMessageCreateParams(phoneNorm, body))
           .catch((err) => console.error('Error sending supervisor job-confirmed SMS:', err))
       }
     }

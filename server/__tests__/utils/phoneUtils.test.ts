@@ -1,19 +1,19 @@
-import { normalizePhone } from '../../src/utils/phoneUtils'
+import { normalizePhone, phoneLookupVariants, supervisorPhoneE164 } from '../../src/utils/phoneUtils'
 
 describe('phoneUtils', () => {
   describe('normalizePhone', () => {
-    it('adds 1 prefix for 10-digit number', () => {
-      expect(normalizePhone('5551234567')).toBe('15551234567')
+    it('adds +1 prefix for 10-digit number', () => {
+      expect(normalizePhone('5551234567')).toBe('+15551234567')
     })
 
-    it('keeps 11-digit number with leading 1 as-is', () => {
-      expect(normalizePhone('15551234567')).toBe('15551234567')
+    it('normalizes 11-digit number with leading 1 to E.164', () => {
+      expect(normalizePhone('15551234567')).toBe('+15551234567')
     })
 
     it('strips non-digit characters', () => {
-      expect(normalizePhone('(555) 123-4567')).toBe('15551234567')
-      expect(normalizePhone('555-123-4567')).toBe('15551234567')
-      expect(normalizePhone('+1 555.123.4567')).toBe('15551234567')
+      expect(normalizePhone('(555) 123-4567')).toBe('+15551234567')
+      expect(normalizePhone('555-123-4567')).toBe('+15551234567')
+      expect(normalizePhone('+1 555.123.4567')).toBe('+15551234567')
     })
 
     it('returns null for 9 digits', () => {
@@ -28,8 +28,32 @@ describe('phoneUtils', () => {
       expect(normalizePhone('')).toBeNull()
     })
 
-    it('returns any 11-digit number as-is', () => {
-      expect(normalizePhone('25551234567')).toBe('25551234567')
+    it('returns null for 11-digit numbers that are not US (+1)', () => {
+      expect(normalizePhone('25551234567')).toBeNull()
+    })
+  })
+
+  describe('phoneLookupVariants', () => {
+    it('includes E.164 and digit-only forms', () => {
+      const v = phoneLookupVariants('+15551234567')
+      expect(v).toContain('+15551234567')
+      expect(v).toContain('15551234567')
+      expect(v).toContain('5551234567')
+    })
+  })
+
+  describe('supervisorPhoneE164', () => {
+    it('uses employee number when present', () => {
+      expect(
+        supervisorPhoneE164({
+          userName: 'ignored',
+          employee: { number: '(725) 577-4524' },
+        })
+      ).toBe('+17255774524')
+    })
+
+    it('falls back to userName digits', () => {
+      expect(supervisorPhoneE164({ userName: '7255774523', employee: null })).toBe('+17255774523')
     })
   })
 })

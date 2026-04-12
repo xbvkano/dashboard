@@ -1,7 +1,7 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { calculateAppointmentHours, parseSqft } from '../utils/appointmentUtils'
-import { normalizePhone } from '../utils/phoneUtils'
+import { normalizePhone, phoneLookupVariants } from '../utils/phoneUtils'
 import { getDefaultTeamSize, getSizeRange } from '../data/teamSizeData'
 
 const prisma = new PrismaClient()
@@ -52,11 +52,11 @@ export async function createAIAppointment(req: Request, res: Response) {
       return res.status(400).json({ error: 'Invalid phone number format' })
     }
 
-    // Step 1: Find or create client (match by phone only - names can repeat, phone is unique)
+    // Step 1: Find or create client (match by phone only — tolerate legacy stored formats)
     let client = await prisma.client.findFirst({
       where: {
-        number: normalizedPhone
-      }
+        number: { in: phoneLookupVariants(normalizedPhone) },
+      },
     })
 
     if (!client) {
@@ -66,7 +66,7 @@ export async function createAIAppointment(req: Request, res: Response) {
         where: { name: clientName }
       })
       if (existingByName) {
-        const last4 = normalizedPhone.slice(-4)
+        const last4 = normalizedPhone.replace(/\D/g, '').slice(-4)
         clientNameToUse = `${clientName} ${last4}`
       }
 

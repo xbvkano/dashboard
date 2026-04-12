@@ -7,3 +7,18 @@
   padding-top: max(env(safe-area-inset-top), 0.5rem);
   padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
 }
+
+/* SMS Inbox: full-screen chat on mobile — hide bottom nav + main padding */
+@media (max-width: 767px) {
+  body.messages-inbox-chat-open nav.fixed.bottom-0 {
+    display: none !important;
+  }
+  body.messages-inbox-chat-open main.flex-1 {
+    padding-bottom: 0 !important;
+  }
+  body.messages-inbox-chat-open .messages-inbox-root {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+}

@@ -2,6 +2,7 @@ import cron from 'node-cron'
 import { PrismaClient } from '@prisma/client'
 import twilio from 'twilio'
 import { normalizePhone } from '../utils/phoneUtils'
+import { isTwilioOutboundConfigured, twilioMessageCreateParams, TWILIO_OUTBOUND_NOT_CONFIGURED } from '../utils/twilioSms'
 
 const prisma = new PrismaClient()
 const smsClient = twilio(
@@ -78,9 +79,8 @@ export async function sendAppointmentReminders(): Promise<void> {
         continue
       }
       
-      // Format for Twilio: add + prefix (normalizePhone returns 11 digits starting with 1)
-      // Type assertion to ensure phoneNumber is a string (normalizePhone check above guarantees it's not null)
-      const phoneNumber: string = `+${normalized}`
+      // E.164 from normalizePhone (Twilio `to` expects +...)
+      const phoneNumber: string = normalized
       
       // Format the date for the message
       const appointmentDate = new Date(appointment.date)
@@ -94,26 +94,20 @@ export async function sendAppointmentReminders(): Promise<void> {
       // Build the reminder message
       const message = `Hi ${client.name}, this is a reminder from Evidence Cleaning. You have an appointment scheduled for tomorrow (${dateStr}) at ${appointment.time}. Please do not reply to this message. Thank you!`
 
-      // Ensure TWILIO_FROM_NUMBER is set
-      const fromNumber = process.env.TWILIO_FROM_NUMBER
-      if (!fromNumber) {
-        console.error('TWILIO_FROM_NUMBER environment variable is not set')
+      if (!isTwilioOutboundConfigured()) {
+        console.error(TWILIO_OUTBOUND_NOT_CONFIGURED)
         failedMessages.push({
           clientId: client.id,
           clientName: client.name,
           phoneNumber: phoneNumber,
           appointmentId: appointment.id!,
-          error: 'TWILIO_FROM_NUMBER not configured',
+          error: TWILIO_OUTBOUND_NOT_CONFIGURED,
         })
         continue
       }
 
       try {
-        const result = await smsClient.messages.create({
-          to: phoneNumber,
-          from: fromNumber,
-          body: message,
-        })
+        const result = await smsClient.messages.create(twilioMessageCreateParams(phoneNumber, message))
         
         sentMessages.push({
           clientId: client.id,

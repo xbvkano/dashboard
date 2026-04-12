@@ -273,9 +273,11 @@ describe('Employee schedule and reschedule', () => {
       expect(res.json).toHaveBeenCalledWith({ success: true, confirmed: true })
     })
 
-    it('sends SMS to supervisor when employee has supervisor with phone and TWILIO_FROM_NUMBER is set', async () => {
+    it('sends SMS to supervisor when employee has supervisor with phone and Twilio outbound is configured', async () => {
       const fromNumber = '+15551234567'
       const originalFrom = process.env.TWILIO_FROM_NUMBER
+      const originalMg = process.env.TWILIO_MESSAGING_SERVICE_SID
+      delete process.env.TWILIO_MESSAGING_SERVICE_SID
       process.env.TWILIO_FROM_NUMBER = fromNumber
       mockMessagesCreate.mockClear()
 
@@ -320,6 +322,8 @@ describe('Employee schedule and reschedule', () => {
       expect(body).toContain('10:00')
 
       process.env.TWILIO_FROM_NUMBER = originalFrom
+      if (originalMg !== undefined) process.env.TWILIO_MESSAGING_SERVICE_SID = originalMg
+      else delete process.env.TWILIO_MESSAGING_SERVICE_SID
     })
   })
 })

@@ -3,6 +3,8 @@ import { PrismaClient } from '@prisma/client'
 import { parseSqft, calculatePayRate, calculateCarpetRate, calculateAppointmentHours, getSlotFromTime } from '../utils/appointmentUtils'
 import { jsonToRule, calculateNextAppointmentDate } from '../utils/recurrenceUtils'
 import { sendEmployeeRemindersForAppointmentIds } from '../jobs/unconfirmedCheck'
+import { normalizePhone } from '../utils/phoneUtils'
+import { twilioMessageCreateParams } from '../utils/twilioSms'
 import twilio from 'twilio'
 
 const prisma = new PrismaClient()
@@ -714,11 +716,10 @@ export async function sendAppointmentInfo(req: Request, res: Response) {
         .filter(Boolean)
         .join('\n')
 
-      await smsClient.messages.create({
-        to: e.number.startsWith('+') ? e.number : `+${e.number}`,
-        from: process.env.TWILIO_FROM_NUMBER || '',
-        body,
-      })
+      const to =
+        normalizePhone(e.number) ??
+        (e.number.startsWith('+') ? e.number : `+${e.number.replace(/\D/g, '')}`)
+      await smsClient.messages.create(twilioMessageCreateParams(to, body))
     }
 
     const updated = await prisma.appointment.update({
