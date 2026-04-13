@@ -20,7 +20,7 @@ function EmployeesHome() {
     <div className="p-4">
       <h2 className="text-xl font-semibold mb-4">Employees</h2>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Link to="accounts" className="bg-blue-500 text-white py-3 rounded text-center">Accounts</Link>
+        <Link to="accounts" className="bg-blue-500 text-white py-3 rounded text-center">User accounts</Link>
         <Link to="schedule" className="bg-green-500 text-white py-3 rounded text-center">Schedule</Link>
       </div>
     </div>

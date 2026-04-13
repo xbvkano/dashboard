@@ -20,6 +20,8 @@ import {
 } from './twilioInboundMedia'
 import type { SmsTransport } from './smsTransport'
 import { isTwilioClientConfigured } from '../../utils/twilioSms'
+import { shouldSendInboundPushover } from '../../utils/pushoverDecision'
+import { isPushoverConfigured, sendPushoverMessage } from '../pushover'
 import { MockSmsTransport, TwilioSmsTransport } from './smsTransport'
 
 function parseNumMedia(raw: unknown): number {
@@ -222,6 +224,77 @@ export async function ingestInboundSms(
     where: { id: conv.id },
     data: { lastMessageAt: receivedAt },
   })
+
+  const convState = await prisma.conversation.findUnique({
+    where: { id: conv.id },
+    select: { id: true, lastPushoverNotifiedAt: true },
+  })
+  if (!convState) {
+    throw new Error(`Conversation ${conv.id} missing after inbound`)
+  }
+
+  const activePresence = await prisma.conversationPresence.findFirst({
+    where: { conversationId: conv.id, expiresAt: { gt: now } },
+  })
+
+  if (activePresence) {
+    await prisma.userConversationRead.upsert({
+      where: {
+        userId_conversationId: {
+          userId: activePresence.userId,
+          conversationId: conv.id,
+        },
+      },
+      create: {
+        userId: activePresence.userId,
+        conversationId: conv.id,
+        lastReadMessageId: msg.id,
+      },
+      update: { lastReadMessageId: msg.id },
+    })
+  } else if (isPushoverConfigured()) {
+    const allow = shouldSendInboundPushover({
+      now,
+      hasActivePresence: false,
+      lastPushoverNotifiedAt: convState.lastPushoverNotifiedAt,
+    })
+    if (allow) {
+      try {
+        let senderLabel = fromNorm
+        if (conv.clientId != null) {
+          const client = await prisma.client.findUnique({
+            where: { id: conv.clientId },
+            select: { name: true },
+          })
+          const n = client?.name?.trim()
+          if (n) senderLabel = n
+        }
+        const title = `New message from: ${senderLabel}`.slice(0, 250)
+        const basePreview =
+          body.trim().slice(0, 400) || (msg.mediaCount > 0 ? '📷 Photo' : '(empty)')
+        const when = receivedAt.toLocaleString(undefined, {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })
+        const suffix = `\n\n${when}`
+        const maxPreviewLen = Math.max(0, 1024 - suffix.length)
+        const preview = basePreview.slice(0, maxPreviewLen)
+        const message = `${preview}${suffix}`.slice(0, 1024)
+        await sendPushoverMessage({
+          title,
+          message,
+          priority: 1,
+          sound: 'magic',
+        })
+        await prisma.conversation.update({
+          where: { id: conv.id },
+          data: { lastPushoverNotifiedAt: now },
+        })
+      } catch (e) {
+        console.error('[pushover] inbound notify failed', e)
+      }
+    }
+  }
 
   return { conversationId: conv.id, messageId: msg.id, sessionId }
 }

@@ -379,7 +379,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
 
   const handleViewClient = () => {
     if (selected?.clientId) {
-      navigate(`/dashboard/accounts/clients/${selected.clientId}`)
+      navigate(`/dashboard/contacts/clients/${selected.clientId}`)
       setSelected(null)
     }
   }

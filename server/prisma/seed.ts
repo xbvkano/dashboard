@@ -40,12 +40,28 @@ async function main() {
   await prisma.$executeRawUnsafe(`ALTER SEQUENCE "RecurrenceFamily_id_seq" RESTART WITH 1`)
 
   // Seed base users/clients/employees
+  // First user is id 1 — used by client VITE_NO_AUTH (see client devNoAuth.ts defaults).
   const admin = await prisma.user.create({
     data: {
       email: 'alice@example.com',
       name: 'Alice',
+      userName: 'dev_seed_admin',
       role: 'ADMIN',
       type: 'Google', // Admin users use Google auth
+    },
+  })
+
+  // Second password ADMIN for dev: two tabs / inbox lock testing (see client DevTools + devNoAuth.ts)
+  const devAdmin2Password = await bcrypt.hash('devadmin2', 10)
+  await prisma.user.create({
+    data: {
+      id: 2,
+      email: 'bob-admin@localhost',
+      name: 'Bob Admin',
+      userName: 'dev_seed_admin_2',
+      password: devAdmin2Password,
+      type: 'password',
+      role: 'ADMIN',
     },
   })
 

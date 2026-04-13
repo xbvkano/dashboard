@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client'
 import { OAuth2Client } from 'google-auth-library'
 import axios from 'axios'
 import bcrypt from 'bcrypt'
+import { parseUserIdHeader } from '../utils/httpUser'
 
 const prisma = new PrismaClient()
 
@@ -130,4 +131,82 @@ export async function getAdmins(_req: Request, res: Response) {
     orderBy: { name: 'asc' },
   })
   res.json(admins)
+}
+
+const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
+
+export async function getCurrentUser(req: Request, res: Response) {
+  const id = parseUserIdHeader(req.headers['x-user-id'])
+  if (id == null) {
+    return res.status(400).json({ error: 'x-user-id header required' })
+  }
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        userName: true,
+        messageBubbleColor: true,
+        safe: true,
+        type: true,
+      },
+    })
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    res.json(user)
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Failed to load user' })
+  }
+}
+
+export async function patchCurrentUser(req: Request, res: Response) {
+  const id = parseUserIdHeader(req.headers['x-user-id'])
+  if (id == null) {
+    return res.status(400).json({ error: 'x-user-id header required' })
+  }
+  const { name, messageBubbleColor } = req.body as {
+    name?: string | null
+    messageBubbleColor?: string | null
+  }
+  const data: { name?: string | null; messageBubbleColor?: string | null } = {}
+  if (name !== undefined) {
+    data.name = typeof name === 'string' ? name : null
+  }
+  if (messageBubbleColor !== undefined) {
+    if (messageBubbleColor === null || messageBubbleColor === '') {
+      data.messageBubbleColor = null
+    } else if (typeof messageBubbleColor === 'string' && HEX_COLOR.test(messageBubbleColor)) {
+      data.messageBubbleColor = messageBubbleColor
+    } else {
+      return res.status(400).json({ error: 'messageBubbleColor must be null or #RRGGBB' })
+    }
+  }
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No valid fields to update' })
+  }
+  try {
+    const user = await prisma.user.update({
+      where: { id },
+      data,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        userName: true,
+        messageBubbleColor: true,
+        safe: true,
+        type: true,
+      },
+    })
+    res.json(user)
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Failed to update user' })
+  }
 }

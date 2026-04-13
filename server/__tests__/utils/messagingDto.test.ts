@@ -33,11 +33,13 @@ describe('messagingDto', () => {
         },
         client: { id: 9, name: 'John Doe', number: '+15551111111', notes: null },
         sessions: [{ id: 3, openedAt: t }],
-        messages: [{ body: 'Need cleaning tomorrow' }],
+        messages: [{ id: 100, body: 'Need cleaning tomorrow' }],
       },
     ])
     expect(dto[0].client?.name).toBe('John Doe')
     expect(dto[0].lastMessagePreview).toContain('Need cleaning')
+    expect(dto[0].lastMessageId).toBe(100)
+    expect(dto[0].unread).toBe(true)
     expect(dto[0].openSession?.id).toBe(3)
   })
 })

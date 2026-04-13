@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express'
+import { noAuthUserDefaultsMiddleware } from './middleware/noAuthDefaults'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import fs from 'fs'
@@ -338,26 +339,39 @@ app.use(express.json())
 // Twilio SMS webhooks send application/x-www-form-urlencoded (From, To, Body, …)
 app.use(express.urlencoded({ extended: true }))
 
+// Dev-only: default CRM user headers when NO_AUTH=1 (non-production). See .env.example.
+app.use(noAuthUserDefaultsMiddleware)
+
 /**
- * Inbox polls these GETs every few seconds — omit from default HTTP logs to avoid flooding.
- * Set MESSAGING_POLL_HTTP_LOG=1 for one-line poll logs when debugging.
+ * High-frequency messaging endpoints (polls, heartbeats, lease) — omit default HTTP logs.
+ * Set MESSAGING_POLL_HTTP_LOG=1 for one-line logs when debugging.
  */
-function isMessagingPollRequest(req: Request): boolean {
-  if (req.method !== 'GET') return false
+function isMessagingHighFrequencyRequest(req: Request): boolean {
   const p = req.path
-  if (p === '/messaging/conversations') return true
-  if (/^\/messaging\/conversations\/\d+$/.test(p)) return true
+  if (req.method === 'GET') {
+    if (p === '/messaging/conversations') return true
+    if (/^\/messaging\/conversations\/\d+$/.test(p)) return true
+    return false
+  }
+  if (req.method === 'POST') {
+    if (p === '/messaging/inbox/lease') return true
+    if (/^\/messaging\/conversations\/\d+\/presence$/.test(p)) return true
+    if (/^\/messaging\/conversations\/\d+\/read$/.test(p)) return true
+    return false
+  }
+  if (req.method === 'DELETE' && p === '/messaging/inbox/lease') return true
+  if (req.method === 'DELETE' && /^\/messaging\/conversations\/\d+\/presence$/.test(p)) return true
   return false
 }
 
 // Enhanced request/response logging middleware
 app.use((req: Request, res: Response, next) => {
-  if (isMessagingPollRequest(req)) {
+  if (isMessagingHighFrequencyRequest(req)) {
     if (process.env.MESSAGING_POLL_HTTP_LOG === '1') {
       const startTime = Date.now()
       res.on('finish', () => {
         const ms = Date.now() - startTime
-        console.log(`[messaging-poll] ${req.method} ${req.path} ${res.statusCode} ${ms}ms`)
+        console.log(`[messaging-hf] ${req.method} ${req.path} ${res.statusCode} ${ms}ms`)
       })
     }
     return next()

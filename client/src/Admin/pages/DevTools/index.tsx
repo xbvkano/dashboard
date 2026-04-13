@@ -1,6 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../api'
 import { useModal } from '../../../ModalProvider'
+import type { ThreadContact } from '../Messages/Inbox/types'
+import SimulateInboundDevControls from '../Messages/Inbox/components/SimulateInboundDevControls'
+import {
+  conversationInboxItemToThreadContact,
+  fetchConversationsPage,
+} from '../Messages/Inbox/messagingApi'
+import { DEV_SEED_ADMIN_ACCOUNTS, isViteNoAuth } from '../../../devNoAuth'
+import { isDevToolsEnabled } from '../../../devTools'
 
 // Seed creates Marcos Kano with generateUserName('17255774523') → stored as '7255774523' in User.userName
 const MARCOS_KANO_USER_NAME = '7255774523'
@@ -12,7 +20,7 @@ interface Employee {
 }
 
 interface DevToolsProps {
-  onSwitchRole?: (role: 'ADMIN' | 'OWNER' | 'EMPLOYEE', userName?: string) => void
+  onSwitchRole?: (role: 'ADMIN' | 'OWNER' | 'EMPLOYEE', userName?: string, devUserId?: number) => void
 }
 
 function todayLocalYYYYMMDD(): string {
@@ -30,6 +38,19 @@ export default function DevTools({ onSwitchRole }: DevToolsProps) {
   const [noonReminderDate, setNoonReminderDate] = useState(todayLocalYYYYMMDD())
   const [noonReminderEmployeeId, setNoonReminderEmployeeId] = useState<string>('')
   const [noonReminderLoading, setNoonReminderLoading] = useState(false)
+  const [simulateInboundRows, setSimulateInboundRows] = useState<ThreadContact[]>([])
+
+  const loadSimulateInboundConversations = useCallback(() => {
+    fetchConversationsPage({ limit: 50 })
+      .then((res) =>
+        setSimulateInboundRows(res.items.map(conversationInboxItemToThreadContact)),
+      )
+      .catch(() => setSimulateInboundRows([]))
+  }, [])
+
+  useEffect(() => {
+    loadSimulateInboundConversations()
+  }, [loadSimulateInboundConversations])
 
   useEffect(() => {
     fetchJson(`${API_BASE_URL}/employees`)
@@ -84,6 +105,50 @@ export default function DevTools({ onSwitchRole }: DevToolsProps) {
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">DevTools</h2>
+      </div>
+
+      {isDevToolsEnabled && isViteNoAuth() && onSwitchRole && (
+        <div className="border rounded-lg p-4 bg-white shadow border-indigo-100">
+          <h3 className="text-lg font-semibold mb-2">Dev admin (NO_AUTH)</h3>
+          <p className="text-sm text-gray-600 mb-3">
+            Switch the CRM user for <strong>this tab only</strong>. Open DevTools in another tab, pick the
+            other account, then open Messages in both to test the messaging inbox lease / lock.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {DEV_SEED_ADMIN_ACCOUNTS.map((acc) => (
+              <button
+                key={acc.id}
+                type="button"
+                onClick={() => onSwitchRole('ADMIN', acc.userName, acc.id)}
+                className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+              >
+                Use {acc.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">{DEV_SEED_ADMIN_ACCOUNTS.map((a) => a.hint).join(' · ')}</p>
+        </div>
+      )}
+
+      <div className="border rounded-lg p-4 bg-white shadow">
+        <h3 className="text-lg font-semibold mb-2">Simulate inbound SMS</h3>
+        <p className="text-sm text-gray-600 mb-3">
+          Same control as in Messages → pick a conversation and send a fake customer message (Twilio inbound
+          path) to preview bubbles and unread without a phone.
+        </p>
+        <div className="flex justify-end mb-2">
+          <button
+            type="button"
+            onClick={() => loadSimulateInboundConversations()}
+            className="text-sm text-blue-600 hover:text-blue-800 underline"
+          >
+            Reload conversation list
+          </button>
+        </div>
+        <SimulateInboundDevControls
+          conversations={simulateInboundRows}
+          onSuccess={loadSimulateInboundConversations}
+        />
       </div>
 
       {onSwitchRole && (

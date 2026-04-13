@@ -1,6 +1,8 @@
+import { useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import ConversationListItem from './ConversationListItem'
 import MockingToggle from './MockingToggle'
+import SimulateInboundDevControls from './SimulateInboundDevControls'
 import type { ThreadContact } from '../types'
 
 type Props = {
@@ -9,10 +11,19 @@ type Props = {
   onSelect: (id: number) => void
   onNewConversation: () => void
   listLoading?: boolean
+  listLoadingMore?: boolean
+  hasMore?: boolean
+  onLoadMore?: () => void
+  searchQuery: string
+  onSearchChange: (q: string) => void
   /** ADMIN + VITE_DEVTOOLS: mock outbound SMS (no Twilio) */
   showMockingToggle?: boolean
   mockingEnabled?: boolean
   onMockingChange?: (enabled: boolean) => void
+  /** VITE_DEVTOOLS: simulate inbound SMS below the list */
+  showSimulateInbound?: boolean
+  simulateInboundRows?: ThreadContact[]
+  onSimulateInboundSuccess?: () => void | Promise<void>
 }
 
 export default function ConversationList({
@@ -21,10 +32,29 @@ export default function ConversationList({
   onSelect,
   onNewConversation,
   listLoading,
+  listLoadingMore,
+  hasMore,
+  onLoadMore,
+  searchQuery,
+  onSearchChange,
   showMockingToggle,
   mockingEnabled,
   onMockingChange,
+  showSimulateInbound,
+  simulateInboundRows,
+  onSimulateInboundSuccess,
 }: Props) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const onScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el || !hasMore || listLoadingMore || !onLoadMore) return
+    const { scrollTop, scrollHeight, clientHeight } = el
+    if (scrollHeight - scrollTop - clientHeight < 80) {
+      onLoadMore()
+    }
+  }, [hasMore, listLoadingMore, onLoadMore])
+
   return (
     <div className="flex flex-col h-full min-h-0 bg-white md:rounded-l-xl md:border md:border-slate-200 md:overflow-hidden">
       <div className="flex items-center justify-between gap-2 px-2 sm:px-3 py-2 border-b border-slate-200 shrink-0 bg-white/95 backdrop-blur-sm">
@@ -47,7 +77,7 @@ export default function ConversationList({
           <button
             type="button"
             onClick={onNewConversation}
-            className="shrink-0 p-2 rounded-full text-blue-600 hover:bg-blue-50 active:bg-blue-100"
+            className="shrink-0 p-2 rounded-full text-blue-600 hover:bg-blue-50 active:bg-blue-100 min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="New message"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -56,7 +86,25 @@ export default function ConversationList({
           </button>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
+      <div className="px-2 sm:px-3 py-2 border-b border-slate-100 shrink-0">
+        <label htmlFor="inbox-search" className="sr-only">
+          Search by name or phone
+        </label>
+        <input
+          id="inbox-search"
+          type="search"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Search name or number…"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          autoComplete="off"
+        />
+      </div>
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        className="flex-1 overflow-y-auto overscroll-contain min-h-0"
+      >
         {listLoading && (
           <p className="text-center text-sm text-slate-500 py-8 px-4">Loading conversations…</p>
         )}
@@ -65,14 +113,25 @@ export default function ConversationList({
         )}
         {!listLoading &&
           conversations.map((c) => (
-          <ConversationListItem
-            key={c.id}
-            conversation={c}
-            selected={selectedId === c.id}
-            onSelect={() => onSelect(c.id)}
-          />
+            <ConversationListItem
+              key={c.id}
+              conversation={c}
+              selected={selectedId === c.id}
+              onSelect={() => onSelect(c.id)}
+            />
           ))}
+        {listLoadingMore && (
+          <p className="text-center text-xs text-slate-400 py-3">Loading more…</p>
+        )}
       </div>
+      {showSimulateInbound && (
+        <div className="shrink-0 border-t border-amber-100 px-2 sm:px-3 py-2 bg-white">
+          <SimulateInboundDevControls
+            conversations={simulateInboundRows ?? []}
+            onSuccess={onSimulateInboundSuccess}
+          />
+        </div>
+      )}
     </div>
   )
 }

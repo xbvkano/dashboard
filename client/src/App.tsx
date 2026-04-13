@@ -2,17 +2,14 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import Login from './Landing/components/Login'
 import Dashboard from './Landing/Dashboard'
+import { applyNoAuthDevSession, isViteNoAuth } from './devNoAuth'
 
 type Role = 'ADMIN' | 'OWNER' | 'EMPLOYEE'
 
 export default function App() {
   const [role, setRole] = useState<Role | null>(() => {
-    const noAuth =
-      import.meta.env.VITE_NO_AUTH === 'true' ||
-      import.meta.env.VITE_NO_AUTH === '1'
-    if (noAuth) {
-      localStorage.setItem('role', 'OWNER')
-      return 'OWNER'
+    if (isViteNoAuth()) {
+      return applyNoAuthDevSession() as Role
     }
     
     // Check if user was signed out
@@ -30,12 +27,8 @@ export default function App() {
   })
 
   useEffect(() => {
-    const noAuth =
-      import.meta.env.VITE_NO_AUTH === 'true' ||
-      import.meta.env.VITE_NO_AUTH === '1'
-    if (noAuth) {
-      setRole('OWNER')
-      localStorage.setItem('role', 'OWNER')
+    if (isViteNoAuth()) {
+      setRole(applyNoAuthDevSession() as Role)
     }
   }, [])
   return (
@@ -78,11 +71,20 @@ function AppRoutes({ role, onLogin, onLogout }: RoutesProps) {
             <Dashboard
               role={role}
               onLogout={onLogout}
-              onSwitchRole={(r, userName) => {
+              onSwitchRole={(r, userName, devUserId) => {
                 localStorage.setItem('role', r)
-                if (userName != null) {
+                if (devUserId != null && isViteNoAuth()) {
+                  localStorage.setItem('userId', String(devUserId))
+                  if (userName != null) {
+                    localStorage.setItem('userName', userName)
+                  }
+                  localStorage.setItem('loginMethod', 'dev')
+                } else if (userName != null) {
                   localStorage.setItem('userName', userName)
                   localStorage.setItem('loginMethod', 'password')
+                  if (r === 'EMPLOYEE') {
+                    localStorage.removeItem('userId')
+                  }
                 }
                 onLogin(r)
                 if (r === 'EMPLOYEE') {

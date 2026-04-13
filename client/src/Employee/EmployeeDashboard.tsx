@@ -10,7 +10,7 @@ type Role = 'ADMIN' | 'OWNER' | 'EMPLOYEE'
 
 interface Props {
   onLogout: () => void
-  onSwitchRole?: (role: Role, userName?: string) => void
+  onSwitchRole?: (role: Role, userName?: string, devUserId?: number) => void
 }
 
 function LanguageSelector() {

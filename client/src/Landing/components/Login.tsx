@@ -74,6 +74,9 @@ export default function Login({ onLogin }: LoginProps) {
         if (data.user && typeof data.user.safe !== 'undefined') {
           localStorage.setItem('safe', data.user.safe ? 'true' : 'false')
         }
+        if (data.user?.id != null) {
+          localStorage.setItem('userId', String(data.user.id))
+        }
         if (data.userName) {
           localStorage.setItem('userName', data.userName)
         } else if (data.user?.userName) {
@@ -122,6 +125,9 @@ export default function Login({ onLogin }: LoginProps) {
         if (data.user && typeof data.user.safe !== 'undefined') {
           localStorage.setItem('safe', data.user.safe ? 'true' : 'false')
         }
+        if (data.user?.id != null) {
+          localStorage.setItem('userId', String(data.user.id))
+        }
         if (data.userName) {
           localStorage.setItem('userName', data.userName)
         }
@@ -150,6 +156,9 @@ export default function Login({ onLogin }: LoginProps) {
         localStorage.setItem('loginMethod', 'google')
         if (data.user && typeof data.user.safe !== 'undefined') {
           localStorage.setItem('safe', data.user.safe ? 'true' : 'false')
+        }
+        if (data.user?.id != null) {
+          localStorage.setItem('userId', String(data.user.id))
         }
         if (data.userName) {
           localStorage.setItem('userName', data.userName)

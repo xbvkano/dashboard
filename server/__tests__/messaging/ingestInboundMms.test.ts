@@ -56,6 +56,12 @@ function mockPrisma(overrides: Record<string, unknown> = {}) {
     appointment: {
       updateMany: jest.fn(),
     },
+    conversationPresence: {
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
+    userConversationRead: {
+      upsert: jest.fn(),
+    },
     ...overrides,
   } as any
 }
@@ -91,7 +97,7 @@ describe('ingestInboundSms (MMS)', () => {
 
     prisma.conversation.findUnique.mockImplementation((args: { where: { id?: number } }) => {
       if (args.where.id === 50) {
-        return Promise.resolve({ id: 50, lastMessageAt: null })
+        return Promise.resolve({ id: 50, lastMessageAt: null, lastPushoverNotifiedAt: null })
       }
       return Promise.resolve(null)
     })
@@ -145,7 +151,7 @@ describe('ingestInboundSms (MMS)', () => {
       .mockResolvedValueOnce({ id: 2, type: ContactPointType.PHONE, value: '+2', clientId: null })
     prisma.conversation.findUnique.mockImplementation((args: { where: { id?: number } }) => {
       if (args.where.id === 50) {
-        return Promise.resolve({ id: 50, lastMessageAt: null })
+        return Promise.resolve({ id: 50, lastMessageAt: null, lastPushoverNotifiedAt: null })
       }
       return Promise.resolve(null)
     })
@@ -189,7 +195,7 @@ describe('ingestInboundSms (MMS)', () => {
       .mockResolvedValueOnce({ id: 2, type: ContactPointType.PHONE, value: '+17255774523', clientId: null })
     prisma.conversation.findUnique.mockImplementation((args: { where: { id?: number } }) => {
       if (args.where.id === 50) {
-        return Promise.resolve({ id: 50, lastMessageAt: null })
+        return Promise.resolve({ id: 50, lastMessageAt: null, lastPushoverNotifiedAt: null })
       }
       return Promise.resolve(null)
     })

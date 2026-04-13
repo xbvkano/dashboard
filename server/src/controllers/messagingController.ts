@@ -15,6 +15,15 @@ import { isSupabaseStorageConfigured, uploadBufferToMessaging } from '../service
 import { extensionForMime } from '../services/messaging/twilioInboundMedia'
 import type { ConversationDetailDto } from '../types/messaging'
 import { mapConversationsToInboxDto } from '../utils/messagingDto'
+import {
+  clampInboxLimit,
+  decodeInboxCursor,
+  encodeInboxCursor,
+  inboxSearchWhere,
+} from '../utils/messagingInboxQuery'
+import { translateEnToPt } from '../services/googleTranslate'
+import { acquireOrRenewInboxLock, releaseInboxLock } from '../services/messagingInboxLock'
+import { parseUserIdHeader } from '../utils/httpUser'
 import { randomUUID } from 'crypto'
 
 const prisma = new PrismaClient()
@@ -30,10 +39,25 @@ function allowsClientMessagingMockSms(): boolean {
   return true
 }
 
-export async function listConversations(_req: Request, res: Response) {
+export async function listConversations(req: Request, res: Response) {
   try {
+    const userId = parseUserIdHeader(req.headers['x-user-id'])
+    const limit = clampInboxLimit(req.query.limit)
+    const q = typeof req.query.q === 'string' ? req.query.q : undefined
+    const cursorDecoded = decodeInboxCursor(req.query.cursor)
+    const offset = cursorDecoded?.o ?? 0
+
+    const searchWhere = inboxSearchWhere(q)
+
+    const take = limit + 1
     const rows = await prisma.conversation.findMany({
-      orderBy: { lastMessageAt: 'desc' },
+      where: searchWhere,
+      orderBy: [
+        { lastMessageAt: { sort: 'desc', nulls: 'last' } },
+        { id: 'desc' },
+      ],
+      skip: offset,
+      take,
       include: {
         contactPoint: true,
         client: true,
@@ -43,14 +67,30 @@ export async function listConversations(_req: Request, res: Response) {
           take: 1,
         },
         messages: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: 1,
-          select: { body: true, mediaCount: true },
+          select: { id: true, body: true, mediaCount: true },
         },
+        ...(userId != null
+          ? {
+              userReads: {
+                where: { userId },
+                take: 1,
+                select: { lastReadMessageId: true },
+              },
+            }
+          : {}),
       },
     })
 
-    res.json(mapConversationsToInboxDto(rows as any))
+    const hasMore = rows.length > limit
+    const page = hasMore ? rows.slice(0, limit) : rows
+    const nextCursor = hasMore ? encodeInboxCursor(offset + limit) : null
+
+    res.json({
+      items: mapConversationsToInboxDto(page as any),
+      nextCursor,
+    })
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Failed to list conversations' })
@@ -93,6 +133,16 @@ export async function getConversationDetail(req: Request, res: Response) {
     if (!c) {
       return res.status(404).json({ error: 'Not found' })
     }
+
+    const senderIds = [...new Set(c.messages.map((m) => m.userId).filter((x): x is number => x != null))]
+    const senders =
+      senderIds.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: senderIds } },
+            select: { id: true, messageBubbleColor: true },
+          })
+        : []
+    const bubbleByUserId = new Map(senders.map((u) => [u.id, u.messageBubbleColor]))
 
     const dto: ConversationDetailDto = {
       conversation: {
@@ -144,6 +194,7 @@ export async function getConversationDetail(req: Request, res: Response) {
         status: m.status,
         createdAt: m.createdAt.toISOString(),
         userId: m.userId,
+        senderBubbleColor: m.userId != null ? bubbleByUserId.get(m.userId) ?? null : null,
         sessionId: m.sessionId,
         mediaCount: m.mediaCount,
         media: m.media.map((x) => ({
@@ -166,10 +217,103 @@ export async function getConversationDetail(req: Request, res: Response) {
   }
 }
 
-function parseUserId(raw: unknown): number | null {
-  if (raw === undefined || raw === null || raw === '') return null
-  const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10)
-  return Number.isFinite(n) ? n : null
+const parseUserId = parseUserIdHeader
+
+const PRESENCE_TTL_MS = 45_000
+
+/** Mark conversation read through latest message; clears Pushover throttle for this thread */
+export async function postMarkConversationRead(req: Request, res: Response) {
+  const id = parseInt(req.params.id, 10)
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid id' })
+  }
+  const userId = parseUserId(req.headers['x-user-id'])
+  if (userId == null) {
+    return res.status(400).json({ error: 'x-user-id header required' })
+  }
+  try {
+    const latest = await prisma.message.findFirst({
+      where: { conversationId: id },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { id: true },
+    })
+    await prisma.$transaction([
+      prisma.userConversationRead.upsert({
+        where: {
+          userId_conversationId: { userId, conversationId: id },
+        },
+        create: {
+          userId,
+          conversationId: id,
+          lastReadMessageId: latest?.id ?? null,
+        },
+        update: {
+          lastReadMessageId: latest?.id ?? null,
+        },
+      }),
+      prisma.conversation.update({
+        where: { id },
+        data: { lastPushoverNotifiedAt: null },
+      }),
+    ])
+    res.json({ ok: true, lastReadMessageId: latest?.id ?? null })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Failed to mark read' })
+  }
+}
+
+/** Clear presence when tab hidden / navigation — allows Pushover + accurate unread */
+export async function deleteConversationPresence(req: Request, res: Response) {
+  const id = parseInt(req.params.id, 10)
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid id' })
+  }
+  const userId = parseUserId(req.headers['x-user-id'])
+  if (userId == null) {
+    return res.status(400).json({ error: 'x-user-id header required' })
+  }
+  try {
+    await prisma.conversationPresence.deleteMany({
+      where: { conversationId: id, userId },
+    })
+    res.json({ ok: true })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Failed to clear presence' })
+  }
+}
+
+/** Heartbeat: viewer is on this thread — suppress Pushover + optional auto-read */
+export async function postConversationPresence(req: Request, res: Response) {
+  const id = parseInt(req.params.id, 10)
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid id' })
+  }
+  const userId = parseUserId(req.headers['x-user-id'])
+  if (userId == null) {
+    return res.status(400).json({ error: 'x-user-id header required' })
+  }
+  const expiresAt = new Date(Date.now() + PRESENCE_TTL_MS)
+  try {
+    await prisma.conversationPresence.upsert({
+      where: {
+        userId_conversationId: { userId, conversationId: id },
+      },
+      create: {
+        userId,
+        conversationId: id,
+        expiresAt,
+      },
+      update: {
+        expiresAt,
+      },
+    })
+    res.json({ ok: true, expiresAt: expiresAt.toISOString() })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Failed to update presence' })
+  }
 }
 
 export async function postOutboundMessage(req: Request, res: Response) {
@@ -304,5 +448,56 @@ export async function postMockAppointmentExtraction(req: Request, res: Response)
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Extraction failed' })
+  }
+}
+
+export async function postMessagingTranslate(req: Request, res: Response) {
+  const { text } = req.body as { text?: string }
+  if (typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({ error: 'text is required' })
+  }
+  try {
+    const translatedText = await translateEnToPt(text)
+    res.json({ translatedText })
+  } catch (e: unknown) {
+    console.error(e)
+    const msg = e instanceof Error ? e.message : 'Translation failed'
+    res.status(400).json({ error: msg })
+  }
+}
+
+export async function postMessagingInboxLease(req: Request, res: Response) {
+  const userId = parseUserIdHeader(req.headers['x-user-id'])
+  if (userId == null) {
+    return res.status(400).json({ error: 'x-user-id required' })
+  }
+  const { tabId, force } = req.body as { tabId?: string; force?: boolean }
+  try {
+    const out = await acquireOrRenewInboxLock(prisma, { userId, tabId, force: Boolean(force) })
+    if (!out.ok) {
+      return res.status(409).json({
+        error: 'Messaging inbox is in use',
+        holderUserId: out.holderUserId,
+        leaseUntil: out.leaseUntil,
+      })
+    }
+    res.json({ ok: true })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Lease failed' })
+  }
+}
+
+export async function deleteMessagingInboxLease(req: Request, res: Response) {
+  const userId = parseUserIdHeader(req.headers['x-user-id'])
+  if (userId == null) {
+    return res.status(400).json({ error: 'x-user-id required' })
+  }
+  try {
+    await releaseInboxLock(prisma, { userId })
+    res.json({ ok: true })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Release failed' })
   }
 }

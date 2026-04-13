@@ -21,7 +21,17 @@ type InboxRow = {
   }
   client: { id: number; name: string; number: string; notes: string | null } | null
   sessions: Array<{ id: number; openedAt: Date }>
-  messages: Array<{ body: string; mediaCount?: number }>
+  messages: Array<{ id: number; body: string; mediaCount?: number }>
+  userReads?: Array<{ lastReadMessageId: number | null }>
+}
+
+export function computeUnread(
+  lastMessageId: number | undefined,
+  lastReadMessageId: number | null | undefined
+): boolean {
+  if (lastMessageId == null) return false
+  if (lastReadMessageId == null) return true
+  return lastMessageId > lastReadMessageId
 }
 
 export function lastMessagePreviewText(last: { body: string; mediaCount?: number } | undefined): string | null {
@@ -36,12 +46,17 @@ export function mapConversationsToInboxDto(rows: InboxRow[]): ConversationInboxI
   return rows.map((c) => {
     const last = c.messages[0]
     const open = c.sessions[0]
+    const lastReadMessageId = c.userReads?.[0]?.lastReadMessageId ?? null
+    const lastMessageId = last?.id ?? null
+    const unread = computeUnread(last?.id, lastReadMessageId)
     return {
       id: c.id,
       channel: c.channel,
       status: c.status,
       businessNumber: c.businessNumber,
       lastMessageAt: c.lastMessageAt?.toISOString() ?? null,
+      lastMessageId,
+      unread,
       contactPoint: {
         id: c.contactPoint.id,
         type: c.contactPoint.type,

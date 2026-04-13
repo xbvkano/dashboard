@@ -22,11 +22,16 @@ model User {
   type     UserType @default(Google)
   password String?
   userName String?  @unique
+  /// Hex e.g. #3b82f6 for outbound SMS bubble background; null = default blue
+  messageBubbleColor String?
 
   appointments Appointment[] @relation("AdminAppointments")
   employee     Employee?
   supervisedEmployees Employee[] @relation("SupervisedEmployees")
   sentMessages Message[] @relation("UserSentMessages")
+  conversationReads UserConversationRead[]
+  conversationPresence ConversationPresence[]
+  messagingInboxLocks MessagingInboxLock[] @relation("MessagingInboxLockHolder")
 }
 
 model Client {
@@ -380,6 +385,8 @@ model Conversation {
   clientId         Int?
   client           Client?              @relation(fields: [clientId], references: [id], onDelete: SetNull)
   lastMessageAt    DateTime?
+  /// Last Pushover sent for this thread; cleared when user marks read (throttle reset)
+  lastPushoverNotifiedAt DateTime?
   openedAt         DateTime             @default(now())
   archivedAt       DateTime?
   createdAt        DateTime             @default(now())
@@ -387,6 +394,8 @@ model Conversation {
 
   sessions ConversationSession[]
   messages Message[]
+  userReads UserConversationRead[]
+  presence ConversationPresence[]
 
   @@unique([contactPointId, businessNumber])
   @@index([clientId])
@@ -458,11 +467,53 @@ model Message {
    * Postgres only stores metadata + storage path + public URL for Twilio/CRM.
    */
   media MessageMedia[]
+  readReceipts UserConversationRead[] @relation("ReadReceiptMessage")
 
   @@index([conversationId])
   @@index([sessionId])
   @@index([createdAt])
   @@index([userId])
+}
+
+/// Per-user read cursor for a conversation (CRM inbox)
+model UserConversationRead {
+  id               Int          @id @default(autoincrement())
+  userId           Int
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId   Int
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  lastReadMessageId Int?
+  lastReadMessage   Message?     @relation("ReadReceiptMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([userId, conversationId])
+  @@index([userId])
+  @@index([conversationId])
+}
+
+/// Short-lived: user is actively viewing this thread (Pushover / read suppression)
+model ConversationPresence {
+  id             Int          @id @default(autoincrement())
+  userId         Int
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId Int
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, conversationId])
+  @@index([conversationId])
+  @@index([expiresAt])
+}
+
+/// Single global lease: only one user may hold messaging inbox UI
+model MessagingInboxLock {
+  key          String   @id @default("admin_inbox")
+  holderUserId Int?
+  holder       User?    @relation("MessagingInboxLockHolder", fields: [holderUserId], references: [id], onDelete: SetNull)
+  leaseUntil   DateTime?
+  tabId        String?
+  updatedAt    DateTime @updatedAt
 }
 
 /**

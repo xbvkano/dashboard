@@ -6,6 +6,9 @@ export interface ConversationInboxItemDto {
   status: string
   businessNumber: string
   lastMessageAt: string | null
+  /** Latest message id in thread (for read/unread) */
+  lastMessageId: number | null
+  unread: boolean
   contactPoint: {
     id: number
     type: string
@@ -61,6 +64,8 @@ export interface ConversationDetailDto {
     status: string
     createdAt: string
     userId: number | null
+    /** Bubble background for outbound; null = default blue */
+    senderBubbleColor: string | null
     sessionId: number | null
     mediaCount: number
     media: Array<{

@@ -22,7 +22,14 @@ export default function ConversationListItem({ conversation, selected, onSelect 
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="font-semibold text-slate-900 truncate">{title}</span>
+          <span
+            className={`truncate ${conversation.unread ? 'font-bold text-slate-900' : 'font-semibold text-slate-900'}`}
+          >
+            {title}
+          </span>
+          {conversation.unread && (
+            <span className="shrink-0 w-2 h-2 rounded-full bg-blue-500" aria-label="Unread" />
+          )}
           <span className="text-xs text-slate-500 shrink-0 tabular-nums">
             {conversation.lastAt ? formatConversationTime(conversation.lastAt) : '—'}
           </span>

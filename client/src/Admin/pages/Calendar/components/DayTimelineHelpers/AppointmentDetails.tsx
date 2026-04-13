@@ -328,7 +328,7 @@ export default function AppointmentDetails({
 
   const handleViewClient = () => {
     if (appointment.clientId) {
-      navigate(`/dashboard/accounts/clients/${appointment.clientId}`)
+      navigate(`/dashboard/contacts/clients/${appointment.clientId}`)
       onClose()
     }
   }
@@ -806,7 +806,7 @@ export default function AppointmentDetails({
                 <button
                   type="button"
                   onClick={() => {
-                    navigate(`/dashboard/accounts/clients/${appointment.clientId}`)
+                    navigate(`/dashboard/contacts/clients/${appointment.clientId}`)
                     onClose()
                   }}
                   className="px-4 py-2.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
