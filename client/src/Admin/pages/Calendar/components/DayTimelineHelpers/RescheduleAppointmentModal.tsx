@@ -1,7 +1,33 @@
 import { useState, useEffect } from 'react'
-import { API_BASE_URL } from '../../../../../api'
+import { API_BASE_URL, attachDashboardUserHeaders, fetchJson } from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
 import type { Appointment } from '../../types'
+
+const skipNgrokWarning =
+  import.meta.env.VITE_NGROK === 'true' || import.meta.env.VITE_NGROK === '1'
+
+async function dashboardFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers)
+  if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  attachDashboardUserHeaders(headers)
+  if (skipNgrokWarning) headers.set('ngrok-skip-browser-warning', '1')
+  return fetch(input, { ...init, headers })
+}
+
+async function resolveTemplateId(appointment: Appointment): Promise<number | null> {
+  if (appointment.templateId) return appointment.templateId
+  if (!appointment.clientId) return null
+  const templates = (await fetchJson(
+    `${API_BASE_URL}/appointment-templates?clientId=${appointment.clientId}`,
+  )) as Array<{ id: number; address?: string; type?: string; size?: string | null }>
+  const match = templates.find(
+    (t) =>
+      t.address === appointment.address &&
+      t.type === appointment.type &&
+      (t.size || '') === (appointment.size || ''),
+  )
+  return match?.id ?? null
+}
 
 function rescheduleDraftKey(appointmentId?: number) {
   return appointmentId ? `calendarRescheduleDraft:${appointmentId}` : 'calendarRescheduleDraft:unknown'
@@ -69,33 +95,59 @@ export default function RescheduleAppointmentModal({
       await alert('Please provide date and time.')
       return
     }
+    const templateId = await resolveTemplateId(appointment)
+    const payload = {
+      clientId: appointment.clientId,
+      templateId,
+      date,
+      time,
+      status: 'APPOINTED' as const,
+      employeeIds: [] as number[],
+      noTeam: false,
+    }
+    console.log('[RescheduleAppointmentModal] submit', {
+      appointmentId: appointment.id,
+      hadTemplateIdOnAppt: appointment.templateId,
+      resolvedTemplateId: templateId,
+      clientId: appointment.clientId,
+      date,
+      time,
+      userIdHeader: (() => {
+        try {
+          return localStorage.getItem('userId')
+        } catch {
+          return null
+        }
+      })(),
+    })
+    if (!templateId) {
+      await alert(
+        'Could not find an appointment template for this job. Add or link a template for the client, then try again.',
+      )
+      return
+    }
     setSubmitting(true)
     try {
-      const res = await fetch(`${API_BASE_URL}/appointments`, {
+      const res = await dashboardFetch(`${API_BASE_URL}/appointments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
-        body: JSON.stringify({
-          clientId: appointment.clientId,
-          templateId: appointment.templateId ?? undefined,
-          date,
-          time,
-          status: 'APPOINTED',
-          employeeIds: [],
-          noTeam: false,
-        }),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
+        console.warn('[RescheduleAppointmentModal] POST /appointments failed', res.status, err)
         await alert(err.error || 'Failed to create appointment')
         return
       }
       const newAppointment = (await res.json()) as Appointment
       if (appointment.id) {
-        await fetch(`${API_BASE_URL}/appointments/${appointment.id}`, {
+        const putRes = await dashboardFetch(`${API_BASE_URL}/appointments/${appointment.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
           body: JSON.stringify({ status: 'RESCHEDULE_OLD' }),
         })
+        if (!putRes.ok) {
+          const putErr = await putRes.json().catch(() => ({}))
+          console.warn('[RescheduleAppointmentModal] PUT mark RESCHEDULE_OLD failed', putRes.status, putErr)
+        }
       }
       try {
         localStorage.removeItem(rescheduleDraftKey(appointment.id))

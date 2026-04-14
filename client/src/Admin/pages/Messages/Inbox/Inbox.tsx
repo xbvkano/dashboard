@@ -927,6 +927,7 @@ export default function Inbox() {
                       onBooked={async () => {
                         completeBookModal(selectedId)
                         setBookToast('Appointment booked')
+                        setInboxMobileTab('chat')
                       }}
                     />
                   )}
@@ -1034,6 +1035,7 @@ export default function Inbox() {
                         onBooked={async () => {
                           completeBookModal(selectedId)
                           setBookToast('Appointment booked')
+                          setInboxMobileTab('chat')
                         }}
                       />
                     )}

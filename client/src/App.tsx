@@ -48,21 +48,34 @@ function AppRoutes({ role, onLogin, onLogout }: RoutesProps) {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Persist current path (do not overwrite when a modal is open – we only persist the real route)
+  // Persist current path + query (used to recover deep links when a reload lands on `/` or `/dashboard`)
   useEffect(() => {
     if (role && location.pathname.startsWith('/dashboard')) {
+      const href = location.pathname + location.search
       localStorage.setItem('lastPath', location.pathname)
+      localStorage.setItem('lastDashboardHref', href)
     }
-  }, [role, location.pathname])
+  }, [role, location.pathname, location.search])
 
   // No dedicated redirect effect is needed when role is restored because
   // the '/' route conditionally navigates to the dashboard.
+
+  const dashboardEntryPath = (() => {
+    if (!role) return '/dashboard'
+    try {
+      const href = localStorage.getItem('lastDashboardHref')
+      if (href && href.startsWith('/dashboard')) return href
+    } catch {
+      /* ignore */
+    }
+    return '/dashboard'
+  })()
 
   return (
     <Routes>
       <Route
         path="/"
-        element={role ? <Navigate to="/dashboard" replace /> : <Login onLogin={onLogin} />}
+        element={role ? <Navigate to={dashboardEntryPath} replace /> : <Login onLogin={onLogin} />}
       />
       <Route
         path="/dashboard/*"

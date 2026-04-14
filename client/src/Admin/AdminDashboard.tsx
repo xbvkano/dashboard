@@ -1,4 +1,5 @@
-import { Link, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Link, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { isDevToolsEnabled } from '../devTools'
 import Home from './pages/Home'
 import Calendar from './pages/Calendar'
@@ -85,9 +86,37 @@ function LegacyAccountsToContactsRedirect() {
   return <Navigate to={to} replace />
 }
 
+/** iOS/Safari: full reload sometimes lands on `/dashboard` (home) while `lastDashboardHref` still holds the deep URL. */
+function ReloadDeepLinkRestore() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  useEffect(() => {
+    if (location.pathname !== '/dashboard') return
+    if (location.search || location.hash) return
+    let navType: string | undefined
+    try {
+      const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+      navType = nav?.type
+    } catch {
+      return
+    }
+    if (navType !== 'reload') return
+    try {
+      const last = localStorage.getItem('lastDashboardHref')
+      if (!last || last === '/dashboard') return
+      if (!last.startsWith('/dashboard')) return
+      navigate(last, { replace: true })
+    } catch {
+      /* ignore */
+    }
+  }, [location.pathname, location.search, location.hash, navigate])
+  return null
+}
+
 export default function AdminDashboard({ onLogout, onSwitchRole }: Props) {
   return (
     <div className="flex min-h-[100dvh] flex-col bg-gray-100 text-gray-900">
+      <ReloadDeepLinkRestore />
       <nav className="z-50 w-full shrink-0 bg-white shadow fixed bottom-0 md:sticky md:top-0 border-t border-gray-200 md:border-t-0 md:border-b">
         <ul className="flex flex-nowrap justify-around md:justify-start md:flex-wrap md:gap-1 p-1 md:p-2 text-sm">
           <li className="min-w-0 flex-1 md:flex-none">

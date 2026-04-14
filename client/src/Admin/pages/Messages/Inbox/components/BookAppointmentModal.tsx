@@ -198,6 +198,29 @@ export default function BookAppointmentModal({
     try {
       const screenshotPayload =
         bookingScreenshotUrls.length > 0 ? { bookingScreenshotUrls } : undefined
+      console.log('[BookAppointmentModal] submit', {
+        conversationId,
+        bookingSource,
+        isScreenshot,
+        clientLinked,
+        draft: {
+          clientName: draft.clientName.trim() || undefined,
+          hasPhone: Boolean(draft.clientPhone.trim()),
+          appointmentAddress: draft.appointmentAddress.trim() ? '[set]' : '',
+          price: draft.price,
+          date: draft.date,
+          time: draft.time,
+          size: draft.size,
+          serviceType: draft.serviceType,
+        },
+        userIdHeader: (() => {
+          try {
+            return localStorage.getItem('userId')
+          } catch {
+            return null
+          }
+        })(),
+      })
       if (isScreenshot) {
         const bookRes = await postBookAppointmentFromScreenshot({
           phoneRaw: draft.clientPhone.trim(),
@@ -240,7 +263,7 @@ export default function BookAppointmentModal({
       }
       onClose()
     } catch (e) {
-      console.error(e)
+      console.error('[BookAppointmentModal] submit failed', e)
       const msg = formatApiError(e)
       setError(msg === 'SAME_DAY_APPOINT' ? 'This client already has an appointment on that date.' : msg)
     } finally {

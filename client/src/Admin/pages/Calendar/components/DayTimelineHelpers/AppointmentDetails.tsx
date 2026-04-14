@@ -826,6 +826,7 @@ export default function AppointmentDetails({
               <button
                 type="button"
                 onClick={() => {
+                  setShowActionPanel(false)
                   onCreate(appointment, 'APPOINTED')
                   onClose()
                 }}
@@ -835,7 +836,15 @@ export default function AppointmentDetails({
               </button>
               <button
                 type="button"
-                onClick={() => onOpenReschedule ? onOpenReschedule() : onCreate(appointment, 'RESCHEDULE_NEW')}
+                onClick={() => {
+                  setShowActionPanel(false)
+                  if (onOpenReschedule) {
+                    onOpenReschedule()
+                  } else {
+                    onCreate(appointment, 'RESCHEDULE_NEW')
+                    onClose()
+                  }
+                }}
                 className="px-4 py-2.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
               >
                 Reschedule
