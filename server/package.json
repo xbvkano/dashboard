@@ -8,7 +8,7 @@
     "test:all": "jest --maxWorkers=1",
     "test:watch": "jest --watch --maxWorkers=1",
     "test:coverage": "jest --coverage --maxWorkers=1",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "dev": "nodemon",
     "seed": "ts-node prisma/seed.ts"
@@ -33,6 +33,7 @@
     "nodemailer": "^6.9.11",
     "openai": "^4.104.0",
     "pdf-lib": "^1.17.1",
+    "prisma": "^6.11.1",
     "twilio": "^4.13.0"
   },
   "devDependencies": {
@@ -44,7 +45,6 @@
     "@types/nodemailer": "^6.4.17",
     "jest": "^30.2.0",
     "nodemon": "^3.1.4",
-    "prisma": "^6.11.1",
     "telnet-client": "^2.2.6",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
