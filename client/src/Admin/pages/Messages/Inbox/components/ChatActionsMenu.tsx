@@ -4,9 +4,29 @@ type Props = {
   conversationId: number
   onEditContact: () => void
   onBookAppointment: () => void
+  onGenerateAppointment: () => void
+  extractAppointmentBusy?: boolean
+  /** Linked CRM client id — enables "View client". */
+  linkedClientId?: number | null
+  onViewClient?: () => void
+  /** From conversation detail — when set, show archive / restore. */
+  conversationStatus?: 'OPEN' | 'ARCHIVED' | string
+  onArchiveToggle?: () => void | Promise<void>
+  archiveBusy?: boolean
 }
 
-export default function ChatActionsMenu({ conversationId, onEditContact, onBookAppointment }: Props) {
+export default function ChatActionsMenu({
+  conversationId,
+  onEditContact,
+  onBookAppointment,
+  onGenerateAppointment,
+  extractAppointmentBusy,
+  linkedClientId,
+  onViewClient,
+  conversationStatus,
+  onArchiveToggle,
+  archiveBusy,
+}: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -38,6 +58,19 @@ export default function ChatActionsMenu({ conversationId, onEditContact, onBookA
           className="absolute right-0 top-full mt-1 py-1 min-w-[12rem] bg-white rounded-lg shadow-lg border border-slate-200 z-[120] text-sm"
           role="menu"
         >
+          {linkedClientId != null && onViewClient && (
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-800"
+              onClick={() => {
+                setOpen(false)
+                onViewClient()
+              }}
+            >
+              View client
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"
@@ -63,14 +96,33 @@ export default function ChatActionsMenu({ conversationId, onEditContact, onBookA
           <button
             type="button"
             role="menuitem"
-            className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-800"
+            className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-800 disabled:opacity-50"
+            disabled={extractAppointmentBusy}
             onClick={() => {
               setOpen(false)
-              console.log('Generate Appointment clicked', { conversationId })
+              onGenerateAppointment()
             }}
           >
-            Generate Appointment
+            {extractAppointmentBusy ? 'Generating…' : 'Generate Appointment'}
           </button>
+          {onArchiveToggle && (conversationStatus === 'OPEN' || conversationStatus === 'ARCHIVED') && (
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-800 disabled:opacity-50 border-t border-slate-100"
+              disabled={archiveBusy}
+              onClick={() => {
+                setOpen(false)
+                void onArchiveToggle()
+              }}
+            >
+              {archiveBusy
+                ? 'Updating…'
+                : conversationStatus === 'ARCHIVED'
+                  ? 'Restore to inbox'
+                  : 'Archive conversation'}
+            </button>
+          )}
         </div>
       )}
     </div>

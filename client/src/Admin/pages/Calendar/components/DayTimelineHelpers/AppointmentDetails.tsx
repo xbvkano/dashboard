@@ -466,6 +466,27 @@ export default function AppointmentDetails({
           )}
         </div>
 
+        {appointment.bookingScreenshotUrls && appointment.bookingScreenshotUrls.length > 0 && (
+          <div className="rounded-xl border-2 border-slate-200 bg-white p-4 shadow-sm">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
+              Booking screenshots
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {appointment.bookingScreenshotUrls.map((url, i) => (
+                <a
+                  key={`${url}-${i}`}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block shrink-0 w-24 h-24 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 hover:opacity-95"
+                >
+                  <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Block 2: Template – template selected at top, then Address, Type, Size, Team size, Date, Time, Hours, Price */}
         <div className="rounded-xl border-2 border-slate-200 bg-white p-4 shadow-sm">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Template</h4>

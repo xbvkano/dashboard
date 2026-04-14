@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import ConversationList from './components/ConversationList'
 import ChatThread from './components/ChatThread'
 import InboxTakeOverConfirmModal from './components/InboxTakeOverConfirmModal'
 import NewConversationModal from './components/NewConversationModal'
 import EditContactModal from './components/EditContactModal'
-import BookAppointmentModal, {
-  defaultDraft,
-  type BookAppointmentDraft,
-} from './components/BookAppointmentModal'
+import AiChatExtractingOverlay from './components/AiChatExtractingOverlay'
+import BookAppointmentModal, { defaultDraft, type BookAppointmentDraft } from './components/BookAppointmentModal'
 import { useMediaQuery } from './useMediaQuery'
+import { useBookAppointmentDrafts } from '../BookAppointmentDraftsContext'
 import {
   type ConversationDetail,
   type ConversationInboxItem,
@@ -20,16 +19,18 @@ import {
   deleteInboxLease,
   fetchConversationDetail,
   fetchConversationsPage,
+  patchConversationStatus,
   postConversationPresence,
+  postExtractAppointmentFromConversation,
   postInboxLeaseRequest,
   postMarkConversationRead,
   postOutboundMessage,
 } from './messagingApi'
 import type { ThreadContact, ThreadMessage } from './types'
 import { isDevToolsEnabled } from '../../../../devTools'
+import { inboxListAfterStatusPatch } from './inboxArchiveListPlan'
 
 const MESSAGING_MOCK_SESSION_KEY = 'messagingMockSms'
-const MESSAGING_BOOK_DRAFTS_KEY = 'messagingBookAppointmentDrafts'
 
 function shouldShowInboxMockingToggle(): boolean {
   if (!isDevToolsEnabled) return false
@@ -73,29 +74,75 @@ function detailToMessages(detail: ConversationDetail): ThreadMessage[] {
   }))
 }
 
+/** Pill shown at top of chat column — keeps composer usable (not fixed to bottom). */
+function AppointmentBookedPill({ message, onDone }: { message: string; onDone: () => void }) {
+  useEffect(() => {
+    const t = window.setTimeout(onDone, 2500)
+    return () => window.clearTimeout(t)
+  }, [onDone])
+  return (
+    <div className="max-w-[min(100%,20rem)] rounded-full bg-slate-900 text-center text-white text-sm px-4 py-2 shadow-lg">
+      {message}
+    </div>
+  )
+}
+
 function mergedThread(
   row: ConversationInboxItem | undefined,
   detail: ConversationDetail | null,
   selectedId: number | null
 ): ThreadContact | null {
-  if (!selectedId || !row) return null
+  if (!selectedId) return null
   const d = detail?.conversation.id === selectedId ? detail : null
-  const client = d?.client ?? row.client
-  return {
-    id: selectedId,
-    businessNumber: d?.conversation.businessNumber ?? row.businessNumber,
-    phoneE164: d?.contactPoint.value ?? row.contactPoint.value,
-    contactName: client?.name ?? null,
-    clientNotes: client?.notes ?? null,
-    clientId: client?.id ?? row.client?.id ?? null,
-    lastPreview: row.lastMessagePreview,
-    lastAt: row.lastMessageAt,
-    unread: row.unread,
+  if (row) {
+    const client = d?.client ?? row.client
+    return {
+      id: selectedId,
+      businessNumber: d?.conversation.businessNumber ?? row.businessNumber,
+      phoneE164: d?.contactPoint.value ?? row.contactPoint.value,
+      contactName: client?.name ?? null,
+      clientNotes: client?.notes ?? null,
+      clientId: client?.id ?? row.client?.id ?? null,
+      lastPreview: row.lastMessagePreview,
+      lastAt: row.lastMessageAt,
+      unread: row.unread,
+    }
   }
+  if (d) {
+    const lastMsg = d.messages.length ? d.messages[d.messages.length - 1] : null
+    return {
+      id: selectedId,
+      businessNumber: d.conversation.businessNumber,
+      phoneE164: d.contactPoint.value,
+      contactName: d.client?.name ?? null,
+      clientNotes: d.client?.notes ?? null,
+      clientId: d.client?.id ?? null,
+      lastPreview: lastMsg?.body ? lastMsg.body.slice(0, 160) : null,
+      lastAt: d.conversation.lastMessageAt,
+      unread: false,
+    }
+  }
+  return null
 }
 
 export default function Inbox() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const {
+    draftsByConversationId,
+    highlightsByConversationId,
+    bookModalOpen,
+    activeBookConversationId,
+    setInboxSelectedConversationId,
+    setDraftForConversation,
+    setHighlightsForConversation,
+    setBookingScreenshotUrlsForConversation,
+    openBookModal,
+    ensureDraft,
+    closeBookModal,
+    cancelBookModal,
+    completeBookModal,
+  } = useBookAppointmentDrafts()
   const isDesktop = useMediaQuery('(min-width: 768px)')
   const [list, setList] = useState<ConversationInboxItem[]>([])
   const [listLoading, setListLoading] = useState(true)
@@ -112,26 +159,18 @@ export default function Inbox() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [newOpen, setNewOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
-  const [bookOpen, setBookOpen] = useState(false)
-  const [draftsByConversationId, setDraftsByConversationId] = useState<Record<number, BookAppointmentDraft>>(() => {
-    try {
-      const raw = localStorage.getItem(MESSAGING_BOOK_DRAFTS_KEY)
-      if (!raw) return {}
-      const parsed = JSON.parse(raw) as Record<string, BookAppointmentDraft>
-      const out: Record<number, BookAppointmentDraft> = {}
-      for (const [k, v] of Object.entries(parsed || {})) {
-        const id = parseInt(k, 10)
-        if (!Number.isNaN(id) && v && typeof v === 'object') out[id] = v
-      }
-      return out
-    } catch {
-      return {}
-    }
-  })
-  const [toast, setToast] = useState<string | null>(null)
+  const [generateConfirmOpen, setGenerateConfirmOpen] = useState(false)
+  const [extracting, setExtracting] = useState(false)
+  const [inboxMobileTab, setInboxMobileTab] = useState<'chat' | 'booking'>('chat')
+  const [bookToast, setBookToast] = useState<string | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
+  const [archiveBusy, setArchiveBusy] = useState(false)
   const [mockingEnabled, setMockingEnabled] = useState(readInitialMockingEnabled)
   const didInitSelect = useRef(false)
+  const openedFromQueryRef = useRef(false)
   const selectedIdRef = useRef<number | null>(null)
+  /** Previous selectedId — detect transition to null (mobile back to list) to close booking modal. */
+  const prevSelectedIdForBookModalRef = useRef<number | null>(null)
   const markedReadForConversationRef = useRef<number | null>(null)
   const lastDetailMaxMessageIdRef = useRef<number | null>(null)
   const tabIdRef = useRef(
@@ -167,14 +206,6 @@ export default function Inbox() {
     }
   }, [mockingEnabled])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(MESSAGING_BOOK_DRAFTS_KEY, JSON.stringify(draftsByConversationId))
-    } catch {
-      /* ignore */
-    }
-  }, [draftsByConversationId])
-
   /**
    * Inbox scrolls inside the thread/list only. Without this, new photos / poll updates can grow
    * the main column and scroll the whole document (negative html offset in devtools).
@@ -193,18 +224,26 @@ export default function Inbox() {
   }, [])
 
   const refreshList = useCallback(async () => {
-    const res = await fetchConversationsPage({ limit: 50, q: debouncedSearch || undefined })
+    const res = await fetchConversationsPage({
+      limit: 50,
+      q: debouncedSearch || undefined,
+      status: showArchived ? 'ARCHIVED' : 'OPEN',
+    })
     setList(res.items)
     setNextCursor(res.nextCursor)
     return res.items
-  }, [debouncedSearch])
+  }, [debouncedSearch, showArchived])
 
   useEffect(() => {
     let cancelled = false
     setListLoading(true)
     setListError(null)
     setNextCursor(null)
-    fetchConversationsPage({ limit: 50, q: debouncedSearch || undefined })
+    fetchConversationsPage({
+      limit: 50,
+      q: debouncedSearch || undefined,
+      status: showArchived ? 'ARCHIVED' : 'OPEN',
+    })
       .then((res) => {
         if (!cancelled) {
           setList(res.items)
@@ -221,7 +260,7 @@ export default function Inbox() {
     return () => {
       cancelled = true
     }
-  }, [debouncedSearch])
+  }, [debouncedSearch, showArchived])
 
   /** Global inbox lease (single active viewer) */
   useEffect(() => {
@@ -274,7 +313,26 @@ export default function Inbox() {
   }, [takeOverModalOpen, takeOverSubmitting])
 
   useEffect(() => {
-    if (didInitSelect.current || !isDesktop || list.length === 0) return
+    const raw = searchParams.get('conversation')
+    if (raw != null && raw !== '') {
+      const id = parseInt(raw, 10)
+      if (!Number.isNaN(id)) {
+        setSelectedId(id)
+        openedFromQueryRef.current = true
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev)
+            next.delete('conversation')
+            return next
+          },
+          { replace: true },
+        )
+      }
+    }
+  }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    if (didInitSelect.current || !isDesktop || list.length === 0 || openedFromQueryRef.current) return
     setSelectedId(list[0].id)
     didInitSelect.current = true
   }, [list, isDesktop])
@@ -407,7 +465,11 @@ export default function Inbox() {
   useEffect(() => {
     const pollList = () => {
       if (document.visibilityState === 'hidden') return
-      fetchConversationsPage({ limit: 50, q: debouncedSearch || undefined })
+      fetchConversationsPage({
+        limit: 50,
+        q: debouncedSearch || undefined,
+        status: showArchived ? 'ARCHIVED' : 'OPEN',
+      })
         .then((res) => {
           setList(res.items)
           setNextCursor(res.nextCursor)
@@ -423,7 +485,62 @@ export default function Inbox() {
       clearInterval(interval)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [debouncedSearch])
+  }, [debouncedSearch, showArchived])
+
+  const handleToggleArchivedView = useCallback(() => {
+    setShowArchived((v) => !v)
+    setSelectedId(null)
+  }, [])
+
+  const handleConversationArchiveToggle = useCallback(async () => {
+    if (selectedId == null) return
+    const fromDetail = detail?.conversation.id === selectedId ? detail.conversation.status : undefined
+    const fromList = list.find((r) => r.id === selectedId)?.status
+    const current = (fromDetail ?? fromList) as 'OPEN' | 'ARCHIVED' | undefined
+    if (current !== 'OPEN' && current !== 'ARCHIVED') return
+    const next: 'OPEN' | 'ARCHIVED' = current === 'ARCHIVED' ? 'OPEN' : 'ARCHIVED'
+    setArchiveBusy(true)
+    try {
+      await patchConversationStatus(selectedId, next)
+      if (detail?.conversation.id === selectedId) {
+        setDetail({
+          ...detail,
+          conversation: {
+            ...detail.conversation,
+            status: next,
+            archivedAt: next === 'ARCHIVED' ? new Date().toISOString() : null,
+          },
+        })
+      }
+      const plan = inboxListAfterStatusPatch(next, showArchived)
+      if (plan) {
+        setShowArchived(plan.setShowArchived)
+        const res = await fetchConversationsPage({
+          limit: 50,
+          q: debouncedSearch || undefined,
+          status: plan.fetchStatus,
+        })
+        setList(res.items)
+        setNextCursor(res.nextCursor)
+      } else {
+        await refreshList()
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setArchiveBusy(false)
+    }
+  }, [selectedId, detail, list, refreshList, showArchived, debouncedSearch])
+
+  const headerConversationStatus = useMemo(
+    () =>
+      selectedId == null
+        ? undefined
+        : (detail?.conversation.id === selectedId
+            ? detail.conversation.status
+            : list.find((r) => r.id === selectedId)?.status) as 'OPEN' | 'ARCHIVED' | undefined,
+    [selectedId, detail, list],
+  )
 
   const threadRows = useMemo(() => list.map(rowToThread), [list])
   const selectedRow = useMemo(
@@ -434,10 +551,40 @@ export default function Inbox() {
     () => mergedThread(selectedRow, detail, selectedId),
     [selectedRow, detail, selectedId]
   )
+  const showSplitBooking = useMemo(() => {
+    if (selectedId == null) return false
+    if (!bookModalOpen || activeBookConversationId !== selectedId) return false
+    return Boolean(draftsByConversationId[selectedId])
+  }, [selectedId, bookModalOpen, activeBookConversationId, draftsByConversationId])
   const messages = useMemo(() => {
     if (!detail || detail.conversation.id !== selectedId) return []
     return detailToMessages(detail)
   }, [detail, selectedId])
+
+  useEffect(() => {
+    setInboxSelectedConversationId(selectedId)
+    return () => setInboxSelectedConversationId(null)
+  }, [selectedId, setInboxSelectedConversationId])
+
+  /** Leaving Inbox (e.g. Messages home / another dashboard route) must close booking — otherwise Host shows the modal. */
+  useEffect(() => {
+    return () => {
+      closeBookModal()
+    }
+  }, [closeBookModal])
+
+  /** Mobile: back to conversation list clears selection — close booking so it does not pop open via MessagesBookAppointmentModalHost. */
+  useEffect(() => {
+    const prev = prevSelectedIdForBookModalRef.current
+    prevSelectedIdForBookModalRef.current = selectedId
+    if (prev != null && selectedId == null) {
+      closeBookModal()
+    }
+  }, [selectedId, closeBookModal])
+
+  useEffect(() => {
+    if (!showSplitBooking) setInboxMobileTab('chat')
+  }, [showSplitBooking])
 
   useEffect(() => {
     const chatOpen = Boolean(selectedId && !isDesktop)
@@ -479,6 +626,7 @@ export default function Inbox() {
         limit: 50,
         cursor: nextCursor,
         q: debouncedSearch || undefined,
+        status: showArchived ? 'ARCHIVED' : 'OPEN',
       })
       setList((prev) => {
         const seen = new Set(prev.map((p) => p.id))
@@ -490,11 +638,16 @@ export default function Inbox() {
     } finally {
       setListLoadingMore(false)
     }
-  }, [nextCursor, listLoadingMore, debouncedSearch])
+  }, [nextCursor, listLoadingMore, debouncedSearch, showArchived])
 
   const handleBack = useCallback(() => {
     setSelectedId(null)
   }, [])
+
+  const handleViewClient = useCallback(() => {
+    const cid = threadContact?.clientId
+    if (cid != null) navigate(`/dashboard/contacts/clients/${cid}`)
+  }, [navigate, threadContact?.clientId])
 
   const handleSelect = useCallback((id: number) => {
     setSelectedId(id)
@@ -523,54 +676,75 @@ export default function Inbox() {
   const openBookingModal = useCallback(() => {
     if (!selectedIdRef.current) return
     const id = selectedIdRef.current
-    setDraftsByConversationId((prev) => {
-      if (prev[id]) return prev
-      return { ...prev, [id]: defaultDraft() }
-    })
-    setBookOpen(true)
+    ensureDraft(id)
+    openBookModal(id)
+    if (!isDesktop) setInboxMobileTab('booking')
+  }, [ensureDraft, openBookModal, isDesktop])
+
+  const handleGenerateAppointment = useCallback(() => {
+    if (!selectedIdRef.current) return
+    setGenerateConfirmOpen(true)
   }, [])
 
-  const activeDraft = useMemo(() => {
-    if (!selectedId) return null
-    return draftsByConversationId[selectedId] ?? null
-  }, [selectedId, draftsByConversationId])
-
-  const setActiveDraft = useCallback(
-    (next: BookAppointmentDraft) => {
-      if (!selectedIdRef.current) return
-      const id = selectedIdRef.current
-      setDraftsByConversationId((prev) => ({ ...prev, [id]: next }))
-    },
-    [],
-  )
-
-  const handleBooked = useCallback(async () => {
+  const handleConfirmGenerate = useCallback(async () => {
     const id = selectedIdRef.current
     if (id == null) return
-    setDraftsByConversationId((prev) => {
-      const { [id]: _omit, ...rest } = prev
-      return rest
-    })
-    await refreshList()
+    setGenerateConfirmOpen(false)
+    setExtracting(true)
     try {
-      const d = await fetchConversationDetail(id)
-      if (d.conversation.id === selectedIdRef.current) setDetail(d)
-      setToast('Appointment booked')
-      window.setTimeout(() => setToast(null), 2500)
+      const res = await postExtractAppointmentFromConversation(id)
+      const base = draftsByConversationId[id] ?? defaultDraft()
+      setDraftForConversation(id, {
+        ...base,
+        clientName: res.draft.clientName ?? base.clientName,
+        clientPhone: res.draft.clientPhone ?? base.clientPhone,
+        appointmentAddress: res.draft.appointmentAddress ?? base.appointmentAddress,
+        price: res.draft.price ?? base.price,
+        date: res.draft.date ?? base.date,
+        time: res.draft.time ?? base.time,
+        notes: res.draft.notes ?? base.notes,
+        size: res.draft.size ?? base.size,
+        serviceType: (res.draft.serviceType ?? base.serviceType) as BookAppointmentDraft['serviceType'],
+      })
+      setHighlightsForConversation(id, {
+        fieldHighlights: res.fieldHighlights,
+        notFoundNotes: res.notFoundNotes,
+        sizeLookupFailed: res.sizeLookupFailed,
+      })
+      setBookingScreenshotUrlsForConversation(
+        id,
+        (res.storedImages ?? []).map((s) => s.publicUrl),
+      )
+      openBookModal(id)
+      if (!isDesktop) setInboxMobileTab('booking')
     } catch (e) {
       console.error(e)
+    } finally {
+      setExtracting(false)
     }
-  }, [refreshList])
+  }, [
+    draftsByConversationId,
+    isDesktop,
+    openBookModal,
+    setDraftForConversation,
+    setHighlightsForConversation,
+    setBookingScreenshotUrlsForConversation,
+  ])
 
-  const handleCancelBooking = useCallback(() => {
-    const id = selectedIdRef.current
-    if (id == null) return
-    setDraftsByConversationId((prev) => {
-      const { [id]: _omit, ...rest } = prev
-      return rest
-    })
-    setBookOpen(false)
-  }, [])
+  useEffect(() => {
+    const onBooked = () => {
+      void refreshList()
+      const sid = selectedIdRef.current
+      if (sid == null) return
+      void fetchConversationDetail(sid)
+        .then((d) => {
+          if (d.conversation.id === selectedIdRef.current) setDetail(d)
+        })
+        .catch(() => {})
+    }
+    window.addEventListener('messaging:appointment-booked', onBooked)
+    return () => window.removeEventListener('messaging:appointment-booked', onBooked)
+  }, [refreshList])
 
   const handleSimulateInboundSuccess = useCallback(async () => {
     await refreshList()
@@ -586,8 +760,15 @@ export default function Inbox() {
     }
   }, [refreshList])
 
+  const bookedToastStrip =
+    bookToast != null ? (
+      <div className="shrink-0 flex justify-center border-b border-slate-200/70 bg-[#e5e5ea] px-4 py-2">
+        <AppointmentBookedPill message={bookToast} onDone={() => setBookToast(null)} />
+      </div>
+    ) : null
+
   return (
-    <div className="messages-inbox-root flex min-h-0 flex-col overflow-hidden md:flex-row h-[calc(100dvh-3.5rem)] max-h-[calc(100dvh-3.5rem)] md:h-[calc(100vh-3.5rem)] md:max-h-[calc(100vh-3.5rem)]">
+    <div className="messages-inbox-root flex min-h-0 flex-col overflow-hidden md:flex-row h-[calc(100dvh-3.5rem)] max-h-[calc(100dvh-3.5rem)]">
       {leaseBlocked && (
         <>
           <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-slate-900/75 backdrop-blur-sm p-4 text-center">
@@ -666,25 +847,86 @@ export default function Inbox() {
               showSimulateInbound={isDevToolsEnabled}
               simulateInboundRows={list.map(conversationInboxItemToThreadContact)}
               onSimulateInboundSuccess={handleSimulateInboundSuccess}
+              showArchived={showArchived}
+              onToggleArchivedView={handleToggleArchivedView}
             />
           </div>
         </div>
 
-        <div className="hidden md:flex flex-1 flex-col min-h-0 min-w-0 border border-l-0 border-slate-200 rounded-r-xl overflow-hidden bg-[#e5e5ea] shadow-sm">
+        <div
+          className={`hidden md:flex flex-1 min-h-0 min-w-0 border border-l-0 border-slate-200 rounded-r-xl overflow-hidden bg-[#e5e5ea] shadow-sm ${
+            showSplitBooking && threadContact ? 'flex-row' : 'flex-col'
+          }`}
+        >
           {threadContact ? (
-            <ChatThread
-              conversation={threadContact}
-              messages={messages}
-              showBack={false}
-              onBack={() => {}}
-              onSend={handleSend}
-              onEditContact={() => setEditOpen(true)}
-              onBookAppointment={openBookingModal}
-              detailLoading={detailLoading}
-              showMockingToggle={showMockingToggle}
-              mockingEnabled={mockingEnabled}
-              onMockingChange={setMockingEnabled}
-            />
+            showSplitBooking ? (
+              <>
+                <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+                  <ChatThread
+                    conversation={threadContact}
+                    messages={messages}
+                    showBack={false}
+                    onBack={() => {}}
+                    onSend={handleSend}
+                    onEditContact={() => setEditOpen(true)}
+                    onBookAppointment={openBookingModal}
+                    onGenerateAppointment={handleGenerateAppointment}
+                    extractAppointmentBusy={extracting}
+                    detailLoading={detailLoading}
+                    linkedClientId={threadContact.clientId}
+                    onViewClient={handleViewClient}
+                    conversationStatus={headerConversationStatus}
+                    onArchiveToggle={handleConversationArchiveToggle}
+                    archiveBusy={archiveBusy}
+                    showMockingToggle={showMockingToggle}
+                    mockingEnabled={mockingEnabled}
+                    onMockingChange={setMockingEnabled}
+                    belowHeader={bookedToastStrip}
+                  />
+                </div>
+                <div className="w-[min(440px,42%)] min-w-[300px] shrink-0 flex flex-col min-h-0 bg-slate-100/90 p-2 border-l border-slate-200/80">
+                  {selectedId != null && draftsByConversationId[selectedId] != null && (
+                    <BookAppointmentModal
+                      open
+                      variant="inline"
+                      conversationId={selectedId}
+                      detail={detail?.conversation.id === selectedId ? detail : null}
+                      draft={draftsByConversationId[selectedId]}
+                      highlights={highlightsByConversationId[selectedId]}
+                      onDraftChange={(next) => setDraftForConversation(selectedId, next)}
+                      onClose={closeBookModal}
+                      onCancel={cancelBookModal}
+                      onBooked={async () => {
+                        completeBookModal(selectedId)
+                        setBookToast('Appointment booked')
+                      }}
+                    />
+                  )}
+                </div>
+              </>
+            ) : (
+              <ChatThread
+                conversation={threadContact}
+                messages={messages}
+                showBack={false}
+                onBack={() => {}}
+                onSend={handleSend}
+                onEditContact={() => setEditOpen(true)}
+                onBookAppointment={openBookingModal}
+                onGenerateAppointment={handleGenerateAppointment}
+                extractAppointmentBusy={extracting}
+                detailLoading={detailLoading}
+                linkedClientId={threadContact.clientId}
+                onViewClient={handleViewClient}
+                conversationStatus={headerConversationStatus}
+                onArchiveToggle={handleConversationArchiveToggle}
+                archiveBusy={archiveBusy}
+                showMockingToggle={showMockingToggle}
+                mockingEnabled={mockingEnabled}
+                onMockingChange={setMockingEnabled}
+                belowHeader={bookedToastStrip}
+              />
+            )
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 text-sm px-6">
               <p className="font-medium text-slate-700">Select a conversation</p>
@@ -695,20 +937,103 @@ export default function Inbox() {
       </div>
 
       {selectedId && !isDesktop && threadContact && (
-        <div className="fixed inset-0 z-[100] flex flex-col md:hidden bg-[#e5e5ea]">
-          <ChatThread
-            conversation={threadContact}
-            messages={messages}
-            showBack
-            onBack={handleBack}
-            onSend={handleSend}
-            onEditContact={() => setEditOpen(true)}
-            onBookAppointment={openBookingModal}
-            detailLoading={detailLoading}
-            showMockingToggle={showMockingToggle}
-            mockingEnabled={mockingEnabled}
-            onMockingChange={setMockingEnabled}
-          />
+        <div className="fixed inset-0 z-[100] flex flex-col md:hidden bg-[#e5e5ea] min-h-0 overflow-x-hidden">
+          {showSplitBooking ? (
+            <>
+              <div className="flex shrink-0 border-b border-slate-200 bg-white">
+                <button
+                  type="button"
+                  onClick={() => setInboxMobileTab('chat')}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                    inboxMobileTab === 'chat'
+                      ? 'text-slate-900 border-b-2 border-slate-900'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Chat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInboxMobileTab('booking')}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                    inboxMobileTab === 'booking'
+                      ? 'text-slate-900 border-b-2 border-slate-900'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Booking
+                </button>
+              </div>
+              {inboxMobileTab === 'booking' && bookedToastStrip}
+              <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden overflow-x-hidden">
+                {inboxMobileTab === 'chat' ? (
+                  <ChatThread
+                    conversation={threadContact}
+                    messages={messages}
+                    showBack
+                    onBack={handleBack}
+                    onSend={handleSend}
+                    onEditContact={() => setEditOpen(true)}
+                    onBookAppointment={openBookingModal}
+                    onGenerateAppointment={handleGenerateAppointment}
+                    extractAppointmentBusy={extracting}
+                    detailLoading={detailLoading}
+                    linkedClientId={threadContact.clientId}
+                    onViewClient={handleViewClient}
+                    conversationStatus={headerConversationStatus}
+                    onArchiveToggle={handleConversationArchiveToggle}
+                    archiveBusy={archiveBusy}
+                    showMockingToggle={showMockingToggle}
+                    mockingEnabled={mockingEnabled}
+                    onMockingChange={setMockingEnabled}
+                    belowHeader={bookedToastStrip}
+                  />
+                ) : (
+                  <div className="flex-1 min-h-0 min-w-0 p-2 overflow-hidden overflow-x-hidden flex flex-col">
+                    {draftsByConversationId[selectedId] != null && (
+                      <BookAppointmentModal
+                        open
+                        variant="inline"
+                        conversationId={selectedId}
+                        detail={detail?.conversation.id === selectedId ? detail : null}
+                        draft={draftsByConversationId[selectedId]}
+                        highlights={highlightsByConversationId[selectedId]}
+                        onDraftChange={(next) => setDraftForConversation(selectedId, next)}
+                        onClose={closeBookModal}
+                        onCancel={cancelBookModal}
+                        onBooked={async () => {
+                          completeBookModal(selectedId)
+                          setBookToast('Appointment booked')
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <ChatThread
+              conversation={threadContact}
+              messages={messages}
+              showBack
+              onBack={handleBack}
+              onSend={handleSend}
+              onEditContact={() => setEditOpen(true)}
+              onBookAppointment={openBookingModal}
+              onGenerateAppointment={handleGenerateAppointment}
+              extractAppointmentBusy={extracting}
+              detailLoading={detailLoading}
+              linkedClientId={threadContact.clientId}
+              onViewClient={handleViewClient}
+              conversationStatus={headerConversationStatus}
+              onArchiveToggle={handleConversationArchiveToggle}
+              archiveBusy={archiveBusy}
+              showMockingToggle={showMockingToggle}
+              mockingEnabled={mockingEnabled}
+              onMockingChange={setMockingEnabled}
+              belowHeader={bookedToastStrip}
+            />
+          )}
         </div>
       )}
 
@@ -728,23 +1053,32 @@ export default function Inbox() {
         />
       )}
 
-      {selectedId != null && activeDraft && (
-        <BookAppointmentModal
-          open={bookOpen}
-          conversationId={selectedId}
-          detail={detail?.conversation.id === selectedId ? detail : null}
-          draft={activeDraft}
-          onDraftChange={setActiveDraft}
-          onClose={() => setBookOpen(false)}
-          onCancel={handleCancelBooking}
-          onBooked={handleBooked}
-        />
-      )}
+      <AiChatExtractingOverlay open={extracting} />
 
-      {toast && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[220] px-4">
-          <div className="rounded-full bg-slate-900 text-white text-sm px-4 py-2 shadow-lg">
-            {toast}
+      {generateConfirmOpen && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200 p-5">
+            <h3 className="text-base font-semibold text-slate-900">Generate appointment</h3>
+            <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+              Use the latest messages in this thread to fill the booking form? You can review and edit everything
+              before confirming.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setGenerateConfirmOpen(false)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmGenerate()}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                Continue
+              </button>
+            </div>
           </div>
         </div>
       )}

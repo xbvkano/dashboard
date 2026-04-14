@@ -153,6 +153,9 @@ export async function ingestInboundSms(
     clientId: fromCp.clientId,
   })
 
+  /** Inbound SMS must not move threads out of the archived folder — staff restores explicitly. */
+  const wasArchived = conv.status === ConversationStatus.ARCHIVED
+
   const { sessionId } = await ensureOpenSession(prisma, conv.id, now)
 
   const receivedAt = inboundTimestamp(payload, now)
@@ -252,7 +255,7 @@ export async function ingestInboundSms(
       },
       update: { lastReadMessageId: msg.id },
     })
-  } else if (isPushoverConfigured()) {
+  } else if (isPushoverConfigured() && !wasArchived) {
     const allow = shouldSendInboundPushover({
       now,
       hasActivePresence: false,

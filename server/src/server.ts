@@ -12,7 +12,8 @@ import nodemailer from 'nodemailer'
 import twilio from 'twilio'
 import { uploadInvoiceToDrive } from './drive'
 
-dotenv.config()
+/** Resolve server/.env from this file so vars load even when cwd is not `server/` */
+dotenv.config({ path: path.join(__dirname, '..', '.env') })
 
 const prisma = new PrismaClient()
 const app = express()
@@ -555,6 +556,7 @@ import couponsRoutes from './routes/coupons'
 import websiteApiRoutes from './routes/websiteApi'
 import messagingRoutes from './routes/messaging'
 import { verifySupabaseMessagingBucketOnStartup } from './services/supabaseStorage'
+import { verifySupabaseAppointmentBucketOnStartup } from './services/supabaseAppointmentStorage'
 
 // Use all route files
 app.use('/', basicRoutes)
@@ -602,10 +604,12 @@ if (keyPath && certPath) {
   https.createServer({ key, cert }, app).listen(port, () => {
     console.log(`HTTPS server listening on port ${port}`)
     void verifySupabaseMessagingBucketOnStartup()
+    void verifySupabaseAppointmentBucketOnStartup()
   })
 } else {
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`)
     void verifySupabaseMessagingBucketOnStartup()
+    void verifySupabaseAppointmentBucketOnStartup()
   })
 }

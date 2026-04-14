@@ -164,6 +164,10 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   }, [selected, template])
 
   useEffect(() => {
+    initialShown.current = false
+  }, [initialApptId])
+
+  useEffect(() => {
     if (!initialShown.current && initialApptId && appointments.length) {
       const match = appointments.find((a) => a.id === initialApptId)
       if (match) {

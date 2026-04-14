@@ -24,6 +24,8 @@ type Props = {
   showSimulateInbound?: boolean
   simulateInboundRows?: ThreadContact[]
   onSimulateInboundSuccess?: () => void | Promise<void>
+  showArchived?: boolean
+  onToggleArchivedView?: () => void
 }
 
 export default function ConversationList({
@@ -43,6 +45,8 @@ export default function ConversationList({
   showSimulateInbound,
   simulateInboundRows,
   onSimulateInboundSuccess,
+  showArchived = false,
+  onToggleArchivedView,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -68,7 +72,9 @@ export default function ConversationList({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-          <h2 className="text-lg font-bold text-slate-900 truncate">Messages</h2>
+          <h2 className="text-lg font-bold text-slate-900 truncate">
+            {showArchived ? 'Archived' : 'Messages'}
+          </h2>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {showMockingToggle && typeof mockingEnabled === 'boolean' && onMockingChange && (
@@ -90,15 +96,30 @@ export default function ConversationList({
         <label htmlFor="inbox-search" className="sr-only">
           Search by name or phone
         </label>
-        <input
-          id="inbox-search"
-          type="search"
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search name or number…"
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          autoComplete="off"
-        />
+        <div className="flex gap-2 items-center">
+          <input
+            id="inbox-search"
+            type="search"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search name or number…"
+            className="flex-1 min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            autoComplete="off"
+          />
+          {onToggleArchivedView && (
+            <button
+              type="button"
+              onClick={onToggleArchivedView}
+              className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold whitespace-nowrap ${
+                showArchived
+                  ? 'border-slate-900 bg-slate-900 text-white'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              {showArchived ? 'Inbox' : 'Archived'}
+            </button>
+          )}
+        </div>
       </div>
       <div
         ref={scrollRef}
@@ -109,7 +130,9 @@ export default function ConversationList({
           <p className="text-center text-sm text-slate-500 py-8 px-4">Loading conversations…</p>
         )}
         {!listLoading && conversations.length === 0 && (
-          <p className="text-center text-sm text-slate-500 py-8 px-4">No conversations yet.</p>
+          <p className="text-center text-sm text-slate-500 py-8 px-4">
+            {showArchived ? 'No archived conversations.' : 'No conversations yet.'}
+          </p>
         )}
         {!listLoading &&
           conversations.map((c) => (

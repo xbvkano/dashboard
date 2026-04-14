@@ -119,14 +119,28 @@ export async function fetchConversationsPage(options?: {
   limit?: number
   cursor?: string | null
   q?: string
+  /** Default OPEN. Use ARCHIVED for archived threads. */
+  status?: 'OPEN' | 'ARCHIVED'
 }): Promise<ConversationsPageResponse> {
   const params = new URLSearchParams()
   if (options?.limit != null) params.set('limit', String(options.limit))
   if (options?.cursor) params.set('cursor', options.cursor)
   if (options?.q?.trim()) params.set('q', options.q.trim())
+  if (options?.status === 'ARCHIVED') params.set('status', 'ARCHIVED')
   const qs = params.toString()
   const url = `${API_BASE_URL}/messaging/conversations${qs ? `?${qs}` : ''}`
   return fetchJson(url)
+}
+
+export async function patchConversationStatus(
+  conversationId: number,
+  status: 'OPEN' | 'ARCHIVED',
+): Promise<{ ok: boolean; status: string }> {
+  return fetchJson(`${API_BASE_URL}/messaging/conversations/${conversationId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  })
 }
 
 export async function fetchConversationDetail(id: number): Promise<ConversationDetail> {
@@ -271,6 +285,8 @@ export async function startConversationFromContact(input: {
   phoneRaw: string
   name?: string | null
   notes?: string | null
+  /** Stored on new Client.from (e.g. Form, Call). */
+  clientFrom?: string | null
 }): Promise<{ conversationId: number; contactPointId: number; clientId: number | null }> {
   return fetchJson(`${API_BASE_URL}/messaging/contacts/start`, {
     method: 'POST',
@@ -299,6 +315,7 @@ export type MessagingBookAppointmentInput = {
   notes?: string
   size: string
   serviceType: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
+  bookingScreenshotUrls?: string[]
 }
 
 export type MessagingBookAppointmentResponse = {
@@ -321,6 +338,116 @@ export async function postBookAppointmentFromConversation(
   })
 }
 
+export type MessagingScreenshotBookAppointmentInput = {
+  phoneRaw: string
+  clientName: string
+  appointmentAddress: string
+  price: number
+  date: string
+  time: string
+  notes?: string
+  size: string
+  serviceType: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
+  bookingScreenshotUrls?: string[]
+}
+
+export async function postBookAppointmentFromScreenshot(
+  input: MessagingScreenshotBookAppointmentInput,
+): Promise<MessagingBookAppointmentResponse> {
+  return fetchJson(`${API_BASE_URL}/messaging/book-appointment/screenshot`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export type AppointmentExtractionFieldKey =
+  | 'clientName'
+  | 'clientPhone'
+  | 'appointmentAddress'
+  | 'price'
+  | 'date'
+  | 'time'
+  | 'notes'
+  | 'size'
+  | 'serviceType'
+
+export type AppointmentExtractionResult = {
+  draft: {
+    clientName?: string
+    clientPhone?: string
+    appointmentAddress?: string
+    price?: string
+    date?: string
+    time?: string
+    notes?: string
+    size?: string
+    serviceType?: '' | 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
+  }
+  missingRequiredFields: AppointmentExtractionFieldKey[]
+  notFoundNotes: string[]
+  sizeSource: 'thread' | 'rentcast' | null
+  sizeLookupFailed: boolean
+  fieldHighlights: Partial<Record<AppointmentExtractionFieldKey, 'ai_missing' | 'lookup_failed'>>
+  storedImages?: Array<{ storageKey: string; publicUrl: string }>
+}
+
+export async function postExtractAppointmentFromConversation(
+  conversationId: number,
+): Promise<AppointmentExtractionResult> {
+  return fetchJson(`${API_BASE_URL}/messaging/conversations/${conversationId}/extract-appointment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+}
+
+export async function postExtractAppointmentFromImages(
+  conversationId: number,
+  files: File[],
+): Promise<AppointmentExtractionResult> {
+  const url = `${API_BASE_URL}/messaging/conversations/${conversationId}/extract-appointment/images`
+  const form = new FormData()
+  for (const f of files) {
+    form.append('images', f)
+  }
+  const headers = new Headers()
+  attachDashboardUserHeaders(headers)
+  if (skipNgrokWarning) headers.set('ngrok-skip-browser-warning', '1')
+  const res = await fetch(url, { method: 'POST', headers, body: form })
+  const text = await res.text()
+  if (!res.ok) {
+    console.error('Extract images failed', res.status, text)
+    throw new Error(text || `Request failed with status ${res.status}`)
+  }
+  return JSON.parse(text) as AppointmentExtractionResult
+}
+
+/** Screenshots from outside the CRM — no conversation id. */
+export async function postExtractAppointmentFromStandaloneImages(
+  files: File[],
+  reuse?: Array<{ publicUrl: string; storageKey?: string }>,
+): Promise<AppointmentExtractionResult> {
+  const url = `${API_BASE_URL}/messaging/extract-appointment/screenshots`
+  const form = new FormData()
+  for (const f of files) {
+    form.append('images', f)
+  }
+  if (reuse?.length) {
+    form.append('reuse', JSON.stringify(reuse))
+  }
+  const headers = new Headers()
+  attachDashboardUserHeaders(headers)
+  if (skipNgrokWarning) headers.set('ngrok-skip-browser-warning', '1')
+  const res = await fetch(url, { method: 'POST', headers, body: form })
+  const text = await res.text()
+  if (!res.ok) {
+    console.error('Standalone extract failed', res.status, text)
+    throw new Error(text || `Request failed with status ${res.status}`)
+  }
+  return JSON.parse(text) as AppointmentExtractionResult
+}
+
 export type ClientAppointment = {
   id: number
   date: string
@@ -331,6 +458,9 @@ export type ClientAppointment = {
   price: number
   notes: string | null
 }
+
+/** Draft key for screenshot booking (no CRM conversation). */
+export const SCREENSHOT_BOOKING_CONVERSATION_ID = 0
 
 export async function fetchClientAppointments(clientId: number, take = 25): Promise<ClientAppointment[]> {
   const params = new URLSearchParams()

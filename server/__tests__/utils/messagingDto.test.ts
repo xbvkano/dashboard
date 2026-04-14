@@ -1,3 +1,4 @@
+import { MessageDirection } from '@prisma/client'
 import {
   lastMessagePreviewText,
   mapConversationsToInboxDto,
@@ -33,7 +34,7 @@ describe('messagingDto', () => {
         },
         client: { id: 9, name: 'John Doe', number: '+15551111111', notes: null },
         sessions: [{ id: 3, openedAt: t }],
-        messages: [{ id: 100, body: 'Need cleaning tomorrow' }],
+        messages: [{ id: 100, body: 'Need cleaning tomorrow', direction: MessageDirection.INBOUND }],
       },
     ])
     expect(dto[0].client?.name).toBe('John Doe')
@@ -41,5 +42,29 @@ describe('messagingDto', () => {
     expect(dto[0].lastMessageId).toBe(100)
     expect(dto[0].unread).toBe(true)
     expect(dto[0].openSession?.id).toBe(3)
+  })
+
+  it('does not mark thread unread when the latest message is staff outbound', () => {
+    const t = new Date('2026-04-11T10:00:00.000Z')
+    const dto = mapConversationsToInboxDto([
+      {
+        id: 1,
+        channel: 'SMS',
+        status: 'OPEN',
+        businessNumber: '+17255774523',
+        lastMessageAt: t,
+        contactPoint: {
+          id: 2,
+          type: 'PHONE',
+          value: '+15551110000',
+          displayValue: null,
+          blocked: false,
+        },
+        client: null,
+        sessions: [],
+        messages: [{ id: 200, body: 'We will be there at 9', direction: MessageDirection.OUTBOUND }],
+      },
+    ])
+    expect(dto[0].unread).toBe(false)
   })
 })

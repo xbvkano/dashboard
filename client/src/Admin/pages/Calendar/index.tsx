@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { API_BASE_URL, fetchJson } from '../../../api'
 import type { Appointment } from './types'
 import { useCalendarState } from './hooks/useCalendarState'
@@ -59,6 +59,19 @@ export default function Calendar() {
   )
 
   const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+
+  /** Deep link from screenshot booking: ?date=YYYY-MM-DD&appt=id */
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const appt = params.get('appt')
+    const dateStr = params.get('date')
+    if (!appt || !dateStr) return
+    const parts = dateStr.split('-')
+    if (parts.length !== 3) return
+    const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
+    if (!isNaN(d.getTime())) setSelected(d)
+  }, [location.search, setSelected])
 
   // Open create modal from Schedule "Book Again" link (bookAgain=appointmentId)
   useEffect(() => {

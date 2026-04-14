@@ -8,6 +8,13 @@ type Props = {
   onBack: () => void
   onEditContact: () => void
   onBookAppointment: () => void
+  onGenerateAppointment: () => void
+  extractAppointmentBusy?: boolean
+  linkedClientId?: number | null
+  onViewClient?: () => void
+  conversationStatus?: 'OPEN' | 'ARCHIVED' | string
+  onArchiveToggle?: () => void | Promise<void>
+  archiveBusy?: boolean
   /** Mobile full-screen chat hides the list header — show Mocking here */
   showMockingToggle?: boolean
   mockingEnabled?: boolean
@@ -20,6 +27,13 @@ export default function ChatHeader({
   onBack,
   onEditContact,
   onBookAppointment,
+  onGenerateAppointment,
+  extractAppointmentBusy,
+  linkedClientId,
+  onViewClient,
+  conversationStatus,
+  onArchiveToggle,
+  archiveBusy,
   showMockingToggle,
   mockingEnabled,
   onMockingChange,
@@ -56,11 +70,18 @@ export default function ChatHeader({
             <MockingToggle enabled={mockingEnabled} onChange={onMockingChange} />
           </div>
         )}
-      <ChatActionsMenu
-        conversationId={conversation.id}
-        onEditContact={onEditContact}
-        onBookAppointment={onBookAppointment}
-      />
+          <ChatActionsMenu
+            conversationId={conversation.id}
+            onEditContact={onEditContact}
+            onBookAppointment={onBookAppointment}
+            onGenerateAppointment={onGenerateAppointment}
+            extractAppointmentBusy={extractAppointmentBusy}
+            linkedClientId={linkedClientId}
+            onViewClient={onViewClient}
+            conversationStatus={conversationStatus}
+            onArchiveToggle={onArchiveToggle}
+            archiveBusy={archiveBusy}
+          />
     </header>
   )
 }

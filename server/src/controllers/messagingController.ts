@@ -1,5 +1,5 @@
 import { Request, Response } from 'express'
-import { PrismaClient } from '@prisma/client'
+import { ConversationStatus, PrismaClient, type Prisma } from '@prisma/client'
 import {
   ingestInboundSms,
   sendOutboundSms,
@@ -28,8 +28,235 @@ import { randomUUID } from 'crypto'
 import { calculateAppointmentHours, parseSqft } from '../utils/appointmentUtils'
 import { normalizePhone, phoneLookupVariants } from '../utils/phoneUtils'
 import { getDefaultTeamSize, getSizeRange } from '../data/teamSizeData'
+import { buildConversationStatusUpdateData } from '../services/messaging/conversationStatusUpdate'
+import {
+  extractAppointmentForConversation,
+  extractAppointmentFromConversationImages,
+  extractAppointmentFromStandaloneImages,
+} from '../services/appointmentExtraction/extractionOrchestrator'
 
 const prisma = new PrismaClient()
+
+type BookAppointmentInput = {
+  clientName?: string
+  appointmentAddress: string
+  price: number
+  date: string
+  time: string
+  notes?: string
+  size: string
+  serviceType: string
+  /** Public Supabase URLs from `appointments/…` after image extraction */
+  bookingScreenshotUrls?: string[]
+}
+
+function parseBookingScreenshotUrlsFromBody(body: unknown): string[] {
+  const raw = (body as { bookingScreenshotUrls?: unknown }).bookingScreenshotUrls
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  for (const u of raw.slice(0, 24)) {
+    if (typeof u !== 'string') continue
+    const t = u.trim()
+    if (t.length === 0 || t.length > 2048) continue
+    if (!t.startsWith('http://') && !t.startsWith('https://')) continue
+    out.push(t)
+  }
+  return out
+}
+
+async function executeBookAppointmentCore(
+  conversationId: number,
+  adminId: number,
+  input: BookAppointmentInput,
+) {
+  const {
+    clientName,
+    appointmentAddress,
+    price,
+    date,
+    time,
+    notes,
+    size,
+    serviceType,
+    bookingScreenshotUrls: screenshotUrlsInput,
+  } = input
+  const bookingScreenshotUrls = screenshotUrlsInput?.length ? screenshotUrlsInput : []
+
+  const parsedSize = parseSqft(size)
+  if (parsedSize === null) {
+    throw new Error(
+      'Invalid size format. Size should be a range (e.g., "1500-2000") or single value (e.g., "3030")',
+    )
+  }
+
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: {
+      contactPoint: true,
+      client: true,
+      sessions: {
+        where: { closedAt: null },
+        orderBy: { openedAt: 'desc' },
+        take: 1,
+      },
+    },
+  })
+  if (!conversation) {
+    throw new Error('Conversation not found')
+  }
+
+  const normalizedPhone = normalizePhone(conversation.contactPoint.value)
+  if (!normalizedPhone) {
+    throw new Error('Conversation phone is invalid')
+  }
+
+  const appointmentDate = parseDateStringUTC(date)
+  const nextDay = new Date(
+    Date.UTC(
+      appointmentDate.getUTCFullYear(),
+      appointmentDate.getUTCMonth(),
+      appointmentDate.getUTCDate() + 1,
+    ),
+  )
+
+  const activeSession =
+    conversation.sessions[0] ??
+    (await prisma.conversationSession.create({
+      data: { conversationId: conversation.id },
+    }))
+
+  let client = conversation.client
+  if (!client) {
+    if (!clientName) {
+      throw new Error('clientName is required when no client is linked')
+    }
+
+    client = await prisma.client.findFirst({
+      where: {
+        number: { in: phoneLookupVariants(normalizedPhone) },
+      },
+    })
+
+    if (!client) {
+      let nameToUse = clientName
+      const existingByName = await prisma.client.findFirst({
+        where: { name: clientName },
+        select: { id: true },
+      })
+      if (existingByName) {
+        const last4 = normalizedPhone.replace(/\D/g, '').slice(-4)
+        nameToUse = `${clientName} ${last4}`
+      }
+      client = await prisma.client.create({
+        data: {
+          name: nameToUse,
+          number: normalizedPhone,
+          from: 'MESSAGING',
+          notes: 'Client created from messaging booking',
+        },
+      })
+    }
+
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { clientId: client.id },
+    })
+    await prisma.contactPoint.update({
+      where: { id: conversation.contactPointId },
+      data: { clientId: client.id },
+    })
+  }
+
+  const existingAppointment = await prisma.appointment.findFirst({
+    where: {
+      clientId: client.id,
+      date: { gte: appointmentDate, lt: nextDay },
+      status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+    },
+    select: { id: true, date: true, time: true, address: true },
+  })
+  if (existingAppointment) {
+    const err: Error & { status?: number; existingAppointment?: typeof existingAppointment } = new Error(
+      'SAME_DAY_APPOINT',
+    ) as any
+    err.status = 409
+    err.existingAppointment = existingAppointment
+    throw err
+  }
+
+  const mappedSize = getSizeRange(size)
+  let template = await prisma.appointmentTemplate.findFirst({
+    where: {
+      clientId: client.id,
+      address: appointmentAddress,
+      price: price,
+      size: mappedSize,
+    },
+  })
+
+  if (!template) {
+    template = await prisma.appointmentTemplate.create({
+      data: {
+        templateName: `Messaging - ${appointmentAddress}`,
+        type: serviceType as any,
+        size: mappedSize,
+        teamSize: getDefaultTeamSize(mappedSize, serviceType),
+        address: appointmentAddress,
+        price,
+        notes: notes ?? null,
+        instructions: '',
+        clientId: client.id,
+      },
+    })
+  } else if (notes != null) {
+    template = await prisma.appointmentTemplate.update({
+      where: { id: template.id },
+      data: { notes },
+    })
+  }
+
+  const hours = calculateAppointmentHours(size, serviceType)
+  const appt = await prisma.appointment.create({
+    data: {
+      clientId: client.id,
+      adminId,
+      templateId: template.id,
+      date: appointmentDate,
+      time,
+      type: serviceType as any,
+      address: appointmentAddress,
+      size: mappedSize,
+      hours,
+      price,
+      paid: false,
+      paymentMethod: 'CASH',
+      tip: 0,
+      noTeam: false,
+      teamSize: (template as any).teamSize ?? getDefaultTeamSize(mappedSize, serviceType),
+      notes: notes ?? template.notes ?? undefined,
+      status: 'APPOINTED',
+      lineage: 'single',
+      aiCreated: false,
+      conversationSessionId: activeSession.id,
+      bookingScreenshotUrls,
+    },
+    include: {
+      client: true,
+      employees: true,
+      admin: true,
+      payrollItems: { include: { extras: true } },
+    },
+  })
+
+  return {
+    success: true as const,
+    appointment: appt,
+    client,
+    template,
+    sessionId: activeSession.id,
+    message: 'Appointment created successfully',
+  }
+}
 
 function parseDateStringUTC(dateStr: string): Date {
   const dateParts = dateStr.split('-')
@@ -65,10 +292,14 @@ export async function listConversations(req: Request, res: Response) {
     const offset = cursorDecoded?.o ?? 0
 
     const searchWhere = inboxSearchWhere(q)
+    const rawStatus = typeof req.query.status === 'string' ? req.query.status.trim().toUpperCase() : 'OPEN'
+    const convStatus = rawStatus === 'ARCHIVED' ? ConversationStatus.ARCHIVED : ConversationStatus.OPEN
+    const baseWhere: Prisma.ConversationWhereInput = { status: convStatus }
+    const where: Prisma.ConversationWhereInput = searchWhere ? { AND: [baseWhere, searchWhere] } : baseWhere
 
     const take = limit + 1
     const rows = await prisma.conversation.findMany({
-      where: searchWhere,
+      where,
       orderBy: [
         { lastMessageAt: { sort: 'desc', nulls: 'last' } },
         { id: 'desc' },
@@ -86,7 +317,7 @@ export async function listConversations(req: Request, res: Response) {
         messages: {
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: 1,
-          select: { id: true, body: true, mediaCount: true },
+          select: { id: true, body: true, mediaCount: true, direction: true },
         },
         ...(userId != null
           ? {
@@ -422,16 +653,17 @@ export async function postInboundWebhook(req: Request, res: Response) {
 }
 
 export async function postStartConversationFromContact(req: Request, res: Response) {
-  const { phoneRaw, name, notes } = req.body as {
+  const { phoneRaw, name, notes, clientFrom } = req.body as {
     phoneRaw?: string
     name?: string | null
     notes?: string | null
+    clientFrom?: string | null
   }
   if (!phoneRaw || typeof phoneRaw !== 'string') {
     return res.status(400).json({ error: 'phoneRaw is required' })
   }
   try {
-    const out = await startConversationFromContact(prisma, { phoneRaw, name, notes })
+    const out = await startConversationFromContact(prisma, { phoneRaw, name, notes, clientFrom })
     res.status(201).json(out)
   } catch (e: any) {
     console.error(e)
@@ -454,6 +686,31 @@ export async function patchConversationClient(req: Request, res: Response) {
   }
 }
 
+export async function patchConversationStatus(req: Request, res: Response) {
+  const id = parseInt(req.params.id, 10)
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid id' })
+  }
+  const userId = parseUserIdHeader(req.headers['x-user-id'])
+  if (userId == null) {
+    return res.status(400).json({ error: 'x-user-id header required' })
+  }
+  const { status } = req.body as { status?: string }
+  if (status !== 'OPEN' && status !== 'ARCHIVED') {
+    return res.status(400).json({ error: 'status must be OPEN or ARCHIVED' })
+  }
+  try {
+    await prisma.conversation.update({
+      where: { id },
+      data: buildConversationStatusUpdateData(status, new Date()),
+    })
+    res.json({ ok: true, status })
+  } catch (e: unknown) {
+    console.error(e)
+    res.status(400).json({ error: e instanceof Error ? e.message : 'Failed to update conversation' })
+  }
+}
+
 export async function postMockAppointmentExtraction(req: Request, res: Response) {
   const sessionId = parseInt(req.params.sessionId, 10)
   if (Number.isNaN(sessionId)) {
@@ -465,6 +722,49 @@ export async function postMockAppointmentExtraction(req: Request, res: Response)
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Extraction failed' })
+  }
+}
+
+export async function postExtractAppointmentFromConversation(req: Request, res: Response) {
+  const conversationId = parseInt(req.params.id, 10)
+  if (Number.isNaN(conversationId)) {
+    return res.status(400).json({ error: 'Invalid id' })
+  }
+  const userId = parseUserIdHeader(req.headers['x-user-id'])
+  if (userId == null) {
+    return res.status(400).json({ error: 'x-user-id header required' })
+  }
+  try {
+    const result = await extractAppointmentForConversation(prisma, conversationId)
+    res.json(result)
+  } catch (e: unknown) {
+    console.error(e)
+    const msg = e instanceof Error ? e.message : 'Extraction failed'
+    res.status(400).json({ error: msg })
+  }
+}
+
+export async function postExtractAppointmentFromConversationImages(req: Request, res: Response) {
+  const conversationId = parseInt(req.params.id, 10)
+  if (Number.isNaN(conversationId)) {
+    return res.status(400).json({ error: 'Invalid id' })
+  }
+  const userId = parseUserIdHeader(req.headers['x-user-id'])
+  if (userId == null) {
+    return res.status(400).json({ error: 'x-user-id header required' })
+  }
+  const multerFiles = (req as Request & { files?: Express.Multer.File[] }).files
+  const fileList = Array.isArray(multerFiles) ? multerFiles : []
+  if (fileList.length === 0) {
+    return res.status(400).json({ error: 'At least one image is required (field name: images)' })
+  }
+  try {
+    const result = await extractAppointmentFromConversationImages(prisma, conversationId, fileList)
+    res.json(result)
+  } catch (e: unknown) {
+    console.error(e)
+    const msg = e instanceof Error ? e.message : 'Extraction failed'
+    res.status(400).json({ error: msg })
   }
 }
 
@@ -549,6 +849,7 @@ export async function postBookAppointmentFromConversation(req: Request, res: Res
       size?: string
       serviceType?: string
     }
+    const bookingScreenshotUrls = parseBookingScreenshotUrlsFromBody(req.body)
 
     if (!appointmentAddress || price == null || !date || !time || !size || !serviceType) {
       return res.status(400).json({
@@ -557,181 +858,153 @@ export async function postBookAppointmentFromConversation(req: Request, res: Res
       })
     }
 
-    const parsedSize = parseSqft(size)
-    if (parsedSize === null) {
-      return res.status(400).json({
-        error:
-          'Invalid size format. Size should be a range (e.g., "1500-2000") or single value (e.g., "3030")',
-      })
-    }
-
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      include: {
-        contactPoint: true,
-        client: true,
-        sessions: {
-          where: { closedAt: null },
-          orderBy: { openedAt: 'desc' },
-          take: 1,
-        },
-      },
+    const out = await executeBookAppointmentCore(conversationId, adminId, {
+      clientName,
+      appointmentAddress,
+      price,
+      date,
+      time,
+      notes,
+      size,
+      serviceType,
+      bookingScreenshotUrls,
     })
-    if (!conversation) {
-      return res.status(404).json({ error: 'Not found' })
-    }
-
-    const normalizedPhone = normalizePhone(conversation.contactPoint.value)
-    if (!normalizedPhone) {
-      return res.status(400).json({ error: 'Conversation phone is invalid' })
-    }
-
-    const appointmentDate = parseDateStringUTC(date)
-    const nextDay = new Date(
-      Date.UTC(
-        appointmentDate.getUTCFullYear(),
-        appointmentDate.getUTCMonth(),
-        appointmentDate.getUTCDate() + 1,
-      ),
-    )
-
-    const activeSession =
-      conversation.sessions[0] ??
-      (await prisma.conversationSession.create({
-        data: { conversationId: conversation.id },
-      }))
-
-    let client = conversation.client
-    if (!client) {
-      if (!clientName) {
-        return res.status(400).json({ error: 'clientName is required when no client is linked' })
-      }
-
-      client = await prisma.client.findFirst({
-        where: {
-          number: { in: phoneLookupVariants(normalizedPhone) },
-        },
-      })
-
-      if (!client) {
-        let nameToUse = clientName
-        const existingByName = await prisma.client.findFirst({
-          where: { name: clientName },
-          select: { id: true },
-        })
-        if (existingByName) {
-          const last4 = normalizedPhone.replace(/\D/g, '').slice(-4)
-          nameToUse = `${clientName} ${last4}`
-        }
-        client = await prisma.client.create({
-          data: {
-            name: nameToUse,
-            number: normalizedPhone,
-            from: 'MESSAGING',
-            notes: 'Client created from messaging booking',
-          },
-        })
-      }
-
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: { clientId: client.id },
-      })
-      await prisma.contactPoint.update({
-        where: { id: conversation.contactPointId },
-        data: { clientId: client.id },
-      })
-    }
-
-    const existingAppointment = await prisma.appointment.findFirst({
-      where: {
-        clientId: client.id,
-        date: { gte: appointmentDate, lt: nextDay },
-        status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
-      },
-      select: { id: true, date: true, time: true, address: true },
-    })
-    if (existingAppointment) {
+    return res.json(out)
+  } catch (e: any) {
+    if (e?.message === 'SAME_DAY_APPOINT' && e?.status === 409) {
       return res.status(409).json({
         error: 'SAME_DAY_APPOINT',
         message: 'Client already has an appointment on this date',
-        existingAppointment,
+        existingAppointment: e.existingAppointment,
       })
     }
-
-    const mappedSize = getSizeRange(size)
-    let template = await prisma.appointmentTemplate.findFirst({
-      where: {
-        clientId: client.id,
-        address: appointmentAddress,
-        price: price,
-        size: mappedSize,
-      },
-    })
-
-    if (!template) {
-      template = await prisma.appointmentTemplate.create({
-        data: {
-          templateName: `Messaging - ${appointmentAddress}`,
-          type: serviceType as any,
-          size: mappedSize,
-          teamSize: getDefaultTeamSize(mappedSize, serviceType),
-          address: appointmentAddress,
-          price,
-          notes: notes ?? null,
-          instructions: '',
-          clientId: client.id,
-        },
-      })
-    } else if (notes != null) {
-      template = await prisma.appointmentTemplate.update({
-        where: { id: template.id },
-        data: { notes },
-      })
+    if (e?.message === 'Conversation not found') {
+      return res.status(404).json({ error: 'Not found' })
     }
-
-    const hours = calculateAppointmentHours(size, serviceType)
-    const appt = await prisma.appointment.create({
-      data: {
-        clientId: client.id,
-        adminId,
-        templateId: template.id,
-        date: appointmentDate,
-        time,
-        type: serviceType as any,
-        address: appointmentAddress,
-        size: mappedSize,
-        hours,
-        price,
-        paid: false,
-        paymentMethod: 'CASH',
-        tip: 0,
-        noTeam: false,
-        teamSize: (template as any).teamSize ?? getDefaultTeamSize(mappedSize, serviceType),
-        notes: notes ?? template.notes ?? undefined,
-        status: 'APPOINTED',
-        lineage: 'single',
-        aiCreated: false,
-        conversationSessionId: activeSession.id,
-      },
-      include: {
-        client: true,
-        employees: true,
-        admin: true,
-        payrollItems: { include: { extras: true } },
-      },
-    })
-
-    return res.json({
-      success: true,
-      appointment: appt,
-      client,
-      template,
-      sessionId: activeSession.id,
-      message: 'Appointment created successfully',
-    })
-  } catch (e: any) {
+    if (
+      e?.message?.includes('Invalid size') ||
+      e?.message === 'Conversation phone is invalid' ||
+      e?.message === 'clientName is required when no client is linked'
+    ) {
+      return res.status(400).json({ error: e.message })
+    }
     console.error(e)
     return res.status(500).json({ error: e?.message ?? 'Booking failed' })
+  }
+}
+
+/** Book from screenshot flow: resolve / create client by phone, then same appointment pipeline. */
+export async function postBookAppointmentFromScreenshot(req: Request, res: Response) {
+  const adminId = parseUserIdHeader(req.headers['x-user-id'])
+  if (adminId == null) {
+    return res.status(400).json({ error: 'x-user-id header required' })
+  }
+
+  const {
+    phoneRaw,
+    clientName,
+    appointmentAddress,
+    price,
+    date,
+    time,
+    notes,
+    size,
+    serviceType,
+  } = req.body as {
+    phoneRaw?: string
+    clientName?: string
+    appointmentAddress?: string
+    price?: number
+    date?: string
+    time?: string
+    notes?: string
+    size?: string
+    serviceType?: string
+  }
+  const bookingScreenshotUrls = parseBookingScreenshotUrlsFromBody(req.body)
+
+  if (!phoneRaw || typeof phoneRaw !== 'string' || !phoneRaw.trim()) {
+    return res.status(400).json({ error: 'phoneRaw is required' })
+  }
+  if (!clientName?.trim()) {
+    return res.status(400).json({ error: 'clientName is required' })
+  }
+  if (!appointmentAddress || price == null || !date || !time || !size || !serviceType) {
+    return res.status(400).json({
+      error:
+        'Missing required fields: appointmentAddress, price, date, time, size, serviceType',
+    })
+  }
+
+  try {
+    const { conversationId } = await startConversationFromContact(prisma, {
+      phoneRaw: phoneRaw.trim(),
+      name: clientName.trim(),
+      notes: null,
+    })
+    const out = await executeBookAppointmentCore(conversationId, adminId, {
+      clientName: clientName.trim(),
+      appointmentAddress,
+      price,
+      date,
+      time,
+      notes,
+      size,
+      serviceType,
+      bookingScreenshotUrls,
+    })
+    return res.json(out)
+  } catch (e: any) {
+    if (e?.message === 'SAME_DAY_APPOINT' && e?.status === 409) {
+      return res.status(409).json({
+        error: 'SAME_DAY_APPOINT',
+        message: 'Client already has an appointment on this date',
+        existingAppointment: e.existingAppointment,
+      })
+    }
+    if (
+      e?.message?.includes('Invalid size') ||
+      e?.message === 'Conversation phone is invalid' ||
+      e?.message === 'clientName is required when no client is linked'
+    ) {
+      return res.status(400).json({ error: e.message })
+    }
+    console.error(e)
+    return res.status(400).json({ error: e?.message ?? 'Booking failed' })
+  }
+}
+
+export async function postExtractAppointmentFromStandaloneImages(req: Request, res: Response) {
+  const userId = parseUserIdHeader(req.headers['x-user-id'])
+  if (userId == null) {
+    return res.status(400).json({ error: 'x-user-id header required' })
+  }
+  const multerFiles = (req as Request & { files?: Express.Multer.File[] }).files
+  const fileList = Array.isArray(multerFiles) ? multerFiles : []
+  let reuseParsed: Array<{ publicUrl: string; storageKey?: string }> = []
+  const rawReuse = (req as Request & { body?: { reuse?: string } }).body?.reuse
+  if (typeof rawReuse === 'string' && rawReuse.trim()) {
+    try {
+      const j = JSON.parse(rawReuse) as unknown
+      if (Array.isArray(j)) {
+        reuseParsed = j.filter(
+          (x): x is { publicUrl: string; storageKey?: string } =>
+            Boolean(x && typeof x === 'object' && typeof (x as { publicUrl?: string }).publicUrl === 'string'),
+        )
+      }
+    } catch {
+      /* ignore invalid reuse */
+    }
+  }
+  if (fileList.length === 0 && reuseParsed.length === 0) {
+    return res.status(400).json({ error: 'At least one image is required (field name: images)' })
+  }
+  try {
+    const result = await extractAppointmentFromStandaloneImages(fileList, reuseParsed)
+    res.json(result)
+  } catch (e: unknown) {
+    console.error(e)
+    const msg = e instanceof Error ? e.message : 'Extraction failed'
+    res.status(400).json({ error: msg })
   }
 }

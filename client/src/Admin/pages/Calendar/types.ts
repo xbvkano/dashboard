@@ -62,4 +62,6 @@ export interface Appointment {
     amount?: number
     extras: { id: number; name: string; amount: number }[]
   }[]
+  /** Public Supabase URLs for screenshots used when booking from messaging */
+  bookingScreenshotUrls?: string[]
 }

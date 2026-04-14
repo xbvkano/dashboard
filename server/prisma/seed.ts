@@ -76,6 +76,14 @@ async function main() {
     },
   })
 
+  // Explicit ids (2, 9) do not advance PostgreSQL's sequence; the next auto id could collide (e.g. 2).
+  await prisma.$executeRawUnsafe(`
+    SELECT setval(
+      pg_get_serial_sequence('"User"', 'id')::regclass,
+      (SELECT COALESCE(MAX(id), 1) FROM "User")
+    )
+  `)
+
   // OWNER and SUPERVISOR for supervisor assignment and future text notifications
   const ritaPassword = await bcrypt.hash('password123', 10)
   const rita = await prisma.user.create({
@@ -1118,6 +1126,158 @@ async function main() {
   await prisma.conversation.update({
     where: { id: convJane.id },
     data: { lastMessageAt: nowMsgAt },
+  })
+
+  // --- Extraction QA threads (docs/examples.md) — test POST /messaging/conversations/:id/extract-appointment ---
+  const qaTick = { n: 0 }
+  const qaNextAt = (base: Date) => new Date(base.getTime() + qaTick.n++ * 2000)
+
+  async function seedExampleThread(params: {
+    name: string
+    phoneDigits: string
+    messages: Array<{ dir: 'INBOUND' | 'OUTBOUND'; body: string }>
+  }) {
+    const num = normalizePhone(params.phoneDigits)!
+    const client = await prisma.client.create({
+      data: { name: params.name, number: num, from: 'Seed QA' },
+    })
+    const cp = await prisma.contactPoint.create({
+      data: { type: 'PHONE', value: num, displayValue: params.name, clientId: client.id },
+    })
+    const conv = await prisma.conversation.create({
+      data: {
+        channel: 'SMS',
+        status: 'OPEN',
+        contactPointId: cp.id,
+        businessNumber: bizE164,
+        clientId: client.id,
+      },
+    })
+    const sess = await prisma.conversationSession.create({
+      data: { conversationId: conv.id },
+    })
+    const baseT = addDays(today, -1)
+    baseT.setHours(14, 0, 0, 0)
+    let lastAt = baseT
+    for (const m of params.messages) {
+      const at = qaNextAt(baseT)
+      lastAt = at
+      if (m.dir === 'INBOUND') {
+        await prisma.message.create({
+          data: {
+            conversationId: conv.id,
+            sessionId: sess.id,
+            direction: 'INBOUND',
+            senderType: 'CUSTOMER',
+            fromContactPointId: cp.id,
+            toContactPointId: cpBiz.id,
+            clientId: client.id,
+            body: m.body,
+            status: 'RECEIVED',
+            receivedAt: at,
+          },
+        })
+      } else {
+        await prisma.message.create({
+          data: {
+            conversationId: conv.id,
+            sessionId: sess.id,
+            direction: 'OUTBOUND',
+            senderType: 'STAFF',
+            fromContactPointId: cpBiz.id,
+            toContactPointId: cp.id,
+            userId: admin.id,
+            clientId: client.id,
+            body: m.body,
+            status: 'SENT',
+            sentAt: at,
+          },
+        })
+      }
+    }
+    await prisma.conversation.update({
+      where: { id: conv.id },
+      data: { lastMessageAt: lastAt },
+    })
+  }
+
+  await seedExampleThread({
+    name: 'Reem Witwit',
+    phoneDigits: '8054700072',
+    messages: [
+      {
+        dir: 'OUTBOUND',
+        body:
+          "Hi Reem Witwit! Deep Cleaning at 11584 Ashy Storm Ave, Las Vegas, NV 89138. Size: 1501-2000 sqft. Date: 2026-04-11. Time: 9am. Price 320. Confirmed your cleaning for Monday 04/13 at 9am.",
+      },
+      { dir: 'INBOUND', body: 'And to confirm this is for move in for $360?' },
+      { dir: 'OUTBOUND', body: 'Yes, move in 360. Payment via Zelle after completion.' },
+      { dir: 'INBOUND', body: 'Ok works for me! No gate code.' },
+      { dir: 'OUTBOUND', body: '11584 Ashy Storm Ave, Las Vegas, NV 89138' },
+    ],
+  })
+
+  await seedExampleThread({
+    name: 'Hallie Lyons',
+    phoneDigits: '7022779546',
+    messages: [
+      {
+        dir: 'OUTBOUND',
+        body:
+          'Service: Deep Cleaning, Size 0-1000. Price 240. Need address, gate code and name.',
+      },
+      {
+        dir: 'INBOUND',
+        body:
+          'My house is 1179 sqft. Thursday 4/16. My name is Hallie Lyons, address 9074 Living Rose Street. No gate code. One cat.',
+      },
+      {
+        dir: 'OUTBOUND',
+        body: 'Confirmed your cleaning for Thursday, April 16 at 9:00am. Deep cleaning 240.',
+      },
+    ],
+  })
+
+  await seedExampleThread({
+    name: 'Corey Heckman',
+    phoneDigits: '7025694250',
+    messages: [
+      { dir: 'OUTBOUND', body: 'The price is 360. Availability: 27 at 9am.' },
+      {
+        dir: 'INBOUND',
+        body: 'Can I reserve the 27th at 9am?',
+      },
+      {
+        dir: 'OUTBOUND',
+        body:
+          'Yes, confirmed April 27th at 9am. Corey Heckman +1 (702)-569-4250. 8944 Rutherford Grove St, Las Vegas, NV 89148. Move in/out cleaning. Size: 1501-2000 sqft.',
+      },
+    ],
+  })
+
+  await seedExampleThread({
+    name: 'Roxanne Vierra',
+    phoneDigits: '8087225279',
+    messages: [
+      {
+        dir: 'INBOUND',
+        body:
+          'Schedule move-out Monday April 27 at 9 am. Senior, pay cash, discount? Name Roxanne Vierra.',
+      },
+      {
+        dir: 'OUTBOUND',
+        body: 'Confirmed, $30 discount, total 330 for this cleaning.',
+      },
+      {
+        dir: 'INBOUND',
+        body:
+          '~1750 sf, 318 Palm Trace Ave, Las Vegas, NV 89148. Laminate and tile, high ceilings, ledges and cabinets. April 27th.',
+      },
+      {
+        dir: 'OUTBOUND',
+        body: 'Baseboard cleaning is included.',
+      },
+    ],
   })
 
   await prisma.appointment.updateMany({

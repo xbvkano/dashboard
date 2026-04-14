@@ -47,7 +47,7 @@ export default function Leads() {
   }, [])
 
   return (
-    <div className="p-2 md:p-3 flex flex-col h-[calc(100dvh-3.5rem)] md:h-[calc(100vh-3.5rem)] min-h-0">
+    <div className="p-2 md:p-3 flex flex-col h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-3.5rem)] min-h-0">
       <h2 className="text-xl font-semibold text-slate-900 mb-2 shrink-0">Leads</h2>
 
       {/* Mobile: switch between Forms and Calls */}

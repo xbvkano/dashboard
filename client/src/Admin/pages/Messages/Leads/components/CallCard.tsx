@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { Call } from '../../../../../external_prisma_schemas/website_schema'
 import { formatPhone } from '../../../../../formatPhone'
 import { API_BASE_URL } from '../../../../../api'
 import { buildDefaultCallMessage } from '../leadMessageDefaults'
 import LeadMessageModal from './LeadMessageModal'
+import { startConversationFromContact } from '../../Inbox/messagingApi'
 
 interface CallCardProps {
   call: Call
@@ -30,28 +32,45 @@ function toE164(digits: string): string | null {
 }
 
 export default function CallCard({ call, onMarkVisited }: CallCardProps) {
+  const navigate = useNavigate()
   const [messageOpen, setMessageOpen] = useState(false)
+  const [textBusy, setTextBusy] = useState(false)
   const defaultMessageText = useMemo(() => buildDefaultCallMessage(call), [call])
   const digits = (call.caller || '').replace(/\D/g, '')
   const e164 = toE164(digits)
   const hasPhone = !!e164
   const isUnvisited = call.visited === false
 
-  function handlePhoneAction(url: string) {
-    if (isUnvisited && onMarkVisited) {
-      onMarkVisited()
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (import.meta.env.VITE_NGROK === 'true' || import.meta.env.VITE_NGROK === '1') {
-        headers['ngrok-skip-browser-warning'] = '1'
-      }
-      fetch(`${API_BASE_URL}/api/calls/${call.id}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ visited: true }),
-        keepalive: true,
-      }).catch(() => {})
+  function markVisitedIfNeeded() {
+    if (!isUnvisited || !onMarkVisited) return
+    onMarkVisited()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (import.meta.env.VITE_NGROK === 'true' || import.meta.env.VITE_NGROK === '1') {
+      headers['ngrok-skip-browser-warning'] = '1'
     }
-    window.location.href = url
+    fetch(`${API_BASE_URL}/api/calls/${call.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ visited: true }),
+      keepalive: true,
+    }).catch(() => {})
+  }
+
+  async function handleOpenInboxText() {
+    if (!hasPhone || !e164 || textBusy) return
+    markVisitedIfNeeded()
+    setTextBusy(true)
+    try {
+      const out = await startConversationFromContact({
+        phoneRaw: `+${e164}`,
+        clientFrom: 'Call',
+      })
+      navigate(`/dashboard/messages/inbox?conversation=${out.conversationId}`)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setTextBusy(false)
+    }
   }
 
   return (
@@ -70,24 +89,16 @@ export default function CallCard({ call, onMarkVisited }: CallCardProps) {
             </h3>
             <p className="text-sm text-slate-600 mt-0.5">Called: {formatPhone(call.called)}</p>
           </div>
-          <div className="flex flex-wrap gap-2 shrink-0 md:hidden">
+          <div className="flex flex-wrap gap-2 shrink-0 justify-end sm:justify-start">
             {hasPhone && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => handlePhoneAction(`tel:+${e164}`)}
-                  className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
-                >
-                  Call
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePhoneAction(`sms:+${e164}`)}
-                  className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90"
-                >
-                  Text
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => void handleOpenInboxText()}
+                disabled={textBusy}
+                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90 disabled:opacity-60"
+              >
+                {textBusy ? 'Opening…' : 'Text'}
+              </button>
             )}
             <button
               type="button"

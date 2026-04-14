@@ -21,7 +21,7 @@ type InboxRow = {
   }
   client: { id: number; name: string; number: string; notes: string | null } | null
   sessions: Array<{ id: number; openedAt: Date }>
-  messages: Array<{ id: number; body: string; mediaCount?: number }>
+  messages: Array<{ id: number; body: string; mediaCount?: number; direction?: string }>
   userReads?: Array<{ lastReadMessageId: number | null }>
 }
 
@@ -48,7 +48,15 @@ export function mapConversationsToInboxDto(rows: InboxRow[]): ConversationInboxI
     const open = c.sessions[0]
     const lastReadMessageId = c.userReads?.[0]?.lastReadMessageId ?? null
     const lastMessageId = last?.id ?? null
-    const unread = computeUnread(last?.id, lastReadMessageId)
+    /** Staff outbound does not count as unread — only inbound customer messages do. */
+    let unread = false
+    if (last) {
+      if (last.direction === 'OUTBOUND') {
+        unread = false
+      } else {
+        unread = computeUnread(last.id, lastReadMessageId)
+      }
+    }
     return {
       id: c.id,
       channel: c.channel,

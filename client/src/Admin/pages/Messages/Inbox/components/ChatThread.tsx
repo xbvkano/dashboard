@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import ChatHeader from './ChatHeader'
 import MessageBubble from './MessageBubble'
 import MessageComposer from './MessageComposer'
@@ -12,10 +12,19 @@ type Props = {
   onSend: (text: string, files?: File[]) => void | Promise<void>
   onEditContact: () => void
   onBookAppointment: () => void
+  onGenerateAppointment: () => void
+  extractAppointmentBusy?: boolean
   detailLoading?: boolean
+  linkedClientId?: number | null
+  onViewClient?: () => void
+  conversationStatus?: 'OPEN' | 'ARCHIVED' | string
+  onArchiveToggle?: () => void | Promise<void>
+  archiveBusy?: boolean
   showMockingToggle?: boolean
   mockingEnabled?: boolean
   onMockingChange?: (enabled: boolean) => void
+  /** e.g. “Appointment booked” pill — rendered directly under the thread header */
+  belowHeader?: ReactNode
 }
 
 /** Pixels from bottom to still count as "at bottom" for auto-scroll */
@@ -47,10 +56,18 @@ export default function ChatThread({
   onSend,
   onEditContact,
   onBookAppointment,
+  onGenerateAppointment,
+  extractAppointmentBusy,
   detailLoading,
+  linkedClientId,
+  onViewClient,
+  conversationStatus,
+  onArchiveToggle,
+  archiveBusy,
   showMockingToggle,
   mockingEnabled,
   onMockingChange,
+  belowHeader,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -119,10 +136,18 @@ export default function ChatThread({
         onBack={onBack}
         onEditContact={onEditContact}
         onBookAppointment={onBookAppointment}
+        onGenerateAppointment={onGenerateAppointment}
+        extractAppointmentBusy={extractAppointmentBusy}
+        linkedClientId={linkedClientId}
+        onViewClient={onViewClient}
+        conversationStatus={conversationStatus}
+        onArchiveToggle={onArchiveToggle}
+        archiveBusy={archiveBusy}
         showMockingToggle={showMockingToggle}
         mockingEnabled={mockingEnabled}
         onMockingChange={onMockingChange}
       />
+      {belowHeader}
       <div
         ref={scrollRef}
         onScroll={updatePinnedFromScroll}

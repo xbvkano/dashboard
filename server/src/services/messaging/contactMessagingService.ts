@@ -18,10 +18,11 @@ function getInboxBusinessNumber(): string {
  */
 export async function startConversationFromContact(
   prisma: PrismaClient,
-  input: { phoneRaw: string; name?: string | null; notes?: string | null }
+  input: { phoneRaw: string; name?: string | null; notes?: string | null; clientFrom?: string | null }
 ): Promise<{ conversationId: number; contactPointId: number; clientId: number | null }> {
   const name = input.name?.trim() || ''
   const notes = input.notes?.trim() || undefined
+  const clientFromLabel = input.clientFrom?.trim() || 'SMS'
   if (notes && !name) {
     throw new Error('Notes can only be set when a name is provided')
   }
@@ -68,7 +69,7 @@ export async function startConversationFromContact(
           data: {
             name,
             number: value,
-            from: 'SMS',
+            from: clientFromLabel,
             notes: notes ?? undefined,
           },
         })

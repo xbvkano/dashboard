@@ -118,6 +118,8 @@ model Appointment {
   conversationSessionId Int?
   conversationSession   ConversationSession? @relation(fields: [conversationSessionId], references: [id], onDelete: SetNull)
   messages              Message[]
+  /** Public Supabase URLs for screenshots used to book (messaging / screenshot flow). */
+  bookingScreenshotUrls String[] @default([])
 }
 
 model RecurrenceFamily {

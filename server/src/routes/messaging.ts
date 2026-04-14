@@ -6,7 +6,12 @@ import {
   getConversationDetail,
   listConversations,
   patchConversationClient,
+  patchConversationStatus,
   postBookAppointmentFromConversation,
+  postBookAppointmentFromScreenshot,
+  postExtractAppointmentFromConversation,
+  postExtractAppointmentFromConversationImages,
+  postExtractAppointmentFromStandaloneImages,
   postConversationPresence,
   postInboundWebhook,
   postMarkConversationRead,
@@ -43,7 +48,20 @@ router.post('/messaging/conversations/:id/presence', postConversationPresence)
 router.delete('/messaging/conversations/:id/presence', deleteConversationPresence)
 router.get('/messaging/conversations/:id', getConversationDetail)
 router.patch('/messaging/conversations/:id/client', patchConversationClient)
+router.patch('/messaging/conversations/:id/status', patchConversationStatus)
+router.post('/messaging/conversations/:id/extract-appointment', postExtractAppointmentFromConversation)
+router.post(
+  '/messaging/conversations/:id/extract-appointment/images',
+  upload.array('images', 10),
+  postExtractAppointmentFromConversationImages,
+)
+router.post(
+  '/messaging/extract-appointment/screenshots',
+  upload.array('images', 10),
+  postExtractAppointmentFromStandaloneImages,
+)
 router.post('/messaging/conversations/:id/book-appointment', postBookAppointmentFromConversation)
+router.post('/messaging/book-appointment/screenshot', postBookAppointmentFromScreenshot)
 router.post('/messaging/conversations/:id/messages', optionalOutboundMultipart, postOutboundMessage)
 router.post('/messaging/inbound', postInboundWebhook)
 router.post('/messaging/sessions/:sessionId/extract-appointment', postMockAppointmentExtraction)

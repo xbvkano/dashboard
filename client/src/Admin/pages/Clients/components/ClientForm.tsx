@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useModal } from '../../../../ModalProvider'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from "../../../../useFormPersistence"
 import { useNavigate, useParams } from 'react-router-dom'
@@ -17,7 +17,27 @@ export default function ClientForm() {
   const [data, setData] = useState<Client>(() =>
     loadFormPersistence(storageKey, { name: '', number: '', from: '', notes: '', disabled: false }),
   )
+  const [contactMenuOpen, setContactMenuOpen] = useState(false)
+  const contactMenuRef = useRef<HTMLDivElement>(null)
   useFormPersistence(storageKey, data)
+
+  const telHref = useMemo(() => {
+    const d = (data.number || '').replace(/\D/g, '')
+    if (d.length === 10) return `tel:+1${d}`
+    if (d.length === 11 && d.startsWith('1')) return `tel:+${d}`
+    return null
+  }, [data.number])
+
+  useEffect(() => {
+    if (!contactMenuOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (contactMenuRef.current && !contactMenuRef.current.contains(e.target as Node)) {
+        setContactMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [contactMenuOpen])
 
   useEffect(() => {
     if (!isNew) {
@@ -100,6 +120,36 @@ export default function ClientForm() {
 
   return (
     <form onSubmit={handleSubmit} className="p-4 space-y-3">
+      <div className="flex justify-end md:hidden min-h-[40px]">
+        {telHref && (
+          <div className="relative" ref={contactMenuRef}>
+            <button
+              type="button"
+              className="p-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+              aria-label="Contact actions"
+              aria-expanded={contactMenuOpen}
+              onClick={() => setContactMenuOpen((o) => !o)}
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <circle cx="12" cy="6" r="1.75" />
+                <circle cx="12" cy="12" r="1.75" />
+                <circle cx="12" cy="18" r="1.75" />
+              </svg>
+            </button>
+            {contactMenuOpen && (
+              <div className="absolute right-0 mt-1 w-44 rounded-lg border border-slate-200 bg-white shadow-lg z-20 py-1">
+                <a
+                  href={telHref}
+                  className="block px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50"
+                  onClick={() => setContactMenuOpen(false)}
+                >
+                  Call
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       <div>
         <label htmlFor="client-name" className="block text-sm">
           Name <span className="text-red-500">*</span>
