@@ -14,6 +14,49 @@ import { formatPhone } from '../../../../formatPhone'
 import DayTimelineModalContainer from './DayTimelineHelpers/DayTimelineModalContainer'
 import type { DayTimelineModalView } from './DayTimelineHelpers/DayTimelineModalContainer'
 
+const CALENDAR_APPT_MODAL_STATE_KEY = 'calendarAppointmentModalState'
+
+type CalendarAppointmentModalState =
+  | {
+      appointmentId: number
+      view: DayTimelineModalView
+    }
+  | {
+      appointmentId: number
+      view: DayTimelineModalView
+      savedAt: string
+    }
+
+function readCalendarAppointmentModalState(): CalendarAppointmentModalState | null {
+  try {
+    const raw = localStorage.getItem(CALENDAR_APPT_MODAL_STATE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as any
+    const appointmentId = typeof parsed?.appointmentId === 'number' ? parsed.appointmentId : parseInt(String(parsed?.appointmentId || ''), 10)
+    const view = parsed?.view as DayTimelineModalView
+    if (!Number.isFinite(appointmentId) || appointmentId <= 0) return null
+    if (view !== 'details' && view !== 'team-options' && view !== 'reschedule') return null
+    return { appointmentId, view, savedAt: typeof parsed?.savedAt === 'string' ? parsed.savedAt : undefined } as any
+  } catch {
+    return null
+  }
+}
+
+function writeCalendarAppointmentModalState(next: { appointmentId: number; view: DayTimelineModalView } | null): void {
+  try {
+    if (!next) {
+      localStorage.removeItem(CALENDAR_APPT_MODAL_STATE_KEY)
+      return
+    }
+    localStorage.setItem(
+      CALENDAR_APPT_MODAL_STATE_KEY,
+      JSON.stringify({ ...next, savedAt: new Date().toISOString() } satisfies CalendarAppointmentModalState),
+    )
+  } catch {
+    /* ignore */
+  }
+}
+
 function parseSqft(s: string | null | undefined): number | null {
   if (!s) return null
   const parts = s.split('-')
@@ -120,6 +163,25 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   const initialShown = useRef(false)
   // Store saved notes in ref to preserve them after refresh
   const savedNotesRef = useRef<{ appointmentId: number; notes: string } | null>(null)
+
+  // Restore modal (details/team/edit/reschedule) after refresh.
+  useEffect(() => {
+    if (selected) return
+    if (!appointments.length) return
+    const state = readCalendarAppointmentModalState()
+    if (!state) return
+    const match = appointments.find((a) => a.id === state.appointmentId)
+    if (!match) return
+    setSelected(match)
+    setModalView(state.view ?? 'details')
+  }, [appointments, selected])
+
+  // Persist modal open + view.
+  useEffect(() => {
+    if (selected?.id) {
+      writeCalendarAppointmentModalState({ appointmentId: selected.id, view: modalView })
+    }
+  }, [selected?.id, modalView])
 
   // Fetch template when selected appointment changes
   useEffect(() => {
@@ -253,6 +315,8 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   const executeConfirmRecurring = async () => {
     if (!confirmAppointment?.id) return
     setShowConfirmConfirm(false)
+    // Prevent "restore modal after refresh" from reopening while we mutate + refresh.
+    writeCalendarAppointmentModalState(null)
     const res = await fetch(`${API_BASE_URL}/recurring/appointments/${confirmAppointment.id}/confirm`, {
       method: 'POST',
       headers: {
@@ -283,6 +347,8 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
     if (selected) {
       setSkipAppointment(selected)
       setSelected(null) // Close details modal
+      // Prevent "restore modal after refresh" from reopening while skip confirm is shown.
+      writeCalendarAppointmentModalState(null)
       setShowSkipConfirm(true) // Show skip confirmation
     }
   }
@@ -791,6 +857,9 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
             setSelected(updated)
           }}
           onClose={() => {
+            // Clear persisted "reopen modal after refresh" state immediately,
+            // otherwise the restore effect can reopen the modal right after closing.
+            writeCalendarAppointmentModalState(null)
             setSelected(null)
             setModalView('details')
           }}

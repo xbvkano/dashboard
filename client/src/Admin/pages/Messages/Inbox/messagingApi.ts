@@ -143,6 +143,21 @@ export async function patchConversationStatus(
   })
 }
 
+export async function deleteConversationContact(conversationId: number): Promise<{
+  ok: boolean
+  deletedConversations?: number
+  deletedMediaObjects?: number
+}> {
+  const headers = new Headers()
+  attachDashboardUserHeaders(headers)
+  if (skipNgrokWarning) headers.set('ngrok-skip-browser-warning', '1')
+  const res = await fetch(`${API_BASE_URL}/messaging/conversations/${conversationId}/contact`, {
+    method: 'DELETE',
+    headers,
+  })
+  return parseJsonResponse(res) as any
+}
+
 export async function fetchConversationDetail(id: number): Promise<ConversationDetail> {
   return fetchJson(`${API_BASE_URL}/messaging/conversations/${id}`)
 }

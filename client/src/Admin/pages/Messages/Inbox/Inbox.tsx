@@ -7,6 +7,7 @@ import NewConversationModal from './components/NewConversationModal'
 import EditContactModal from './components/EditContactModal'
 import AiChatExtractingOverlay from './components/AiChatExtractingOverlay'
 import BookAppointmentModal, { defaultDraft, type BookAppointmentDraft } from './components/BookAppointmentModal'
+import DeleteContactConfirmModal from './components/DeleteContactConfirmModal'
 import { useMediaQuery } from './useMediaQuery'
 import { useBookAppointmentDrafts } from '../BookAppointmentDraftsContext'
 import {
@@ -19,6 +20,7 @@ import {
   deleteInboxLease,
   fetchConversationDetail,
   fetchConversationsPage,
+  deleteConversationContact,
   patchConversationStatus,
   postConversationPresence,
   postExtractAppointmentFromConversation,
@@ -160,6 +162,8 @@ export default function Inbox() {
   const [newOpen, setNewOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [generateConfirmOpen, setGenerateConfirmOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false)
   const [extracting, setExtracting] = useState(false)
   const [inboxMobileTab, setInboxMobileTab] = useState<'chat' | 'booking'>('chat')
   const [bookToast, setBookToast] = useState<string | null>(null)
@@ -532,6 +536,29 @@ export default function Inbox() {
     }
   }, [selectedId, detail, list, refreshList, showArchived, debouncedSearch])
 
+  const handleDeleteContact = useCallback(async () => {
+    if (selectedIdRef.current == null) return
+    setDeleteConfirmOpen(true)
+  }, [refreshList])
+
+  const handleConfirmDeleteContact = useCallback(async () => {
+    const id = selectedIdRef.current
+    if (id == null) return
+    if (deleteSubmitting) return
+    setDeleteSubmitting(true)
+    try {
+      await deleteConversationContact(id)
+      setDeleteConfirmOpen(false)
+      setSelectedId(null)
+      setDetail(null)
+      await refreshList()
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setDeleteSubmitting(false)
+    }
+  }, [refreshList, deleteSubmitting])
+
   const headerConversationStatus = useMemo(
     () =>
       selectedId == null
@@ -871,6 +898,7 @@ export default function Inbox() {
                     onEditContact={() => setEditOpen(true)}
                     onBookAppointment={openBookingModal}
                     onGenerateAppointment={handleGenerateAppointment}
+                    onDeleteContact={handleDeleteContact}
                     extractAppointmentBusy={extracting}
                     detailLoading={detailLoading}
                     linkedClientId={threadContact.clientId}
@@ -914,6 +942,7 @@ export default function Inbox() {
                 onEditContact={() => setEditOpen(true)}
                 onBookAppointment={openBookingModal}
                 onGenerateAppointment={handleGenerateAppointment}
+                onDeleteContact={handleDeleteContact}
                 extractAppointmentBusy={extracting}
                 detailLoading={detailLoading}
                 linkedClientId={threadContact.clientId}
@@ -976,6 +1005,7 @@ export default function Inbox() {
                     onEditContact={() => setEditOpen(true)}
                     onBookAppointment={openBookingModal}
                     onGenerateAppointment={handleGenerateAppointment}
+                    onDeleteContact={handleDeleteContact}
                     extractAppointmentBusy={extracting}
                     detailLoading={detailLoading}
                     linkedClientId={threadContact.clientId}
@@ -1021,6 +1051,7 @@ export default function Inbox() {
               onEditContact={() => setEditOpen(true)}
               onBookAppointment={openBookingModal}
               onGenerateAppointment={handleGenerateAppointment}
+              onDeleteContact={handleDeleteContact}
               extractAppointmentBusy={extracting}
               detailLoading={detailLoading}
               linkedClientId={threadContact.clientId}
@@ -1054,6 +1085,15 @@ export default function Inbox() {
       )}
 
       <AiChatExtractingOverlay open={extracting} />
+
+      <DeleteContactConfirmModal
+        open={deleteConfirmOpen}
+        confirming={deleteSubmitting}
+        onClose={() => {
+          if (!deleteSubmitting) setDeleteConfirmOpen(false)
+        }}
+        onConfirm={handleConfirmDeleteContact}
+      />
 
       {generateConfirmOpen && (
         <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">

@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react'
-import { API_BASE_URL, fetchJson } from '../../../../../api'
+import { API_BASE_URL } from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
 import type { Appointment } from '../../types'
+
+function rescheduleDraftKey(appointmentId?: number) {
+  return appointmentId ? `calendarRescheduleDraft:${appointmentId}` : 'calendarRescheduleDraft:unknown'
+}
 
 interface RescheduleAppointmentModalProps {
   appointment: Appointment
@@ -34,19 +38,35 @@ export default function RescheduleAppointmentModal({
   const { alert } = useModal()
   const [date, setDate] = useState(() => getDateStr(appointment))
   const [time, setTime] = useState(appointment.time || '')
-  const [adminId, setAdminId] = useState<number | ''>(appointment.adminId ?? '')
-  const [admins, setAdmins] = useState<{ id: number; name: string | null; email: string }[]>([])
   const [submitting, setSubmitting] = useState(false)
 
+  // Restore draft (date/time) after refresh while modal was open.
   useEffect(() => {
-    fetchJson(`${API_BASE_URL}/admins`)
-      .then((d) => setAdmins(d))
-      .catch(() => setAdmins([]))
-  }, [])
+    try {
+      const raw = localStorage.getItem(rescheduleDraftKey(appointment.id))
+      if (!raw) return
+      const parsed = JSON.parse(raw) as { date?: string; time?: string }
+      if (parsed?.date) setDate(parsed.date)
+      if (parsed?.time) setTime(parsed.time)
+    } catch {
+      /* ignore */
+    }
+    // Only restore once per appointment id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointment.id])
+
+  // Persist draft while typing.
+  useEffect(() => {
+    try {
+      localStorage.setItem(rescheduleDraftKey(appointment.id), JSON.stringify({ date, time }))
+    } catch {
+      /* ignore */
+    }
+  }, [appointment.id, date, time])
 
   const handleSubmit = async () => {
-    if (!date || !time || !adminId) {
-      await alert('Please provide date, time, and admin.')
+    if (!date || !time) {
+      await alert('Please provide date and time.')
       return
     }
     setSubmitting(true)
@@ -59,7 +79,6 @@ export default function RescheduleAppointmentModal({
           templateId: appointment.templateId ?? undefined,
           date,
           time,
-          adminId: Number(adminId),
           status: 'APPOINTED',
           employeeIds: [],
           noTeam: false,
@@ -78,6 +97,11 @@ export default function RescheduleAppointmentModal({
           body: JSON.stringify({ status: 'RESCHEDULE_OLD' }),
         })
       }
+      try {
+        localStorage.removeItem(rescheduleDraftKey(appointment.id))
+      } catch {
+        /* ignore */
+      }
       onRescheduled(newAppointment)
       onClose()
     } finally {
@@ -95,7 +119,18 @@ export default function RescheduleAppointmentModal({
     <div className="bg-white rounded-xl shadow-lg w-full max-w-xl overflow-hidden max-h-[90vh] flex flex-col">
       <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-2 shrink-0">
         <h2 className="text-lg font-semibold text-slate-800">Reschedule Appointment</h2>
-        <button type="button" onClick={onClose} className={btnClose}>
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              localStorage.removeItem(rescheduleDraftKey(appointment.id))
+            } catch {
+              /* ignore */
+            }
+            onClose()
+          }}
+          className={btnClose}
+        >
           ×
         </button>
       </div>
@@ -149,31 +184,25 @@ export default function RescheduleAppointmentModal({
           </div>
         </div>
 
-        <div className={blockClass}>
-          <h4 className={sectionTitleClass}>Admin</h4>
-          <label className="block text-sm text-slate-600 mb-1">Admin</label>
-          <select
-            className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            value={adminId}
-            onChange={(e) => setAdminId(e.target.value ? Number(e.target.value) : '')}
-          >
-            <option value="">Select admin</option>
-            {admins.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name || a.email}
-              </option>
-            ))}
-          </select>
-        </div>
-
         <div className="flex gap-2 justify-end pt-2 border-t border-slate-200">
-          <button type="button" className={btnCancel} onClick={onClose}>
+          <button
+            type="button"
+            className={btnCancel}
+            onClick={() => {
+              try {
+                localStorage.removeItem(rescheduleDraftKey(appointment.id))
+              } catch {
+                /* ignore */
+              }
+              onClose()
+            }}
+          >
             Cancel
           </button>
           <button
             type="button"
             className={btnPrimary}
-            disabled={submitting || !date || !time || !adminId}
+            disabled={submitting || !date || !time}
             onClick={handleSubmit}
           >
             {submitting ? 'Rescheduling…' : 'Reschedule'}

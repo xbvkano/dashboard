@@ -126,8 +126,6 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   const [date, setDate] = useState<string>(persisted.date ?? '')
   const [time, setTime] = useState<string>(persisted.time ?? '')
 
-  const [admins, setAdmins] = useState<{ id: number; name: string | null; email: string }[]>([])
-  const [adminId, setAdminId] = useState<number | ''>(persisted.adminId ?? '')
   const [paid, setPaid] = useState<boolean>(persisted.paid ?? false)
   const [tip, setTip] = useState<string>(persisted.tip ?? '')
   const [paymentMethod, setPaymentMethod] = useState<string>(persisted.paymentMethod ?? '')
@@ -231,8 +229,6 @@ const preserveTeamRef = useRef(false)
         const employeeIds = initialAppointment.employees.map((e) => e.id).filter((id): id is number => id !== undefined)
         setSelectedEmployees(employeeIds)
       }
-      if (initialAppointment.adminId)
-        setAdminId(initialAppointment.adminId)
       if (initialAppointment.paid !== undefined) setPaid(initialAppointment.paid)
       if (initialAppointment.tip != null) setTip(String(initialAppointment.tip))
       if (initialAppointment.paymentMethod)
@@ -263,8 +259,6 @@ const preserveTeamRef = useRef(false)
           if (s.templateForm) setTemplateForm({ ...templateForm, ...s.templateForm })
           if (s.date) setDate(s.date)
           if (s.time) setTime(s.time)
-          if (typeof s.adminId !== 'undefined')
-            setAdminId(s.adminId === '' ? '' : Number(s.adminId))
           if (typeof s.paid === 'boolean') setPaid(s.paid)
           if (s.tip) setTip(s.tip)
           if (s.paymentMethod) setPaymentMethod(s.paymentMethod)
@@ -302,7 +296,6 @@ const preserveTeamRef = useRef(false)
       templateForm,
       date,
       time,
-      adminId,
       paid,
       tip,
       paymentMethod,
@@ -316,7 +309,7 @@ const preserveTeamRef = useRef(false)
       carpetEmployees,
     }
     localStorage.setItem('createAppointmentState', JSON.stringify(data))
-  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, adminId, paid, tip, paymentMethod, otherPayment, employeeSearch, selectedEmployees, carpetEnabled, carpetRooms, templateForm.carpetPrice, overrideCarpetPrice, carpetEmployees])
+  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, paid, tip, paymentMethod, otherPayment, employeeSearch, selectedEmployees, carpetEnabled, carpetRooms, templateForm.carpetPrice, overrideCarpetPrice, carpetEmployees])
 
   useEffect(() => {
     if (selectedTemplate !== null) {
@@ -386,15 +379,7 @@ const preserveTeamRef = useRef(false)
     setNewClient({ name: '', number: '', notes: '', from: '' })
     setTemplates([])
     resetTemplateRelated()
-    setAdminId('')
   }
-
-  // Load admins on mount
-  useEffect(() => {
-    fetchJson(`${API_BASE_URL}/admins`)
-      .then((d) => setAdmins(d))
-      .catch((err) => console.error(err))
-  }, [])
 
   // Preload client if provided
   useEffect(() => {
@@ -744,7 +729,6 @@ const preserveTeamRef = useRef(false)
     if (!selectedTemplate) missing.push('template')
     if (!date) missing.push('date')
     if (!time) missing.push('time')
-    if (!adminId) missing.push('admin')
     if (missing.length > 0) {
       await alert('Please provide: ' + missing.join(', '))
       return
@@ -805,7 +789,6 @@ const preserveTeamRef = useRef(false)
       time,
       hours: undefined, // Server calculates from template
       employeeIds: [], // Team assigned via Team Options after creation
-      adminId: adminId || undefined,
       paid,
       paymentMethod: paid ? (paymentMethod || 'CASH') : 'CASH',
       paymentMethodNote:
@@ -1435,30 +1418,6 @@ const preserveTeamRef = useRef(false)
           </div>
         )}
 
-        {/* Admin block */}
-        {selectedTemplate && (
-          <div className={blockClass}>
-            <h4 className={sectionTitleClass}>Admin</h4>
-            <label className="block text-sm text-slate-600 mb-1">Admin <span className="text-red-500">*</span></label>
-            <select
-              id="appointment-admin"
-              className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              value={adminId}
-              onChange={(e) => {
-                const val = e.target.value
-                setAdminId(val ? Number(val) : '')
-              }}
-            >
-              <option value="">Select admin</option>
-              {admins.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name || a.email}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
         {/* Payment/Paid is only editable in Appointment Details modal, not in Create/Edit modal */}
 
         {/* Actions */}
@@ -1475,7 +1434,6 @@ const preserveTeamRef = useRef(false)
               !date ||
               !time ||
               !isValidCarpet() ||
-              !adminId ||
               false &&
               creating
             }

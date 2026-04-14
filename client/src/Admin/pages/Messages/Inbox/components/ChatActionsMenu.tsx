@@ -5,6 +5,7 @@ type Props = {
   onEditContact: () => void
   onBookAppointment: () => void
   onGenerateAppointment: () => void
+  onDeleteContact?: () => void | Promise<void>
   extractAppointmentBusy?: boolean
   /** Linked CRM client id — enables "View client". */
   linkedClientId?: number | null
@@ -20,6 +21,7 @@ export default function ChatActionsMenu({
   onEditContact,
   onBookAppointment,
   onGenerateAppointment,
+  onDeleteContact,
   extractAppointmentBusy,
   linkedClientId,
   onViewClient,
@@ -121,6 +123,19 @@ export default function ChatActionsMenu({
                 : conversationStatus === 'ARCHIVED'
                   ? 'Restore to inbox'
                   : 'Archive conversation'}
+            </button>
+          )}
+          {onDeleteContact && (
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-red-700 border-t border-slate-100"
+              onClick={() => {
+                setOpen(false)
+                void onDeleteContact()
+              }}
+            >
+              Delete contact
             </button>
           )}
         </div>

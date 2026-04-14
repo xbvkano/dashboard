@@ -12,6 +12,7 @@ import {
   updateClientForConversation,
 } from '../services/messaging/contactMessagingService'
 import { isSupabaseStorageConfigured, uploadBufferToMessaging } from '../services/supabaseStorage'
+import { deleteMessagingStorageKeys } from '../services/supabaseStorage'
 import { extensionForMime } from '../services/messaging/twilioInboundMedia'
 import type { ConversationDetailDto } from '../types/messaging'
 import { mapConversationsToInboxDto } from '../utils/messagingDto'
@@ -708,6 +709,65 @@ export async function patchConversationStatus(req: Request, res: Response) {
   } catch (e: unknown) {
     console.error(e)
     res.status(400).json({ error: e instanceof Error ? e.message : 'Failed to update conversation' })
+  }
+}
+
+/**
+ * Delete the messaging "contact" behind a conversation:
+ * - deletes all conversations for that ContactPoint (all business numbers)
+ * - deletes all messages + media rows (cascade)
+ * - deletes Supabase objects for MessageMedia storageKey
+ * - deletes the ContactPoint itself
+ *
+ * Does NOT delete Client or Appointments.
+ */
+export async function deleteConversationContact(req: Request, res: Response) {
+  const id = parseInt(req.params.id, 10)
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid id' })
+  }
+  const userId = parseUserIdHeader(req.headers['x-user-id'])
+  if (userId == null) {
+    return res.status(400).json({ error: 'x-user-id header required' })
+  }
+
+  try {
+    const conv = await prisma.conversation.findUnique({
+      where: { id },
+      select: { id: true, contactPointId: true },
+    })
+    if (!conv) {
+      return res.status(404).json({ error: 'Conversation not found' })
+    }
+
+    const allConvs = await prisma.conversation.findMany({
+      where: { contactPointId: conv.contactPointId },
+      select: { id: true },
+    })
+    const convIds = allConvs.map((c) => c.id)
+
+    const media = convIds.length
+      ? await prisma.messageMedia.findMany({
+          where: { message: { conversationId: { in: convIds } } },
+          select: { storageKey: true },
+        })
+      : []
+    const storageKeys = media.map((m) => m.storageKey).filter(Boolean)
+
+    // Delete objects first; then DB rows. If object delete fails, we still delete DB rows.
+    await deleteMessagingStorageKeys(storageKeys)
+
+    await prisma.$transaction(async (tx) => {
+      if (convIds.length) {
+        await tx.conversation.deleteMany({ where: { id: { in: convIds } } })
+      }
+      await tx.contactPoint.delete({ where: { id: conv.contactPointId } })
+    })
+
+    res.json({ ok: true, deletedConversations: convIds.length, deletedMediaObjects: storageKeys.length })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Failed to delete contact' })
   }
 }
 

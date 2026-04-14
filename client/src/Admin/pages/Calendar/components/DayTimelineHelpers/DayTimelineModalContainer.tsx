@@ -3,10 +3,9 @@ import { API_BASE_URL, fetchJson } from '../../../../../api'
 import type { Appointment } from '../../types'
 import AppointmentDetails from './AppointmentDetails'
 import TeamOptionsModal from './TeamOptionsModal'
-import EditAppointmentModal from './EditAppointmentModal'
 import RescheduleAppointmentModal from './RescheduleAppointmentModal'
 
-export type DayTimelineModalView = 'details' | 'team-options' | 'edit' | 'reschedule'
+export type DayTimelineModalView = 'details' | 'team-options' | 'reschedule'
 
 interface DayTimelineModalContainerProps {
   view: DayTimelineModalView
@@ -72,7 +71,7 @@ export default function DayTimelineModalContainer({
   return (
     <>
       {/* When editing or rescheduling, the modal has its own chrome; hide backdrop for edit only */}
-      {view !== 'edit' && (
+      {(
         <div
           className="fixed inset-0 bg-black/50"
           style={{ zIndex: 9999 }}
@@ -85,7 +84,7 @@ export default function DayTimelineModalContainer({
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className={`w-full max-w-xl max-h-[90vh] min-h-0 overflow-y-auto overflow-x-hidden flex flex-col items-center ${view === 'team-options' || view === 'edit' || view === 'reschedule' ? 'justify-center' : 'justify-start'}`}
+          className={`w-full max-w-xl max-h-[90vh] min-h-0 overflow-y-auto overflow-x-hidden flex flex-col items-center ${view === 'team-options' || view === 'reschedule' ? 'justify-center' : 'justify-start'}`}
           onClick={(e) => e.stopPropagation()}
         >
           {view === 'details' && (
@@ -100,7 +99,6 @@ export default function DayTimelineModalContainer({
               onRequestSkip={onRequestSkip}
               onRequestConfirm={onRequestConfirm}
               onOpenTeamOptions={() => onViewChange('team-options')}
-              onOpenEdit={() => onViewChange('edit')}
               onOpenReschedule={() => onViewChange('reschedule')}
               onViewInCalendar={onViewInCalendar}
             />
@@ -115,16 +113,6 @@ export default function DayTimelineModalContainer({
               }}
               templateTeamSize={templateTeamSize}
               embed
-            />
-          )}
-          {view === 'edit' && (
-            <EditAppointmentModal
-              appointment={appointment}
-              onClose={() => onViewChange('details')}
-              onSaved={(updated) => {
-                onUpdate(updated)
-                onViewChange('details')
-              }}
             />
           )}
           {view === 'reschedule' && onRescheduled && (

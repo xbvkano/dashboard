@@ -47,8 +47,6 @@ interface AppointmentDetailsProps {
   onRequestConfirm?: () => void
   /** Called when user opens Team Options (so parent can switch modal view). */
   onOpenTeamOptions?: () => void
-  /** Called when user opens Edit (so parent can switch to edit view; details go away). */
-  onOpenEdit?: () => void
   /** Called when user opens Reschedule (so parent can switch to reschedule modal). */
   onOpenReschedule?: () => void
   /** When provided, show "View in Calendar" button (e.g. when modal is open from Schedule page). */
@@ -66,7 +64,6 @@ export default function AppointmentDetails({
   onRequestSkip,
   onRequestConfirm,
   onOpenTeamOptions,
-  onOpenEdit,
   onOpenReschedule,
   onViewInCalendar,
 }: AppointmentDetailsProps) {
@@ -411,15 +408,6 @@ export default function AppointmentDetails({
       <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-2 shrink-0">
         <h3 className="text-lg font-semibold text-slate-800">Appointment Details</h3>
         <div className="flex items-center gap-2 shrink-0">
-          {!onViewInCalendar && !isRecurringUnconfirmed && (
-            <button
-              type="button"
-              onClick={() => onOpenEdit ? onOpenEdit() : onEdit(appointment)}
-              className="px-4 py-2 text-sm font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              Edit
-            </button>
-          )}
           <button onClick={onClose} className="text-slate-500 hover:text-slate-700 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded hover:bg-slate-200 transition-colors">
             ×
           </button>
@@ -864,7 +852,7 @@ export default function AppointmentDetails({
               </button>
               <button
                 type="button"
-                onClick={() => onOpenEdit ? onOpenEdit() : onEdit(appointment)}
+                onClick={() => onEdit(appointment)}
                 className="px-4 py-2.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors col-span-2 w-full"
               >
                 Edit appointment

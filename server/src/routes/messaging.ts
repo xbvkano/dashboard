@@ -20,6 +20,7 @@ import {
   postMockAppointmentExtraction,
   postOutboundMessage,
   postStartConversationFromContact,
+  deleteConversationContact,
 } from '../controllers/messagingController'
 
 const router = Router()
@@ -49,6 +50,7 @@ router.delete('/messaging/conversations/:id/presence', deleteConversationPresenc
 router.get('/messaging/conversations/:id', getConversationDetail)
 router.patch('/messaging/conversations/:id/client', patchConversationClient)
 router.patch('/messaging/conversations/:id/status', patchConversationStatus)
+router.delete('/messaging/conversations/:id/contact', deleteConversationContact)
 router.post('/messaging/conversations/:id/extract-appointment', postExtractAppointmentFromConversation)
 router.post(
   '/messaging/conversations/:id/extract-appointment/images',

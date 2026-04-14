@@ -6,12 +6,25 @@ import { sendEmployeeRemindersForAppointmentIds } from '../jobs/unconfirmedCheck
 import { normalizePhone } from '../utils/phoneUtils'
 import { twilioMessageCreateParams } from '../utils/twilioSms'
 import twilio from 'twilio'
+import { parseUserIdHeader } from '../utils/httpUser'
 
 const prisma = new PrismaClient()
 const smsClient = twilio(
   process.env.TWILIO_ACCOUNT_SID || '',
   process.env.TWILIO_AUTH_TOKEN || '',
 )
+
+async function resolveAdminIdForWrite(req: Request): Promise<number | null> {
+  const headerUserId = parseUserIdHeader(req.headers['x-user-id'])
+  if (headerUserId == null) return null
+  const user = await prisma.user.findUnique({
+    where: { id: headerUserId },
+    select: { id: true, role: true },
+  })
+  if (!user) return null
+  if (user.role !== 'ADMIN' && user.role !== 'OWNER') return null
+  return user.id
+}
 
 /**
  * Parse date string (YYYY-MM-DD) as UTC midnight
@@ -216,8 +229,10 @@ export async function createAppointment(req: Request, res: Response) {
       noTeam?: boolean
     }
 
+    const effectiveAdminId = typeof adminId === 'number' ? adminId : await resolveAdminIdForWrite(req)
+
     // required-field guard
-    if (!clientId || !templateId || !date || !time || !adminId) {
+    if (!clientId || !templateId || !date || !time || !effectiveAdminId) {
       return res.status(400).json({ error: 'Missing required fields' })
     }
 
@@ -256,7 +271,7 @@ export async function createAppointment(req: Request, res: Response) {
     const appt = await prisma.appointment.create({
       data: {
         clientId,              // scalar shortcut instead of nested connect
-        adminId,               // same here
+        adminId: effectiveAdminId, // always attribute to current signed-in admin (fallback: explicit adminId)
         templateId,            // Save templateId to database
         date: new Date(date),
         time,

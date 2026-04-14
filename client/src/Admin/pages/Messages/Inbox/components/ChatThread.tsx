@@ -13,6 +13,7 @@ type Props = {
   onEditContact: () => void
   onBookAppointment: () => void
   onGenerateAppointment: () => void
+  onDeleteContact?: () => void | Promise<void>
   extractAppointmentBusy?: boolean
   detailLoading?: boolean
   linkedClientId?: number | null
@@ -57,6 +58,7 @@ export default function ChatThread({
   onEditContact,
   onBookAppointment,
   onGenerateAppointment,
+  onDeleteContact,
   extractAppointmentBusy,
   detailLoading,
   linkedClientId,
@@ -137,6 +139,7 @@ export default function ChatThread({
         onEditContact={onEditContact}
         onBookAppointment={onBookAppointment}
         onGenerateAppointment={onGenerateAppointment}
+        onDeleteContact={onDeleteContact}
         extractAppointmentBusy={extractAppointmentBusy}
         linkedClientId={linkedClientId}
         onViewClient={onViewClient}

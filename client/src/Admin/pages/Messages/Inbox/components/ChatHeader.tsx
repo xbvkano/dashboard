@@ -9,6 +9,7 @@ type Props = {
   onEditContact: () => void
   onBookAppointment: () => void
   onGenerateAppointment: () => void
+  onDeleteContact?: () => void | Promise<void>
   extractAppointmentBusy?: boolean
   linkedClientId?: number | null
   onViewClient?: () => void
@@ -28,6 +29,7 @@ export default function ChatHeader({
   onEditContact,
   onBookAppointment,
   onGenerateAppointment,
+  onDeleteContact,
   extractAppointmentBusy,
   linkedClientId,
   onViewClient,
@@ -75,6 +77,7 @@ export default function ChatHeader({
             onEditContact={onEditContact}
             onBookAppointment={onBookAppointment}
             onGenerateAppointment={onGenerateAppointment}
+            onDeleteContact={onDeleteContact}
             extractAppointmentBusy={extractAppointmentBusy}
             linkedClientId={linkedClientId}
             onViewClient={onViewClient}

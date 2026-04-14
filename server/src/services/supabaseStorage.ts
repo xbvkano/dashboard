@@ -115,6 +115,25 @@ export async function uploadBufferToMessaging(
 }
 
 /**
+ * Delete objects from the configured bucket. Safe no-op when storage is not configured.
+ */
+export async function deleteMessagingStorageKeys(storageKeys: string[]): Promise<void> {
+  const keys = (storageKeys ?? []).map((k) => String(k)).filter((k) => k.trim().length > 0)
+  if (keys.length === 0) return
+  if (!isSupabaseStorageConfigured()) return
+  const supabase = getClient()
+  const bucket = getSupabaseStorageBucket()
+  const { error } = await supabase.storage.from(bucket).remove(keys)
+  if (error) {
+    const hint = storageErrorHint(bucket, error.message)
+    console.warn(
+      `[supabase-storage] remove ${keys.length} object(s) failed: ${error.message}.${hint} ` +
+        `Continuing to delete database rows anyway.`,
+    )
+  }
+}
+
+/**
  * Twilio MMS and the CRM image request fetch this URL **without** Supabase cookies.
  * If HEAD is not OK (often 403), turn on **public** read for this bucket or add a
  * storage.objects SELECT policy for role `anon` in Supabase SQL.
