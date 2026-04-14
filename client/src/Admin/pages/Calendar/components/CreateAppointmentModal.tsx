@@ -2,7 +2,24 @@ import { useEffect, useState, useRef } from 'react'
 import { Client } from '../../Clients/components/types'
 import type { AppointmentTemplate } from '../types'
 import type { Employee } from '../../Employees/components/types'
-import { API_BASE_URL, fetchJson } from '../../../../api'
+import { API_BASE_URL, attachDashboardUserHeaders, fetchJson } from '../../../../api'
+
+const skipNgrokWarning =
+  import.meta.env.VITE_NGROK === 'true' || import.meta.env.VITE_NGROK === '1'
+
+function dashboardJsonHeaders(): Headers {
+  const headers = new Headers({ 'Content-Type': 'application/json' })
+  attachDashboardUserHeaders(headers)
+  if (skipNgrokWarning) headers.set('ngrok-skip-browser-warning', '1')
+  return headers
+}
+
+function dashboardHeadersNoBody(): Headers {
+  const headers = new Headers()
+  attachDashboardUserHeaders(headers)
+  if (skipNgrokWarning) headers.set('ngrok-skip-browser-warning', '1')
+  return headers
+}
 import { useModal } from '../../../../ModalProvider'
 import { formatPhone } from '../../../../formatPhone'
 
@@ -574,7 +591,7 @@ const preserveTeamRef = useRef(false)
     }
     const res = await fetch(`${API_BASE_URL}/clients`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
+      headers: dashboardJsonHeaders(),
       body: JSON.stringify(payload),
     })
     if (res.ok) {
@@ -666,7 +683,7 @@ const preserveTeamRef = useRef(false)
     }
     const res = await fetch(`${API_BASE_URL}/appointment-templates`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
+      headers: dashboardJsonHeaders(),
       body: JSON.stringify(payload),
     })
     if (res.ok) {
@@ -707,7 +724,7 @@ const preserveTeamRef = useRef(false)
     if (!ok) return
     const res = await fetch(`${API_BASE_URL}/appointment-templates/${selectedTemplate}`, {
       method: 'DELETE',
-      headers: { "ngrok-skip-browser-warning": "1" },
+      headers: dashboardHeadersNoBody(),
     })
     if (res.ok) {
       setTemplates((p) => p.filter((tt) => tt.id !== selectedTemplate))
@@ -819,7 +836,7 @@ const preserveTeamRef = useRef(false)
     try {
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
+        headers: dashboardJsonHeaders(),
         body: JSON.stringify(payload),
       })
       
@@ -1006,7 +1023,7 @@ const preserveTeamRef = useRef(false)
 
         {/* Template block */}
         {selectedClient && (
-          <div className={blockClass}>
+          <div className={`${blockClass} min-w-0`}>
             <h4 className={sectionTitleClass}>Template</h4>
             {showNewTemplate ? (
               <div className="space-y-3">
@@ -1308,9 +1325,9 @@ const preserveTeamRef = useRef(false)
                 })()}
               </>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
                 <select
-                  className="flex-1 border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="min-h-[44px] w-full min-w-0 max-w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:flex-1"
                   value={selectedTemplate ?? ''}
                     onChange={(e) => {
                       resetTemplateRelated()
@@ -1333,15 +1350,19 @@ const preserveTeamRef = useRef(false)
                       </option>
                     ))}
                   </select>
-                <button type="button" className={btnSecondary} onClick={() => {
+                <button
+                  type="button"
+                  className={`${btnSecondary} shrink-0 self-stretch whitespace-nowrap sm:self-auto`}
+                  onClick={() => {
                   setEditing(false)
                   setTemplateForm({
                     templateName: '', type: '', size: '', teamSize: '', address: '', price: '', notes: '', instructions: '',
                     carpetEnabled: false, carpetRooms: '', carpetPrice: '',
                   })
                   setShowNewTemplate(true)
-                }}>
-                  New
+                }}
+                >
+                  New template
                 </button>
               </div>
             )}
