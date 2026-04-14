@@ -7,6 +7,7 @@ type Props = {
   showBack: boolean
   onBack: () => void
   onEditContact: () => void
+  onBookAppointment: () => void
   /** Mobile full-screen chat hides the list header — show Mocking here */
   showMockingToggle?: boolean
   mockingEnabled?: boolean
@@ -18,6 +19,7 @@ export default function ChatHeader({
   showBack,
   onBack,
   onEditContact,
+  onBookAppointment,
   showMockingToggle,
   mockingEnabled,
   onMockingChange,
@@ -54,7 +56,11 @@ export default function ChatHeader({
             <MockingToggle enabled={mockingEnabled} onChange={onMockingChange} />
           </div>
         )}
-      <ChatActionsMenu conversationId={conversation.id} onEditContact={onEditContact} />
+      <ChatActionsMenu
+        conversationId={conversation.id}
+        onEditContact={onEditContact}
+        onBookAppointment={onBookAppointment}
+      />
     </header>
   )
 }

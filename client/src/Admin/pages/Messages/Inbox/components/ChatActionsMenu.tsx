@@ -3,9 +3,10 @@ import { useEffect, useRef, useState } from 'react'
 type Props = {
   conversationId: number
   onEditContact: () => void
+  onBookAppointment: () => void
 }
 
-export default function ChatActionsMenu({ conversationId, onEditContact }: Props) {
+export default function ChatActionsMenu({ conversationId, onEditContact, onBookAppointment }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -54,7 +55,7 @@ export default function ChatActionsMenu({ conversationId, onEditContact }: Props
             className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-800"
             onClick={() => {
               setOpen(false)
-              console.log('Book Appointment clicked', { conversationId })
+              onBookAppointment()
             }}
           >
             Book Appointment

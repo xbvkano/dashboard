@@ -5,6 +5,10 @@ import ChatThread from './components/ChatThread'
 import InboxTakeOverConfirmModal from './components/InboxTakeOverConfirmModal'
 import NewConversationModal from './components/NewConversationModal'
 import EditContactModal from './components/EditContactModal'
+import BookAppointmentModal, {
+  defaultDraft,
+  type BookAppointmentDraft,
+} from './components/BookAppointmentModal'
 import { useMediaQuery } from './useMediaQuery'
 import {
   type ConversationDetail,
@@ -25,6 +29,7 @@ import type { ThreadContact, ThreadMessage } from './types'
 import { isDevToolsEnabled } from '../../../../devTools'
 
 const MESSAGING_MOCK_SESSION_KEY = 'messagingMockSms'
+const MESSAGING_BOOK_DRAFTS_KEY = 'messagingBookAppointmentDrafts'
 
 function shouldShowInboxMockingToggle(): boolean {
   if (!isDevToolsEnabled) return false
@@ -107,6 +112,23 @@ export default function Inbox() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [newOpen, setNewOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [bookOpen, setBookOpen] = useState(false)
+  const [draftsByConversationId, setDraftsByConversationId] = useState<Record<number, BookAppointmentDraft>>(() => {
+    try {
+      const raw = localStorage.getItem(MESSAGING_BOOK_DRAFTS_KEY)
+      if (!raw) return {}
+      const parsed = JSON.parse(raw) as Record<string, BookAppointmentDraft>
+      const out: Record<number, BookAppointmentDraft> = {}
+      for (const [k, v] of Object.entries(parsed || {})) {
+        const id = parseInt(k, 10)
+        if (!Number.isNaN(id) && v && typeof v === 'object') out[id] = v
+      }
+      return out
+    } catch {
+      return {}
+    }
+  })
+  const [toast, setToast] = useState<string | null>(null)
   const [mockingEnabled, setMockingEnabled] = useState(readInitialMockingEnabled)
   const didInitSelect = useRef(false)
   const selectedIdRef = useRef<number | null>(null)
@@ -144,6 +166,14 @@ export default function Inbox() {
       /* ignore */
     }
   }, [mockingEnabled])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MESSAGING_BOOK_DRAFTS_KEY, JSON.stringify(draftsByConversationId))
+    } catch {
+      /* ignore */
+    }
+  }, [draftsByConversationId])
 
   /**
    * Inbox scrolls inside the thread/list only. Without this, new photos / poll updates can grow
@@ -490,6 +520,58 @@ export default function Inbox() {
     }
   }, [selectedId, refreshList])
 
+  const openBookingModal = useCallback(() => {
+    if (!selectedIdRef.current) return
+    const id = selectedIdRef.current
+    setDraftsByConversationId((prev) => {
+      if (prev[id]) return prev
+      return { ...prev, [id]: defaultDraft() }
+    })
+    setBookOpen(true)
+  }, [])
+
+  const activeDraft = useMemo(() => {
+    if (!selectedId) return null
+    return draftsByConversationId[selectedId] ?? null
+  }, [selectedId, draftsByConversationId])
+
+  const setActiveDraft = useCallback(
+    (next: BookAppointmentDraft) => {
+      if (!selectedIdRef.current) return
+      const id = selectedIdRef.current
+      setDraftsByConversationId((prev) => ({ ...prev, [id]: next }))
+    },
+    [],
+  )
+
+  const handleBooked = useCallback(async () => {
+    const id = selectedIdRef.current
+    if (id == null) return
+    setDraftsByConversationId((prev) => {
+      const { [id]: _omit, ...rest } = prev
+      return rest
+    })
+    await refreshList()
+    try {
+      const d = await fetchConversationDetail(id)
+      if (d.conversation.id === selectedIdRef.current) setDetail(d)
+      setToast('Appointment booked')
+      window.setTimeout(() => setToast(null), 2500)
+    } catch (e) {
+      console.error(e)
+    }
+  }, [refreshList])
+
+  const handleCancelBooking = useCallback(() => {
+    const id = selectedIdRef.current
+    if (id == null) return
+    setDraftsByConversationId((prev) => {
+      const { [id]: _omit, ...rest } = prev
+      return rest
+    })
+    setBookOpen(false)
+  }, [])
+
   const handleSimulateInboundSuccess = useCallback(async () => {
     await refreshList()
     const id = selectedIdRef.current
@@ -597,6 +679,7 @@ export default function Inbox() {
               onBack={() => {}}
               onSend={handleSend}
               onEditContact={() => setEditOpen(true)}
+              onBookAppointment={openBookingModal}
               detailLoading={detailLoading}
               showMockingToggle={showMockingToggle}
               mockingEnabled={mockingEnabled}
@@ -620,6 +703,7 @@ export default function Inbox() {
             onBack={handleBack}
             onSend={handleSend}
             onEditContact={() => setEditOpen(true)}
+            onBookAppointment={openBookingModal}
             detailLoading={detailLoading}
             showMockingToggle={showMockingToggle}
             mockingEnabled={mockingEnabled}
@@ -642,6 +726,27 @@ export default function Inbox() {
           initialNotes={threadContact.clientNotes ?? ''}
           onSaved={handleEditSaved}
         />
+      )}
+
+      {selectedId != null && activeDraft && (
+        <BookAppointmentModal
+          open={bookOpen}
+          conversationId={selectedId}
+          detail={detail?.conversation.id === selectedId ? detail : null}
+          draft={activeDraft}
+          onDraftChange={setActiveDraft}
+          onClose={() => setBookOpen(false)}
+          onCancel={handleCancelBooking}
+          onBooked={handleBooked}
+        />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[220] px-4">
+          <div className="rounded-full bg-slate-900 text-white text-sm px-4 py-2 shadow-lg">
+            {toast}
+          </div>
+        </div>
       )}
     </div>
   )

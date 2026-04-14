@@ -6,6 +6,7 @@ import {
   getConversationDetail,
   listConversations,
   patchConversationClient,
+  postBookAppointmentFromConversation,
   postConversationPresence,
   postInboundWebhook,
   postMarkConversationRead,
@@ -42,6 +43,7 @@ router.post('/messaging/conversations/:id/presence', postConversationPresence)
 router.delete('/messaging/conversations/:id/presence', deleteConversationPresence)
 router.get('/messaging/conversations/:id', getConversationDetail)
 router.patch('/messaging/conversations/:id/client', patchConversationClient)
+router.post('/messaging/conversations/:id/book-appointment', postBookAppointmentFromConversation)
 router.post('/messaging/conversations/:id/messages', optionalOutboundMultipart, postOutboundMessage)
 router.post('/messaging/inbound', postInboundWebhook)
 router.post('/messaging/sessions/:sessionId/extract-appointment', postMockAppointmentExtraction)

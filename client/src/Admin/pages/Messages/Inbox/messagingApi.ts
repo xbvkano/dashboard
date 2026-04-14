@@ -290,6 +290,55 @@ export async function patchConversationClient(
   })
 }
 
+export type MessagingBookAppointmentInput = {
+  clientName?: string
+  appointmentAddress: string
+  price: number
+  date: string
+  time: string
+  notes?: string
+  size: string
+  serviceType: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
+}
+
+export type MessagingBookAppointmentResponse = {
+  success: true
+  message: string
+  sessionId: number
+  appointment: Record<string, unknown>
+  client: Record<string, unknown>
+  template: Record<string, unknown>
+}
+
+export async function postBookAppointmentFromConversation(
+  conversationId: number,
+  input: MessagingBookAppointmentInput,
+): Promise<MessagingBookAppointmentResponse> {
+  return fetchJson(`${API_BASE_URL}/messaging/conversations/${conversationId}/book-appointment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export type ClientAppointment = {
+  id: number
+  date: string
+  time: string
+  address: string | null
+  type: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
+  size: string | null
+  price: number
+  notes: string | null
+}
+
+export async function fetchClientAppointments(clientId: number, take = 25): Promise<ClientAppointment[]> {
+  const params = new URLSearchParams()
+  params.set('take', String(take))
+  const qs = params.toString()
+  return fetchJson(`${API_BASE_URL}/clients/${clientId}/appointments?${qs}`)
+}
+
 export function formatApiError(e: unknown): string {
   if (e instanceof Error) {
     try {

@@ -11,6 +11,7 @@ type Props = {
   onBack: () => void
   onSend: (text: string, files?: File[]) => void | Promise<void>
   onEditContact: () => void
+  onBookAppointment: () => void
   detailLoading?: boolean
   showMockingToggle?: boolean
   mockingEnabled?: boolean
@@ -45,6 +46,7 @@ export default function ChatThread({
   onBack,
   onSend,
   onEditContact,
+  onBookAppointment,
   detailLoading,
   showMockingToggle,
   mockingEnabled,
@@ -116,6 +118,7 @@ export default function ChatThread({
         showBack={showBack}
         onBack={onBack}
         onEditContact={onEditContact}
+        onBookAppointment={onBookAppointment}
         showMockingToggle={showMockingToggle}
         mockingEnabled={mockingEnabled}
         onMockingChange={onMockingChange}
