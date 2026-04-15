@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 
 type Props = {
   onSend: (text: string, files?: File[]) => void | Promise<void>
@@ -6,11 +6,46 @@ type Props = {
 
 type PendingImage = { file: File; url: string }
 
+/** Half of the visual viewport — stable on mobile URL bar show/hide when using dvh */
+function maxComposerTextareaHeightPx(): number {
+  if (typeof window === 'undefined') return 400
+  const v = window.visualViewport
+  const h = v?.height ?? window.innerHeight
+  return Math.max(120, Math.floor(h * 0.5))
+}
+
 export default function MessageComposer({ onSend }: Props) {
   const [text, setText] = useState('')
   const [pending, setPending] = useState<PendingImage[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const galleryId = useId()
+
+  const syncTextareaHeight = useCallback(() => {
+    const el = textareaRef.current
+    if (!el) return
+    const maxH = maxComposerTextareaHeightPx()
+    const minH = 40
+    el.style.height = 'auto'
+    const contentH = el.scrollHeight
+    const next = Math.min(Math.max(contentH, minH), maxH)
+    el.style.height = `${next}px`
+    el.style.overflowY = contentH > maxH ? 'auto' : 'hidden'
+  }, [])
+
+  useEffect(() => {
+    syncTextareaHeight()
+  }, [text, syncTextareaHeight])
+
+  useEffect(() => {
+    const onResize = () => syncTextareaHeight()
+    window.addEventListener('resize', onResize)
+    window.visualViewport?.addEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.visualViewport?.removeEventListener('resize', onResize)
+    }
+  }, [syncTextareaHeight])
 
   const addFiles = (list: FileList | null) => {
     if (!list?.length) return
@@ -52,6 +87,7 @@ export default function MessageComposer({ onSend }: Props) {
       prev.forEach((p) => URL.revokeObjectURL(p.url))
       return []
     })
+    requestAnimationFrame(() => syncTextareaHeight())
   }
 
   const canSend = Boolean(text.trim() || pending.length > 0)
@@ -101,6 +137,7 @@ export default function MessageComposer({ onSend }: Props) {
           </svg>
         </button>
         <textarea
+          ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -111,7 +148,7 @@ export default function MessageComposer({ onSend }: Props) {
           }}
           placeholder="Message"
           rows={1}
-          className="flex-1 min-h-[40px] max-h-28 resize-y rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+          className="flex-1 min-h-[40px] max-h-[50dvh] resize-none rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50 box-border"
         />
         <button
           type="button"
