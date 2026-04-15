@@ -1,4 +1,4 @@
-import { Link, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Routes, Route, Navigate, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { useEffect } from 'react'
 import { isDevToolsEnabled } from '../devTools'
 import Home from './pages/Home'
@@ -90,7 +90,12 @@ function LegacyAccountsToContactsRedirect() {
 function ReloadDeepLinkRestore() {
   const navigate = useNavigate()
   const location = useLocation()
+  const historyAction = useNavigationType()
   useEffect(() => {
+    // Link / navigate() to home are PUSH or REPLACE. Only POP is the initial document
+    // load (including after a full reload). `PerformanceNavigationTiming.type` stays
+    // "reload" for the whole tab session after one F5, so it must not gate SPA navigations.
+    if (historyAction !== 'POP') return
     if (location.pathname !== '/dashboard') return
     if (location.search || location.hash) return
     let navType: string | undefined
@@ -109,7 +114,7 @@ function ReloadDeepLinkRestore() {
     } catch {
       /* ignore */
     }
-  }, [location.pathname, location.search, location.hash, navigate])
+  }, [location.pathname, location.search, location.hash, navigate, historyAction])
   return null
 }
 
