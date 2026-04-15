@@ -606,25 +606,9 @@ const preserveTeamRef = useRef(false)
     }
   }
 
-  const startEditTemplate = () => {
-    if (!selectedTemplate) return
-    const t = templates.find((tt) => tt.id === selectedTemplate)
-    if (!t) return
-    const base = t.templateName.replace(/_\d+$/, '')
-    let max = 0
-    templates
-      .filter((tt) =>
-        tt.templateName === base || tt.templateName.startsWith(base + '_')
-      )
-      .forEach((tt) => {
-        const match = tt.templateName.match(/_(\d+)$/)
-        if (match) {
-          const n = parseInt(match[1], 10)
-          if (n > max) max = n
-        }
-      })
+  const fillTemplateFormFrom = (t: AppointmentTemplate) => {
     setTemplateForm({
-      templateName: `${base}_${max + 1}`,
+      templateName: t.templateName,
       type: t.type,
       size: t.size || '',
       teamSize: String((t as any).teamSize ?? 1),
@@ -636,8 +620,28 @@ const preserveTeamRef = useRef(false)
       carpetRooms: t.carpetRooms || '',
       carpetPrice: t.carpetPrice != null ? String(t.carpetPrice) : '',
     })
+  }
+
+  /** Update the selected template in place (PATCH via PUT). */
+  const startEditTemplate = () => {
+    if (!selectedTemplate) return
+    const t = templates.find((tt) => tt.id === selectedTemplate)
+    if (!t) return
+    fillTemplateFormFrom(t)
     setEditing(true)
     setEditingTemplateId(selectedTemplate)
+    setShowNewTemplate(true)
+  }
+
+  /** New template pre-filled from the current one; name gets " - branch" so it stays unique. */
+  const startBranchTemplate = () => {
+    if (!selectedTemplate) return
+    const t = templates.find((tt) => tt.id === selectedTemplate)
+    if (!t) return
+    const branchedName = `${t.templateName.trim()} - branch`
+    fillTemplateFormFrom({ ...t, templateName: branchedName })
+    setEditing(false)
+    setEditingTemplateId(null)
     setShowNewTemplate(true)
   }
 
@@ -664,6 +668,56 @@ const preserveTeamRef = useRef(false)
       await alert('Please provide: ' + missing.join(', '))
       return
     }
+
+    if (editing && editingTemplateId != null) {
+      const putBody: Record<string, unknown> = {
+        templateName: templateForm.templateName.trim(),
+        type: templateForm.type,
+        size: templateForm.size,
+        teamSize: teamSizeNum,
+        address: templateForm.address.trim(),
+        price: priceNum,
+        notes: templateForm.notes?.trim() || undefined,
+        instructions: templateForm.instructions?.trim() || undefined,
+      }
+      if (templateForm.carpetEnabled) {
+        putBody.carpetRooms = parseInt(templateForm.carpetRooms, 10) || 0
+        putBody.carpetPrice = parseFloat(templateForm.carpetPrice) || 0
+      } else {
+        putBody.carpetRooms = null
+        putBody.carpetPrice = null
+      }
+      const res = await fetch(`${API_BASE_URL}/appointment-templates/${editingTemplateId}`, {
+        method: 'PUT',
+        headers: dashboardJsonHeaders(),
+        body: JSON.stringify(putBody),
+      })
+      if (res.ok) {
+        const t = await res.json()
+        setTemplates((p) =>
+          p.map((tt) =>
+            tt.id === editingTemplateId
+              ? {
+                  ...t,
+                  carpetEnabled: templateForm.carpetEnabled,
+                  carpetRooms: templateForm.carpetRooms,
+                  carpetPrice: templateForm.carpetEnabled ? parseFloat(templateForm.carpetPrice) : undefined,
+                }
+              : tt
+          )
+        )
+        setSelectedTemplate(editingTemplateId)
+        preserveTeamRef.current = true
+        setShowNewTemplate(false)
+        setEditing(false)
+        setEditingTemplateId(null)
+      } else {
+        const err = await res.json().catch(() => ({}))
+        await alert((err as { error?: string }).error || 'Failed to update template')
+      }
+      return
+    }
+
     const payload: any = {
       clientId: selectedClient.id,
       templateName: templateForm.templateName,
@@ -677,9 +731,7 @@ const preserveTeamRef = useRef(false)
     }
     if (templateForm.carpetEnabled) {
       payload.carpetRooms = parseInt(templateForm.carpetRooms, 10) || 0
-      if (editing) {
-        payload.carpetPrice = parseFloat(templateForm.carpetPrice) || 0
-      }
+      payload.carpetPrice = parseFloat(templateForm.carpetPrice) || 0
     }
     const res = await fetch(`${API_BASE_URL}/appointment-templates`, {
       method: 'POST',
@@ -688,27 +740,16 @@ const preserveTeamRef = useRef(false)
     })
     if (res.ok) {
       const t = await res.json()
-      setTemplates((p) => {
-        const filtered = editing && editingTemplateId
-          ? p.filter((tt) => tt.id !== editingTemplateId)
-          : p
-        return [
-          ...filtered,
-          {
-            ...t,
-            carpetEnabled: templateForm.carpetEnabled,
-            carpetRooms: templateForm.carpetRooms,
-            carpetPrice: editing
-              ? parseFloat(templateForm.carpetPrice)
-              : t.carpetPrice,
-          },
-        ]
-      })
-      if (editing) {
-        preserveTeamRef.current = true
-      } else {
-        resetTemplateRelated()
-      }
+      setTemplates((p) => [
+        ...p,
+        {
+          ...t,
+          carpetEnabled: templateForm.carpetEnabled,
+          carpetRooms: templateForm.carpetRooms,
+          carpetPrice: t.carpetPrice,
+        },
+      ])
+      resetTemplateRelated()
       setSelectedTemplate(t.id)
       setShowNewTemplate(false)
       setEditing(false)
@@ -1218,11 +1259,12 @@ const preserveTeamRef = useRef(false)
                     })
                     setShowNewTemplate(false)
                     setEditing(false)
+                    setEditingTemplateId(null)
                   }}>
                     Cancel
                   </button>
                   <button type="button" className={btnPrimary} onClick={createTemplate} disabled={!isTemplateReady}>
-                    Save Template
+                    {editing ? 'Save changes' : 'Save template'}
                   </button>
                 </div>
               </div>
@@ -1230,9 +1272,10 @@ const preserveTeamRef = useRef(false)
               <>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <p className="font-medium text-slate-900">{templates.find((t) => t.id === selectedTemplate)?.templateName}</p>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2 justify-end">
                     <button type="button" className={btnSecondary} onClick={resetTemplateRelated}>Change</button>
                     <button type="button" className={btnSecondary} onClick={startEditTemplate}>Edit</button>
+                    <button type="button" className={btnSecondary} onClick={startBranchTemplate}>Branch</button>
                     <button type="button" className="text-sm font-medium text-red-600 hover:text-red-800 py-1.5 px-3 rounded-lg border border-red-200 hover:bg-red-50 transition-colors" onClick={deleteTemplate}>Delete</button>
                   </div>
                 </div>

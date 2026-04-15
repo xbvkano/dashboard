@@ -865,8 +865,21 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
           }}
           onViewChange={setModalView}
           onCreate={onCreate!}
-          onEdit={onEdit!}
-          onRescheduled={onRescheduled ? (newAppt) => { setSelected(null); setModalView('details'); onRescheduled(newAppt); } : undefined}
+          onEdit={(appt) => {
+            writeCalendarAppointmentModalState(null)
+            setSelected(null)
+            setModalView('details')
+            onEdit!(appt)
+          }}
+          onRescheduled={
+            onRescheduled
+              ? (newAppt) => {
+                  setSelected(newAppt)
+                  setModalView('details')
+                  onRescheduled(newAppt)
+                }
+              : undefined
+          }
           onNavigateToDate={onNavigateToDate}
           onRefresh={onRefresh}
           onRequestSkip={() => {
