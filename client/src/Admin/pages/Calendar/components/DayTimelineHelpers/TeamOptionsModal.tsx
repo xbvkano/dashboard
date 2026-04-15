@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { API_BASE_URL, fetchJson } from '../../../../../api'
+import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../../api'
 import type { Appointment } from '../../types'
 
 /** Z-index for the confirm overlay. Above DayTimelineModalContainer content (10000) so confirm shows on top. */
@@ -219,14 +219,14 @@ export default function TeamOptionsModal({
         payrollAmounts,
         payrollNote: payNote.trim() || null,
       }
-      const res = await fetch(`${API_BASE_URL}/appointments/${appointment.id}`, {
+      const res = await fetch(`${API_BASE_URL}/appointments/${appointment.id}`, withApiAuth({
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'ngrok-skip-browser-warning': '1',
         },
         body: JSON.stringify(body),
-      })
+      }))
       if (res.ok) {
         const updated = await res.json()
         setShowSizeConfirm(false)

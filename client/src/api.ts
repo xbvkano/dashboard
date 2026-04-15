@@ -2,8 +2,29 @@ export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   `${window.location.protocol}//${window.location.hostname}:3000`;
 
+export const API_ACCESS_TOKEN_KEY = 'apiAccessToken';
+
 const skipNgrokWarning =
   import.meta.env.VITE_NGROK === 'true' || import.meta.env.VITE_NGROK === '1';
+
+/** Bearer JWT from POST /login (server-signed; secrets stay on server). */
+export function attachApiAuthHeaders(headers: Headers): void {
+  try {
+    const t = localStorage.getItem(API_ACCESS_TOKEN_KEY);
+    if (t) {
+      headers.set('Authorization', `Bearer ${t}`);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Use with raw `fetch` to `/login` alternatives: merges Authorization into RequestInit.headers. */
+export function withApiAuth(init: RequestInit = {}): RequestInit {
+  const headers = new Headers(init.headers ?? undefined);
+  attachApiAuthHeaders(headers);
+  return { ...init, headers };
+}
 
 /** Attach x-user-id (and optional x-user-name) for CRM / messaging APIs */
 export function attachDashboardUserHeaders(headers: Headers): void {
@@ -26,7 +47,8 @@ export async function fetchJson(
   init: RequestInit = {}
 ): Promise<any> {
   const headers = new Headers(init.headers);
-  attachDashboardUserHeaders(headers)
+  attachApiAuthHeaders(headers);
+  attachDashboardUserHeaders(headers);
   if (skipNgrokWarning) {
     headers.set('ngrok-skip-browser-warning', '1');
   }

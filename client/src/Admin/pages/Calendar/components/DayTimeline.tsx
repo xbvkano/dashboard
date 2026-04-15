@@ -8,7 +8,7 @@ import {
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import type { Appointment } from '../types'
-import { API_BASE_URL, fetchJson } from '../../../../api'
+import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
 import { formatPhone } from '../../../../formatPhone'
 import DayTimelineModalContainer from './DayTimelineHelpers/DayTimelineModalContainer'
@@ -277,14 +277,14 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   }) => {
     if (!selected) return
     const url = `${API_BASE_URL}/appointments/${selected.id}`
-    const res = await fetch(url, {
+    const res = await fetch(url, withApiAuth({
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': '1',
       },
       body: JSON.stringify(data),
-    })
+    }))
     if (res.ok) {
       const updated = await res.json()
       onUpdate?.(updated)
@@ -317,13 +317,13 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
     setShowConfirmConfirm(false)
     // Prevent "restore modal after refresh" from reopening while we mutate + refresh.
     writeCalendarAppointmentModalState(null)
-    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${confirmAppointment.id}/confirm`, {
+    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${confirmAppointment.id}/confirm`, withApiAuth({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': '1',
       },
-    })
+    }))
     if (res.ok) {
       const updated = await res.json()
       onUpdate?.(updated)
@@ -356,13 +356,13 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   const executeSkipRecurring = async () => {
     if (!skipAppointment?.id) return
     setShowSkipConfirm(false)
-    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${skipAppointment.id}/skip`, {
+    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${skipAppointment.id}/skip`, withApiAuth({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': '1',
       },
-    })
+    }))
     if (res.ok) {
       const data = await res.json()
       onUpdate?.(skipAppointment)
@@ -404,14 +404,14 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   const executeMoveRecurring = async (date: string, time: string) => {
     if (!selected?.id) return
     
-    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${selected.id}/move`, {
+    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${selected.id}/move`, withApiAuth({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': '1',
       },
       body: JSON.stringify({ newDate: date, newTime: time }),
-    })
+    }))
     if (res.ok) {
       const updated = await res.json()
       onUpdate?.(updated)
@@ -457,7 +457,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   const handleSave = async () => {
     if (!selected) return
     const url = `${API_BASE_URL}/appointments/${selected.id}`
-    const res = await fetch(url, {
+    const res = await fetch(url, withApiAuth({
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -471,7 +471,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
         tip: paid ? parseFloat(tip) || 0 : 0,
         observation: selected.observe ? observation : undefined,
       }),
-    })
+    }))
     if (res.ok) {
       const updated = await res.json()
       onUpdate?.(updated)
@@ -492,14 +492,14 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
     
     const res = await fetch(
       `${API_BASE_URL}/appointments/${selected.id}/send-info`,
-      {
+      withApiAuth({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'ngrok-skip-browser-warning': '1',
         },
         body: JSON.stringify({ note }),
-      },
+      }),
     )
     if (res.ok) {
       const updated = (await res.json()) as Appointment
@@ -530,7 +530,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
     if (editingExtraId) {
       const res = await fetch(
         `${API_BASE_URL}/payroll/extra/${editingExtraId}`,
-        {
+        withApiAuth({
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -540,7 +540,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
             name: extraName || 'Extra',
             amount: amt,
           }),
-        },
+        }),
       )
       if (res.ok) {
         setSelected((curr) => {
@@ -556,7 +556,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
         })
       }
     } else {
-      const res = await fetch(`${API_BASE_URL}/payroll/extra`, {
+      const res = await fetch(`${API_BASE_URL}/payroll/extra`, withApiAuth({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -568,7 +568,7 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
           name: extraName || 'Extra',
           amount: amt,
         }),
-      })
+      }))
       if (res.ok) {
         const ex = await res.json()
         setSelected((curr) => {
@@ -593,10 +593,10 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
   }
 
   const deleteExtra = async (id: number, empId: number) => {
-    await fetch(`${API_BASE_URL}/payroll/extra/${id}`, {
+    await fetch(`${API_BASE_URL}/payroll/extra/${id}`, withApiAuth({
       method: 'DELETE',
       headers: { 'ngrok-skip-browser-warning': '1' },
-    })
+    }))
     setSelected((curr) => {
       if (!curr) return curr
       const items = curr.payrollItems ? [...curr.payrollItems] : []

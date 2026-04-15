@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { API_BASE_URL } from '../../../../api'
+import { API_BASE_URL, withApiAuth } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
 import useFormPersistence, { loadFormPersistence, clearFormPersistence } from '../../../../useFormPersistence'
 import InvoiceForm from './InvoiceForm'
@@ -118,11 +118,11 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
 
     let id = invoiceId
     if (!id || dirty) {
-      const res = await fetch(`${API_BASE_URL}/invoices`, {
+      const res = await fetch(`${API_BASE_URL}/invoices`, withApiAuth({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
         body: JSON.stringify({ ...payload, paid }),
-      })
+      }))
       if (!res.ok) {
         await alert('Failed to create invoice')
         return
@@ -134,11 +134,11 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     }
 
     const tzOffset = new Date().getTimezoneOffset()
-    const sendRes = await fetch(`${API_BASE_URL}/invoices/${id}/send`, {
+    const sendRes = await fetch(`${API_BASE_URL}/invoices/${id}/send`, withApiAuth({
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
       body: JSON.stringify({ email, tzOffset }),
-    })
+    }))
     
     if (sendRes.ok) {
       setShowEmailModal(false)
@@ -175,11 +175,11 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/invoices`, {
+      const res = await fetch(`${API_BASE_URL}/invoices`, withApiAuth({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
         body: JSON.stringify(payload),
-      })
+      }))
       
       if (res.ok) {
         const data = await res.json()

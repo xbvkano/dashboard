@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { API_BASE_URL, fetchJson } from '../../api'
+import { API_ACCESS_TOKEN_KEY, API_BASE_URL, fetchJson } from '../../api'
 
 type UserMe = {
   id: number
@@ -73,6 +73,7 @@ export default function Account({
     localStorage.removeItem('userName')
     localStorage.removeItem('userId')
     localStorage.removeItem('loginMethod')
+    localStorage.removeItem(API_ACCESS_TOKEN_KEY)
     localStorage.setItem('signedOut', 'true')
     onLogout()
     navigate('/')

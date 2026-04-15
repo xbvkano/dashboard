@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { API_BASE_URL, fetchJson } from '../../../../../api'
+import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
 import { formatPhone } from '../../../../../formatPhone'
 import type { Appointment } from '../../types'
@@ -141,14 +141,14 @@ export default function AppointmentDetails({
 
   const updateAppointment = async (data: { status?: Appointment['status']; observe?: boolean }) => {
     const url = `${API_BASE_URL}/appointments/${appointment.id}`
-    const res = await fetch(url, {
+    const res = await fetch(url, withApiAuth({
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': '1',
       },
       body: JSON.stringify(data),
-    })
+    }))
     if (res.ok) {
       const updated = await res.json()
       onUpdate(updated)
@@ -160,7 +160,7 @@ export default function AppointmentDetails({
 
   const handleSave = async () => {
     const url = `${API_BASE_URL}/appointments/${appointment.id}`
-    const res = await fetch(url, {
+    const res = await fetch(url, withApiAuth({
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -173,7 +173,7 @@ export default function AppointmentDetails({
         tip: paid ? parseFloat(tip) || 0 : 0,
         observation: appointment.observe ? observation : undefined,
       }),
-    })
+    }))
     if (res.ok) {
       const updated = await res.json()
       onUpdate(updated)
@@ -190,14 +190,14 @@ export default function AppointmentDetails({
       return
     }
     
-    const res = await fetch(`${API_BASE_URL}/appointments/${appointment.id}/send-info`, {
+    const res = await fetch(`${API_BASE_URL}/appointments/${appointment.id}/send-info`, withApiAuth({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': '1',
       },
       body: JSON.stringify({ note }),
-    })
+    }))
     if (res.ok) {
       const updated = (await res.json()) as Appointment
       onUpdate(updated)
@@ -221,7 +221,7 @@ export default function AppointmentDetails({
     if (extraFor == null) return
     const amt = parseFloat(extraAmount) || 0
     if (editingExtraId) {
-      const res = await fetch(`${API_BASE_URL}/payroll/extra/${editingExtraId}`, {
+      const res = await fetch(`${API_BASE_URL}/payroll/extra/${editingExtraId}`, withApiAuth({
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -231,7 +231,7 @@ export default function AppointmentDetails({
           name: extraName || 'Extra',
           amount: amt,
         }),
-      })
+      }))
       if (res.ok) {
         const updated = await res.json()
         onUpdate(updated)
@@ -243,7 +243,7 @@ export default function AppointmentDetails({
         await alert('Failed to update extra')
       }
     } else {
-      const res = await fetch(`${API_BASE_URL}/payroll/extra`, {
+      const res = await fetch(`${API_BASE_URL}/payroll/extra`, withApiAuth({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -255,7 +255,7 @@ export default function AppointmentDetails({
           name: extraName || 'Extra',
           amount: amt,
         }),
-      })
+      }))
       if (res.ok) {
         const updated = await res.json()
         onUpdate(updated)
@@ -270,10 +270,10 @@ export default function AppointmentDetails({
 
   const deleteExtra = async (extraId: number) => {
     if (!(await confirm('Are you sure you want to delete this extra?'))) return
-    const res = await fetch(`${API_BASE_URL}/payroll/extra/${extraId}`, {
+    const res = await fetch(`${API_BASE_URL}/payroll/extra/${extraId}`, withApiAuth({
       method: 'DELETE',
       headers: { 'ngrok-skip-browser-warning': '1' },
-    })
+    }))
     if (res.ok) {
       const updated = await res.json()
       onUpdate(updated)
@@ -290,14 +290,14 @@ export default function AppointmentDetails({
 
   const handleConfirmAndReschedule = async () => {
     if (!appointment.id || !newDate) return
-    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${appointment.id}/confirm-reschedule`, {
+    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${appointment.id}/confirm-reschedule`, withApiAuth({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': '1',
       },
       body: JSON.stringify({ newDate }),
-    })
+    }))
     if (res.ok) {
       const updated = await res.json()
       onUpdate(updated)
@@ -351,14 +351,14 @@ export default function AppointmentDetails({
   const executeMoveRecurring = async (date: string, time: string) => {
     if (!appointment.id) return
     
-    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${appointment.id}/move`, {
+    const res = await fetch(`${API_BASE_URL}/recurring/appointments/${appointment.id}/move`, withApiAuth({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': '1',
       },
       body: JSON.stringify({ newDate: date, newTime: time }),
-    })
+    }))
     if (res.ok) {
       const updated = await res.json()
       onUpdate(updated)

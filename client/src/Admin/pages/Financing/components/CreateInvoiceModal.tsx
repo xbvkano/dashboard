@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Appointment } from '../../Calendar/types'
-import { API_BASE_URL } from '../../../../api'
+import { API_BASE_URL, withApiAuth } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
 import useFormPersistence, {
   loadFormPersistence,
@@ -103,7 +103,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     const rooms = appointment.carpetRooms
     const size = appointment.size
     if (rooms != null && size) {
-      fetch(`${API_BASE_URL}/carpet-rate?size=${encodeURIComponent(size)}&rooms=${rooms}`)
+      fetch(`${API_BASE_URL}/carpet-rate?size=${encodeURIComponent(size)}&rooms=${rooms}`, withApiAuth())
         .then((res) => res.json())
         .then((d) => setCarpetPrice(String(d.rate)))
         .catch(() => {})
@@ -175,21 +175,34 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       paid,
     }
     const newWindow = window.open('', '_blank')
-    const res = await fetch(`${API_BASE_URL}/invoices`, {
+    const res = await fetch(`${API_BASE_URL}/invoices`, withApiAuth({
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
       body: JSON.stringify(payload),
-    })
+    }))
     if (res.ok) {
       const data = await res.json()
       setInvoiceId(data.id)
       setDirty(false)
       const tzOffset = new Date().getTimezoneOffset()
       const url = `${API_BASE_URL}/invoices/${data.id}/pdf?tzOffset=${tzOffset}`
-      if (newWindow) {
-        newWindow.location.href = url
-      } else {
-        window.location.href = url
+      try {
+        const pdfRes = await fetch(url, withApiAuth())
+        if (pdfRes.ok) {
+          const blob = await pdfRes.blob()
+          const blobUrl = URL.createObjectURL(blob)
+          if (newWindow) {
+            newWindow.location.href = blobUrl
+          } else {
+            window.open(blobUrl, '_blank')?.focus()
+          }
+        } else {
+          if (newWindow) newWindow.close()
+          await alert('Failed to load PDF')
+        }
+      } catch {
+        if (newWindow) newWindow.close()
+        await alert('Failed to load PDF')
       }
     } else {
       if (newWindow) newWindow.close()
@@ -220,11 +233,11 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     }
     let id = invoiceId
     if (!id || dirty) {
-      const res = await fetch(`${API_BASE_URL}/invoices`, {
+      const res = await fetch(`${API_BASE_URL}/invoices`, withApiAuth({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
         body: JSON.stringify({ ...payload, paid }),
-      })
+      }))
       if (!res.ok) {
         await alert('Failed to create invoice')
         return
@@ -235,11 +248,11 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       setDirty(false)
     }
     const tzOffset = new Date().getTimezoneOffset()
-    const sendRes = await fetch(`${API_BASE_URL}/invoices/${id}/send`, {
+    const sendRes = await fetch(`${API_BASE_URL}/invoices/${id}/send`, withApiAuth({
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
       body: JSON.stringify({ email, tzOffset }),
-    })
+    }))
     if (sendRes.ok) {
       setShowEmailModal(false)
       setSending(false)

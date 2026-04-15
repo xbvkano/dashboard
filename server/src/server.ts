@@ -11,9 +11,18 @@ import { PDFDocument, StandardFonts, rgb, PDFFont, degrees } from 'pdf-lib'
 import nodemailer from 'nodemailer'
 import twilio from 'twilio'
 import { uploadInvoiceToDrive } from './drive'
+import { assertJwtSecretsConfiguredForProduction } from './auth/jwtTokens'
+import { requireJwtMiddleware } from './middleware/requireJwt'
 
 /** Resolve server/.env from this file so vars load even when cwd is not `server/` */
 dotenv.config({ path: path.join(__dirname, '..', '.env') })
+
+try {
+  assertJwtSecretsConfiguredForProduction()
+} catch (err) {
+  console.error(err)
+  process.exit(1)
+}
 
 const prisma = new PrismaClient()
 const app = express()
@@ -330,6 +339,7 @@ async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
 app.use(cors({
   allowedHeaders: [
     'Content-Type',
+    'Authorization',
     'ngrok-skip-browser-warning',
     'x-user-name',
     'x-user-id',
@@ -342,6 +352,10 @@ app.use(express.urlencoded({ extended: true }))
 
 // Dev-only: default CRM user headers when NO_AUTH=1 (non-production). See .env.example.
 app.use(noAuthUserDefaultsMiddleware)
+
+// API JWT: Tier A = admin-signed only; Tier B = paths under /employee/* accept admin or employee JWT.
+// Public: GET /, POST /login, POST /messaging/inbound. Skipped when NO_AUTH=1 (non-production).
+app.use(requireJwtMiddleware)
 
 /**
  * High-frequency messaging endpoints (polls, heartbeats, lease) — omit default HTTP logs.

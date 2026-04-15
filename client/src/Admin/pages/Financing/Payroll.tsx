@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { API_BASE_URL, fetchJson } from '../../../api'
+import { API_BASE_URL, fetchJson, withApiAuth } from '../../../api'
 import { formatPhone } from '../../../formatPhone'
 
 interface DueItem {
@@ -83,11 +83,11 @@ export default function Payroll() {
       itemIds: Array.from(sel.items),
       manualIds: Array.from(sel.manuals),
     }
-    await fetch(`${API_BASE_URL}/payroll/pay`, {
+    await fetch(`${API_BASE_URL}/payroll/pay`, withApiAuth({
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
       body: JSON.stringify(payload),
-    })
+    }))
     setSelectedMap((curr) => {
       const copy = { ...curr }
       delete copy[selected]
@@ -101,11 +101,11 @@ export default function Payroll() {
 
   const handleChargeback = async () => {
     if (chargebackId == null) return
-    await fetch(`${API_BASE_URL}/payroll/chargeback`, {
+    await fetch(`${API_BASE_URL}/payroll/chargeback`, withApiAuth({
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
       body: JSON.stringify({ id: chargebackId }),
-    })
+    }))
     setChargebackId(null)
     load()
   }
@@ -114,11 +114,11 @@ export default function Payroll() {
     if (otherFor == null) return
     const name = otherName.trim() || 'Other'
     const amt = parseFloat(otherAmount) || 0
-    const res = await fetch(`${API_BASE_URL}/payroll/manual`, {
+    const res = await fetch(`${API_BASE_URL}/payroll/manual`, withApiAuth({
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
       body: JSON.stringify({ employeeId: otherFor, name, amount: amt }),
-    })
+    }))
     const data = await res.json()
     setDue((curr) =>
       curr.map((d) => {
@@ -156,25 +156,25 @@ export default function Payroll() {
     if (!editing) return
     const { empId, item } = editing
     if (item.manual && item.id) {
-      await fetch(`${API_BASE_URL}/payroll/manual/${item.id}`, {
+      await fetch(`${API_BASE_URL}/payroll/manual/${item.id}`, withApiAuth({
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'ngrok-skip-browser-warning': '1',
         },
         body: JSON.stringify({ name: item.service, amount: item.amount }),
-      })
+      }))
     }
     if (item.extras) {
       for (const ex of item.extras) {
-        await fetch(`${API_BASE_URL}/payroll/extra/${ex.id}`, {
+        await fetch(`${API_BASE_URL}/payroll/extra/${ex.id}`, withApiAuth({
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'ngrok-skip-browser-warning': '1',
           },
           body: JSON.stringify({ name: ex.name, amount: ex.amount }),
-        })
+        }))
       }
     }
     setDue((curr) =>
@@ -200,10 +200,10 @@ export default function Payroll() {
     exId: number,
     amt: number,
   ) => {
-    await fetch(`${API_BASE_URL}/payroll/extra/${exId}`, {
+    await fetch(`${API_BASE_URL}/payroll/extra/${exId}`, withApiAuth({
       method: 'DELETE',
       headers: { 'ngrok-skip-browser-warning': '1' },
-    })
+    }))
     setDue((curr) =>
       curr.map((d) => {
         if (d.employee.id !== empId) return d
@@ -238,7 +238,7 @@ export default function Payroll() {
   const addExtra = async (empId: number, itemId: number) => {
     const name = newExtraName.trim() || 'Extra'
     const amt = parseFloat(newExtraAmount) || 0
-    const res = await fetch(`${API_BASE_URL}/payroll/extra`, {
+    const res = await fetch(`${API_BASE_URL}/payroll/extra`, withApiAuth({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -250,7 +250,7 @@ export default function Payroll() {
         name,
         amount: amt,
       }),
-    })
+    }))
     if (res.ok) {
       const ex = await res.json()
       setDue((curr) =>

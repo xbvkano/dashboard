@@ -1,7 +1,18 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { API_BASE_URL } from '../../../api'
+import { API_BASE_URL, attachApiAuthHeaders } from '../../../api'
+
+function employeeApiHeaders(): Headers {
+  const h = new Headers({
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': '1',
+  })
+  const userName = localStorage.getItem('userName')
+  if (userName) h.set('x-user-name', userName)
+  attachApiAuthHeaders(h)
+  return h
+}
 import { useEmployeeLanguage } from '../../EmployeeLanguageContext'
 
 type DayShifts = {
@@ -319,10 +330,9 @@ export default function Schedule() {
 
   async function loadSchedulePolicy() {
     try {
-      const userName = localStorage.getItem('userName')
-      const headers: HeadersInit = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' }
-      if (userName) headers['x-user-name'] = userName
-      const res = await fetch(`${API_BASE_URL}/employee/schedule-policy`, { headers })
+      const res = await fetch(`${API_BASE_URL}/employee/schedule-policy`, {
+        headers: employeeApiHeaders(),
+      })
       if (!res.ok) return
       const data = await res.json()
       setSchedulePolicy({
@@ -337,10 +347,9 @@ export default function Schedule() {
 
   async function loadUpcomingAppointments() {
     try {
-      const userName = localStorage.getItem('userName')
-      const headers: HeadersInit = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' }
-      if (userName) headers['x-user-name'] = userName
-      const res = await fetch(`${API_BASE_URL}/employee/upcoming-appointments`, { headers })
+      const res = await fetch(`${API_BASE_URL}/employee/upcoming-appointments`, {
+        headers: employeeApiHeaders(),
+      })
       if (!res.ok) return
       const list = await res.json()
       const byDay: Record<string, { morning: boolean; afternoon: boolean; morningUnconfirmed?: boolean; afternoonUnconfirmed?: boolean; morningUnconfirmedAppointmentId?: number; afternoonUnconfirmedAppointmentId?: number }> = {}
@@ -369,13 +378,9 @@ export default function Schedule() {
   async function loadSchedule() {
     try {
       setLoading(true)
-      const userName = localStorage.getItem('userName')
-      const headers: HeadersInit = { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" }
-      if (userName) {
-        headers['x-user-name'] = userName
-      }
-      
-      const response = await fetch(`${API_BASE_URL}/employee/schedule`, { headers })
+      const response = await fetch(`${API_BASE_URL}/employee/schedule`, {
+        headers: employeeApiHeaders(),
+      })
       if (!response.ok) throw new Error(t.failedToLoad)
       const data = await response.json()
       
@@ -455,15 +460,9 @@ export default function Schedule() {
       setSuccess('')
       
       const scheduleEntries = dayShiftsToSchedule(schedule)
-      const userName = localStorage.getItem('userName')
-      const headers: HeadersInit = { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" }
-      if (userName) {
-        headers['x-user-name'] = userName
-      }
-      
       const response = await fetch(`${API_BASE_URL}/employee/schedule`, {
         method: 'POST',
-        headers,
+        headers: employeeApiHeaders(),
         body: JSON.stringify({ futureSchedule: scheduleEntries }),
       })
       

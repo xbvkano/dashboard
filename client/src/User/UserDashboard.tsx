@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { API_ACCESS_TOKEN_KEY } from '../api'
 
 interface Props {
   onLogout: () => void
@@ -13,6 +14,7 @@ export default function UserDashboard({ onLogout }: Props) {
     localStorage.removeItem('safe')
     localStorage.removeItem('userName')
     localStorage.removeItem('loginMethod')
+    localStorage.removeItem(API_ACCESS_TOKEN_KEY)
     localStorage.setItem('signedOut', 'true')
     onLogout()
     navigate('/')

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { API_BASE_URL, fetchJson } from '../../../../api'
+import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
 import { formatPhone } from '../../../../formatPhone'
 import type { Appointment } from '../../Calendar/types'
 import DayTimelineModalContainer, { type DayTimelineModalView } from '../../Calendar/components/DayTimelineHelpers/DayTimelineModalContainer'
@@ -342,11 +342,11 @@ export default function Schedule() {
         const slotKey = `${parsed.date}-${parsed.type === 'M' ? 'AM' : 'PM'}`
         return !toRemove.has(slotKey)
       })
-      const res = await fetch(`${API_BASE_URL}/employees/${selectedEmployee.id}/schedule`, {
+      const res = await fetch(`${API_BASE_URL}/employees/${selectedEmployee.id}/schedule`, withApiAuth({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ futureSchedule: newFuture }),
-      })
+      }))
       if (!res.ok) throw new Error('Failed to update schedule')
       setEmployeeScheduleView({ ...employeeScheduleView, futureSchedule: newFuture })
       setSelectedAvailabilitySlots(new Set())
@@ -409,11 +409,11 @@ export default function Schedule() {
     const am = Math.max(0, parseInt(projectionInput.am, 10) || 0)
     const pm = Math.max(0, parseInt(projectionInput.pm, 10) || 0)
     setSavingProjection(true)
-    fetch(`${API_BASE_URL}/employees/schedule-projection`, {
+    fetch(`${API_BASE_URL}/employees/schedule-projection`, withApiAuth({
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amTeamSize: am, pmTeamSize: pm }),
-    })
+    }))
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed to save'))))
       .then((data: { amTeamSize: number; pmTeamSize: number }) => {
         setProjection(data)
@@ -899,11 +899,11 @@ export default function Schedule() {
                   if (!schedulePolicy) return
                   setSchedulePolicySaving(true)
                   try {
-                    const res = await fetch(`${API_BASE_URL}/employees/schedule-policy`, {
+                    const res = await fetch(`${API_BASE_URL}/employees/schedule-policy`, withApiAuth({
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(schedulePolicy),
-                    })
+                    }))
                     if (res.ok) setShowSchedulePolicyModal(false)
                   } catch {
                     // keep modal open

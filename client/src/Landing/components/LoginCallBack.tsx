@@ -1,7 +1,7 @@
 // src/pages/LoginCallback.tsx
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { API_BASE_URL } from '../../api'
+import { API_ACCESS_TOKEN_KEY, API_BASE_URL } from '../../api'
 
 export default function LoginCallback() {
   const navigate = useNavigate()
@@ -31,12 +31,18 @@ export default function LoginCallback() {
           if (data.user && typeof data.user.safe !== 'undefined') {
             localStorage.setItem('safe', data.user.safe ? 'true' : 'false')
           }
+          if (data.user?.id != null) {
+            localStorage.setItem('userId', String(data.user.id))
+          }
           if (data.userName) {
             localStorage.setItem('userName', data.userName)
           } else if (data.user?.userName) {
             localStorage.setItem('userName', data.user.userName)
           } else if (data.user?.email) {
             localStorage.setItem('userName', data.user.email)
+          }
+          if (typeof data.accessToken === 'string') {
+            localStorage.setItem(API_ACCESS_TOKEN_KEY, data.accessToken)
           }
           navigate('/dashboard')
         } else {

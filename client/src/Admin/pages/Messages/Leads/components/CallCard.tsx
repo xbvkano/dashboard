@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Call } from '../../../../../external_prisma_schemas/website_schema'
 import { formatPhone } from '../../../../../formatPhone'
-import { API_BASE_URL } from '../../../../../api'
+import { API_BASE_URL, withApiAuth } from '../../../../../api'
 import { buildDefaultCallMessage } from '../leadMessageDefaults'
 import LeadMessageModal from './LeadMessageModal'
 import { startConversationFromContact } from '../../Inbox/messagingApi'
@@ -48,12 +48,12 @@ export default function CallCard({ call, onMarkVisited }: CallCardProps) {
     if (import.meta.env.VITE_NGROK === 'true' || import.meta.env.VITE_NGROK === '1') {
       headers['ngrok-skip-browser-warning'] = '1'
     }
-    fetch(`${API_BASE_URL}/api/calls/${call.id}`, {
+    fetch(`${API_BASE_URL}/api/calls/${call.id}`, withApiAuth({
       method: 'PATCH',
       headers,
       body: JSON.stringify({ visited: true }),
       keepalive: true,
-    }).catch(() => {})
+    })).catch(() => {})
   }
 
   async function handleOpenInboxText() {

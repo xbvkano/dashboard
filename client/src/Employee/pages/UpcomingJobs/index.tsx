@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom'
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { API_BASE_URL } from '../../../api'
+import { API_BASE_URL, attachApiAuthHeaders } from '../../../api'
 import { useEmployeeLanguage, type ScheduleTranslations } from '../../EmployeeLanguageContext'
 
 export type UpcomingAppointment = {
@@ -134,10 +134,14 @@ function groupAppointments(list: UpcomingAppointment[]): Array<{
     })
 }
 
-function getHeaders(): HeadersInit {
-  const h: HeadersInit = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' }
+function getHeaders(): Headers {
+  const h = new Headers({
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': '1',
+  })
   const userName = localStorage.getItem('userName')
-  if (userName) (h as Record<string, string>)['x-user-name'] = userName
+  if (userName) h.set('x-user-name', userName)
+  attachApiAuthHeaders(h)
   return h
 }
 

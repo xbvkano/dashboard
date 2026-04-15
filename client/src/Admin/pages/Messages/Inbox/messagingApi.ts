@@ -1,4 +1,9 @@
-import { API_BASE_URL, attachDashboardUserHeaders, fetchJson } from '../../../../api'
+import {
+  API_BASE_URL,
+  attachApiAuthHeaders,
+  attachDashboardUserHeaders,
+  fetchJson,
+} from '../../../../api'
 import type { ThreadContact } from './types'
 
 const skipNgrokWarning =
@@ -150,6 +155,7 @@ export async function deleteConversationContact(conversationId: number): Promise
 }> {
   const headers = new Headers()
   attachDashboardUserHeaders(headers)
+  attachApiAuthHeaders(headers)
   if (skipNgrokWarning) headers.set('ngrok-skip-browser-warning', '1')
   const res = await fetch(`${API_BASE_URL}/messaging/conversations/${conversationId}/contact`, {
     method: 'DELETE',
@@ -209,6 +215,7 @@ export async function postInboxLeaseRequest(options?: {
 }): Promise<InboxLeaseResult> {
   const headers = new Headers({ 'Content-Type': 'application/json' })
   attachDashboardUserHeaders(headers)
+  attachApiAuthHeaders(headers)
   if (skipNgrokWarning) headers.set('ngrok-skip-browser-warning', '1')
   const res = await fetch(`${API_BASE_URL}/messaging/inbox/lease`, {
     method: 'POST',
@@ -279,6 +286,7 @@ export async function postOutboundMessage(
     }
     const headers = new Headers()
     attachDashboardUserHeaders(headers)
+    attachApiAuthHeaders(headers)
     if (options?.mockSms) headers.set('X-Messaging-Mock-Sms', '1')
     if (skipNgrokWarning) headers.set('ngrok-skip-browser-warning', '1')
     const response = await fetch(url, { method: 'POST', headers, body: form })
@@ -428,6 +436,7 @@ export async function postExtractAppointmentFromImages(
   }
   const headers = new Headers()
   attachDashboardUserHeaders(headers)
+  attachApiAuthHeaders(headers)
   if (skipNgrokWarning) headers.set('ngrok-skip-browser-warning', '1')
   const res = await fetch(url, { method: 'POST', headers, body: form })
   const text = await res.text()
@@ -453,6 +462,7 @@ export async function postExtractAppointmentFromStandaloneImages(
   }
   const headers = new Headers()
   attachDashboardUserHeaders(headers)
+  attachApiAuthHeaders(headers)
   if (skipNgrokWarning) headers.set('ngrok-skip-browser-warning', '1')
   const res = await fetch(url, { method: 'POST', headers, body: form })
   const text = await res.text()

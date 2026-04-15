@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useModal } from '../../../../ModalProvider'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { Employee, SupervisorOption } from './types'
-import { API_BASE_URL, fetchJson } from '../../../../api'
+import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from '../../../../useFormPersistence'
 import AppointmentsSection from "../../../components/AppointmentsSection"
 import { formatPhone } from '../../../../formatPhone'
@@ -141,11 +141,11 @@ export default function EmployeeForm() {
       }
     }
     setSaving(true)
-    const res = await fetch(`${API_BASE_URL}/employees${isNew ? '' : '/' + id}` ,{
+    const res = await fetch(`${API_BASE_URL}/employees${isNew ? '' : '/' + id}`, withApiAuth({
       method: isNew ? 'POST' : 'PUT',
       headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
       body: JSON.stringify(payload),
-    })
+    }))
     setSaving(false)
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
@@ -174,10 +174,10 @@ export default function EmployeeForm() {
     if (!id) return
     const ok = await confirm('Delete this employee?')
     if (!ok) return
-    const res = await fetch(`${API_BASE_URL}/employees/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/employees/${id}`, withApiAuth({
       method: 'DELETE',
       headers: { 'ngrok-skip-browser-warning': '1' },
-    })
+    }))
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       await alert(err.error || 'Failed to delete')

@@ -3,7 +3,7 @@ import { useModal } from '../../../../ModalProvider'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from "../../../../useFormPersistence"
 import { useNavigate, useParams } from 'react-router-dom'
 import { Client } from './types'
-import { API_BASE_URL, fetchJson } from '../../../../api'
+import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
 import { formatPhone } from '../../../../formatPhone'
 
 import AppointmentsSection from "../../../components/AppointmentsSection"
@@ -87,11 +87,11 @@ export default function ClientForm() {
       notes: data.notes,
       disabled: data.disabled ?? false,
     }
-    const res = await fetch(`${API_BASE_URL}/clients${isNew ? '' : '/' + id}`, {
+    const res = await fetch(`${API_BASE_URL}/clients${isNew ? '' : '/' + id}`, withApiAuth({
       method: isNew ? 'POST' : 'PUT',
       headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
       body: JSON.stringify(payload),
-    })
+    }))
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       await alert(err.error || 'Failed to save')
@@ -105,10 +105,10 @@ export default function ClientForm() {
     if (!id) return
     const ok = await confirm('Delete this client?')
     if (!ok) return
-    const res = await fetch(`${API_BASE_URL}/clients/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/clients/${id}`, withApiAuth({
       method: 'DELETE',
       headers: { 'ngrok-skip-browser-warning': '1' },
-    })
+    }))
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       await alert(err.error || 'Failed to delete')

@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom'
 import { useState, useRef, useEffect } from 'react'
 import { Link, Routes, Route, useNavigate, Outlet, Navigate } from 'react-router-dom'
 import { isDevToolsEnabled } from '../devTools'
+import { API_ACCESS_TOKEN_KEY } from '../api'
 import { EmployeeLanguageProvider, useEmployeeLanguage, type EmployeeLanguage } from './EmployeeLanguageContext'
 import Schedule from './pages/Schedule'
 import UpcomingJobs from './pages/UpcomingJobs'
@@ -84,6 +85,7 @@ function EmployeeLayout({ onLogout, onSwitchRole }: Props) {
     localStorage.removeItem('safe')
     localStorage.removeItem('userName')
     localStorage.removeItem('loginMethod')
+    localStorage.removeItem(API_ACCESS_TOKEN_KEY)
     localStorage.setItem('signedOut', 'true')
     onLogout()
     navigate('/')

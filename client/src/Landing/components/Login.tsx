@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useGoogleLogin, CodeResponse } from '@react-oauth/google'
-import { API_BASE_URL } from '../../api'
+import { API_ACCESS_TOKEN_KEY, API_BASE_URL } from '../../api'
 
 type Role = 'ADMIN' | 'OWNER' | 'EMPLOYEE'
 
@@ -25,6 +25,7 @@ export default function Login({ onLogin }: LoginProps) {
       localStorage.removeItem('safe')
       localStorage.removeItem('userName')
       localStorage.removeItem('loginMethod')
+      localStorage.removeItem(API_ACCESS_TOKEN_KEY)
       return
     }
 
@@ -82,6 +83,9 @@ export default function Login({ onLogin }: LoginProps) {
         } else if (data.user?.userName) {
           localStorage.setItem('userName', data.user.userName)
         }
+        if (typeof data.accessToken === 'string') {
+          localStorage.setItem(API_ACCESS_TOKEN_KEY, data.accessToken)
+        }
       }
 
       searchParams.delete('code')
@@ -131,6 +135,9 @@ export default function Login({ onLogin }: LoginProps) {
         if (data.userName) {
           localStorage.setItem('userName', data.userName)
         }
+        if (typeof data.accessToken === 'string') {
+          localStorage.setItem(API_ACCESS_TOKEN_KEY, data.accessToken)
+        }
         setLoading(false)
       }
     } catch (err) {
@@ -166,6 +173,9 @@ export default function Login({ onLogin }: LoginProps) {
           localStorage.setItem('userName', data.user.userName)
         } else if (data.user?.email) {
           localStorage.setItem('userName', data.user.email)
+        }
+        if (typeof data.accessToken === 'string') {
+          localStorage.setItem(API_ACCESS_TOKEN_KEY, data.accessToken)
         }
       }
     },

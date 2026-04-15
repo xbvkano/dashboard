@@ -4,6 +4,7 @@ import { OAuth2Client } from 'google-auth-library'
 import axios from 'axios'
 import bcrypt from 'bcrypt'
 import { parseUserIdHeader } from '../utils/httpUser'
+import { signAccessToken } from '../auth/jwtTokens'
 
 const prisma = new PrismaClient()
 
@@ -50,7 +51,14 @@ export async function login(req: Request, res: Response) {
         return res.status(401).json({ error: 'This account cannot be used to sign in' })
       }
 
-      return res.json({ role: user.role, user, userName: user.userName })
+      let accessToken: string
+      try {
+        accessToken = signAccessToken(user.id, user.role)
+      } catch {
+        return res.status(503).json({ error: 'Authentication service unavailable' })
+      }
+
+      return res.json({ role: user.role, user, userName: user.userName, accessToken })
     } catch (e) {
       console.error('Password login error:', e)
       return res.status(500).json({ error: 'Authentication failed' })
@@ -113,7 +121,14 @@ export async function login(req: Request, res: Response) {
       return res.status(401).json({ error: 'This account cannot be used to sign in' })
     }
 
-    res.json({ role: user.role, user })
+    let accessToken: string
+    try {
+      accessToken = signAccessToken(user.id, user.role)
+    } catch {
+      return res.status(503).json({ error: 'Authentication service unavailable' })
+    }
+
+    res.json({ role: user.role, user, accessToken })
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Authentication failed' })

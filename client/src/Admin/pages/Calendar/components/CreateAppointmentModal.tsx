@@ -2,7 +2,12 @@ import { useEffect, useState, useRef } from 'react'
 import { Client } from '../../Clients/components/types'
 import type { AppointmentTemplate } from '../types'
 import type { Employee } from '../../Employees/components/types'
-import { API_BASE_URL, attachDashboardUserHeaders, fetchJson } from '../../../../api'
+import {
+  API_BASE_URL,
+  attachApiAuthHeaders,
+  attachDashboardUserHeaders,
+  fetchJson,
+} from '../../../../api'
 
 const skipNgrokWarning =
   import.meta.env.VITE_NGROK === 'true' || import.meta.env.VITE_NGROK === '1'
@@ -10,6 +15,7 @@ const skipNgrokWarning =
 function dashboardJsonHeaders(): Headers {
   const headers = new Headers({ 'Content-Type': 'application/json' })
   attachDashboardUserHeaders(headers)
+  attachApiAuthHeaders(headers)
   if (skipNgrokWarning) headers.set('ngrok-skip-browser-warning', '1')
   return headers
 }

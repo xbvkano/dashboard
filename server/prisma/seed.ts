@@ -65,6 +65,20 @@ async function main() {
     },
   })
 
+  /** Phone + password ADMIN for JWT / real auth testing with NO_AUTH=false (same form as production). */
+  const jwtTestAdminPassword = await bcrypt.hash('SeedAdmin!99', 12)
+  await prisma.user.create({
+    data: {
+      id: 3,
+      email: 'jwt-test-admin@localhost',
+      name: 'JWT Test Admin',
+      userName: '7025550199',
+      password: jwtTestAdminPassword,
+      type: 'password',
+      role: 'ADMIN',
+    },
+  })
+
   // Create AI Admin user with ID 9
   await prisma.user.create({
     data: {
