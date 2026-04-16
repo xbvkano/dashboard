@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react'
-import { API_BASE_URL, attachDashboardUserHeaders, fetchJson } from '../../../../../api'
+import {
+  API_BASE_URL,
+  attachApiAuthHeaders,
+  attachDashboardUserHeaders,
+  fetchJson,
+} from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
 import { appointmentCalendarDateKey, type Appointment } from '../../types'
 
@@ -9,6 +14,7 @@ const skipNgrokWarning =
 async function dashboardFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers)
   if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  attachApiAuthHeaders(headers)
   attachDashboardUserHeaders(headers)
   if (skipNgrokWarning) headers.set('ngrok-skip-browser-warning', '1')
   return fetch(input, { ...init, headers })
