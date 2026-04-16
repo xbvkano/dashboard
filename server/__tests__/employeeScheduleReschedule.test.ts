@@ -41,8 +41,10 @@ jest.mock('@prisma/client', () => ({
   })),
 }))
 
+import { DateTime } from 'luxon'
 import { Request, Response } from 'express'
 import { getUpcomingAppointments, confirmJob } from '../src/controllers/employeeScheduleController'
+import { DEFAULT_APPOINTMENT_TIMEZONE, whereAppointmentOnInclusiveLocalDateRange } from '../src/utils/appointmentTimezone'
 
 function mockRequest(overrides: Partial<Request> = {}): Request {
   return {
@@ -94,34 +96,27 @@ describe('Employee schedule and reschedule', () => {
       expect(notIn).toContain('CANCEL')
     })
 
-    it('filters by employee and date range (next 14 days)', async () => {
+    it('filters by employee and Pacific local-date window (today through today+14)', async () => {
       const req = mockRequest()
       const res = mockResponse()
       await getUpcomingAppointments(req, res)
       const where = appointmentFindManyCalls[0].where as Record<string, unknown>
       expect(where.employees).toEqual({ some: { id: 1 } })
-      expect(where.date).toBeDefined()
-      const dateFilter = where.date as { gte: Date; lt: Date }
-      expect(dateFilter.gte).toBeDefined()
-      expect(dateFilter.lt).toBeDefined()
+      const z = DEFAULT_APPOINTMENT_TIMEZONE
+      const startStr = DateTime.now().setZone(z).toFormat('yyyy-LL-dd')
+      const endStr = DateTime.now().setZone(z).plus({ days: 14 }).toFormat('yyyy-LL-dd')
+      expect(where.AND).toEqual([whereAppointmentOnInclusiveLocalDateRange(startStr, endStr, z)])
     })
 
-    it('uses a 14-day window so day 14 from today is included (appointment "loads in" when calendar reaches it)', async () => {
+    it('uses a 15-day inclusive Pacific window for a fixed clock', async () => {
       jest.useFakeTimers()
       jest.setSystemTime(new Date('2025-02-20T12:00:00Z'))
       const req = mockRequest()
       const res = mockResponse()
       await getUpcomingAppointments(req, res)
-      const where = appointmentFindManyCalls[0].where as Record<string, unknown>
-      const dateFilter = where.date as { gte: Date; lt: Date }
-      const gte = new Date(dateFilter.gte)
-      const lt = new Date(dateFilter.lt)
-      gte.setUTCHours(0, 0, 0, 0)
-      lt.setUTCHours(0, 0, 0, 0)
-      expect(gte.toISOString().slice(0, 10)).toBe('2025-02-20')
-      expect(lt.toISOString().slice(0, 10)).toBe('2025-03-07')
-      const march5 = new Date('2025-03-05T12:00:00Z')
-      expect(march5 >= gte && march5 < lt).toBe(true)
+      const where = appointmentFindManyCalls[0].where as Record<string, unknown> & { AND: unknown[] }
+      const z = DEFAULT_APPOINTMENT_TIMEZONE
+      expect(where.AND[0]).toEqual(whereAppointmentOnInclusiveLocalDateRange('2025-02-20', '2025-03-06', z))
       jest.useRealTimers()
     })
 

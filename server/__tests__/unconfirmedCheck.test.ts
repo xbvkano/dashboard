@@ -30,6 +30,7 @@ jest.mock('twilio', () =>
 )
 
 import { runUnconfirmedCheck, runNoonEmployeeReminders } from '../src/jobs/unconfirmedCheck'
+import { getLocalDayRangeUtc, getTomorrowLocalDayRangeUtcFrom } from '../src/utils/appointmentTimezone'
 
 // Tomorrow from 2025-02-20
 const AS_OF = new Date('2025-02-20T19:00:00Z')
@@ -107,9 +108,11 @@ describe('runUnconfirmedCheck', () => {
     await runUnconfirmedCheck(AS_OF)
     expect(mockFindMany).toHaveBeenCalledTimes(1)
     const tomorrowCall = mockFindMany.mock.calls[0][0]
-    const gte = new Date(tomorrowCall.where.date.gte)
-    const lt = new Date(tomorrowCall.where.date.lt)
-    expect(lt.getTime() - gte.getTime()).toBe(24 * 60 * 60 * 1000)
+    const { start, endExclusive } = getTomorrowLocalDayRangeUtcFrom(AS_OF)
+    expect(tomorrowCall.where.OR[0]).toEqual({
+      dateUtc: { gte: start, lt: endExclusive },
+    })
+    expect(endExclusive.getTime() - start.getTime()).toBe(24 * 60 * 60 * 1000)
     expect(tomorrowCall.where.status.notIn).toContain('DELETED')
     expect(tomorrowCall.where.status.notIn).toContain('CANCEL')
   })
@@ -352,14 +355,12 @@ describe('runNoonEmployeeReminders', () => {
     expect(mockMessagesCreate).not.toHaveBeenCalled()
   })
 
-  it('uses UTC-based window for new day only (today+14): Feb 22 noon => only Mar 8', async () => {
+  it('uses Pacific business-day window for today+14 only: Feb 22 noon => Mar 8 local day', async () => {
     mockPayrollItemFindMany.mockImplementation((args: any) => {
-      const gte = args?.where?.appointment?.date?.gte
-      const lt = args?.where?.appointment?.date?.lt
-      expect(gte).toBeDefined()
-      expect(lt).toBeDefined()
-      expect(new Date(gte).toISOString()).toBe('2026-03-08T00:00:00.000Z')
-      expect(new Date(lt).toISOString()).toBe('2026-03-09T00:00:00.000Z')
+      const and = args?.where?.appointment?.AND as Array<{ OR?: Array<{ dateUtc?: { gte: Date; lt: Date } }> }>
+      expect(and).toBeDefined()
+      const { start, endExclusive } = getLocalDayRangeUtc('2026-03-08', 'America/Los_Angeles')
+      expect(and[0].OR?.[0].dateUtc).toEqual({ gte: start, lt: endExclusive })
       return Promise.resolve([mar8PayrollItem])
     })
     const asOf = new Date(2026, 1, 22, 12, 0, 0, 0)

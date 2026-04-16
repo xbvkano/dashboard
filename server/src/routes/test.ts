@@ -8,6 +8,7 @@ import {
   testAppointmentReminder,
   testUnconfirmedCheck,
   testNoonEmployeeReminder,
+  testBackfillAppointmentDateUtc,
 } from '../controllers/testController'
 
 const router = Router()
@@ -21,6 +22,7 @@ router.post('/test/jobs/recurring-sync', testRecurringSync)
 router.post('/test/jobs/appointment-reminder', testAppointmentReminder)
 router.post('/test/jobs/unconfirmed-check', testUnconfirmedCheck)
 router.post('/test/jobs/noon-employee-reminder', testNoonEmployeeReminder)
+router.post('/test/jobs/backfill-appointment-date-utc', testBackfillAppointmentDateUtc)
 
 export default router
 

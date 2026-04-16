@@ -1,6 +1,14 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
+import { DateTime } from 'luxon'
 import { normalizePhone } from '../utils/phoneUtils'
+import {
+  appointmentLocalDateKey,
+  DEFAULT_APPOINTMENT_TIMEZONE,
+  whereAppointmentOnBusinessDay,
+  whereAppointmentOnInclusiveLocalDateRange,
+} from '../utils/appointmentTimezone'
+import { withAppointmentLocalDateMany } from '../utils/appointmentJson'
 import { getNextOrThisUpdateDay } from '../utils/schedulePolicyUtils'
 import bcrypt from 'bcrypt'
 
@@ -55,14 +63,6 @@ function getSlotFromTime(timeStr: string): 'M' | 'A' {
   return minutes < 14 * 60 ? 'M' : 'A' // before 2pm = M (AM), 2pm+ = A (PM)
 }
 
-/** Parse YYYY-MM-DD to Date at UTC midnight */
-function parseDateUTC(dateStr: string): Date | null {
-  const parts = dateStr.split('-')
-  if (parts.length !== 3) return null
-  const d = new Date(Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)))
-  return isNaN(d.getTime()) ? null : d
-}
-
 /**
  * Admin schedule overview: employees with schedules (optional search) and scheduled employee count per day.
  * GET /employees/schedule-overview?start=YYYY-MM-DD&end=YYYY-MM-DD&search=...
@@ -114,13 +114,13 @@ export async function getScheduleOverview(req: Request, res: Response) {
   if (!startStr || !endStr || !/^\d{4}-\d{2}-\d{2}$/.test(startStr) || !/^\d{4}-\d{2}-\d{2}$/.test(endStr)) {
     return res.status(400).json({ error: 'start and end required (YYYY-MM-DD)' })
   }
-  const start = parseDateUTC(startStr)
-  const end = parseDateUTC(endStr)
-  if (!start || !end || start > end) {
-    return res.status(400).json({ error: 'Invalid start or end date' })
-  }
-  const endExclusive = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() + 1))
   try {
+    let dayWhere
+    try {
+      dayWhere = whereAppointmentOnInclusiveLocalDateRange(startStr, endStr, DEFAULT_APPOINTMENT_TIMEZONE)
+    } catch {
+      return res.status(400).json({ error: 'Invalid start or end date' })
+    }
     const whereEmployee: any = searchTerm
       ? {
           disabled: false,
@@ -138,18 +138,17 @@ export async function getScheduleOverview(req: Request, res: Response) {
       }),
       prisma.appointment.findMany({
         where: {
-          date: { gte: start, lt: endExclusive },
-          status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+          AND: [{ status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] } }, dayWhere],
         },
-        select: { date: true, time: true, employees: { select: { id: true } } },
+        select: { date: true, dateUtc: true, time: true, employees: { select: { id: true } } },
       }),
     ])
     const byDay: Record<string, { am: Set<number>; pm: Set<number> }> = {}
     for (const a of appts) {
-      const y = a.date.getUTCFullYear()
-      const m = String(a.date.getUTCMonth() + 1).padStart(2, '0')
-      const day = String(a.date.getUTCDate()).padStart(2, '0')
-      const key = `${y}-${m}-${day}`
+      const key = appointmentLocalDateKey({
+        dateUtc: a.dateUtc,
+        date: a.date,
+      })
       if (!byDay[key]) byDay[key] = { am: new Set(), pm: new Set() }
       const slot = getSlotFromTime(a.time ?? '')
       a.employees.forEach((e) => (slot === 'M' ? byDay[key].am.add(e.id) : byDay[key].pm.add(e.id)))
@@ -474,14 +473,10 @@ export async function getScheduledAt(req: Request, res: Response) {
     return res.status(400).json({ error: 'time required' })
   }
   const slot = getSlotFromTime(timeStr)
-  const start = parseDateUTC(dateStr)
-  if (!start) return res.status(400).json({ error: 'Invalid date' })
-  const endExclusive = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate() + 1))
   try {
     const appts = await prisma.appointment.findMany({
       where: {
-        date: { gte: start, lt: endExclusive },
-        status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+        AND: [whereAppointmentOnBusinessDay(dateStr), { status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] } }],
       },
       select: { id: true, time: true, employees: { select: { id: true, name: true, number: true } } },
     })
@@ -509,17 +504,22 @@ export async function getEmployeeScheduleView(req: Request, res: Response) {
     const schedule = await prisma.schedule.findUnique({
       where: { employeeId: id },
     })
-    const startOfToday = new Date()
-    startOfToday.setHours(0, 0, 0, 0)
-    const endOfDay14 = new Date(startOfToday)
-    endOfDay14.setDate(endOfDay14.getDate() + 15)
-    endOfDay14.setHours(0, 0, 0, 0)
+    const z = DEFAULT_APPOINTMENT_TIMEZONE
+    const nowZ = DateTime.now().setZone(z)
+    const startStr = nowZ.toFormat('yyyy-LL-dd')
+    const endStr = nowZ.plus({ days: 14 }).toFormat('yyyy-LL-dd')
+    let windowWhere
+    try {
+      windowWhere = whereAppointmentOnInclusiveLocalDateRange(startStr, endStr, z)
+    } catch {
+      return res.status(500).json({ error: 'Failed to fetch schedule view' })
+    }
 
     const appts = await prisma.appointment.findMany({
       where: {
         employees: { some: { id } },
-        date: { gte: startOfToday, lt: endOfDay14 },
         status: { notIn: ['DELETED', 'RESCHEDULE_OLD', 'CANCEL'] },
+        AND: [windowWhere],
       },
       include: {
         payrollItems: {
@@ -527,11 +527,14 @@ export async function getEmployeeScheduleView(req: Request, res: Response) {
           select: { confirmed: true },
         },
       },
-      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+      orderBy: [{ dateUtc: 'asc' }, { date: 'asc' }, { time: 'asc' }],
     })
 
     const upcoming = appts.map((a) => {
-      const dateStr = a.date.toISOString().slice(0, 10)
+      const dateStr = appointmentLocalDateKey({
+        dateUtc: a.dateUtc,
+        date: a.date,
+      })
       const block = getSlotFromTime(a.time ?? '') === 'M' ? 'AM' : 'PM'
       const confirmed = a.payrollItems?.[0]?.confirmed ?? false
       return { date: dateStr, block, confirmed }
@@ -635,7 +638,7 @@ export async function getEmployeeAppointments(req: Request, res: Response) {
         employees: { some: { id } },
         status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
       },
-      orderBy: [{ date: 'desc' }, { time: 'desc' }],
+      orderBy: [{ dateUtc: 'desc' }, { date: 'desc' }, { time: 'desc' }],
       skip,
       take,
       include: {
@@ -645,7 +648,7 @@ export async function getEmployeeAppointments(req: Request, res: Response) {
         payrollItems: { include: { extras: true } },
       },
     })
-    res.json(appts)
+    res.json(withAppointmentLocalDateMany(appts))
   } catch (e) {
     res.status(500).json({ error: 'Failed to fetch appointments' })
   }

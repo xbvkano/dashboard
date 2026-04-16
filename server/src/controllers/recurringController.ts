@@ -9,6 +9,13 @@ import {
   type RecurrenceRule,
 } from '../utils/recurrenceUtils'
 import { parseSqft, calculatePayRate, calculateCarpetRate } from '../utils/appointmentUtils'
+import {
+  appointmentAnchorUtc,
+  appointmentLocalDateKey,
+  localDateStringToStartOfDayUtc,
+  normalizeToBusinessDayAnchorUtc,
+  utcInstantToLocalDateString,
+} from '../utils/appointmentTimezone'
 
 const prisma = new PrismaClient()
 
@@ -17,9 +24,8 @@ const prisma = new PrismaClient()
  */
 export async function getActiveRecurrenceFamilies(_req: Request, res: Response) {
   try {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
+    const todayStr = utcInstantToLocalDateString(new Date())
+
     const families = await prisma.recurrenceFamily.findMany({
       where: { status: 'active' },
       include: {
@@ -27,7 +33,7 @@ export async function getActiveRecurrenceFamilies(_req: Request, res: Response) 
           where: {
             status: { in: ['APPOINTED', 'RECURRING_UNCONFIRMED'] },
           },
-          orderBy: { date: 'asc' },
+          orderBy: [{ dateUtc: 'asc' }, { date: 'asc' }],
           include: {
             client: true,
             employees: true,
@@ -44,10 +50,11 @@ export async function getActiveRecurrenceFamilies(_req: Request, res: Response) 
       )
       
       for (const appt of unconfirmedAppts) {
-        const apptDate = new Date(appt.date)
-        apptDate.setHours(0, 0, 0, 0)
-        
-        if (apptDate < today) {
+        const apptStr = appointmentLocalDateKey({
+          dateUtc: appt.dateUtc,
+          date: appt.date,
+        })
+        if (apptStr < todayStr) {
           // Missed unconfirmed appointment - stop the family
           await prisma.recurrenceFamily.update({
             where: { id: family.id },
@@ -66,7 +73,7 @@ export async function getActiveRecurrenceFamilies(_req: Request, res: Response) 
           where: {
             status: { in: ['APPOINTED', 'RECURRING_UNCONFIRMED'] },
           },
-          orderBy: { date: 'asc' },
+          orderBy: [{ dateUtc: 'asc' }, { date: 'asc' }],
           include: {
             client: true,
             employees: true,
@@ -340,27 +347,19 @@ export async function createRecurrenceFamily(req: Request, res: Response) {
       }
     }
 
-    // Parse date string (YYYY-MM-DD) as UTC midnight for consistent storage
-    const dateParts = date.split('-')
-    if (dateParts.length !== 3) {
+    let firstDate: Date
+    try {
+      firstDate = localDateStringToStartOfDayUtc(date)
+    } catch {
       return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' })
     }
-    const firstDate = new Date(Date.UTC(
-      parseInt(dateParts[0]),
-      parseInt(dateParts[1]) - 1, // Month is 0-indexed
-      parseInt(dateParts[2])
-    ))
-    if (isNaN(firstDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date' })
-    }
-    const nextDate = calculateNextAppointmentDate(recurrenceRule, firstDate)
+    const nextDate = normalizeToBusinessDayAnchorUtc(
+      calculateNextAppointmentDate(recurrenceRule, firstDate),
+    )
 
-    // Check if the first date is in the past - if so, create as stopped
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const firstDateOnly = new Date(firstDate)
-    firstDateOnly.setHours(0, 0, 0, 0)
-    const isPastDate = firstDateOnly < today
+    const todayStr = utcInstantToLocalDateString(new Date())
+    const firstStr = utcInstantToLocalDateString(firstDate)
+    const isPastDate = firstStr < todayStr
 
     // Calculate hours from template (same as normal appointments)
     const { calculateAppointmentHours } = await import('../utils/appointmentUtils')
@@ -384,6 +383,7 @@ export async function createRecurrenceFamily(req: Request, res: Response) {
         clientId,
         adminId,
         date: firstDate,
+        dateUtc: firstDate,
         time,
         type: template.type,
         address: template.address,
@@ -535,8 +535,13 @@ export async function confirmRecurringAppointment(req: Request, res: Response) {
 
     // Recalculate next appointment date from the confirmed appointment date
     // This handles cases where the appointment was moved - it will calculate from the moved date
-    const confirmedDate = new Date(confirmed.date)
-    const nextDate = calculateNextAppointmentDate(rule, confirmedDate)
+    const confirmedDate = appointmentAnchorUtc({
+      dateUtc: confirmed.dateUtc,
+      date: confirmed.date,
+    })
+    const nextDate = normalizeToBusinessDayAnchorUtc(
+      calculateNextAppointmentDate(rule, confirmedDate),
+    )
     
     // Check if this was the last unconfirmed appointment of a stopped family
     // If so, reactivate the family since we're confirming it
@@ -610,17 +615,11 @@ export async function confirmAndRescheduleRecurringAppointment(
     const rule = jsonToRule(family.recurrenceRule)
     
     // Parse date string (YYYY-MM-DD) as UTC midnight for consistent storage
-    const dateParts = newDate.split('-')
-    if (dateParts.length !== 3) {
+    let rescheduledDate: Date
+    try {
+      rescheduledDate = localDateStringToStartOfDayUtc(newDate)
+    } catch {
       return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' })
-    }
-    const rescheduledDate = new Date(Date.UTC(
-      parseInt(dateParts[0]),
-      parseInt(dateParts[1]) - 1, // Month is 0-indexed
-      parseInt(dateParts[2])
-    ))
-    if (isNaN(rescheduledDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date' })
     }
 
     // Update appointment date and status
@@ -628,6 +627,7 @@ export async function confirmAndRescheduleRecurringAppointment(
       where: { id },
       data: {
         date: rescheduledDate,
+        dateUtc: rescheduledDate,
         status: 'APPOINTED',
       },
       include: {
@@ -639,7 +639,9 @@ export async function confirmAndRescheduleRecurringAppointment(
     })
 
     // Recalculate next appointment date from the rescheduled and confirmed date
-    const nextDate = calculateNextAppointmentDate(rule, rescheduledDate)
+    const nextDate = normalizeToBusinessDayAnchorUtc(
+      calculateNextAppointmentDate(rule, rescheduledDate),
+    )
     
     // Check if this was the last unconfirmed appointment of a stopped family
     // If so, reactivate the family since we're confirming it
@@ -702,7 +704,12 @@ export async function skipRecurringAppointment(req: Request, res: Response) {
     })
 
     // Recalculate next appointment date (from the skipped date)
-    const nextDate = calculateNextAppointmentDate(rule, new Date(appointment.date))
+    const nextDate = normalizeToBusinessDayAnchorUtc(
+      calculateNextAppointmentDate(
+        rule,
+        appointmentAnchorUtc({ dateUtc: appointment.dateUtc, date: appointment.date }),
+      ),
+    )
     await prisma.recurrenceFamily.update({
       where: { id: family.id },
       data: { nextAppointmentDate: nextDate },
@@ -717,7 +724,7 @@ export async function skipRecurringAppointment(req: Request, res: Response) {
         familyId: family.id,
         status: 'RECURRING_UNCONFIRMED',
       },
-      orderBy: { date: 'asc' },
+      orderBy: [{ dateUtc: 'asc' }, { date: 'asc' }],
     })
 
     res.json({ 
@@ -726,6 +733,7 @@ export async function skipRecurringAppointment(req: Request, res: Response) {
       nextAppointment: nextAppointment ? {
         id: nextAppointment.id,
         date: nextAppointment.date,
+        dateUtc: nextAppointment.dateUtc,
       } : null,
     })
   } catch (err) {
@@ -762,18 +770,11 @@ export async function moveRecurringAppointment(req: Request, res: Response) {
 
     const family = appointment.family
     
-    // Parse date string (YYYY-MM-DD) as UTC midnight for consistent storage
-    const dateParts = newDate.split('-')
-    if (dateParts.length !== 3) {
+    let movedDate: Date
+    try {
+      movedDate = localDateStringToStartOfDayUtc(newDate)
+    } catch {
       return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' })
-    }
-    const movedDate = new Date(Date.UTC(
-      parseInt(dateParts[0]),
-      parseInt(dateParts[1]) - 1, // Month is 0-indexed
-      parseInt(dateParts[2])
-    ))
-    if (isNaN(movedDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date' })
     }
 
     // Validate time format (HH:MM)
@@ -782,14 +783,16 @@ export async function moveRecurringAppointment(req: Request, res: Response) {
       return res.status(400).json({ error: 'Invalid time format. Use HH:MM (24-hour format)' })
     }
 
-    const oldDate = new Date(appointment.date)
-    const oldDateStr = oldDate.toISOString().slice(0, 10)
-    const newDateStr = movedDate.toISOString().slice(0, 10)
+    const oldDateStr = appointmentLocalDateKey({
+      dateUtc: appointment.dateUtc,
+      date: appointment.date,
+    })
+    const newDateStr = utcInstantToLocalDateString(movedDate)
     const oldTimeStr = appointment.time
     const timeLog = oldTimeStr !== newTime ? ` from ${oldTimeStr} to ${newTime}` : ` (time unchanged: ${newTime})`
 
     // Log the move in the appointment notes
-    const moveLog = `[Moved from ${oldDateStr}${oldTimeStr !== newTime ? ` ${oldTimeStr}` : ''} to ${newDateStr} ${newTime} on ${new Date().toISOString().slice(0, 10)}]`
+    const moveLog = `[Moved from ${oldDateStr}${oldTimeStr !== newTime ? ` ${oldTimeStr}` : ''} to ${newDateStr} ${newTime} on ${utcInstantToLocalDateString(new Date())}]`
     const existingNotes = appointment.notes || ''
     const updatedNotes = existingNotes 
       ? `${existingNotes}\n${moveLog}`
@@ -801,6 +804,7 @@ export async function moveRecurringAppointment(req: Request, res: Response) {
       where: { id },
       data: {
         date: movedDate,
+        dateUtc: movedDate,
         time: newTime,
         notes: updatedNotes,
       },
@@ -815,7 +819,9 @@ export async function moveRecurringAppointment(req: Request, res: Response) {
     // Update nextAppointmentDate in family to reflect the moved date
     // This ensures the family knows about the new date
     const rule = jsonToRule(family.recurrenceRule)
-    const nextDate = calculateNextAppointmentDate(rule, movedDate)
+    const nextDate = normalizeToBusinessDayAnchorUtc(
+      calculateNextAppointmentDate(rule, movedDate),
+    )
     await prisma.recurrenceFamily.update({
       where: { id: family.id },
       data: { nextAppointmentDate: movedDate }, // The moved date is now the next appointment
@@ -853,12 +859,12 @@ async function ensureSingleUnconfirmedInstance(
 
   // If there's exactly one and it's on the right date, we're good
   if (existing.length === 1) {
-    const existingDate = new Date(existing[0].date)
-    existingDate.setHours(0, 0, 0, 0)
-    const targetDate = new Date(nextDate)
-    targetDate.setHours(0, 0, 0, 0)
-
-    if (existingDate.getTime() === targetDate.getTime()) {
+    const existingAnchor = appointmentAnchorUtc({
+      dateUtc: existing[0].dateUtc,
+      date: existing[0].date,
+    })
+    const targetAnchor = normalizeToBusinessDayAnchorUtc(nextDate)
+    if (existingAnchor.getTime() === targetAnchor.getTime()) {
       return // Already correct
     }
   }
@@ -873,10 +879,15 @@ async function ensureSingleUnconfirmedInstance(
 
   // Create new unconfirmed instance if we have a next date
   if (nextDate) {
+    const anchor = normalizeToBusinessDayAnchorUtc(nextDate)
     // Find the most recent confirmed appointment to use as a template
     const confirmedAppts = family.appointments
       .filter((a) => a.status === 'APPOINTED')
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .sort(
+        (a, b) =>
+          appointmentAnchorUtc({ dateUtc: b.dateUtc, date: b.date }).getTime() -
+          appointmentAnchorUtc({ dateUtc: a.dateUtc, date: a.date }).getTime(),
+      )
     const templateAppt = confirmedAppts[0] || family.appointments[0]
     
     if (templateAppt) {
@@ -887,7 +898,8 @@ async function ensureSingleUnconfirmedInstance(
         data: {
           clientId: templateAppt.clientId,
           adminId: templateAppt.adminId,
-          date: nextDate,
+          date: anchor,
+          dateUtc: anchor,
           time: templateAppt.time,
           type: templateAppt.type,
           address: templateAppt.address,
@@ -949,21 +961,14 @@ export async function restartRecurrenceFamily(req: Request, res: Response) {
       return res.status(400).json({ error: 'No previous appointments found to use as template' })
     }
 
-    // Parse date string (YYYY-MM-DD) as UTC midnight for consistent storage
-    const dateParts = date.split('-')
-    if (dateParts.length !== 3) {
+    let newDate: Date
+    try {
+      newDate = localDateStringToStartOfDayUtc(date)
+    } catch {
       return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' })
     }
-    const newDate = new Date(Date.UTC(
-      parseInt(dateParts[0]),
-      parseInt(dateParts[1]) - 1, // Month is 0-indexed
-      parseInt(dateParts[2])
-    ))
-    if (isNaN(newDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date' })
-    }
     const rule = jsonToRule(family.recurrenceRule)
-    const nextDate = calculateNextAppointmentDate(rule, newDate)
+    const nextDate = normalizeToBusinessDayAnchorUtc(calculateNextAppointmentDate(rule, newDate))
 
     // Update family to active and set next appointment date
     const updated = await prisma.recurrenceFamily.update({
@@ -988,6 +993,7 @@ export async function restartRecurrenceFamily(req: Request, res: Response) {
         clientId: lastAppt.clientId,
         adminId: lastAppt.adminId,
         date: newDate,
+        dateUtc: newDate,
         time,
         type: lastAppt.type,
         address: lastAppt.address,
@@ -1073,10 +1079,14 @@ export async function deleteRecurrenceFamily(req: Request, res: Response) {
  */
 export async function syncRecurringAppointments() {
   try {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-    endOfMonth.setHours(23, 59, 59, 999)
+    const todayStr = utcInstantToLocalDateString(new Date())
+    const { DateTime } = await import('luxon')
+    const { DEFAULT_APPOINTMENT_TIMEZONE } = await import('../utils/appointmentTimezone')
+    const endOfMonth = DateTime.now()
+      .setZone(DEFAULT_APPOINTMENT_TIMEZONE)
+      .endOf('month')
+      .toUTC()
+      .toJSDate()
 
     const activeFamilies = await prisma.recurrenceFamily.findMany({
       where: { status: 'active' },
@@ -1084,7 +1094,10 @@ export async function syncRecurringAppointments() {
         appointments: {
           where: {
             status: 'RECURRING_UNCONFIRMED',
-            date: { lte: endOfMonth },
+            OR: [
+              { dateUtc: { lte: endOfMonth } },
+              { AND: [{ dateUtc: null }, { date: { lte: endOfMonth } }] },
+            ],
           },
         },
       },
@@ -1095,9 +1108,11 @@ export async function syncRecurringAppointments() {
 
       // Check for missed unconfirmed instances
       const missed = family.appointments.filter((a) => {
-        const apptDate = new Date(a.date)
-        apptDate.setHours(0, 0, 0, 0)
-        return apptDate < today
+        const apptStr = appointmentLocalDateKey({
+          dateUtc: a.dateUtc,
+          date: a.date,
+        })
+        return apptStr < todayStr
       })
 
       if (missed.length > 0) {

@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcrypt'
 import { ruleToJson, calculateNextAppointmentDate } from '../src/utils/recurrenceUtils'
 import { calculateAppointmentHours } from '../src/utils/appointmentUtils'
+import { normalizeToBusinessDayAnchorUtc } from '../src/utils/appointmentTimezone'
 import { getNextOrThisUpdateDay } from '../src/utils/schedulePolicyUtils'
 import { normalizePhone } from '../src/utils/phoneUtils'
 
@@ -1298,6 +1299,15 @@ async function main() {
     where: { id: { in: [futureSingle.id, demoApptUnconfirmed.id] } },
     data: { conversationSessionId: janeSess.id },
   })
+
+  const seededAppts = await prisma.appointment.findMany({ select: { id: true, date: true } })
+  for (const row of seededAppts) {
+    const anchor = normalizeToBusinessDayAnchorUtc(new Date(row.date))
+    await prisma.appointment.update({
+      where: { id: row.id },
+      data: { dateUtc: anchor, date: anchor },
+    })
+  }
 }
 
 main()

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Client } from '../../../Clients/components/types'
-import type { AppointmentTemplate } from '../../types'
+import { appointmentCalendarDateKey, type AppointmentTemplate } from '../../types'
 import type { Employee } from '../../../Employees/components/types'
 import { API_BASE_URL, fetchJson } from '../../../../../api'
 
@@ -167,7 +167,7 @@ export function useCreateAppointmentState(
 
   useEffect(() => {
     if (initialAppointment) {
-      setDate(initialAppointment.date.slice(0, 10))
+      setDate(appointmentCalendarDateKey(initialAppointment))
       setTime(initialAppointment.time)
       setHours(String(initialAppointment.hours || ''))
       setEmployeeIds(initialAppointment.employees?.map((e: any) => e.id) || [])

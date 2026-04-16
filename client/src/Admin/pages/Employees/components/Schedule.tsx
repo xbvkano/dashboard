@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
 import { formatPhone } from '../../../../formatPhone'
-import type { Appointment } from '../../Calendar/types'
+import { appointmentCalendarDateKey, type Appointment } from '../../Calendar/types'
 import DayTimelineModalContainer, { type DayTimelineModalView } from '../../Calendar/components/DayTimelineHelpers/DayTimelineModalContainer'
 
 type ScheduleOverviewEmployee = {
@@ -385,7 +385,7 @@ export default function Schedule() {
         if (appointment) {
         const normalized = {
           ...appointment,
-          date: typeof appointment.date === 'string' ? appointment.date.slice(0, 10) : (appointment.date as Date).toISOString?.()?.slice(0, 10) ?? dateKey,
+          date: appointmentCalendarDateKey(appointment) || dateKey,
         } as Appointment
         setEmployeeViewAppointment(normalized)
         setEmployeeModalView('details')

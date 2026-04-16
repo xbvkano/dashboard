@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { API_BASE_URL, fetchJson } from '../../../api'
 import { isDevToolsEnabled } from '../../../devTools'
 import { useModal } from '../../../ModalProvider'
-import type { Appointment } from '../Calendar/types'
+import { appointmentCalendarDateKey, type Appointment } from '../Calendar/types'
 import CreateAppointmentModal from '../Calendar/components/CreateAppointmentModal'
 import HomePanel, { HomePanelCard } from './HomePanel'
 import StatsSection from './StatsSection'
@@ -62,7 +62,7 @@ export default function Home() {
       <div>
         <div className="font-medium">{a.client?.name}</div>
         <div className="text-sm text-gray-600">
-          {a.date.slice(0, 10)} {formatTime(a.time)}
+          {appointmentCalendarDateKey(a)} {formatTime(a.time)}
         </div>
       </div>
     ),

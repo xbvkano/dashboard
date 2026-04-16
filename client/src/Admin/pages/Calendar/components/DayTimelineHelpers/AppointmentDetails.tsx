@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
 import { formatPhone } from '../../../../../formatPhone'
-import type { Appointment } from '../../types'
+import { appointmentCalendarDateKey, type Appointment } from '../../types'
 
 function parseSqft(s: string | null | undefined): number | null {
   if (!s) return null
@@ -387,20 +387,7 @@ export default function AppointmentDetails({
     }
   }
 
-  // Use date-only part (YYYY-MM-DD) so invoice/links use the same calendar day as the server. Prefer string slice; if Date, use UTC to avoid timezone shift. (Calendar may pass Date from useCalendarData.)
-  const rawDate = appointment.date as string | Date
-  const apptDateStr =
-    typeof rawDate === 'string'
-      ? rawDate.slice(0, 10)
-      : rawDate instanceof Date
-        ? rawDate.toISOString().slice(0, 10)
-        : (() => {
-            const d = rawDate as Date
-            const y = d.getUTCFullYear()
-            const m = String(d.getUTCMonth() + 1).padStart(2, '0')
-            const day = String(d.getUTCDate()).padStart(2, '0')
-            return `${y}-${m}-${day}`
-          })()
+  const apptDateStr = appointmentCalendarDateKey(appointment)
   const teamSizeDisplay = appointment.teamSize ?? template?.teamSize ?? 1
 
   return (

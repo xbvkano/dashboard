@@ -15,9 +15,40 @@ export interface AppointmentTemplate {
   carpetPrice?: number
 }
 
+/** Business IANA zone (must stay aligned with server DEFAULT_APPOINTMENT_TIMEZONE). */
+export const APPOINTMENT_BUSINESS_TIME_ZONE = 'America/Los_Angeles'
+
+/** Today’s calendar date YYYY-MM-DD in the business timezone. */
+export function businessTodayLocalDateString(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: APPOINTMENT_BUSINESS_TIME_ZONE })
+}
+
+/**
+ * Stable YYYY-MM-DD for routing, sorting, and display. Prefer API `localDate`; fallback to legacy `date`/`dateUtc`.
+ */
+export function appointmentCalendarDateKey(a: {
+  localDate?: string | null
+  date?: string | Date
+  dateUtc?: string | Date | null
+}): string {
+  if (a.localDate) return a.localDate
+  const d = a.date
+  if (typeof d === 'string') return d.slice(0, 10)
+  if (d instanceof Date) return d.toISOString().slice(0, 10)
+  if (a.dateUtc != null) {
+    const u = a.dateUtc
+    return (typeof u === 'string' ? u : u.toISOString()).slice(0, 10)
+  }
+  return ''
+}
+
 export interface Appointment {
   id?: number
   date: string
+  /** YYYY-MM-DD in business timezone (server-computed). Prefer over slicing `date`. */
+  localDate?: string
+  /** UTC calendar day (ISO), optional until backfilled on older rows */
+  dateUtc?: string | null
   time: string
   clientId: number
   type: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'

@@ -16,6 +16,7 @@ export function isTierBPath(path: string): boolean {
 export function isPublicApiRoute(method: string, path: string): boolean {
   if (method === 'GET' && path === '/') return true
   if (method === 'POST' && path === '/login') return true
+  if (method === 'POST' && path === '/auth/refresh') return true
   if (method === 'POST' && path === '/messaging/inbound') return true
   return false
 }

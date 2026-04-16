@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../../api'
-import type { Appointment } from '../../types'
+import { appointmentCalendarDateKey, type Appointment } from '../../types'
 
 /** Z-index for the confirm overlay. Above DayTimelineModalContainer content (10000) so confirm shows on top. */
 const CONFIRM_OVERLAY_Z = 10001
@@ -68,12 +68,7 @@ export default function TeamOptionsModal({
   const [payNote, setPayNote] = useState((appointment as any).payrollNote ?? '')
 
   const teamSize = templateTeamSize ?? (appointment as any).teamSize ?? 1
-  const dateStr =
-    typeof appointment.date === 'string'
-      ? appointment.date.slice(0, 10)
-      : appointment.date instanceof Date
-        ? appointment.date.toISOString().slice(0, 10)
-        : ''
+  const dateStr = appointmentCalendarDateKey(appointment)
   const timeStr = appointment.time || ''
 
   useEffect(() => {

@@ -1,6 +1,12 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { calculateAppointmentHours, parseSqft } from '../utils/appointmentUtils'
+import {
+  localDateStringToStartOfDayUtc,
+  utcInstantToLocalDateString,
+  whereAppointmentOnBusinessDay,
+} from '../utils/appointmentTimezone'
+import { withAppointmentLocalDate, withAppointmentLocalDateMany } from '../utils/appointmentJson'
 import { normalizePhone, phoneLookupVariants } from '../utils/phoneUtils'
 import { getDefaultTeamSize, getSizeRange } from '../data/teamSizeData'
 
@@ -92,46 +98,31 @@ export async function createAIAppointment(req: Request, res: Response) {
       }
     }
 
-    // Step 2: Check if client already has an appointment on the same day
-    // Parse date string (YYYY-MM-DD) as UTC midnight for consistent storage
-    const dateParts = date.split('-')
-    if (dateParts.length !== 3) {
+    let anchor: Date
+    try {
+      anchor = localDateStringToStartOfDayUtc(date)
+    } catch {
       return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' })
     }
-    const appointmentDate = new Date(Date.UTC(
-      parseInt(dateParts[0]),
-      parseInt(dateParts[1]) - 1, // Month is 0-indexed
-      parseInt(dateParts[2])
-    ))
-    if (isNaN(appointmentDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date' })
-    }
 
-    // Check if appointment is for a different year than current year
     const currentYear = new Date().getFullYear()
-    const appointmentYear = appointmentDate.getUTCFullYear()
-    const anyDateValue = anyDate === true // Default to false if not provided or not explicitly true
-    
+    const appointmentYear = parseInt(utcInstantToLocalDateString(anchor).slice(0, 4), 10)
+    const anyDateValue = anyDate === true
+
     if (appointmentYear !== currentYear && !anyDateValue) {
       return res.status(400).json({ 
         error: `Cannot create appointment for year ${appointmentYear}. The appointment date must be in the current year (${currentYear}). To create an appointment for a different year, set the "anyDate" parameter to true in the request body.` 
       })
     }
-    
-    // For the query, we need to check the full day range in UTC
-    const nextDay = new Date(Date.UTC(
-      appointmentDate.getUTCFullYear(),
-      appointmentDate.getUTCMonth(),
-      appointmentDate.getUTCDate() + 1
-    ))
+
     const existingAppointment = await prisma.appointment.findFirst({
       where: {
         clientId: client.id,
-        date: {
-          gte: appointmentDate,
-          lt: nextDay
-        }
-      }
+        AND: [
+          whereAppointmentOnBusinessDay(date),
+          { status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] } },
+        ],
+      },
     })
 
     if (existingAppointment) {
@@ -195,7 +186,8 @@ export async function createAIAppointment(req: Request, res: Response) {
         clientId: client.id,
         adminId,
         templateId: template.id, // Save templateId to database
-        date: appointmentDate,
+        date: anchor,
+        dateUtc: anchor,
         time,
         type: serviceType as any, // Use the actual service type (STANDARD, DEEP, MOVE_IN_OUT)
         address: appointmentAddress,
@@ -222,7 +214,7 @@ export async function createAIAppointment(req: Request, res: Response) {
 
     return res.json({
       success: true,
-      appointment: appt,
+      appointment: withAppointmentLocalDate(appt),
       client: client,
       template: template,
       message: 'AI appointment created successfully'
@@ -278,12 +270,10 @@ export async function getAIAppointments(req: Request, res: Response) {
         admin: true,
         payrollItems: { include: { extras: true } },
       },
-      orderBy: {
-        date: 'desc'
-      }
+      orderBy: [{ dateUtc: 'desc' }, { date: 'desc' }],
     })
 
-    return res.json(appointments)
+    return res.json(withAppointmentLocalDateMany(appointments))
   } catch (err: unknown) {
     const errName = err instanceof Error ? err.name : 'UnknownError'
     const errMessage = err instanceof Error ? err.message : String(err)

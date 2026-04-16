@@ -73,7 +73,23 @@ export default function DevTools({ onSwitchRole }: DevToolsProps) {
     }
   }
 
-  const jobs = [
+  type DevJob = {
+    name: string
+    description: string
+    endpoint: string
+    /** If set, browser confirm() runs before POST */
+    confirmMessage?: string
+  }
+
+  const jobs: DevJob[] = [
+    {
+      name: 'Backfill appointment dateUtc',
+      description:
+        'Sets dateUtc from each row’s stored date (UTC calendar day). Only updates the dateUtc column. Asks for confirmation.',
+      endpoint: '/test/jobs/backfill-appointment-date-utc',
+      confirmMessage:
+        'Set dateUtc on every appointment from the UTC calendar day of the stored date field (midnight UTC). Safe to run more than once. Continue?',
+    },
     {
       name: 'Schedule Cleanup',
       description: 'Moves past schedule entries to pastSchedule array',
@@ -105,6 +121,33 @@ export default function DevTools({ onSwitchRole }: DevToolsProps) {
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">DevTools</h2>
+      </div>
+
+      <div className="bg-yellow-50 border border-yellow-200 rounded p-4">
+        <p className="text-sm text-yellow-800">
+          <strong>Warning:</strong> These buttons trigger server jobs (SMS, schedule moves, etc.). Only run what
+          you understand.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {jobs.map((job) => (
+          <div key={job.name} className="border rounded-lg p-4 bg-white shadow">
+            <h3 className="text-lg font-semibold mb-2">{job.name}</h3>
+            <p className="text-sm text-gray-600 mb-4">{job.description}</p>
+            <button
+              type="button"
+              onClick={async () => {
+                if (job.confirmMessage && !window.confirm(job.confirmMessage)) return
+                await triggerJob(job.name, job.endpoint)
+              }}
+              disabled={loading[job.name]}
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {loading[job.name] ? 'Running...' : `Run ${job.name}`}
+            </button>
+          </div>
+        ))}
       </div>
 
       {isDevToolsEnabled && isViteNoAuth() && onSwitchRole && (
@@ -166,28 +209,6 @@ export default function DevTools({ onSwitchRole }: DevToolsProps) {
           </button>
         </div>
       )}
-      
-      <div className="bg-yellow-50 border border-yellow-200 rounded p-4 mb-4">
-        <p className="text-sm text-yellow-800">
-          <strong>Warning:</strong> These buttons will trigger actual cron jobs. Make sure you understand what each job does before running it.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {jobs.map((job) => (
-          <div key={job.name} className="border rounded-lg p-4 bg-white shadow">
-            <h3 className="text-lg font-semibold mb-2">{job.name}</h3>
-            <p className="text-sm text-gray-600 mb-4">{job.description}</p>
-            <button
-              onClick={() => triggerJob(job.name, job.endpoint)}
-              disabled={loading[job.name]}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {loading[job.name] ? 'Running...' : `Run ${job.name}`}
-            </button>
-          </div>
-        ))}
-      </div>
 
       <div className="border rounded-lg p-4 bg-white shadow">
         <h3 className="text-lg font-semibold mb-2">Noon 14-day employee reminder</h3>

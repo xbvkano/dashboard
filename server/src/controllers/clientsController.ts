@@ -1,7 +1,14 @@
 import { Request, Response } from 'express'
+import { DateTime } from 'luxon'
 import { PrismaClient } from '@prisma/client'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { normalizePhone } from '../utils/phoneUtils'
+import {
+  DEFAULT_APPOINTMENT_TIMEZONE,
+  orderByAppointmentCalendarDesc,
+  whereAppointmentOnOrAfterLocalDate,
+} from '../utils/appointmentTimezone'
+import { withAppointmentLocalDateMany } from '../utils/appointmentJson'
 
 const prisma = new PrismaClient()
 
@@ -129,7 +136,7 @@ export async function getClientAppointments(req: Request, res: Response) {
         clientId: id,
         status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
       },
-      orderBy: [{ date: 'desc' }, { time: 'desc' }],
+      orderBy: orderByAppointmentCalendarDesc(),
       skip,
       take,
       include: {
@@ -139,7 +146,7 @@ export async function getClientAppointments(req: Request, res: Response) {
         payrollItems: { include: { extras: true } },
       },
     })
-    res.json(appts)
+    res.json(withAppointmentLocalDateMany(appts))
   } catch (e) {
     console.error('Error fetching client appointments:', e)
     res.status(500).json({ error: 'Failed to fetch appointments' })
@@ -170,6 +177,7 @@ export async function getClientRecurrenceFamilies(req: Request, res: Response) {
       return res.json([])
     }
 
+    const todayStr = DateTime.now().setZone(DEFAULT_APPOINTMENT_TIMEZONE).toFormat('yyyy-LL-dd')
     const families = await prisma.recurrenceFamily.findMany({
       where: {
         id: { in: familyIds },
@@ -178,9 +186,9 @@ export async function getClientRecurrenceFamilies(req: Request, res: Response) {
         appointments: {
           where: {
             status: { in: ['APPOINTED', 'RECURRING_UNCONFIRMED'] },
-            date: { gte: new Date() },
+            AND: [whereAppointmentOnOrAfterLocalDate(todayStr)],
           },
-          orderBy: { date: 'asc' },
+          orderBy: [{ dateUtc: 'asc' }, { date: 'asc' }, { time: 'asc' }],
           take: 1,
         },
       },

@@ -140,12 +140,6 @@ export default function MessageComposer({ onSend }: Props) {
           ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              void submit()
-            }
-          }}
           placeholder="Message"
           rows={1}
           className="flex-1 min-h-[40px] max-h-[50dvh] resize-none rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50 box-border"

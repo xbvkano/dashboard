@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { Appointment } from '../pages/Calendar/types'
+import {
+  appointmentCalendarDateKey,
+  businessTodayLocalDateString,
+  type Appointment,
+} from '../pages/Calendar/types'
 import { fetchJson } from "../../api"
 
 interface Props {
@@ -52,20 +56,16 @@ export default function AppointmentsSection({ url }: Props) {
     return `${hh}:${m.toString().padStart(2, '0')} ${ampm}`
   }
 
-  // Separate appointments into future and previous
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  
+  const todayKey = businessTodayLocalDateString()
+
   const futureAppointments = items.filter((a) => {
-    const apptDate = new Date(a.date)
-    apptDate.setHours(0, 0, 0, 0)
-    return apptDate >= today
+    const key = appointmentCalendarDateKey(a)
+    return key >= todayKey
   })
-  
+
   const previousAppointments = items.filter((a) => {
-    const apptDate = new Date(a.date)
-    apptDate.setHours(0, 0, 0, 0)
-    return apptDate < today
+    const key = appointmentCalendarDateKey(a)
+    return key < todayKey
   })
 
   return (
@@ -83,11 +83,11 @@ export default function AppointmentsSection({ url }: Props) {
             {futureAppointments.map((a) => (
               <li key={a.id} className="border rounded bg-white shadow">
                 <Link
-                  to={`/dashboard/calendar?date=${a.date.slice(0, 10)}&appt=${a.id}`}
+                  to={`/dashboard/calendar?date=${appointmentCalendarDateKey(a)}&appt=${a.id}`}
                   className="block p-2"
                 >
                   <div className="font-medium">
-                    {a.date.slice(0, 10)} {formatTime(a.time)} - {a.type}
+                    {appointmentCalendarDateKey(a)} {formatTime(a.time)} - {a.type}
                   </div>
                   <div className="text-sm text-gray-600">
                     {a.client?.name || ''} {a.address}
@@ -115,11 +115,11 @@ export default function AppointmentsSection({ url }: Props) {
             {previousAppointments.map((a) => (
               <li key={a.id} className="border rounded bg-white shadow">
                 <Link
-                  to={`/dashboard/calendar?date=${a.date.slice(0, 10)}&appt=${a.id}`}
+                  to={`/dashboard/calendar?date=${appointmentCalendarDateKey(a)}&appt=${a.id}`}
                   className="block p-2"
                 >
                   <div className="font-medium">
-                    {a.date.slice(0, 10)} {formatTime(a.time)} - {a.type}
+                    {appointmentCalendarDateKey(a)} {formatTime(a.time)} - {a.type}
                   </div>
                   <div className="text-sm text-gray-600">
                     {a.client?.name || ''} {a.address}

@@ -17,6 +17,8 @@ model User {
   id       Int      @id @default(autoincrement())
   email    String?  @unique
   name     String?
+  /// IANA timezone for appointment display/booking (e.g. America/Los_Angeles). Defaults to US West.
+  timeZone String   @default("America/Los_Angeles")
   role     Role     @default(EMPLOYEE)
   safe     Boolean  @default(false)
   type     UserType @default(Google)
@@ -74,7 +76,10 @@ model Employee {
 
 model Appointment {
   id              Int             @id @default(autoincrement())
+  /** @deprecated Use `dateUtc` for calendar-day identity; kept in sync during migration. */
   date            DateTime
+  /** UTC instant for start of the local calendar day (see `time`); timezone from business defaults. */
+  dateUtc         DateTime?
   time            String
   adminId        Int
   admin          User            @relation("AdminAppointments", fields: [adminId], references: [id])

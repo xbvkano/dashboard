@@ -12,6 +12,7 @@ function makeTestApp() {
   app.use(requireJwtMiddleware)
   app.get('/', (_req, res) => res.status(200).send('ok'))
   app.post('/login', (_req, res) => res.status(200).json({ ok: true }))
+  app.post('/auth/refresh', (_req, res) => res.status(200).json({ ok: true }))
   app.post('/messaging/inbound', (_req, res) => res.status(200).json({ ok: true }))
   app.get('/users', (_req, res) => res.status(200).json([]))
   app.get('/employee/schedule-policy', (_req, res) => res.status(200).json({}))
@@ -59,6 +60,11 @@ describe('requireJwtMiddleware', () => {
 
     it('POST /messaging/inbound returns 200', async () => {
       const res = await request(makeTestApp()).post('/messaging/inbound').send({})
+      expect(res.status).toBe(200)
+    })
+
+    it('POST /auth/refresh returns 200 without Bearer', async () => {
+      const res = await request(makeTestApp()).post('/auth/refresh').send({})
       expect(res.status).toBe(200)
     })
   })

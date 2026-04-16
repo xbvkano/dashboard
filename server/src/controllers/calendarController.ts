@@ -1,5 +1,11 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
+import { DateTime } from 'luxon'
+import {
+  appointmentAnchorUtc,
+  DEFAULT_APPOINTMENT_TIMEZONE,
+  utcInstantToLocalDateString,
+} from '../utils/appointmentTimezone'
 
 const prisma = new PrismaClient()
 
@@ -29,25 +35,33 @@ export async function getMonthCounts(req: Request, res: Response) {
     return res.status(400).json({ error: 'Invalid year or month' })
   }
 
-  // Use UTC dates for consistent querying
-  const start = new Date(Date.UTC(year, month - 1, 1))
-  const end = new Date(Date.UTC(year, month, 1))
+  const zone = DEFAULT_APPOINTMENT_TIMEZONE
+  const start = DateTime.fromObject({ year, month, day: 1 }, { zone }).startOf('day').toUTC()
+  const end = DateTime.fromObject({ year, month, day: 1 }, { zone }).plus({ months: 1 }).startOf('day').toUTC()
+  const legacyStart = new Date(Date.UTC(year, month - 1, 1))
+  const legacyEnd = new Date(Date.UTC(year, month, 1))
+
   try {
     const appts = await prisma.appointment.findMany({
       where: {
-        date: { gte: start, lt: end },
         status: { notIn: ['DELETED', 'RESCHEDULE_OLD', 'CANCEL'] },
+        OR: [
+          { dateUtc: { gte: start.toJSDate(), lt: end.toJSDate() } },
+          {
+            AND: [{ dateUtc: null }, { date: { gte: legacyStart, lt: legacyEnd } }],
+          },
+        ],
       },
-      select: { date: true },
+      select: { dateUtc: true, date: true },
     })
     const counts: Record<string, number> = {}
     for (const a of appts) {
-      // Format date as YYYY-MM-DD using UTC to match storage
-      const year = a.date.getUTCFullYear()
-      const month = String(a.date.getUTCMonth() + 1).padStart(2, '0')
-      const day = String(a.date.getUTCDate()).padStart(2, '0')
-      const key = `${year}-${month}-${day}`
-      counts[key] = (counts[key] || 0) + 1
+      const inst = appointmentAnchorUtc({ dateUtc: a.dateUtc, date: a.date })
+      const key = utcInstantToLocalDateString(inst, zone)
+      const [ky, km] = key.split('-').map(Number)
+      if (ky === year && km === month) {
+        counts[key] = (counts[key] || 0) + 1
+      }
     }
     res.json(counts)
   } catch (err) {
@@ -64,44 +78,46 @@ export async function getRangeCounts(req: Request, res: Response) {
     return res.status(400).json({ error: 'start and end required' })
   }
 
-  // Parse date strings (YYYY-MM-DD) as UTC midnight for consistent querying
-  const parseDateUTC = (dateStr: string): Date | null => {
-    const dateParts = dateStr.split('-')
-    if (dateParts.length !== 3) return null
-    const date = new Date(Date.UTC(
-      parseInt(dateParts[0]),
-      parseInt(dateParts[1]) - 1, // Month is 0-indexed
-      parseInt(dateParts[2])
-    ))
-    return isNaN(date.getTime()) ? null : date
-  }
-
-  const start = parseDateUTC(startStr)
-  const end = parseDateUTC(endStr)
-
-  if (!start || !end) {
+  const zone = DEFAULT_APPOINTMENT_TIMEZONE
+  const startLocal = DateTime.fromISO(startStr, { zone })
+  const endLocal = DateTime.fromISO(endStr, { zone })
+  if (!startLocal.isValid || !endLocal.isValid) {
     return res.status(400).json({ error: 'Invalid start or end date format. Use YYYY-MM-DD' })
   }
 
-  // Set end to the start of the next day in UTC to match getAppointments logic
-  const endExclusive = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() + 1))
+  const startU = startLocal.startOf('day').toUTC()
+  const endExclusive = endLocal.plus({ days: 1 }).startOf('day').toUTC()
 
   try {
+    const naiveLegacyStart = new Date(`${startStr}T00:00:00.000Z`)
+    const naiveLegacyEnd = new Date(`${endStr}T00:00:00.000Z`)
+    naiveLegacyEnd.setUTCDate(naiveLegacyEnd.getUTCDate() + 1)
+
     const appts = await prisma.appointment.findMany({
       where: {
-        date: { gte: start, lt: endExclusive },
         status: { notIn: ['DELETED', 'RESCHEDULE_OLD', 'CANCEL'] },
+        OR: [
+          { dateUtc: { gte: startU.toJSDate(), lt: endExclusive.toJSDate() } },
+          {
+            AND: [
+              { dateUtc: null },
+              { date: { gte: naiveLegacyStart, lt: naiveLegacyEnd } },
+            ],
+          },
+        ],
       },
-      select: { date: true },
+      select: { dateUtc: true, date: true },
     })
     const counts: Record<string, number> = {}
+    const startMs = startU.toMillis()
+    const endMs = endExclusive.toMillis()
     for (const a of appts) {
-      // Format date as YYYY-MM-DD using UTC to match storage
-      const year = a.date.getUTCFullYear()
-      const month = String(a.date.getUTCMonth() + 1).padStart(2, '0')
-      const day = String(a.date.getUTCDate()).padStart(2, '0')
-      const key = `${year}-${month}-${day}`
-      counts[key] = (counts[key] || 0) + 1
+      const inst = appointmentAnchorUtc({ dateUtc: a.dateUtc, date: a.date })
+      const key = utcInstantToLocalDateString(inst, zone)
+      const t = inst.getTime()
+      if (t >= startMs && t < endMs) {
+        counts[key] = (counts[key] || 0) + 1
+      }
     }
     res.json(counts)
   } catch (err) {

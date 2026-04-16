@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Appointment } from '../../Calendar/types'
+import { appointmentCalendarDateKey, type Appointment } from '../../Calendar/types'
 import { API_BASE_URL, withApiAuth } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
 import useFormPersistence, {
@@ -23,7 +23,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     city: '',
     stateField: '',
     zip: '',
-    serviceDate: appointment.date.slice(0, 10),
+    serviceDate: appointmentCalendarDateKey(appointment),
     time: appointment.time,
     serviceType: appointment.type,
     price: String(appointment.price ?? ''),

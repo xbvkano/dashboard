@@ -1,7 +1,16 @@
 import cron from 'node-cron'
+import { DateTime } from 'luxon'
 import { PrismaClient, Prisma } from '@prisma/client'
 import twilio from 'twilio'
 import { normalizePhone, supervisorPhoneE164 } from '../utils/phoneUtils'
+import {
+  appointmentAnchorUtc,
+  appointmentLocalDateKey,
+  DEFAULT_APPOINTMENT_TIMEZONE,
+  getTomorrowLocalDayRangeUtcFrom,
+  legacyNaiveUtcMidnightRange,
+  whereAppointmentOnBusinessDay,
+} from '../utils/appointmentTimezone'
 import { isTwilioOutboundConfigured, twilioMessageCreateParams, TWILIO_OUTBOUND_NOT_CONFIGURED } from '../utils/twilioSms'
 
 const prisma = new PrismaClient()
@@ -53,18 +62,25 @@ export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
   employeeFailed: EmployeeReminderNotification[]
 }> {
   const base = asOfDate ?? new Date()
-  // Tomorrow = next calendar day in server local TZ; then query UTC midnight range to match stored dates (YYYY-MM-DD → UTC midnight)
-  const tomorrowLocal = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1)
-  const y = tomorrowLocal.getFullYear()
-  const m = tomorrowLocal.getMonth()
-  const d = tomorrowLocal.getDate()
-  const tomorrowStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0))
-  const tomorrowEnd = new Date(Date.UTC(y, m, d + 1, 0, 0, 0, 0))
+  const { start: tomorrowStart, endExclusive: tomorrowEnd } = getTomorrowLocalDayRangeUtcFrom(base)
+  const tomorrowStr = appointmentLocalDateKey({
+    dateUtc: tomorrowStart,
+    date: tomorrowStart,
+  })
+  const legacyR = legacyNaiveUtcMidnightRange(tomorrowStr)
 
   // Load appointments with payroll items and employees (employee view uses employees; we notify when unconfirmed)
   const appointments = await prisma.appointment.findMany({
     where: {
-      date: { gte: tomorrowStart, lt: tomorrowEnd },
+      OR: [
+        { dateUtc: { gte: tomorrowStart, lt: tomorrowEnd } },
+        {
+          AND: [
+            { dateUtc: null },
+            { date: { gte: legacyR.start, lt: legacyR.endExclusive } },
+          ],
+        },
+      ],
       status: { notIn: ['DELETED', 'CANCEL', 'RESCHEDULE_OLD'] },
     },
     include: {
@@ -141,12 +157,14 @@ export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
   const employeeSkipped: EmployeeReminderNotification[] = []
   const employeeFailed: EmployeeReminderNotification[] = []
   for (const { appt, emp, supervisor } of unconfirmedEntries) {
-    // Use UTC so the calendar day is correct (appointments are stored as UTC midnight for YYYY-MM-DD)
-    const dateStr = new Date(appt.date).toLocaleDateString('en-US', {
+    const dateStr = appointmentAnchorUtc({
+      dateUtc: appt.dateUtc,
+      date: appt.date,
+    }).toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'short',
       day: 'numeric',
-      timeZone: 'UTC',
+      timeZone: DEFAULT_APPOINTMENT_TIMEZONE,
     })
     const clientName = appt.client?.name ?? 'Unknown client'
 
@@ -248,17 +266,19 @@ export async function runUnconfirmedCheck(asOfDate?: Date): Promise<{
   return { sent, skipped, failed, employeeSent: [], employeeSkipped: [], employeeFailed: [] }
 }
 
-/** 14-day window (today through today+14) in UTC for employee reminders */
-function getEmployeeReminderDateRange(asOf: Date): { start: Date; end: Date } {
-  const y = asOf.getFullYear()
-  const m = asOf.getMonth()
-  const d = asOf.getDate()
-  const start = new Date(Date.UTC(y, m, d, 0, 0, 0, 0))
-  const endLocal = new Date(y, m, d + 15)
-  const end = new Date(
-    Date.UTC(endLocal.getFullYear(), endLocal.getMonth(), endLocal.getDate(), 0, 0, 0, 0)
-  )
-  return { start, end }
+/** 15-day inclusive window (today … today+14) on the business calendar, as millis on the timeline. */
+function getEmployeeReminderWindowMs(asOf: Date): { startMs: number; endExclusiveMs: number } {
+  const z = DEFAULT_APPOINTMENT_TIMEZONE
+  const now = DateTime.fromJSDate(asOf).setZone(z)
+  const startStr = now.toFormat('yyyy-LL-dd')
+  const endStr = now.plus({ days: 14 }).toFormat('yyyy-LL-dd')
+  const startMs = DateTime.fromISO(startStr, { zone: z }).startOf('day').toUTC().toMillis()
+  const endExclusiveMs = DateTime.fromISO(endStr, { zone: z })
+    .plus({ days: 1 })
+    .startOf('day')
+    .toUTC()
+    .toMillis()
+  return { startMs, endExclusiveMs }
 }
 
 const DASHBOARD_URL = 'https://dashboard.worldwideevidence.com/'
@@ -281,7 +301,7 @@ export async function sendEmployeeRemindersForAppointmentIds(appointmentIds: num
   if (appointmentIds.length === 0) return
   if (!isTwilioOutboundConfigured()) return
   const asOf = new Date()
-  const { start, end } = getEmployeeReminderDateRange(asOf)
+  const { startMs, endExclusiveMs } = getEmployeeReminderWindowMs(asOf)
   const items = (await prisma.payrollItem.findMany({
     where: {
       appointmentId: { in: appointmentIds },
@@ -296,14 +316,19 @@ export async function sendEmployeeRemindersForAppointmentIds(appointmentIds: num
       },
     },
   })) as PayrollItemWithAppointmentAndEmployee[]
-  const dateStrOpts = { weekday: 'long' as const, month: 'short' as const, day: 'numeric' as const, timeZone: 'UTC' as const }
+  const dateStrOpts = {
+    weekday: 'long' as const,
+    month: 'short' as const,
+    day: 'numeric' as const,
+    timeZone: DEFAULT_APPOINTMENT_TIMEZONE,
+  }
   for (const pi of items) {
     const appt = pi.appointment
-    const apptDate = new Date(appt.date)
-    if (apptDate < start || apptDate >= end) continue
+    const apptMs = appointmentAnchorUtc({ dateUtc: appt.dateUtc, date: appt.date }).getTime()
+    if (apptMs < startMs || apptMs >= endExclusiveMs) continue
     const emp = pi.employee
     const clientName = appt.client?.name ?? 'Unknown client'
-    const dateStr = apptDate.toLocaleDateString('en-US', dateStrOpts)
+    const dateStr = new Date(apptMs).toLocaleDateString('en-US', dateStrOpts)
     const phoneNorm = emp?.number ? normalizePhone(emp.number) : null
     if (!phoneNorm) continue
     const phone = phoneNorm
@@ -344,20 +369,25 @@ export async function runNoonEmployeeReminders(
   options?: { employeeId?: number }
 ): Promise<{ sent: EmployeeReminderNotification[]; skipped: EmployeeReminderNotification[]; failed: EmployeeReminderNotification[] }> {
   const base = asOf ?? new Date()
-  const y = base.getFullYear()
-  const m = base.getMonth()
-  const d = base.getDate()
-  const newDayLocal = new Date(y, m, d + 14)
-  const newDayStart = new Date(
-    Date.UTC(newDayLocal.getFullYear(), newDayLocal.getMonth(), newDayLocal.getDate(), 0, 0, 0, 0)
-  )
-  const newDayEnd = new Date(
-    Date.UTC(newDayLocal.getFullYear(), newDayLocal.getMonth(), newDayLocal.getDate() + 1, 0, 0, 0, 0)
-  )
+  const newDayStr = DateTime.fromJSDate(base)
+    .setZone(DEFAULT_APPOINTMENT_TIMEZONE)
+    .plus({ days: 14 })
+    .toFormat('yyyy-LL-dd')
+  let dayWhere
+  try {
+    dayWhere = whereAppointmentOnBusinessDay(newDayStr)
+  } catch {
+    return { sent: [], skipped: [], failed: [] }
+  }
   const sent: EmployeeReminderNotification[] = []
   const skipped: EmployeeReminderNotification[] = []
   const failed: EmployeeReminderNotification[] = []
-  const dateStrOpts = { weekday: 'long' as const, month: 'short' as const, day: 'numeric' as const, timeZone: 'UTC' as const }
+  const dateStrOpts = {
+    weekday: 'long' as const,
+    month: 'short' as const,
+    day: 'numeric' as const,
+    timeZone: DEFAULT_APPOINTMENT_TIMEZONE,
+  }
 
   const items = (await prisma.payrollItem.findMany({
     where: {
@@ -366,8 +396,10 @@ export async function runNoonEmployeeReminders(
       employee: { disabled: false },
       ...(options?.employeeId != null ? { employeeId: options.employeeId } : {}),
       appointment: {
-        date: { gte: newDayStart, lt: newDayEnd },
-        status: { notIn: ['DELETED', 'CANCEL', 'RESCHEDULE_OLD'] },
+        AND: [
+          dayWhere,
+          { status: { notIn: ['DELETED', 'CANCEL', 'RESCHEDULE_OLD'] } },
+        ],
       },
     } as Prisma.PayrollItemWhereInput,
     include: {
@@ -382,7 +414,10 @@ export async function runNoonEmployeeReminders(
     const appt = pi.appointment
     const emp = pi.employee
     const clientName = appt.client?.name ?? 'Unknown client'
-    const dateStr = new Date(appt.date).toLocaleDateString('en-US', dateStrOpts)
+    const dateStr = appointmentAnchorUtc({
+      dateUtc: appt.dateUtc,
+      date: appt.date,
+    }).toLocaleDateString('en-US', dateStrOpts)
     const phoneNorm = emp?.number ? normalizePhone(emp.number) : null
     if (!phoneNorm) {
       skipped.push({

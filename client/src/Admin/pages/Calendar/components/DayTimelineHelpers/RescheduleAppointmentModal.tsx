@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { API_BASE_URL, attachDashboardUserHeaders, fetchJson } from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
-import type { Appointment } from '../../types'
+import { appointmentCalendarDateKey, type Appointment } from '../../types'
 
 const skipNgrokWarning =
   import.meta.env.VITE_NGROK === 'true' || import.meta.env.VITE_NGROK === '1'
@@ -39,21 +39,9 @@ interface RescheduleAppointmentModalProps {
   onRescheduled: (newAppointment: Appointment) => void
 }
 
-/** Format appointment date as YYYY-MM-DD for the date input. Use UTC components so the calendar day matches the stored date (avoids off-by-one in timezones behind UTC). */
+/** Format appointment date as YYYY-MM-DD for the date input (business local calendar day). */
 function getDateStr(appointment: Appointment): string {
-  const raw = appointment.date
-  if (typeof raw === 'string') {
-    const d = new Date(raw)
-    const year = d.getUTCFullYear()
-    const month = String(d.getUTCMonth() + 1).padStart(2, '0')
-    const day = String(d.getUTCDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
-  const d = raw as Date
-  const year = d.getUTCFullYear()
-  const month = String(d.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(d.getUTCDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  return appointmentCalendarDateKey(appointment)
 }
 
 export default function RescheduleAppointmentModal({

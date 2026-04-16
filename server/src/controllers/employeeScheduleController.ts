@@ -1,10 +1,16 @@
 import { Request, Response } from 'express'
+import { DateTime } from 'luxon'
 import { PrismaClient } from '@prisma/client'
 import twilio from 'twilio'
 import { calculatePayRate, calculateCarpetRate } from '../utils/appointmentUtils'
 import { getNextOrThisUpdateDay, getNextUpdateDueDate } from '../utils/schedulePolicyUtils'
 import { supervisorPhoneE164 } from '../utils/phoneUtils'
 import { isTwilioOutboundConfigured, twilioMessageCreateParams } from '../utils/twilioSms'
+import {
+  appointmentLocalDateKey,
+  DEFAULT_APPOINTMENT_TIMEZONE,
+  whereAppointmentOnInclusiveLocalDateRange,
+} from '../utils/appointmentTimezone'
 
 const prisma = new PrismaClient()
 const smsClient = twilio(
@@ -356,17 +362,22 @@ export async function getUpcomingAppointments(req: Request, res: Response) {
     if ('disabled' in auth) return res.status(403).json({ error: 'Account disabled' })
     const employeeId = auth.employeeId
 
-    const startOfToday = new Date()
-    startOfToday.setHours(0, 0, 0, 0)
-    const endOfDay14 = new Date(startOfToday)
-    endOfDay14.setDate(endOfDay14.getDate() + 15)
-    endOfDay14.setHours(0, 0, 0, 0)
+    const z = DEFAULT_APPOINTMENT_TIMEZONE
+    const nowZ = DateTime.now().setZone(z)
+    const startStr = nowZ.toFormat('yyyy-LL-dd')
+    const endStr = nowZ.plus({ days: 14 }).toFormat('yyyy-LL-dd')
+    let windowWhere
+    try {
+      windowWhere = whereAppointmentOnInclusiveLocalDateRange(startStr, endStr, z)
+    } catch {
+      return res.status(500).json({ error: 'Failed to fetch upcoming appointments' })
+    }
 
     const appointments = await prisma.appointment.findMany({
       where: {
         employees: { some: { id: employeeId } },
-        date: { gte: startOfToday, lt: endOfDay14 },
         status: { notIn: ['RESCHEDULE_OLD', 'DELETED', 'CANCEL'] },
+        AND: [windowWhere],
       },
       include: {
         template: true,
@@ -377,11 +388,11 @@ export async function getUpcomingAppointments(req: Request, res: Response) {
         },
         employees: true,
       },
-      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+      orderBy: [{ dateUtc: 'asc' }, { date: 'asc' }, { time: 'asc' }],
     })
 
     const result = appointments.map((a) => {
-      const dateStr = a.date.toISOString().slice(0, 10)
+      const dateStr = appointmentLocalDateKey({ dateUtc: a.dateUtc, date: a.date })
       const count = a.employees?.length || 1
       const defaultPay = calculatePayRate(a.type, a.size ?? null, count)
       const carpetIds = (a.carpetEmployees as number[]) || []

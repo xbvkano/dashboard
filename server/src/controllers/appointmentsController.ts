@@ -1,6 +1,21 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
-import { parseSqft, calculatePayRate, calculateCarpetRate, calculateAppointmentHours, getSlotFromTime } from '../utils/appointmentUtils'
+import {
+  parseSqft,
+  calculatePayRate,
+  calculateCarpetRate,
+  calculateAppointmentHours,
+  getSlotFromTime,
+} from '../utils/appointmentUtils'
+import {
+  appointmentAnchorUtc,
+  appointmentLocalDateKey,
+  getLocalDayRangeUtc,
+  localDateStringToStartOfDayUtc,
+  utcInstantToLocalDateString,
+  whereAppointmentOnBusinessDay,
+} from '../utils/appointmentTimezone'
+import { withAppointmentLocalDate, withAppointmentLocalDateMany } from '../utils/appointmentJson'
 import { jsonToRule, calculateNextAppointmentDate } from '../utils/recurrenceUtils'
 import { sendEmployeeRemindersForAppointmentIds } from '../jobs/unconfirmedCheck'
 import { normalizePhone } from '../utils/phoneUtils'
@@ -27,45 +42,24 @@ async function resolveAdminIdForWrite(req: Request): Promise<number | null> {
 }
 
 /**
- * Parse date string (YYYY-MM-DD) as UTC midnight
- * This ensures consistent storage and queries across all timezones
- */
-function parseDateStringUTC(dateStr: string): Date {
-  const dateParts = dateStr.split('-')
-  if (dateParts.length !== 3) {
-    throw new Error('Invalid date format. Use YYYY-MM-DD')
-  }
-  // Create UTC date at midnight
-  const date = new Date(Date.UTC(
-    parseInt(dateParts[0]),
-    parseInt(dateParts[1]) - 1, // Month is 0-indexed
-    parseInt(dateParts[2])
-  ))
-  if (isNaN(date.getTime())) {
-    throw new Error('Invalid date')
-  }
-  return date
-}
-
-/**
- * Returns employee IDs that are already scheduled at the given date+time slot (AM/PM).
+ * Returns employee IDs that are already scheduled at the given local calendar date+time slot (AM/PM).
  * Excludes appointment excludeAppointmentId when checking (for updates).
  */
 async function getEmployeesAlreadyInSlot(
-  date: Date,
+  localDateStr: string,
   time: string,
   employeeIds: number[],
   excludeAppointmentId?: number
 ): Promise<number[]> {
   if (employeeIds.length === 0) return []
   const slot = getSlotFromTime(time)
-  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
-  const endExclusive = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1))
   const appts = await prisma.appointment.findMany({
     where: {
-      date: { gte: start, lt: endExclusive },
-      status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
-      ...(excludeAppointmentId != null && { id: { not: excludeAppointmentId } }),
+      AND: [
+        whereAppointmentOnBusinessDay(localDateStr),
+        { status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] } },
+        ...(excludeAppointmentId != null ? [{ id: { not: excludeAppointmentId } }] : []),
+      ],
     },
     select: { time: true, employees: { select: { id: true } } },
   })
@@ -91,23 +85,19 @@ export async function syncPayrollItems(apptId: number, employeeIds: number[]) {
 export async function getAppointments(req: Request, res: Response) {
   const dateStr = String(req.query.date || '')
   if (!dateStr) return res.status(400).json({ error: 'date required' })
-  
-  // Parse date string (YYYY-MM-DD) as UTC midnight
-  let date: Date
+
   try {
-    date = parseDateStringUTC(dateStr)
-  } catch (err: any) {
-    return res.status(400).json({ error: err.message || 'Invalid date format. Use YYYY-MM-DD' })
+    getLocalDayRangeUtc(dateStr)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Invalid date format. Use YYYY-MM-DD'
+    return res.status(400).json({ error: msg })
   }
-  // Next day in UTC
-  const next = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1))
   try {
     const appts = await prisma.appointment.findMany({
       where: {
-        date: { gte: date, lt: next },
-        status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+        AND: [whereAppointmentOnBusinessDay(dateStr), { status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] } }],
       },
-      orderBy: { time: 'asc' },
+      orderBy: [{ dateUtc: 'asc' }, { time: 'asc' }],
       include: {
         client: true,
         employees: true,
@@ -116,7 +106,7 @@ export async function getAppointments(req: Request, res: Response) {
         family: true,
       },
     })
-    res.json(appts)
+    res.json(withAppointmentLocalDateMany(appts))
   } catch (e) {
     console.error('Error fetching appointments:', e)
     res.status(500).json({ error: 'Failed to fetch appointments' })
@@ -128,7 +118,7 @@ export async function getAppointmentsByLineage(req: Request, res: Response) {
   try {
     const appts = await prisma.appointment.findMany({
       where: { lineage },
-      orderBy: { date: 'asc' },
+      orderBy: [{ dateUtc: 'asc' }, { date: 'asc' }, { time: 'asc' }],
       include: {
         client: true,
         employees: true,
@@ -137,7 +127,7 @@ export async function getAppointmentsByLineage(req: Request, res: Response) {
         family: true,
       },
     })
-    res.json(appts)
+    res.json(withAppointmentLocalDateMany(appts))
   } catch {
     res.status(500).json({ error: 'Failed to fetch lineage appointments' })
   }
@@ -150,7 +140,7 @@ export async function getNoTeamAppointments(_req: Request, res: Response) {
         noTeam: true,
         status: { notIn: ['DELETED', 'RESCHEDULE_OLD', 'CANCEL'] },
       },
-      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+      orderBy: [{ dateUtc: 'asc' }, { date: 'asc' }, { time: 'asc' }],
       include: {
         client: true,
         employees: true,
@@ -159,7 +149,7 @@ export async function getNoTeamAppointments(_req: Request, res: Response) {
         family: true,
       },
     })
-    res.json(appts)
+    res.json(withAppointmentLocalDateMany(appts))
   } catch (err) {
     console.error('Failed to fetch no-team appointments:', err)
     res.status(500).json({ error: 'Failed to fetch appointments' })
@@ -257,9 +247,20 @@ export async function createAppointment(req: Request, res: Response) {
       }
     }
 
-    if (employeeIds.length > 0 && date && time) {
-      const dateObj = parseDateStringUTC(date)
-      const alreadyBooked = await getEmployeesAlreadyInSlot(dateObj, time, employeeIds)
+    let anchorLocalDay: Date
+    try {
+      anchorLocalDay = localDateStringToStartOfDayUtc(date)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Invalid date'
+      return res.status(400).json({ error: msg })
+    }
+
+    if (employeeIds.length > 0 && time) {
+      const alreadyBooked = await getEmployeesAlreadyInSlot(
+        date,
+        time,
+        employeeIds,
+      )
       if (alreadyBooked.length > 0) {
         return res.status(409).json({
           error: 'One or more employees are already scheduled in this time block',
@@ -273,7 +274,8 @@ export async function createAppointment(req: Request, res: Response) {
         clientId,              // scalar shortcut instead of nested connect
         adminId: effectiveAdminId, // always attribute to current signed-in admin (fallback: explicit adminId)
         templateId,            // Save templateId to database
-        date: new Date(date),
+        date: anchorLocalDay,
+        dateUtc: anchorLocalDay,
         time,
         type: template.type,
         address: template.address,
@@ -318,7 +320,7 @@ export async function createAppointment(req: Request, res: Response) {
       )
     }
 
-    return res.json(appt)
+    return res.json(withAppointmentLocalDate(appt))
   } catch (err) {
     console.error('Error creating appointment:', err)
     return res.status(500).json({ error: 'Failed to create appointment' })
@@ -410,7 +412,9 @@ export async function updateAppointment(req: Request, res: Response) {
     }
     if (date !== undefined) {
       try {
-        data.date = parseDateStringUTC(date)
+        const d = localDateStringToStartOfDayUtc(date)
+        data.date = d
+        data.dateUtc = d
       } catch (err: any) {
         return res.status(400).json({ error: err.message || 'Invalid date format. Use YYYY-MM-DD' })
       }
@@ -445,10 +449,15 @@ export async function updateAppointment(req: Request, res: Response) {
     if (!current) return res.status(404).json({ error: 'Not found' })
 
     if (employeeIds && employeeIds.length > 0) {
-      const effectiveDate = data.date != null ? data.date : current.date
       const effectiveTime = data.time != null ? data.time : (current.time ?? '')
-      const dateForCheck = effectiveDate instanceof Date ? effectiveDate : new Date(effectiveDate)
-      const alreadyBooked = await getEmployeesAlreadyInSlot(dateForCheck, effectiveTime, employeeIds, id)
+      const localDayStr =
+        date !== undefined && typeof date === 'string'
+          ? date
+          : appointmentLocalDateKey({
+              dateUtc: current.dateUtc,
+              date: current.date,
+            })
+      const alreadyBooked = await getEmployeesAlreadyInSlot(localDayStr, effectiveTime, employeeIds, id)
       if (alreadyBooked.length > 0) {
         return res.status(409).json({
           error: 'One or more employees are already scheduled in this time block',
@@ -478,18 +487,19 @@ export async function updateAppointment(req: Request, res: Response) {
       })
       
       // Log the reschedule with family info
-      // Use UTC date components to get the correct calendar day
-      const oldDateUTC = new Date(current.date)
-      const oldDateStr = `${oldDateUTC.getUTCFullYear()}-${String(oldDateUTC.getUTCMonth() + 1).padStart(2, '0')}-${String(oldDateUTC.getUTCDate()).padStart(2, '0')}`
+      const oldDateStr = appointmentLocalDateKey({
+        dateUtc: current.dateUtc,
+        date: current.date,
+      })
       const oldTimeStr = current.time
-      const todayUTC = new Date()
-      const todayStr = `${todayUTC.getUTCFullYear()}-${String(todayUTC.getUTCMonth() + 1).padStart(2, '0')}-${String(todayUTC.getUTCDate()).padStart(2, '0')}`
+      const todayStr = utcInstantToLocalDateString(new Date())
       
       let rescheduleLog: string
       if (rescheduledNewAppointment) {
-        // Get the new appointment's date in UTC for logging
-        const newDateUTC = new Date(rescheduledNewAppointment.date)
-        const newDateStr = `${newDateUTC.getUTCFullYear()}-${String(newDateUTC.getUTCMonth() + 1).padStart(2, '0')}-${String(newDateUTC.getUTCDate()).padStart(2, '0')}`
+        const newDateStr = appointmentLocalDateKey({
+          dateUtc: rescheduledNewAppointment.dateUtc,
+          date: rescheduledNewAppointment.date,
+        })
         const newTimeStr = rescheduledNewAppointment.time
         rescheduleLog = `[Rescheduled from recurrence family #${current.familyId}: ${oldDateStr} ${oldTimeStr} → ${newDateStr} ${newTimeStr} on ${todayStr}]`
       } else {
@@ -512,7 +522,13 @@ export async function updateAppointment(req: Request, res: Response) {
         
         // Update the family's nextAppointmentDate based on the new rescheduled appointment date
         const rule = jsonToRule(current.family.recurrenceRule)
-        const nextDate = calculateNextAppointmentDate(rule, rescheduledNewAppointment.date)
+        const nextDate = calculateNextAppointmentDate(
+          rule,
+          appointmentAnchorUtc({
+            dateUtc: rescheduledNewAppointment.dateUtc,
+            date: rescheduledNewAppointment.date,
+          }),
+        )
         
         // Check for unconfirmed appointments to determine the actual next date
         const family = await prisma.recurrenceFamily.findUnique({
@@ -529,9 +545,16 @@ export async function updateAppointment(req: Request, res: Response) {
         
         // If there are unconfirmed appointments, use the earliest one
         // Otherwise, use the calculated next date from the rescheduled appointment
-        const finalNextDate = family && family.appointments.length > 0
-          ? (family.appointments[0].date < nextDate ? family.appointments[0].date : nextDate)
-          : nextDate
+        const finalNextDate =
+          family && family.appointments.length > 0
+            ? (() => {
+                const u0 = appointmentAnchorUtc({
+                  dateUtc: family.appointments[0].dateUtc,
+                  date: family.appointments[0].date,
+                })
+                return u0.getTime() < nextDate.getTime() ? u0 : nextDate
+              })()
+            : nextDate
         
         await prisma.recurrenceFamily.update({
           where: { id: current.familyId },
@@ -554,7 +577,13 @@ export async function updateAppointment(req: Request, res: Response) {
         if (family && family.appointments.length > 0) {
           const lastAppointment = family.appointments[0]
           const rule = jsonToRule(current.family.recurrenceRule)
-          const nextDate = calculateNextAppointmentDate(rule, lastAppointment.date)
+          const nextDate = calculateNextAppointmentDate(
+            rule,
+            appointmentAnchorUtc({
+              dateUtc: lastAppointment.dateUtc,
+              date: lastAppointment.date,
+            }),
+          )
           await prisma.recurrenceFamily.update({
             where: { id: current.familyId },
             data: { nextAppointmentDate: nextDate }
@@ -588,7 +617,14 @@ export async function updateAppointment(req: Request, res: Response) {
         return `${hh.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`
       }
 
-      const dateDiff = data.date ? new Date(data.date).getTime() - current.date.getTime() : 0
+      const currentAnchor = appointmentAnchorUtc({
+        dateUtc: current.dateUtc,
+        date: current.date,
+      })
+      const dateDiff =
+        data.date && typeof date === 'string'
+          ? localDateStringToStartOfDayUtc(date).getTime() - currentAnchor.getTime()
+          : 0
       const timeDiff = data.time ? toMinutes(data.time) - toMinutes(current.time) : 0
       const base: any = { ...data }
       delete base.date
@@ -596,16 +632,20 @@ export async function updateAppointment(req: Request, res: Response) {
 
       const targets = await prisma.appointment.findMany({
         where: { lineage: current.lineage, date: { gte: current.date } },
-        orderBy: { date: 'asc' },
+        orderBy: [{ date: 'asc' }, { time: 'asc' }],
         include: { employees: true },
       })
 
       for (const appt of targets) {
-        const newDate = data.date ? new Date(appt.date.getTime() + dateDiff) : appt.date
+        const oldA = appointmentAnchorUtc({
+          dateUtc: appt.dateUtc,
+          date: appt.date,
+        })
+        const newAnchor = data.date ? new Date(oldA.getTime() + dateDiff) : oldA
         const newTime = data.time ? minutesToTime(toMinutes(appt.time) + timeDiff) : appt.time
         await prisma.appointment.update({
           where: { id: appt.id },
-          data: { ...base, date: newDate, time: newTime },
+          data: { ...base, date: newAnchor, dateUtc: newAnchor, time: newTime },
         })
       }
       // Sync payroll items for all updated appointments when team was set (same as single-appointment path)
@@ -627,9 +667,9 @@ export async function updateAppointment(req: Request, res: Response) {
         payrollItems: { include: { extras: true } },
         family: true,
       },
-        orderBy: { date: 'asc' },
+        orderBy: [{ dateUtc: 'asc' }, { date: 'asc' }, { time: 'asc' }],
       })
-      res.json(appts)
+      res.json(withAppointmentLocalDateMany(appts))
     } else {
       const appt = await prisma.appointment.update({
         where: { id },
@@ -669,7 +709,7 @@ export async function updateAppointment(req: Request, res: Response) {
           family: true,
         },
       })
-      res.json(updated ?? appt)
+      res.json(withAppointmentLocalDate(updated ?? appt))
     }
   } catch (e) {
     console.error('Error updating appointment:', e)
@@ -719,7 +759,7 @@ export async function sendAppointmentInfo(req: Request, res: Response) {
       const total = pay + (carpetIds.includes(e.id) ? carpetPer : 0) + extrasTotal
       const body = [
         `New appointment from Evidence Cleaning!`,
-        `Appointment Date: ${appt.date.toISOString().slice(0, 10)}`,
+        `Appointment Date: ${appointmentLocalDateKey({ dateUtc: appt.dateUtc, date: appt.date })}`,
         `Appointment Time: ${appt.time}`,
         `Appointment Type: ${appt.type}`,
         `Address: ${appt.address}`,
@@ -749,7 +789,7 @@ export async function sendAppointmentInfo(req: Request, res: Response) {
       },
     })
 
-    res.json(updated)
+    res.json(withAppointmentLocalDate(updated))
   } catch (err) {
     console.error('Failed to send appointment info:', err)
     res.status(500).json({ error: 'Failed to send info' })

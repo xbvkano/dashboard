@@ -3,6 +3,13 @@ import { PrismaClient } from '@prisma/client'
 import twilio from 'twilio'
 import { normalizePhone } from '../utils/phoneUtils'
 import { isTwilioOutboundConfigured, twilioMessageCreateParams, TWILIO_OUTBOUND_NOT_CONFIGURED } from '../utils/twilioSms'
+import {
+  appointmentAnchorUtc,
+  appointmentLocalDateKey,
+  DEFAULT_APPOINTMENT_TIMEZONE,
+  getTomorrowLocalDayRangeUtcFrom,
+  legacyNaiveUtcMidnightRange,
+} from '../utils/appointmentTimezone'
 
 const prisma = new PrismaClient()
 const smsClient = twilio(
@@ -16,22 +23,22 @@ const smsClient = twilio(
  */
 export async function sendAppointmentReminders(): Promise<void> {
   try {
-    // Calculate tomorrow's date (start of day)
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    tomorrow.setHours(0, 0, 0, 0)
-    
-    // Calculate the start of the day after tomorrow (for date range query)
-    const dayAfterTomorrow = new Date(tomorrow)
-    dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1)
-    
+    const { start: tomorrowStart, endExclusive: dayAfterTomorrow } = getTomorrowLocalDayRangeUtcFrom(new Date())
+    const tomorrowStr = appointmentLocalDateKey({ dateUtc: tomorrowStart, date: tomorrowStart })
+    const legacyR = legacyNaiveUtcMidnightRange(tomorrowStr)
+
     // Get all appointments for tomorrow (both confirmed and unconfirmed recurring)
     const appointments = await prisma.appointment.findMany({
       where: {
-        date: {
-          gte: tomorrow,
-          lt: dayAfterTomorrow,
-        },
+        OR: [
+          { dateUtc: { gte: tomorrowStart, lt: dayAfterTomorrow } },
+          {
+            AND: [
+              { dateUtc: null },
+              { date: { gte: legacyR.start, lt: legacyR.endExclusive } },
+            ],
+          },
+        ],
         status: {
           in: ['APPOINTED', 'RECURRING_UNCONFIRMED'],
         },
@@ -82,13 +89,16 @@ export async function sendAppointmentReminders(): Promise<void> {
       // E.164 from normalizePhone (Twilio `to` expects +...)
       const phoneNumber: string = normalized
       
-      // Format the date for the message
-      const appointmentDate = new Date(appointment.date)
-      const dateStr = appointmentDate.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      const anchor = appointmentAnchorUtc({
+        dateUtc: appointment.dateUtc,
+        date: appointment.date,
+      })
+      const dateStr = anchor.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: DEFAULT_APPOINTMENT_TIMEZONE,
       })
       
       // Build the reminder message
@@ -108,13 +118,16 @@ export async function sendAppointmentReminders(): Promise<void> {
 
       try {
         const result = await smsClient.messages.create(twilioMessageCreateParams(phoneNumber, message))
-        
+
         sentMessages.push({
           clientId: client.id,
           clientName: client.name,
           phoneNumber: phoneNumber,
           appointmentId: appointment.id!,
-          appointmentDate: appointmentDate.toISOString().slice(0, 10),
+          appointmentDate: appointmentLocalDateKey({
+            dateUtc: appointment.dateUtc,
+            date: appointment.date,
+          }),
           appointmentTime: appointment.time,
           twilioSid: result.sid,
         })

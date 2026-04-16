@@ -27,6 +27,8 @@ import { acquireOrRenewInboxLock, releaseInboxLock } from '../services/messaging
 import { parseUserIdHeader } from '../utils/httpUser'
 import { randomUUID } from 'crypto'
 import { calculateAppointmentHours, parseSqft } from '../utils/appointmentUtils'
+import { localDateStringToStartOfDayUtc, whereAppointmentOnBusinessDay } from '../utils/appointmentTimezone'
+import { withAppointmentLocalDate } from '../utils/appointmentJson'
 import { normalizePhone, phoneLookupVariants } from '../utils/phoneUtils'
 import { getDefaultTeamSize, getSizeRange } from '../data/teamSizeData'
 import { buildConversationStatusUpdateData } from '../services/messaging/conversationStatusUpdate'
@@ -111,14 +113,7 @@ async function executeBookAppointmentCore(
     throw new Error('Conversation phone is invalid')
   }
 
-  const appointmentDate = parseDateStringUTC(date)
-  const nextDay = new Date(
-    Date.UTC(
-      appointmentDate.getUTCFullYear(),
-      appointmentDate.getUTCMonth(),
-      appointmentDate.getUTCDate() + 1,
-    ),
-  )
+  const anchor = localDateStringToStartOfDayUtc(date)
 
   const activeSession =
     conversation.sessions[0] ??
@@ -171,8 +166,7 @@ async function executeBookAppointmentCore(
   const existingAppointment = await prisma.appointment.findFirst({
     where: {
       clientId: client.id,
-      date: { gte: appointmentDate, lt: nextDay },
-      status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] },
+      AND: [whereAppointmentOnBusinessDay(date), { status: { notIn: ['DELETED', 'RESCHEDULE_OLD'] } }],
     },
     select: { id: true, date: true, time: true, address: true },
   })
@@ -222,7 +216,8 @@ async function executeBookAppointmentCore(
       clientId: client.id,
       adminId,
       templateId: template.id,
-      date: appointmentDate,
+      date: anchor,
+      dateUtc: anchor,
       time,
       type: serviceType as any,
       address: appointmentAddress,
@@ -251,26 +246,12 @@ async function executeBookAppointmentCore(
 
   return {
     success: true as const,
-    appointment: appt,
+    appointment: withAppointmentLocalDate(appt),
     client,
     template,
     sessionId: activeSession.id,
     message: 'Appointment created successfully',
   }
-}
-
-function parseDateStringUTC(dateStr: string): Date {
-  const dateParts = dateStr.split('-')
-  if (dateParts.length !== 3) throw new Error('Invalid date format. Use YYYY-MM-DD')
-  const dt = new Date(
-    Date.UTC(
-      parseInt(dateParts[0]),
-      parseInt(dateParts[1]) - 1,
-      parseInt(dateParts[2]),
-    ),
-  )
-  if (Number.isNaN(dt.getTime())) throw new Error('Invalid date')
-  return dt
 }
 
 /**

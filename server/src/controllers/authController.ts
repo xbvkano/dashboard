@@ -4,7 +4,7 @@ import { OAuth2Client } from 'google-auth-library'
 import axios from 'axios'
 import bcrypt from 'bcrypt'
 import { parseUserIdHeader } from '../utils/httpUser'
-import { signAccessToken } from '../auth/jwtTokens'
+import { signAccessToken, verifyBearerTokenForRefresh } from '../auth/jwtTokens'
 
 const prisma = new PrismaClient()
 
@@ -132,6 +132,46 @@ export async function login(req: Request, res: Response) {
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Authentication failed' })
+  }
+}
+
+export async function refreshAccessToken(req: Request, res: Response) {
+  const auth = req.headers.authorization
+  if (!auth || !auth.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+  const token = auth.slice(7).trim()
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const parsed = verifyBearerTokenForRefresh(token)
+  if (!parsed) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: parsed.userId },
+      include: { employee: true },
+    })
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+    if (user.employee?.disabled) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+
+    let accessToken: string
+    try {
+      accessToken = signAccessToken(user.id, user.role)
+    } catch {
+      return res.status(503).json({ error: 'Authentication service unavailable' })
+    }
+    return res.json({ accessToken })
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Authentication failed' })
   }
 }
 

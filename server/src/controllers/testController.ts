@@ -6,6 +6,7 @@ import { syncRecurringAppointments } from '../controllers/recurringController'
 import { sendAppointmentReminders } from '../jobs/appointmentReminder'
 import { runUnconfirmedCheck, runNoonEmployeeReminders } from '../jobs/unconfirmedCheck'
 import { twilioMessageCreateParams } from '../utils/twilioSms'
+import { legacyUtcMidnightDateToLocalStartUtc } from '../utils/appointmentTimezone'
 import twilio from 'twilio'
 
 const prisma = new PrismaClient()
@@ -322,6 +323,33 @@ export async function testNoonEmployeeReminder(req: Request, res: Response) {
   } catch (error) {
     console.error('Error running noon employee reminder:', error)
     res.status(500).json({ error: 'Failed to run noon employee reminder' })
+  }
+}
+
+/** One-time / dev backfill: set `dateUtc` to local-midnight-as-UTC from legacy naive `date`. Sync `date` to same anchor. */
+export async function testBackfillAppointmentDateUtc(req: Request, res: Response) {
+  try {
+    const rows = await prisma.appointment.findMany({
+      select: { id: true, date: true },
+    })
+    let updated = 0
+    for (const row of rows) {
+      const anchor = legacyUtcMidnightDateToLocalStartUtc(new Date(row.date))
+      await prisma.appointment.update({
+        where: { id: row.id },
+        data: { dateUtc: anchor, date: anchor },
+      })
+      updated += 1
+    }
+    res.json({
+      success: true,
+      message: 'Backfill completed',
+      total: rows.length,
+      updated,
+    })
+  } catch (error) {
+    console.error('Error backfilling appointment dateUtc:', error)
+    res.status(500).json({ error: 'Failed to backfill appointment dateUtc' })
   }
 }
 
