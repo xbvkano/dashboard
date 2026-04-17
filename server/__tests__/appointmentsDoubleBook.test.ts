@@ -38,6 +38,7 @@ jest.mock('@prisma/client', () => ({
       findMany: jest.fn().mockResolvedValue([]),
       createMany: jest.fn().mockResolvedValue(undefined),
       deleteMany: jest.fn().mockResolvedValue(undefined),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
   })),
 }))

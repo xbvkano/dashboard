@@ -86,18 +86,47 @@ function LegacyAccountsToContactsRedirect() {
   return <Navigate to={to} replace />
 }
 
-/** iOS/Safari: full reload sometimes lands on `/dashboard` (home) while `lastDashboardHref` still holds the deep URL. */
+export function shouldRestoreDeepLinkOnReload(args: {
+  historyAction: string
+  pathname: string
+  search: string
+  hash: string
+  navType?: string
+  lastDashboardHref?: string | null
+}): { to: string } | null {
+  // Link / navigate() are PUSH or REPLACE. Only POP is the initial document load.
+  if (args.historyAction !== 'POP') return null
+  if (args.search || args.hash) return null
+
+  // Only restore when refresh lands on a shallow dashboard entry point.
+  // Some platforms/hosts reload deep URLs but end up at `/dashboard` or `/dashboard/messages`.
+  const isAllowedLandingPath = args.pathname === '/dashboard' || args.pathname === '/dashboard/messages'
+  if (!isAllowedLandingPath) return null
+
+  if (args.navType !== 'reload') return null
+
+  const last = args.lastDashboardHref ?? null
+  if (!last || last === '/dashboard') return null
+  if (!last.startsWith('/dashboard')) return null
+
+  // Avoid redirecting to the same location.
+  const currentHref = args.pathname + args.search + args.hash
+  if (last === currentHref) return null
+
+  // If we landed on `/dashboard/messages`, only restore to a deeper Messages page.
+  if (args.pathname === '/dashboard/messages' && !last.startsWith('/dashboard/messages/')) return null
+
+  return { to: last }
+}
+
+/** iOS/Safari: full reload sometimes lands on a shallow route while `lastDashboardHref` still holds the deep URL. */
 function ReloadDeepLinkRestore() {
   const navigate = useNavigate()
   const location = useLocation()
   const historyAction = useNavigationType()
   useEffect(() => {
-    // Link / navigate() to home are PUSH or REPLACE. Only POP is the initial document
-    // load (including after a full reload). `PerformanceNavigationTiming.type` stays
-    // "reload" for the whole tab session after one F5, so it must not gate SPA navigations.
-    if (historyAction !== 'POP') return
-    if (location.pathname !== '/dashboard') return
-    if (location.search || location.hash) return
+    // `PerformanceNavigationTiming.type` stays "reload" for the whole tab session after one F5,
+    // so we must also gate on POP + landing pathname to avoid affecting SPA navigations.
     let navType: string | undefined
     try {
       const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
@@ -105,12 +134,18 @@ function ReloadDeepLinkRestore() {
     } catch {
       return
     }
-    if (navType !== 'reload') return
     try {
       const last = localStorage.getItem('lastDashboardHref')
-      if (!last || last === '/dashboard') return
-      if (!last.startsWith('/dashboard')) return
-      navigate(last, { replace: true })
+      const decision = shouldRestoreDeepLinkOnReload({
+        historyAction,
+        pathname: location.pathname,
+        search: location.search,
+        hash: location.hash,
+        navType,
+        lastDashboardHref: last,
+      })
+      if (!decision) return
+      navigate(decision.to, { replace: true })
     } catch {
       /* ignore */
     }

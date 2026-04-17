@@ -59,6 +59,7 @@ describe('pushover: archived threads', () => {
 
   beforeEach(() => {
     sendPushoverMessageMock.mockClear()
+    delete process.env.DASHBOARD_PUBLIC_URL
   })
 
   it('does not send pushover for inbound messages when conversation is archived', async () => {
@@ -153,6 +154,108 @@ describe('pushover: archived threads', () => {
     expect(sendPushoverMessageMock.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         title: expect.stringContaining('New message from:'),
+      }),
+    )
+  })
+
+  it('includes inbox deep-link url when DASHBOARD_PUBLIC_URL is set', async () => {
+    process.env.DASHBOARD_PUBLIC_URL = 'https://dashboard.example.com/'
+    const prisma = mockPrisma()
+
+    prisma.contactPoint.findUnique.mockResolvedValue(null)
+    prisma.contactPoint.create
+      .mockResolvedValueOnce({ id: 1, type: ContactPointType.PHONE, value: '+15559990000', clientId: null })
+      .mockResolvedValueOnce({ id: 2, type: ContactPointType.PHONE, value: '+17255774523', clientId: null })
+
+    prisma.conversation.findUnique.mockResolvedValue({
+      id: 50,
+      status: ConversationStatus.OPEN,
+      clientId: null,
+      contactPointId: 1,
+      businessNumber: '+17255774523',
+      lastMessageAt: null,
+    })
+
+    prisma.conversationSession.findFirst.mockResolvedValue(null)
+    prisma.conversationSession.create.mockResolvedValue({ id: 400 })
+    prisma.message.create.mockResolvedValue({ id: 5000, mediaCount: 0 })
+    prisma.conversation.update.mockResolvedValue({})
+
+    prisma.conversation.findUnique.mockImplementation((args: any) => {
+      if (args?.where?.id === 50 && args?.select?.lastPushoverNotifiedAt) {
+        return Promise.resolve({ id: 50, lastPushoverNotifiedAt: null })
+      }
+      return Promise.resolve({
+        id: 50,
+        status: ConversationStatus.OPEN,
+        clientId: null,
+        contactPointId: 1,
+        businessNumber: '+17255774523',
+        lastMessageAt: null,
+      })
+    })
+
+    await ingestInboundSms(
+      prisma,
+      { From: '+15559990000', To: '+17255774523', Body: 'Hi', MessageSid: 'SM_3' } as any,
+      { now },
+    )
+
+    expect(sendPushoverMessageMock).toHaveBeenCalledTimes(1)
+    expect(sendPushoverMessageMock.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        url: 'https://dashboard.example.com/dashboard/messages/inbox?conversation=50',
+      }),
+    )
+  })
+
+  it('omits url when DASHBOARD_PUBLIC_URL is unset', async () => {
+    delete process.env.DASHBOARD_PUBLIC_URL
+    const prisma = mockPrisma()
+
+    prisma.contactPoint.findUnique.mockResolvedValue(null)
+    prisma.contactPoint.create
+      .mockResolvedValueOnce({ id: 1, type: ContactPointType.PHONE, value: '+15559990000', clientId: null })
+      .mockResolvedValueOnce({ id: 2, type: ContactPointType.PHONE, value: '+17255774523', clientId: null })
+
+    prisma.conversation.findUnique.mockResolvedValue({
+      id: 50,
+      status: ConversationStatus.OPEN,
+      clientId: null,
+      contactPointId: 1,
+      businessNumber: '+17255774523',
+      lastMessageAt: null,
+    })
+
+    prisma.conversationSession.findFirst.mockResolvedValue(null)
+    prisma.conversationSession.create.mockResolvedValue({ id: 400 })
+    prisma.message.create.mockResolvedValue({ id: 5000, mediaCount: 0 })
+    prisma.conversation.update.mockResolvedValue({})
+
+    prisma.conversation.findUnique.mockImplementation((args: any) => {
+      if (args?.where?.id === 50 && args?.select?.lastPushoverNotifiedAt) {
+        return Promise.resolve({ id: 50, lastPushoverNotifiedAt: null })
+      }
+      return Promise.resolve({
+        id: 50,
+        status: ConversationStatus.OPEN,
+        clientId: null,
+        contactPointId: 1,
+        businessNumber: '+17255774523',
+        lastMessageAt: null,
+      })
+    })
+
+    await ingestInboundSms(
+      prisma,
+      { From: '+15559990000', To: '+17255774523', Body: 'Hi', MessageSid: 'SM_4' } as any,
+      { now },
+    )
+
+    expect(sendPushoverMessageMock).toHaveBeenCalledTimes(1)
+    expect(sendPushoverMessageMock.mock.calls[0]?.[0]).toEqual(
+      expect.not.objectContaining({
+        url: expect.any(String),
       }),
     )
   })

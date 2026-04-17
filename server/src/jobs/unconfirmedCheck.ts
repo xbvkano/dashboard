@@ -11,6 +11,7 @@ import {
   legacyNaiveUtcMidnightRange,
   whereAppointmentOnBusinessDay,
 } from '../utils/appointmentTimezone'
+import { isAppointmentInPast } from '../utils/appointmentPast'
 import { isTwilioOutboundConfigured, twilioMessageCreateParams, TWILIO_OUTBOUND_NOT_CONFIGURED } from '../utils/twilioSms'
 
 const prisma = new PrismaClient()
@@ -326,6 +327,7 @@ export async function sendEmployeeRemindersForAppointmentIds(appointmentIds: num
     const appt = pi.appointment
     const apptMs = appointmentAnchorUtc({ dateUtc: appt.dateUtc, date: appt.date }).getTime()
     if (apptMs < startMs || apptMs >= endExclusiveMs) continue
+    if (isAppointmentInPast(appt, asOf)) continue
     const emp = pi.employee
     const clientName = appt.client?.name ?? 'Unknown client'
     const dateStr = new Date(apptMs).toLocaleDateString('en-US', dateStrOpts)

@@ -8,6 +8,7 @@ import {
   whereAppointmentOnBusinessDay,
   whereAppointmentOnInclusiveLocalDateRange,
 } from '../utils/appointmentTimezone'
+import { isAppointmentInPast } from '../utils/appointmentPast'
 import { withAppointmentLocalDateMany } from '../utils/appointmentJson'
 import { getNextOrThisUpdateDay } from '../utils/schedulePolicyUtils'
 import bcrypt from 'bcrypt'
@@ -530,7 +531,10 @@ export async function getEmployeeScheduleView(req: Request, res: Response) {
       orderBy: [{ dateUtc: 'asc' }, { date: 'asc' }, { time: 'asc' }],
     })
 
-    const upcoming = appts.map((a) => {
+    const now = new Date()
+    const upcoming = appts
+      .filter((a) => !isAppointmentInPast(a, now))
+      .map((a) => {
       const dateStr = appointmentLocalDateKey({
         dateUtc: a.dateUtc,
         date: a.date,

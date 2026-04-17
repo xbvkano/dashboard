@@ -24,6 +24,14 @@ import { shouldSendInboundPushover } from '../../utils/pushoverDecision'
 import { isPushoverConfigured, sendPushoverMessage } from '../pushover'
 import { MockSmsTransport, TwilioSmsTransport } from './smsTransport'
 
+function dashboardPublicUrlNoSlash(): string | null {
+  const raw = process.env.DASHBOARD_PUBLIC_URL
+  if (!raw) return null
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
+}
+
 function parseNumMedia(raw: unknown): number {
   const n = parseInt(String(raw ?? '0'), 10)
   return Number.isFinite(n) ? n : 0
@@ -283,9 +291,12 @@ export async function ingestInboundSms(
         const maxPreviewLen = Math.max(0, 1024 - suffix.length)
         const preview = basePreview.slice(0, maxPreviewLen)
         const message = `${preview}${suffix}`.slice(0, 1024)
+        const base = dashboardPublicUrlNoSlash()
+        const url = base ? `${base}/dashboard/messages/inbox?conversation=${conv.id}` : undefined
         await sendPushoverMessage({
           title,
           message,
+          url,
           priority: 1,
           sound: 'magic',
         })

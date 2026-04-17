@@ -22,6 +22,7 @@ import { normalizePhone } from '../utils/phoneUtils'
 import { twilioMessageCreateParams } from '../utils/twilioSms'
 import twilio from 'twilio'
 import { parseUserIdHeader } from '../utils/httpUser'
+import { isAppointmentInPast } from '../utils/appointmentPast'
 
 const prisma = new PrismaClient()
 const smsClient = twilio(
@@ -315,9 +316,17 @@ export async function createAppointment(req: Request, res: Response) {
 
     if (!noTeam && employeeIds.length) {
       await syncPayrollItems(appt.id, employeeIds)
-      await sendEmployeeRemindersForAppointmentIds([appt.id]).catch((err) =>
-        console.error('Employee reminder send failed:', err)
-      )
+      const now = new Date()
+      if (isAppointmentInPast(appt, now)) {
+        await prisma.payrollItem.updateMany({
+          where: { appointmentId: appt.id, employeeId: { in: employeeIds } },
+          data: { confirmed: true, reminderSentAt: now },
+        })
+      } else {
+        await sendEmployeeRemindersForAppointmentIds([appt.id]).catch((err) =>
+          console.error('Employee reminder send failed:', err)
+        )
+      }
     }
 
     return res.json(withAppointmentLocalDate(appt))
@@ -650,10 +659,18 @@ export async function updateAppointment(req: Request, res: Response) {
       }
       // Sync payroll items for all updated appointments when team was set (same as single-appointment path)
       if (employeeIds && !noTeam) {
+        const now = new Date()
         for (const appt of targets) {
           await syncPayrollItems(appt.id, employeeIds)
+          if (isAppointmentInPast(appt, now)) {
+            await prisma.payrollItem.updateMany({
+              where: { appointmentId: appt.id, employeeId: { in: employeeIds } },
+              data: { confirmed: true, reminderSentAt: now },
+            })
+          }
         }
-        await sendEmployeeRemindersForAppointmentIds(targets.map((t) => t.id)).catch((err) =>
+        const futureIds = targets.filter((a) => !isAppointmentInPast(a, now)).map((t) => t.id)
+        await sendEmployeeRemindersForAppointmentIds(futureIds).catch((err) =>
           console.error('Employee reminder send failed:', err)
         )
       }
@@ -686,6 +703,13 @@ export async function updateAppointment(req: Request, res: Response) {
         await prisma.payrollItem.deleteMany({ where: { appointmentId: appt.id } })
       } else if (employeeIds && !noTeam) {
         await syncPayrollItems(appt.id, employeeIds)
+        const now = new Date()
+        if (isAppointmentInPast(appt, now)) {
+          await prisma.payrollItem.updateMany({
+            where: { appointmentId: appt.id, employeeId: { in: employeeIds } },
+            data: { confirmed: true, reminderSentAt: now },
+          })
+        }
         if (payrollAmounts && typeof payrollAmounts === 'object') {
           const items = await prisma.payrollItem.findMany({ where: { appointmentId: appt.id } })
           for (const item of items) {
@@ -695,9 +719,11 @@ export async function updateAppointment(req: Request, res: Response) {
             }
           }
         }
-        await sendEmployeeRemindersForAppointmentIds([appt.id]).catch((err) =>
-          console.error('Employee reminder send failed:', err)
-        )
+        if (!isAppointmentInPast(appt, now)) {
+          await sendEmployeeRemindersForAppointmentIds([appt.id]).catch((err) =>
+            console.error('Employee reminder send failed:', err)
+          )
+        }
       }
       const updated = await prisma.appointment.findUnique({
         where: { id: appt.id },
@@ -733,6 +759,10 @@ export async function sendAppointmentInfo(req: Request, res: Response) {
       },
     })
     if (!appt) return res.status(404).json({ error: 'Not found' })
+
+    if (isAppointmentInPast(appt, new Date())) {
+      return res.status(400).json({ error: 'Cannot send info for a past appointment' })
+    }
 
     // Check if appointment has a team assigned
     if (appt.noTeam || !appt.employees || appt.employees.length === 0) {
