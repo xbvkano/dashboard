@@ -1,4 +1,9 @@
-import { normalizePhone, phoneLookupVariants, supervisorPhoneE164 } from '../../src/utils/phoneUtils'
+import {
+  normalizePhone,
+  phoneLookupVariants,
+  phoneNumbersMatchForLinking,
+  supervisorPhoneE164,
+} from '../../src/utils/phoneUtils'
 
 describe('phoneUtils', () => {
   describe('normalizePhone', () => {
@@ -39,6 +44,18 @@ describe('phoneUtils', () => {
       expect(v).toContain('+15551234567')
       expect(v).toContain('15551234567')
       expect(v).toContain('5551234567')
+    })
+  })
+
+  describe('phoneNumbersMatchForLinking', () => {
+    it('matches E.164, 10-digit, and formatted variants for the same NANP line', () => {
+      expect(phoneNumbersMatchForLinking('+15551234567', '(555) 123-4567')).toBe(true)
+      expect(phoneNumbersMatchForLinking('5551234567', '+1 555 123 4567')).toBe(true)
+      expect(phoneNumbersMatchForLinking('15551234567', '+15551234567')).toBe(true)
+    })
+
+    it('does not match different lines', () => {
+      expect(phoneNumbersMatchForLinking('+15551234567', '+16145842138')).toBe(false)
     })
   })
 

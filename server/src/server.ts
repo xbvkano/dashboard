@@ -344,6 +344,7 @@ app.use(cors({
     'x-user-name',
     'x-user-id',
     'x-messaging-mock-sms',
+    'x-messaging-simulate-twilio-error',
   ],
 }))
 app.use(express.json())

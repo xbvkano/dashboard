@@ -7,7 +7,9 @@ import {
   whereAppointmentOnBusinessDay,
 } from '../utils/appointmentTimezone'
 import { withAppointmentLocalDate, withAppointmentLocalDateMany } from '../utils/appointmentJson'
-import { normalizePhone, phoneLookupVariants } from '../utils/phoneUtils'
+import { normalizePhone } from '../utils/phoneUtils'
+import { pickUniqueClientDisplayName } from '../utils/clientDisplayName'
+import { findFirstClientMatchingPhone } from '../services/clientPhoneMatch'
 import { getDefaultTeamSize, getSizeRange } from '../data/teamSizeData'
 
 const prisma = new PrismaClient()
@@ -58,34 +60,24 @@ export async function createAIAppointment(req: Request, res: Response) {
       return res.status(400).json({ error: 'Invalid phone number format' })
     }
 
-    // Step 1: Find or create client (match by phone only — tolerate legacy stored formats)
-    let client = await prisma.client.findFirst({
-      where: {
-        number: { in: phoneLookupVariants(normalizedPhone) },
-      },
-    })
-
-    if (!client) {
-      // Ensure unique name: if name already exists, append last 4 digits of phone
-      let clientNameToUse = clientName
-      const existingByName = await prisma.client.findFirst({
-        where: { name: clientName }
-      })
-      if (existingByName) {
-        const last4 = normalizedPhone.replace(/\D/g, '').slice(-4)
-        clientNameToUse = `${clientName} ${last4}`
-      }
-
-      // Create new client with AI note
+    // Step 1: Find or create client (match by phone only; verify same NANP line, not just DB string variants)
+    const matchedByPhone = await findFirstClientMatchingPhone(prisma, normalizedPhone)
+    let client
+    if (matchedByPhone) {
+      client = await prisma.client.findUniqueOrThrow({ where: { id: matchedByPhone.id } })
+    } else {
+      const clientNameToUse = await pickUniqueClientDisplayName(prisma, clientName, normalizedPhone)
       client = await prisma.client.create({
         data: {
           name: clientNameToUse,
           number: normalizedPhone,
           from: 'AI',
           notes: 'Client created by AI',
-        }
+        },
       })
-    } else {
+    }
+
+    if (matchedByPhone) {
       // Update existing client to add AI note if not already present
       const currentNotes = client.notes || ''
       if (!currentNotes.includes('AI')) {

@@ -6,6 +6,7 @@ import {
   type OutboundMediaReady,
 } from '../services/messaging/messagingService'
 import { MockSmsTransport } from '../services/messaging/smsTransport'
+import { normalizeTwilioMessagingError } from '../services/messaging/normalizeTwilioMessagingError'
 import { generateMockAppointmentExtraction } from '../services/messaging/appointmentExtractionMock'
 import {
   startConversationFromContact,
@@ -29,7 +30,9 @@ import { randomUUID } from 'crypto'
 import { calculateAppointmentHours, parseSqft } from '../utils/appointmentUtils'
 import { localDateStringToStartOfDayUtc, whereAppointmentOnBusinessDay } from '../utils/appointmentTimezone'
 import { withAppointmentLocalDate } from '../utils/appointmentJson'
-import { normalizePhone, phoneLookupVariants } from '../utils/phoneUtils'
+import { normalizePhone } from '../utils/phoneUtils'
+import { pickUniqueClientDisplayName } from '../utils/clientDisplayName'
+import { findFirstClientMatchingPhone } from '../services/clientPhoneMatch'
 import { getDefaultTeamSize, getSizeRange } from '../data/teamSizeData'
 import { buildConversationStatusUpdateData } from '../services/messaging/conversationStatusUpdate'
 import {
@@ -127,22 +130,11 @@ async function executeBookAppointmentCore(
       throw new Error('clientName is required when no client is linked')
     }
 
-    client = await prisma.client.findFirst({
-      where: {
-        number: { in: phoneLookupVariants(normalizedPhone) },
-      },
-    })
-
-    if (!client) {
-      let nameToUse = clientName
-      const existingByName = await prisma.client.findFirst({
-        where: { name: clientName },
-        select: { id: true },
-      })
-      if (existingByName) {
-        const last4 = normalizedPhone.replace(/\D/g, '').slice(-4)
-        nameToUse = `${clientName} ${last4}`
-      }
+    const matchedByPhone = await findFirstClientMatchingPhone(prisma, normalizedPhone)
+    if (matchedByPhone) {
+      client = await prisma.client.findUniqueOrThrow({ where: { id: matchedByPhone.id } })
+    } else {
+      const nameToUse = await pickUniqueClientDisplayName(prisma, clientName, normalizedPhone)
       client = await prisma.client.create({
         data: {
           name: nameToUse,
@@ -261,6 +253,13 @@ async function executeBookAppointmentCore(
  */
 function allowsClientMessagingMockSms(): boolean {
   if (process.env.ALLOW_MESSAGING_MOCK_SMS === '1') return true
+  if (process.env.NODE_ENV === 'production') return false
+  return true
+}
+
+/** Dev-only: allow simulated Twilio failure codes (like 30019) for UI testing. */
+function allowsClientMessagingSimulateTwilioError(): boolean {
+  if (process.env.ALLOW_MESSAGING_SIMULATE_TWILIO_ERROR === '1') return true
   if (process.env.NODE_ENV === 'production') return false
   return true
 }
@@ -586,6 +585,22 @@ export async function postOutboundMessage(req: Request, res: Response) {
     const mockRequested = req.get('x-messaging-mock-sms') === '1'
     const useMockTransport = mockRequested && allowsClientMessagingMockSms()
 
+    const simulateTwilioError = req.get('x-messaging-simulate-twilio-error')
+    if (simulateTwilioError && allowsClientMessagingSimulateTwilioError()) {
+      const code = parseInt(String(simulateTwilioError), 10)
+      if (code === 30019) {
+        const err: any = new Error('Content size exceeds carrier limit')
+        err.code = 30019
+        err.status = 400
+        err.moreInfo = 'https://www.twilio.com/docs/errors/30019'
+        throw err
+      }
+      const err: any = new Error(`Simulated Twilio error ${String(simulateTwilioError)}`)
+      err.code = code
+      err.status = 400
+      throw err
+    }
+
     const outboundMedia: OutboundMediaReady[] = []
     for (let i = 0; i < fileList.length; i++) {
       const f = fileList[i]
@@ -619,6 +634,18 @@ export async function postOutboundMessage(req: Request, res: Response) {
       transport: result.transport,
     })
   } catch (e: any) {
+    const tw = normalizeTwilioMessagingError(e)
+    if (tw.type === 'TWILIO_CONTENT_SIZE_EXCEEDED') {
+      return res.status(400).json({
+        error: 'TWILIO_CONTENT_SIZE_EXCEEDED',
+        message: 'Message is too large to deliver (carrier/device limit).',
+        twilio: {
+          code: 30019,
+          status: tw.status,
+          moreInfo: tw.moreInfo,
+        },
+      })
+    }
     console.error(e)
     res.status(400).json({ error: e?.message ?? 'Send failed' })
   }

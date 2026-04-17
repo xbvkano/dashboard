@@ -8,6 +8,7 @@ import EditContactModal from './components/EditContactModal'
 import AiChatExtractingOverlay from './components/AiChatExtractingOverlay'
 import BookAppointmentModal, { defaultDraft, type BookAppointmentDraft } from './components/BookAppointmentModal'
 import DeleteContactConfirmModal from './components/DeleteContactConfirmModal'
+import TwilioContentSizeExceededModal from './components/TwilioContentSizeExceededModal'
 import { useMediaQuery } from './useMediaQuery'
 import { useBookAppointmentDrafts } from '../BookAppointmentDraftsContext'
 import {
@@ -165,6 +166,7 @@ export default function Inbox() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
   const [extracting, setExtracting] = useState(false)
+  const [twilioSizeLimitModalOpen, setTwilioSizeLimitModalOpen] = useState(false)
   const [inboxMobileTab, setInboxMobileTab] = useState<'chat' | 'booking'>('chat')
   const [bookToast, setBookToast] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
@@ -639,6 +641,16 @@ export default function Inbox() {
         setDetail(d)
         await refreshList()
       } catch (e) {
+        try {
+          const msg = e instanceof Error ? e.message : ''
+          const parsed = JSON.parse(msg) as { error?: string }
+          if (parsed?.error === 'TWILIO_CONTENT_SIZE_EXCEEDED') {
+            setTwilioSizeLimitModalOpen(true)
+            return
+          }
+        } catch {
+          /* ignore */
+        }
         console.error(e)
       }
     },
@@ -796,6 +808,10 @@ export default function Inbox() {
 
   return (
     <div className="messages-inbox-root flex min-h-0 flex-col overflow-hidden md:flex-row h-[calc(100dvh-3.5rem)] max-h-[calc(100dvh-3.5rem)]">
+      <TwilioContentSizeExceededModal
+        open={twilioSizeLimitModalOpen}
+        onClose={() => setTwilioSizeLimitModalOpen(false)}
+      />
       {leaseBlocked && (
         <>
           <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-slate-900/75 backdrop-blur-sm p-4 text-center">

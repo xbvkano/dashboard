@@ -3,6 +3,7 @@ import { DateTime } from 'luxon'
 import { PrismaClient } from '@prisma/client'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { normalizePhone } from '../utils/phoneUtils'
+import { pickUniqueClientDisplayName } from '../utils/clientDisplayName'
 import {
   DEFAULT_APPOINTMENT_TIMEZONE,
   orderByAppointmentCalendarDesc,
@@ -62,8 +63,9 @@ export async function createClient(req: Request, res: Response) {
     if (!normalized) {
       return res.status(400).json({ error: 'Number must be 10 or 11 digits' })
     }
+    const nameToUse = await pickUniqueClientDisplayName(prisma, name.trim(), normalized)
     const client = await prisma.client.create({
-      data: { name, number: normalized, from, notes, disabled: disabled ?? false },
+      data: { name: nameToUse, number: normalized, from, notes, disabled: disabled ?? false },
     })
     res.json(client)
   } catch (e: any) {
@@ -97,13 +99,21 @@ export async function updateClient(req: Request, res: Response) {
       disabled?: boolean
     }
     const data: any = {}
-    if (name !== undefined) data.name = name
+    const existing = await prisma.client.findUnique({ where: { id }, select: { number: true } })
+    if (!existing) {
+      return res.status(404).json({ error: 'Not found' })
+    }
     if (number !== undefined) {
       const normalized = normalizePhone(number)
       if (!normalized) {
         return res.status(400).json({ error: 'Number must be 10 or 11 digits' })
       }
       data.number = normalized
+    }
+    if (name !== undefined) {
+      const trimmed = String(name).trim()
+      const phoneForName = data.number ?? existing.number
+      data.name = await pickUniqueClientDisplayName(prisma, trimmed, phoneForName, id)
     }
     if (from !== undefined) data.from = from
     if (notes !== undefined) data.notes = notes

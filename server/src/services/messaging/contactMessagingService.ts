@@ -1,7 +1,9 @@
 import type { PrismaClient } from '@prisma/client'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { ContactPointType } from '@prisma/client'
-import { normalizePhone, phoneLookupVariants } from '../../utils/phoneUtils'
+import { normalizePhone } from '../../utils/phoneUtils'
+import { pickUniqueClientDisplayName } from '../../utils/clientDisplayName'
+import { findFirstClientMatchingPhone, unlinkContactPointIfClientPhoneMismatch } from '../clientPhoneMatch'
 import { findOrCreateConversation } from './messagingService'
 
 function getInboxBusinessNumber(): string {
@@ -42,11 +44,14 @@ export async function startConversationFromContact(
       data: { type: ContactPointType.PHONE, value },
     }))
 
+  await unlinkContactPointIfClientPhoneMismatch(prisma, cp.id, value, businessNumber)
+  cp = (await prisma.contactPoint.findUnique({
+    where: { id: cp.id },
+  }))!
+
   if (name) {
     if (!cp.clientId) {
-      const existingByPhone = await prisma.client.findFirst({
-        where: { number: { in: phoneLookupVariants(value) } },
-      })
+      const existingByPhone = await findFirstClientMatchingPhone(prisma, value)
       if (existingByPhone) {
         await prisma.contactPoint.update({
           where: { id: cp.id },
@@ -59,15 +64,10 @@ export async function startConversationFromContact(
           })
         }
       } else {
-        const clash = await prisma.client.findFirst({
-          where: { name: { equals: name, mode: 'insensitive' } },
-        })
-        if (clash) {
-          throw new Error('A client with this name already exists')
-        }
+        const nameToUse = await pickUniqueClientDisplayName(prisma, name, value)
         const client = await prisma.client.create({
           data: {
-            name,
+            name: nameToUse,
             number: value,
             from: clientFromLabel,
             notes: notes ?? undefined,
@@ -125,24 +125,27 @@ export async function updateClientForConversation(
 
   const cp = conv.contactPoint
 
-  if (notesVal !== undefined && notesVal !== null && String(notesVal).length > 0 && !nameTrim && !cp.clientId) {
+  await unlinkContactPointIfClientPhoneMismatch(prisma, cp.id, cp.value, conv.businessNumber)
+
+  const convRefreshed = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: { contactPoint: true },
+  })
+  if (!convRefreshed) {
+    throw new Error('Conversation not found')
+  }
+  const cpRef = convRefreshed.contactPoint
+
+  if (notesVal !== undefined && notesVal !== null && String(notesVal).length > 0 && !nameTrim && !cpRef.clientId) {
     throw new Error('Notes require a name when no client is linked yet')
   }
 
-  if (cp.clientId) {
-    const clientId = cp.clientId
+  if (cpRef.clientId) {
+    const clientId = cpRef.clientId
     const data: { name?: string; notes?: string | null } = {}
     if (nameTrim) {
-      const clash = await prisma.client.findFirst({
-        where: {
-          name: { equals: nameTrim, mode: 'insensitive' },
-          NOT: { id: clientId },
-        },
-      })
-      if (clash) {
-        throw new Error('A client with this name already exists')
-      }
-      data.name = nameTrim
+      const nameToUse = await pickUniqueClientDisplayName(prisma, nameTrim, cpRef.value, clientId)
+      data.name = nameToUse
     }
     if (notesVal !== undefined) {
       data.notes = notesVal === null || notesVal === '' ? null : String(notesVal)
@@ -165,23 +168,13 @@ export async function updateClientForConversation(
     throw new Error('Name is required to create and link a client for this contact')
   }
 
-  const existingByPhone = await prisma.client.findFirst({
-    where: { number: { in: phoneLookupVariants(cp.value) } },
-  })
+  const existingByPhone = await findFirstClientMatchingPhone(prisma, cpRef.value)
   if (existingByPhone) {
-    const clash = await prisma.client.findFirst({
-      where: {
-        name: { equals: nameTrim, mode: 'insensitive' },
-        NOT: { id: existingByPhone.id },
-      },
-    })
-    if (clash) {
-      throw new Error('A client with this name already exists')
-    }
+    const nameToUse = await pickUniqueClientDisplayName(prisma, nameTrim, cpRef.value, existingByPhone.id)
     await prisma.client.update({
       where: { id: existingByPhone.id },
       data: {
-        name: nameTrim,
+        name: nameToUse,
         notes:
           notesVal !== undefined
             ? notesVal === null || notesVal === ''
@@ -191,7 +184,7 @@ export async function updateClientForConversation(
       },
     })
     await prisma.contactPoint.update({
-      where: { id: cp.id },
+      where: { id: cpRef.id },
       data: { clientId: existingByPhone.id },
     })
     await prisma.conversation.update({
@@ -201,17 +194,12 @@ export async function updateClientForConversation(
     return { clientId: existingByPhone.id }
   }
 
-  const clash = await prisma.client.findFirst({
-    where: { name: { equals: nameTrim, mode: 'insensitive' } },
-  })
-  if (clash) {
-    throw new Error('A client with this name already exists')
-  }
+  const nameToUse = await pickUniqueClientDisplayName(prisma, nameTrim, cpRef.value)
 
   const client = await prisma.client.create({
     data: {
-      name: nameTrim,
-      number: cp.value,
+      name: nameToUse,
+      number: cpRef.value,
       from: 'SMS',
       notes:
         notesVal !== undefined && notesVal !== null && String(notesVal).length > 0
@@ -221,7 +209,7 @@ export async function updateClientForConversation(
   })
 
   await prisma.contactPoint.update({
-    where: { id: cp.id },
+    where: { id: cpRef.id },
     data: { clientId: client.id },
   })
   await prisma.conversation.update({

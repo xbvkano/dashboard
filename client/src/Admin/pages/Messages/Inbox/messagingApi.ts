@@ -187,6 +187,22 @@ export async function postSimulateInboundMessage(input: {
   })
 }
 
+/** Dev: Force the outbound send endpoint to simulate Twilio failures (e.g. 30019). */
+export async function postSimulateOutboundTwilioError(input: {
+  conversationId: number
+  code: number
+  body?: string
+}): Promise<unknown> {
+  return fetchJson(`${API_BASE_URL}/messaging/conversations/${input.conversationId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Messaging-Simulate-Twilio-Error': String(input.code),
+    },
+    body: JSON.stringify({ body: input.body ?? 'Test: simulate Twilio error' }),
+  })
+}
+
 export async function postMarkConversationRead(conversationId: number): Promise<void> {
   await fetchJson(`${API_BASE_URL}/messaging/conversations/${conversationId}/read`, {
     method: 'POST',

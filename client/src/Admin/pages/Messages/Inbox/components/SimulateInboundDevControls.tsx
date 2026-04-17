@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ThreadContact } from '../types'
-import { postSimulateInboundMessage } from '../messagingApi'
+import { formatApiError, postSimulateInboundMessage, postSimulateOutboundTwilioError } from '../messagingApi'
+import TwilioContentSizeExceededModal from './TwilioContentSizeExceededModal'
 
 type Props = {
   conversations: ThreadContact[]
@@ -20,6 +21,7 @@ export default function SimulateInboundDevControls({
   const [body, setBody] = useState('Test inbound from dev')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sizeLimitModalOpen, setSizeLimitModalOpen] = useState(false)
 
   /** Only clear selection if the list becomes empty or the chosen id disappears — never auto-pick. */
   useEffect(() => {
@@ -65,7 +67,41 @@ export default function SimulateInboundDevControls({
       })
       await onSuccess?.()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Request failed')
+      setError(formatApiError(e))
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleSimulate30019 = async () => {
+    if (targetId === '') {
+      setError('Pick a conversation')
+      return
+    }
+    const id = parseInt(targetId, 10)
+    if (Number.isNaN(id)) {
+      setError('Pick a conversation')
+      return
+    }
+    setError(null)
+    setSending(true)
+    try {
+      await postSimulateOutboundTwilioError({ conversationId: id, code: 30019 })
+    } catch (e: unknown) {
+      // Prefer the raw JSON error payload (fetchJson throws Error(responseText)).
+      if (e instanceof Error) {
+        try {
+          const parsed = JSON.parse(e.message) as { error?: string; message?: string }
+          if (parsed?.error === 'TWILIO_CONTENT_SIZE_EXCEEDED') {
+            setSizeLimitModalOpen(true)
+          }
+          setError(parsed?.message || parsed?.error || formatApiError(e))
+          return
+        } catch {
+          // fall through
+        }
+      }
+      setError(formatApiError(e))
     } finally {
       setSending(false)
     }
@@ -83,9 +119,14 @@ export default function SimulateInboundDevControls({
   }
 
   return (
-    <div
-      className={`rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs text-amber-950 ${className}`}
-    >
+    <>
+      <TwilioContentSizeExceededModal
+        open={sizeLimitModalOpen}
+        onClose={() => setSizeLimitModalOpen(false)}
+      />
+      <div
+        className={`rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs text-amber-950 ${className}`}
+      >
       <p className="font-semibold text-amber-900 mb-2">Simulate inbound SMS (dev)</p>
       <p className="text-amber-800/90 mb-2">
         Sends like Twilio inbound so you see customer bubbles, unread, and Pushover rules.
@@ -127,7 +168,16 @@ export default function SimulateInboundDevControls({
         >
           {sending ? 'Sending…' : 'Send as inbound'}
         </button>
+        <button
+          type="button"
+          onClick={() => void handleSimulate30019()}
+          disabled={sending}
+          className="self-start rounded-md bg-rose-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-800 disabled:opacity-50"
+        >
+          {sending ? 'Sending…' : 'Simulate Twilio 30019 (outbound)'}
+        </button>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
