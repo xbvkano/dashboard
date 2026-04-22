@@ -28,9 +28,9 @@ import { acquireOrRenewInboxLock, releaseInboxLock } from '../services/messaging
 import { parseUserIdHeader } from '../utils/httpUser'
 import { randomUUID } from 'crypto'
 import { calculateAppointmentHours, parseSqft } from '../utils/appointmentUtils'
+import { phoneNumbersMatchForLinking, normalizePhone } from '../utils/phoneUtils'
 import { localDateStringToStartOfDayUtc, whereAppointmentOnBusinessDay } from '../utils/appointmentTimezone'
 import { withAppointmentLocalDate } from '../utils/appointmentJson'
-import { normalizePhone } from '../utils/phoneUtils'
 import { pickUniqueClientDisplayName } from '../utils/clientDisplayName'
 import { findFirstClientMatchingPhone } from '../services/clientPhoneMatch'
 import { getDefaultTeamSize, getSizeRange } from '../data/teamSizeData'
@@ -54,6 +54,11 @@ type BookAppointmentInput = {
   serviceType: string
   /** Public Supabase URLs from `appointments/…` after image extraction */
   bookingScreenshotUrls?: string[]
+  /**
+   * When booking from the screenshot form, we must guarantee the appointment is created under
+   * the same phone number the user entered (allowing only +1 / formatting differences).
+   */
+  expectedClientPhoneRaw?: string
 }
 
 function parseBookingScreenshotUrlsFromBody(body: unknown): string[] {
@@ -85,6 +90,7 @@ async function executeBookAppointmentCore(
     size,
     serviceType,
     bookingScreenshotUrls: screenshotUrlsInput,
+    expectedClientPhoneRaw,
   } = input
   const bookingScreenshotUrls = screenshotUrlsInput?.length ? screenshotUrlsInput : []
 
@@ -114,6 +120,18 @@ async function executeBookAppointmentCore(
   const normalizedPhone = normalizePhone(conversation.contactPoint.value)
   if (!normalizedPhone) {
     throw new Error('Conversation phone is invalid')
+  }
+
+  if (expectedClientPhoneRaw?.trim()) {
+    const expected = normalizePhone(expectedClientPhoneRaw)
+    if (!expected) {
+      throw new Error('Invalid phone number')
+    }
+    // Strict guarantee: the conversation/contact phone we’re booking under must match the form phone.
+    // Only allow +1 / formatting differences (NANP 10-digit comparison).
+    if (!phoneNumbersMatchForLinking(expected, normalizedPhone)) {
+      throw new Error('Booking phone mismatch')
+    }
   }
 
   const anchor = localDateStringToStartOfDayUtc(date)
@@ -153,6 +171,17 @@ async function executeBookAppointmentCore(
       where: { id: conversation.contactPointId },
       data: { clientId: client.id },
     })
+  }
+
+  if (expectedClientPhoneRaw?.trim()) {
+    const expected = normalizePhone(expectedClientPhoneRaw)
+    if (!expected) {
+      throw new Error('Invalid phone number')
+    }
+    if (!phoneNumbersMatchForLinking(expected, client.number)) {
+      // This should never happen; it would mean we are about to book under the wrong client.
+      throw new Error('Booking client phone mismatch')
+    }
   }
 
   const existingAppointment = await prisma.appointment.findFirst({
@@ -1020,6 +1049,7 @@ export async function postBookAppointmentFromScreenshot(req: Request, res: Respo
       size,
       serviceType,
       bookingScreenshotUrls,
+      expectedClientPhoneRaw: phoneRaw.trim(),
     })
     return res.json(out)
   } catch (e: any) {
@@ -1033,7 +1063,10 @@ export async function postBookAppointmentFromScreenshot(req: Request, res: Respo
     if (
       e?.message?.includes('Invalid size') ||
       e?.message === 'Conversation phone is invalid' ||
-      e?.message === 'clientName is required when no client is linked'
+      e?.message === 'clientName is required when no client is linked' ||
+      e?.message === 'Invalid phone number' ||
+      e?.message === 'Booking phone mismatch' ||
+      e?.message === 'Booking client phone mismatch'
     ) {
       return res.status(400).json({ error: e.message })
     }

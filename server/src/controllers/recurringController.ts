@@ -60,6 +60,11 @@ export async function getActiveRecurrenceFamilies(_req: Request, res: Response) 
             where: { id: family.id },
             data: { status: 'stopped' },
           })
+          // Also remove the unconfirmed (blue) appointment(s) so nothing can be confirmed
+          // after the family is stopped.
+          await prisma.appointment.deleteMany({
+            where: { familyId: family.id, status: 'RECURRING_UNCONFIRMED' },
+          })
           break
         }
       }
@@ -488,6 +493,14 @@ export async function updateRecurrenceFamily(req: Request, res: Response) {
     // Ensure only one future unconfirmed instance exists (only if rule changed, not on restart)
     if (recurrenceRule) {
       await ensureSingleUnconfirmedInstance(id, updated.nextAppointmentDate)
+    }
+
+    // If the recurrence is being stopped, remove any unconfirmed "next" instance
+    // so it can't be confirmed while the family is stopped.
+    if (status === 'stopped') {
+      await prisma.appointment.deleteMany({
+        where: { familyId: id, status: 'RECURRING_UNCONFIRMED' },
+      })
     }
 
     res.json(updated)

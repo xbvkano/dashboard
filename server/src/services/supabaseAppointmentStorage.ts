@@ -77,6 +77,29 @@ export async function uploadBufferToAppointmentBucket(
   return { storageKey, publicUrl }
 }
 
+export async function downloadBufferFromAppointmentBucket(
+  storageKey: string,
+): Promise<{ buffer: Buffer; contentType: string }> {
+  const supabase = getClient()
+  const bucket = getAppointmentStorageBucket()
+
+  const { data, error } = await supabase.storage.from(bucket).download(storageKey)
+  if (error || !data) {
+    const msg = error?.message ?? 'download returned empty data'
+    throw new Error(`Supabase appointment download failed: ${msg}`)
+  }
+
+  // supabase-js returns a Blob in Node. Convert to Buffer.
+  const arrayBuffer = await data.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+
+  const contentType =
+    // Blob.type is best-effort; may be empty depending on runtime.
+    (typeof (data as any).type === 'string' && (data as any).type.trim()) || 'application/octet-stream'
+
+  return { buffer, contentType }
+}
+
 export async function deleteAppointmentStorageKeys(storageKeys: string[]): Promise<void> {
   if (storageKeys.length === 0) return
   const supabase = getClient()

@@ -1,0 +1,10 @@
+{
+  "name": "dashboard",
+  "private": true,
+  "description": "Root scripts for local Docker + Supabase dev (see docs/local-docker-dev.md)",
+  "scripts": {
+    "dev:docker": "node scripts/setup-local-dev.mjs",
+    "dev:docker:env": "node scripts/print-local-dev-env.mjs",
+    "dev:docker:stop": "npx --yes supabase@latest stop"
+  }
+}

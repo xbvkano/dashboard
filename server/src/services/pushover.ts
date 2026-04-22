@@ -13,10 +13,14 @@ export interface PushoverInboundPayload {
 }
 
 export function isPushoverConfigured(): boolean {
+  // Never send real notifications during automated tests.
+  if (process.env.NODE_ENV === 'test') return false
   return Boolean(process.env.PUSHOVER_APP_TOKEN && process.env.PUSHOVER_USER_TOKEN)
 }
 
 export async function sendPushoverMessage(payload: PushoverInboundPayload): Promise<void> {
+  // Safety: even if tokens are set in the environment, tests should never hit the network.
+  if (process.env.NODE_ENV === 'test') return
   const token = process.env.PUSHOVER_APP_TOKEN
   const user = process.env.PUSHOVER_USER_TOKEN
   if (!token || !user) return

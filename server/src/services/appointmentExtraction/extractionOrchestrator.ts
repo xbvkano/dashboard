@@ -1,7 +1,11 @@
 import { randomUUID } from 'crypto'
 import type { PrismaClient } from '@prisma/client'
 import { formatMessagesTranscript } from './transcript'
-import { extractAppointmentFromImageUrls, extractAppointmentFromTranscript } from './openaiExtraction'
+import {
+  extractAppointmentFromImageUrls,
+  extractAppointmentFromInlineImages,
+  extractAppointmentFromTranscript,
+} from './openaiExtraction'
 import {
   collectMissingRequiredFields,
   rawAiToDraft,
@@ -14,6 +18,7 @@ import {
 import type { ExtractAppointmentResult, ExtractionFieldKey, FieldHighlightReason } from './types'
 import {
   deleteAppointmentStorageKeys,
+  downloadBufferFromAppointmentBucket,
   isAppointmentBucketConfigured,
   uploadBufferToAppointmentBucket,
 } from '../supabaseAppointmentStorage'
@@ -147,23 +152,44 @@ async function extractFromImageFilesWithTempThenPermanent(
   const tempKeys: string[] = []
   const visionUrls: string[] = []
 
+  function shouldForceInlineVision(): boolean {
+    if (process.env.OPENAI_VISION_FORCE_INLINE === '1') return true
+    const url = process.env.SUPABASE_URL?.trim() ?? ''
+    return (
+      url.includes('://127.0.0.1') ||
+      url.includes('://localhost') ||
+      url.includes('://0.0.0.0') ||
+      url.includes('://[::1]')
+    )
+  }
+
   try {
     if (isAppointmentBucketConfigured()) {
       for (const r of reuse) {
         visionUrls.push(r.publicUrl)
       }
-      for (const f of newFiles) {
-        const tempKey = buildTempOpenAiImageKey({
-          runId,
-          mimeType: f.mimetype || 'application/octet-stream',
-        })
-        const uploaded = await uploadBufferToAppointmentBucket(
-          tempKey,
-          f.buffer,
-          f.mimetype || 'application/octet-stream',
-        )
-        tempKeys.push(uploaded.storageKey)
-        visionUrls.push(uploaded.publicUrl)
+      // If Supabase is local (127.0.0.1/localhost), OpenAI cannot fetch these URLs.
+      // In that case, we will send inline base64 images to OpenAI and skip temp uploads.
+      const forceInline = shouldForceInlineVision()
+      if (!forceInline) {
+        for (const f of newFiles) {
+          const tempKey = buildTempOpenAiImageKey({
+            runId,
+            mimeType: f.mimetype || 'application/octet-stream',
+          })
+          const uploaded = await uploadBufferToAppointmentBucket(
+            tempKey,
+            f.buffer,
+            f.mimetype || 'application/octet-stream',
+          )
+          tempKeys.push(uploaded.storageKey)
+          visionUrls.push(uploaded.publicUrl)
+        }
+      } else {
+        // Maintain URL count parity for later invariants.
+        for (let i = 0; i < newFiles.length; i++) {
+          visionUrls.push('__INLINE__')
+        }
       }
     } else {
       for (const r of reuse) {
@@ -180,7 +206,45 @@ async function extractFromImageFilesWithTempThenPermanent(
       throw new Error('Vision URL count mismatch')
     }
 
-    const raw = await extractAppointmentFromImageUrls(visionUrls)
+    const needsInline =
+      // Either we intentionally forced inline, or we see any localhost-ish URL.
+      shouldForceInlineVision() ||
+      visionUrls.some(
+        (u) =>
+          u.includes('://127.0.0.1') ||
+          u.includes('://localhost') ||
+          u.includes('://0.0.0.0') ||
+          u.includes('://[::1]'),
+      )
+
+    const raw = needsInline
+      ? await extractAppointmentFromInlineImages([
+          ...(await Promise.all(
+            reuse.map(async (r) => {
+              if (r.storageKey?.trim()) {
+                const { buffer, contentType } = await downloadBufferFromAppointmentBucket(r.storageKey.trim())
+                return { mimeType: contentType, base64: buffer.toString('base64') }
+              }
+              if (typeof fetch !== 'function') {
+                throw new Error(`Cannot fetch reuse image URL (no fetch available): ${r.publicUrl}`)
+              }
+              const res = await fetch(r.publicUrl)
+              if (!res.ok) {
+                throw new Error(
+                  `Failed to fetch reuse image URL for inline vision (HTTP ${res.status}): ${r.publicUrl}`,
+                )
+              }
+              const ab = await res.arrayBuffer()
+              const mimeType = res.headers.get('content-type')?.trim() || 'application/octet-stream'
+              return { mimeType, base64: Buffer.from(ab).toString('base64') }
+            }),
+          )),
+          ...newFiles.map((f) => ({
+            mimeType: f.mimetype || 'application/octet-stream',
+            base64: f.buffer.toString('base64'),
+          })),
+        ])
+      : await extractAppointmentFromImageUrls(visionUrls)
 
     let draft = rawAiToDraft(raw)
     let sizeSource: 'thread' | 'rentcast' | null = draft.size ? 'thread' : null

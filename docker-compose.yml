@@ -7,7 +7,8 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
+      # Matches server/.env.example DATABASE_URL database name for Prisma
+      POSTGRES_DB: mydb
     ports:
       - '5432:5432'
     volumes:
