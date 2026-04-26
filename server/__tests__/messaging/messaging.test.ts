@@ -149,7 +149,7 @@ describe('messaging: session lifecycle', () => {
     expect(r.rotated).toBe(false)
   })
 
-  it('reuses session when activity within 12 hours', async () => {
+  it('reuses session when activity within 3 days', async () => {
     const prisma = mockPrisma()
     const recent = new Date(now.getTime() - 60 * 60 * 1000)
     prisma.conversation.findUnique.mockResolvedValue({
@@ -164,7 +164,7 @@ describe('messaging: session lifecycle', () => {
     expect(prisma.conversationSession.update).not.toHaveBeenCalled()
   })
 
-  it('closes session and creates new one when inactivity exceeds 12 hours', async () => {
+  it('closes session and creates new one when inactivity exceeds 3 days', async () => {
     const prisma = mockPrisma()
     const old = new Date(now.getTime() - SESSION_INACTIVITY_MS - 1000)
     prisma.conversation.findUnique.mockResolvedValue({

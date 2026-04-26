@@ -1087,7 +1087,7 @@ async function main() {
       fromContactPointId: cpBiz.id,
       toContactPointId: cpUnknown.id,
       userId: admin.id,
-      body: 'Thanks — this is a new session after 12h inactivity.',
+      body: 'Thanks — this is a new session after 3 days of inactivity.',
       status: 'SENT',
       sentAt: nowMsgAt,
     },
