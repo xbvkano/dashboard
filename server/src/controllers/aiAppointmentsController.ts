@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { calculateAppointmentHours, parseSqft } from '../utils/appointmentUtils'
+import { isAppointmentInPast } from '../utils/appointmentPast'
 import {
   localDateStringToStartOfDayUtc,
   utcInstantToLocalDateString,
@@ -27,6 +28,7 @@ export async function createAIAppointment(req: Request, res: Response) {
       size,
       serviceType,
       anyDate,
+      datePastOverride,
     } = req.body as {
       clientName?: string
       clientPhone?: string
@@ -38,6 +40,7 @@ export async function createAIAppointment(req: Request, res: Response) {
       size?: string
       serviceType?: string
       anyDate?: boolean
+      datePastOverride?: boolean
     }
 
     // Validate required fields
@@ -104,6 +107,17 @@ export async function createAIAppointment(req: Request, res: Response) {
     if (appointmentYear !== currentYear && !anyDateValue) {
       return res.status(400).json({ 
         error: `Cannot create appointment for year ${appointmentYear}. The appointment date must be in the current year (${currentYear}). To create an appointment for a different year, set the "anyDate" parameter to true in the request body.` 
+      })
+    }
+
+    if (
+      isAppointmentInPast({ dateUtc: anchor, date: anchor, time }, new Date()) &&
+      datePastOverride !== true
+    ) {
+      return res.status(400).json({
+        error: 'PAST_APPOINTMENT_DATE',
+        message:
+          'That appointment date and time are already in the past. Send datePastOverride: true if this is intentional.',
       })
     }
 

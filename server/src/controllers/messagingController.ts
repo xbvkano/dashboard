@@ -29,6 +29,7 @@ import { parseUserIdHeader } from '../utils/httpUser'
 import { randomUUID } from 'crypto'
 import { calculateAppointmentHours, parseSqft } from '../utils/appointmentUtils'
 import { phoneNumbersMatchForLinking, normalizePhone } from '../utils/phoneUtils'
+import { isAppointmentInPast } from '../utils/appointmentPast'
 import { localDateStringToStartOfDayUtc, whereAppointmentOnBusinessDay } from '../utils/appointmentTimezone'
 import { withAppointmentLocalDate } from '../utils/appointmentJson'
 import { pickUniqueClientDisplayName } from '../utils/clientDisplayName'
@@ -52,6 +53,8 @@ type BookAppointmentInput = {
   notes?: string
   size: string
   serviceType: string
+  /** When true, allows booking when local date+time is already in the past (business timezone). */
+  datePastOverride?: boolean
   /** Public Supabase URLs from `appointments/…` after image extraction */
   bookingScreenshotUrls?: string[]
   /**
@@ -135,6 +138,15 @@ async function executeBookAppointmentCore(
   }
 
   const anchor = localDateStringToStartOfDayUtc(date)
+
+  if (
+    isAppointmentInPast({ dateUtc: anchor, date: anchor, time }, new Date()) &&
+    input.datePastOverride !== true
+  ) {
+    const err: Error & { status?: number } = new Error('PAST_APPOINTMENT_DATE') as Error & { status?: number }
+    err.status = 400
+    throw err
+  }
 
   const activeSession =
     conversation.sessions[0] ??
@@ -936,6 +948,7 @@ export async function postBookAppointmentFromConversation(req: Request, res: Res
       notes,
       size,
       serviceType,
+      datePastOverride,
     } = req.body as {
       clientName?: string
       appointmentAddress?: string
@@ -945,6 +958,7 @@ export async function postBookAppointmentFromConversation(req: Request, res: Res
       notes?: string
       size?: string
       serviceType?: string
+      datePastOverride?: boolean
     }
     const bookingScreenshotUrls = parseBookingScreenshotUrlsFromBody(req.body)
 
@@ -964,6 +978,7 @@ export async function postBookAppointmentFromConversation(req: Request, res: Res
       notes,
       size,
       serviceType,
+      datePastOverride: datePastOverride === true ? true : undefined,
       bookingScreenshotUrls,
     })
     return res.json(out)
@@ -973,6 +988,13 @@ export async function postBookAppointmentFromConversation(req: Request, res: Res
         error: 'SAME_DAY_APPOINT',
         message: 'Client already has an appointment on this date',
         existingAppointment: e.existingAppointment,
+      })
+    }
+    if (e?.message === 'PAST_APPOINTMENT_DATE' && e?.status === 400) {
+      return res.status(400).json({
+        error: 'PAST_APPOINTMENT_DATE',
+        message:
+          'That appointment date and time are already in the past. Enable date override on the booking form (or send datePastOverride: true) if this is intentional.',
       })
     }
     if (e?.message === 'Conversation not found') {
@@ -1007,6 +1029,7 @@ export async function postBookAppointmentFromScreenshot(req: Request, res: Respo
     notes,
     size,
     serviceType,
+    datePastOverride,
   } = req.body as {
     phoneRaw?: string
     clientName?: string
@@ -1017,6 +1040,7 @@ export async function postBookAppointmentFromScreenshot(req: Request, res: Respo
     notes?: string
     size?: string
     serviceType?: string
+    datePastOverride?: boolean
   }
   const bookingScreenshotUrls = parseBookingScreenshotUrlsFromBody(req.body)
 
@@ -1048,6 +1072,7 @@ export async function postBookAppointmentFromScreenshot(req: Request, res: Respo
       notes,
       size,
       serviceType,
+      datePastOverride: datePastOverride === true ? true : undefined,
       bookingScreenshotUrls,
       expectedClientPhoneRaw: phoneRaw.trim(),
     })
@@ -1058,6 +1083,13 @@ export async function postBookAppointmentFromScreenshot(req: Request, res: Respo
         error: 'SAME_DAY_APPOINT',
         message: 'Client already has an appointment on this date',
         existingAppointment: e.existingAppointment,
+      })
+    }
+    if (e?.message === 'PAST_APPOINTMENT_DATE' && e?.status === 400) {
+      return res.status(400).json({
+        error: 'PAST_APPOINTMENT_DATE',
+        message:
+          'That appointment date and time are already in the past. Enable date override on the booking form (or send datePastOverride: true) if this is intentional.',
       })
     }
     if (

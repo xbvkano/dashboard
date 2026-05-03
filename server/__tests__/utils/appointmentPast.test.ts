@@ -25,5 +25,16 @@ describe('isAppointmentInPast', () => {
     const now = new Date('2026-04-14T18:00:00.000Z')
     expect(isAppointmentInPast(appt, now, LA)).toBe(false)
   })
+
+  it('treats an earlier calendar day as past (LA timezone)', () => {
+    const appt = {
+      dateUtc: new Date('2026-04-13T07:00:00.000Z'),
+      date: new Date('2026-04-13T07:00:00.000Z'),
+      time: '15:00',
+    }
+    // Apr 14 11:00 LA — appointment was Apr 13 15:00 LA
+    const now = new Date('2026-04-14T18:00:00.000Z')
+    expect(isAppointmentInPast(appt, now, LA)).toBe(true)
+  })
 })
 
