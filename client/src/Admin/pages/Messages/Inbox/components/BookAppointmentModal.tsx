@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BookAgainPickerModal from './BookAgainPickerModal'
 import {
@@ -19,6 +19,8 @@ export type BookAppointmentDraft = {
   date: string
   time: string
   notes: string
+  /** When true, server allows booking a slot already in the past (business timezone). */
+  datePastOverride: boolean
   size: string
   serviceType: '' | 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
 }
@@ -38,6 +40,44 @@ export type BookAppointmentHighlightState = {
   fieldHighlights: Partial<Record<BookAppointmentFieldHighlightKey, 'ai_missing' | 'lookup_failed'>>
   notFoundNotes: string[]
   sizeLookupFailed: boolean
+}
+
+/** Matches server bookings (`DEFAULT_APPOINTMENT_TIMEZONE` / `isAppointmentInPast`). */
+const APPOINTMENT_BUSINESS_TZ = 'America/Los_Angeles'
+
+/**
+ * True when date + time (interpreted as wall clock in Pacific) are at or before "now" in that zone.
+ * Uses the same ordering as the server past-date guard (no extra dependencies).
+ */
+function isBookingSlotPastInBusinessTz(dateStr: string, timeStr: string, now: Date = new Date()): boolean {
+  const ds = dateStr.trim()
+  const ts = timeStr.trim()
+  const tm = ts.match(/^(\d{1,2}):(\d{2})$/)
+  if (!tm || !/^\d{4}-\d{2}-\d{2}$/.test(ds)) return false
+  const hour = parseInt(tm[1], 10)
+  const minute = parseInt(tm[2], 10)
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return false
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return false
+
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: APPOINTMENT_BUSINESS_TZ,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  const parts = fmt.formatToParts(now)
+  const take = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? ''
+  const y = take('year')
+  const mo = take('month').padStart(2, '0')
+  const d = take('day').padStart(2, '0')
+  const h = take('hour').padStart(2, '0')
+  const min = take('minute').padStart(2, '0')
+  const nowKey = `${y}-${mo}-${d}T${h}:${min}`
+  const schedKey = `${ds}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+  return schedKey <= nowKey
 }
 
 /** HTML time input values (24h) for quick-fill buttons */
@@ -93,6 +133,7 @@ export function defaultDraft(): BookAppointmentDraft {
     date: '',
     time: '',
     notes: '',
+    datePastOverride: false,
     size: '',
     serviceType: '',
   }
@@ -116,9 +157,14 @@ export default function BookAppointmentModal({
   const [error, setError] = useState<string | null>(null)
   const [attempted, setAttempted] = useState(false)
   const [bookAgainOpen, setBookAgainOpen] = useState(false)
+  const [pastSlotAlertOpen, setPastSlotAlertOpen] = useState(false)
 
   const { bookingScreenshotUrlsByConversationId } = useBookAppointmentDrafts()
   const bookingScreenshotUrls = bookingScreenshotUrlsByConversationId[conversationId] ?? []
+
+  useEffect(() => {
+    setPastSlotAlertOpen(false)
+  }, [open, conversationId])
 
   const isScreenshot = bookingSource === 'screenshot'
   const clientLinked = !isScreenshot && Boolean(detail?.conversation.clientId)
@@ -194,6 +240,11 @@ export default function BookAppointmentModal({
       return
     }
 
+    if (isBookingSlotPastInBusinessTz(draft.date, draft.time) && !draft.datePastOverride) {
+      setPastSlotAlertOpen(true)
+      return
+    }
+
     setSubmitting(true)
     try {
       const screenshotPayload =
@@ -232,6 +283,7 @@ export default function BookAppointmentModal({
           notes: draft.notes.trim() ? draft.notes.trim() : undefined,
           size: draft.size,
           serviceType: draft.serviceType as any,
+          ...(draft.datePastOverride ? { datePastOverride: true } : {}),
           ...screenshotPayload,
         })
         /** Clear screenshot page state before navigating away so unmount does not skip cleanup. */
@@ -255,6 +307,7 @@ export default function BookAppointmentModal({
           notes: draft.notes.trim() ? draft.notes.trim() : undefined,
           size: draft.size,
           serviceType: draft.serviceType as any,
+          ...(draft.datePastOverride ? { datePastOverride: true } : {}),
           ...screenshotPayload,
         })
       }
@@ -265,7 +318,11 @@ export default function BookAppointmentModal({
     } catch (e) {
       console.error('[BookAppointmentModal] submit failed', e)
       const msg = formatApiError(e)
-      setError(msg === 'SAME_DAY_APPOINT' ? 'This client already has an appointment on that date.' : msg)
+      if (msg === 'PAST_APPOINTMENT_DATE') {
+        setPastSlotAlertOpen(true)
+      } else {
+        setError(msg === 'SAME_DAY_APPOINT' ? 'This client already has an appointment on that date.' : msg)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -472,6 +529,22 @@ export default function BookAppointmentModal({
                   placeholder="Optional"
                   disabled={submitting}
                 />
+                <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={draft.datePastOverride}
+                    onChange={(e) => onDraftChange({ ...draft, datePastOverride: e.target.checked })}
+                    disabled={submitting}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20"
+                  />
+                  <span>
+                    <span className="font-medium">Date override</span>
+                    <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                      Allow booking when the scheduled date and time are already in the past (Pacific). Use only when
+                      intentional or extraction was wrong.
+                    </span>
+                  </span>
+                </label>
               </div>
             </div>
 
@@ -535,6 +608,49 @@ export default function BookAppointmentModal({
           onPick={handlePickPrevious}
         />
       )}
+
+      {pastSlotAlertOpen ? (
+        <div
+          className="fixed inset-0 z-[180] flex items-center justify-center overflow-y-auto p-4 bg-slate-900/60 backdrop-blur-sm"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="past-slot-alert-title"
+          aria-describedby="past-slot-alert-desc"
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl ring-2 ring-red-200">
+            <div className="border-b border-red-100 bg-red-50 px-5 py-4 rounded-t-2xl">
+              <h3 id="past-slot-alert-title" className="text-lg font-semibold text-red-950">
+                This appointment is in the past
+              </h3>
+            </div>
+            <div className="px-5 py-4">
+              <p id="past-slot-alert-desc" className="text-sm leading-relaxed text-slate-700">
+                The date and time you entered are <span className="font-semibold text-slate-900">already over</span> in
+                the business timezone (Pacific). The booking was not sent.
+              </p>
+              <p className="mt-3 text-sm leading-relaxed text-slate-700">
+                <span className="font-medium text-slate-900">What you can do:</span>
+              </p>
+              <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-slate-700">
+                <li>Pick a <strong>future</strong> date and/or time, then tap Book again, or</li>
+                <li>
+                  Scroll to <strong>Date override</strong> below Notes, check that box, then Book — only if you
+                  intentionally need this past slot.
+                </li>
+              </ul>
+            </div>
+            <div className="border-t border-slate-200 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setPastSlotAlertOpen(false)}
+                className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 active:bg-slate-950"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }

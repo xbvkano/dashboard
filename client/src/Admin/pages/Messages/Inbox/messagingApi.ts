@@ -352,6 +352,8 @@ export type MessagingBookAppointmentInput = {
   date: string
   time: string
   notes?: string
+  /** Server allows past slots in business timezone only when true. */
+  datePastOverride?: boolean
   size: string
   serviceType: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
   bookingScreenshotUrls?: string[]
@@ -385,6 +387,8 @@ export type MessagingScreenshotBookAppointmentInput = {
   date: string
   time: string
   notes?: string
+  /** Server allows past slots in business timezone only when true. */
+  datePastOverride?: boolean
   size: string
   serviceType: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
   bookingScreenshotUrls?: string[]
