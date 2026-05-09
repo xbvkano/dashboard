@@ -55,6 +55,18 @@ function readInitialDrafts(): Record<number, BookAppointmentDraft> {
   }
 }
 
+function removePersistedDraft(conversationId: number): void {
+  try {
+    const raw = localStorage.getItem(MESSAGING_BOOK_DRAFTS_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as Record<string, BookAppointmentDraft>
+    delete parsed[String(conversationId)]
+    localStorage.setItem(MESSAGING_BOOK_DRAFTS_KEY, JSON.stringify(parsed))
+  } catch {
+    /* ignore */
+  }
+}
+
 export function BookAppointmentDraftsProvider({ children }: { children: ReactNode }) {
   const [draftsByConversationId, setDraftsByConversationId] =
     useState<Record<number, BookAppointmentDraft>>(readInitialDrafts)
@@ -127,6 +139,7 @@ export function BookAppointmentDraftsProvider({ children }: { children: ReactNod
   const cancelBookModal = useCallback(() => {
     const id = activeBookConversationId
     if (id != null) {
+      removePersistedDraft(id)
       setDraftsByConversationId((prev) => {
         const { [id]: _omit, ...rest } = prev
         return rest
@@ -145,6 +158,7 @@ export function BookAppointmentDraftsProvider({ children }: { children: ReactNod
   }, [activeBookConversationId])
 
   const completeBookModal = useCallback((conversationId: number) => {
+    removePersistedDraft(conversationId)
     setDraftsByConversationId((prev) => {
       const { [conversationId]: _omit, ...rest } = prev
       return rest

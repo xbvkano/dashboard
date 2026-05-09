@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
 import { formatPhone } from '../../../../../formatPhone'
+import { copyTextToClipboard, phoneToE164 } from '../../../../contactActions'
+import { formatApiError, startConversationFromContact } from '../../../Messages/Inbox/messagingApi'
 import { appointmentCalendarDateKey, type Appointment } from '../../types'
 
 function parseSqft(s: string | null | undefined): number | null {
@@ -94,8 +96,12 @@ export default function AppointmentDetails({
   const [editingTemplateNotes, setEditingTemplateNotes] = useState(false)
   const [editingTemplateNotesId, setEditingTemplateNotesId] = useState<number | null>(null)
   const [editingTemplateNotesValue, setEditingTemplateNotesValue] = useState('')
+  const [textBusy, setTextBusy] = useState(false)
+  const [phoneCopied, setPhoneCopied] = useState(false)
 
   const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  const clientPhoneDisplay = appointment.client?.number ? formatPhone(appointment.client.number) : ''
+  const clientPhoneE164 = phoneToE164(appointment.client?.number)
 
   // Fetch template if we have clientId
   useEffect(() => {
@@ -137,6 +143,38 @@ export default function AppointmentDetails({
 
   const handlePhoneClick = () => {
     if (isMobile) setShowPhoneActions((prev) => !prev)
+  }
+
+  const handleCopyClientPhone = async () => {
+    if (!clientPhoneDisplay) return
+    try {
+      await copyTextToClipboard(clientPhoneDisplay)
+      setPhoneCopied(true)
+      window.setTimeout(() => setPhoneCopied(false), 2000)
+    } catch (e) {
+      console.error(e)
+      await alert('Failed to copy phone number')
+    }
+  }
+
+  const handleOpenInboxText = async () => {
+    if (!clientPhoneE164 || textBusy) return
+    setTextBusy(true)
+    try {
+      const out = await startConversationFromContact({
+        phoneRaw: clientPhoneE164,
+        name: appointment.client?.name ?? null,
+        notes: appointment.client?.notes ?? null,
+        clientFrom: appointment.client?.from || 'Appointment',
+      })
+      navigate(`/dashboard/messages/inbox?conversation=${out.conversationId}`)
+      onClose()
+    } catch (e) {
+      console.error(e)
+      await alert(formatApiError(e))
+    } finally {
+      setTextBusy(false)
+    }
   }
 
   const updateAppointment = async (data: { status?: Appointment['status']; observe?: boolean }) => {
@@ -408,28 +446,33 @@ export default function AppointmentDetails({
           <p className="font-medium text-slate-900">{appointment.client?.name}</p>
           {appointment.client?.number ? (
             <div className="text-sm text-slate-600 mt-0.5">
-              <span>{formatPhone(appointment.client.number)}</span>
-              {isMobile && (() => {
-                const digits = appointment.client.number.replace(/\D/g, '')
-                const e164 = digits.length === 10 ? '1' + digits : (digits.length === 11 && digits.startsWith('1') ? digits : null)
-                if (!e164) return null
-                return (
+              <button
+                type="button"
+                className="underline decoration-dotted underline-offset-2 hover:text-blue-700"
+                title="Copy phone number"
+                onClick={() => void handleCopyClientPhone()}
+              >
+                {clientPhoneDisplay}
+              </button>
+              {phoneCopied && <span className="ml-2 text-xs font-medium text-emerald-600">Copied</span>}
+              {isMobile && clientPhoneE164 && (
                   <span className="ml-0 mt-2 flex flex-wrap gap-4">
                     <a
-                      href={`tel:+${e164}`}
+                      href={`tel:${clientPhoneE164}`}
                       className="inline-block px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90 no-underline"
                     >
                       Call
                     </a>
-                    <a
-                      href={`sms:+${e164}`}
-                      className="inline-block px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90 no-underline"
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenInboxText()}
+                      disabled={textBusy}
+                      className="inline-block px-4 py-2 bg-blue-600 text-white font-medium rounded-lg active:opacity-90 disabled:opacity-60"
                     >
-                      Text
-                    </a>
+                      {textBusy ? 'Opening...' : 'Text'}
+                    </button>
                   </span>
-                )
-              })()}
+              )}
             </div>
           ) : (
             <p className="text-sm text-slate-600 mt-0.5">—</p>

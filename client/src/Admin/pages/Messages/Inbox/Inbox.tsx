@@ -617,9 +617,20 @@ export default function Inbox() {
 
   useEffect(() => {
     const chatOpen = Boolean(selectedId && !isDesktop)
+    const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]')
+    const previousViewport = viewport?.getAttribute('content') ?? null
     if (chatOpen) document.body.classList.add('messages-inbox-chat-open')
     else document.body.classList.remove('messages-inbox-chat-open')
-    return () => document.body.classList.remove('messages-inbox-chat-open')
+    if (chatOpen && viewport) {
+      viewport.setAttribute(
+        'content',
+        'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover',
+      )
+    }
+    return () => {
+      document.body.classList.remove('messages-inbox-chat-open')
+      if (viewport && previousViewport) viewport.setAttribute('content', previousViewport)
+    }
   }, [selectedId, isDesktop])
 
   const handleSend = useCallback(

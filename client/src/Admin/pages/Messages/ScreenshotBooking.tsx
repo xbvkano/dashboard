@@ -12,6 +12,7 @@ import {
   postExtractAppointmentFromStandaloneImages,
   SCREENSHOT_BOOKING_CONVERSATION_ID,
 } from './Inbox/messagingApi'
+import { screenshotDraftFromExtraction } from './screenshotBookingDraft'
 
 const SID = SCREENSHOT_BOOKING_CONVERSATION_ID
 
@@ -209,19 +210,8 @@ export default function ScreenshotBooking() {
       setExtracting(true)
       try {
         const res = await postExtractAppointmentFromStandaloneImages(newFiles, reuse)
-        const base = draftsByConversationId[SID] ?? defaultDraft()
-        setDraftForConversation(SID, {
-          ...base,
-          clientName: res.draft.clientName ?? base.clientName,
-          clientPhone: res.draft.clientPhone ?? base.clientPhone,
-          appointmentAddress: res.draft.appointmentAddress ?? base.appointmentAddress,
-          price: res.draft.price ?? base.price,
-          date: res.draft.date ?? base.date,
-          time: res.draft.time ?? base.time,
-          notes: res.draft.notes ?? base.notes,
-          size: res.draft.size ?? base.size,
-          serviceType: (res.draft.serviceType ?? base.serviceType) as BookAppointmentDraft['serviceType'],
-        })
+        const existingDraft = reuse?.length ? draftsByConversationId[SID] : undefined
+        setDraftForConversation(SID, screenshotDraftFromExtraction(res.draft, existingDraft))
         setHighlightsForConversation(SID, {
           fieldHighlights: res.fieldHighlights,
           notFoundNotes: res.notFoundNotes,
@@ -331,10 +321,13 @@ export default function ScreenshotBooking() {
       })
       return []
     })
+    setDraftForConversation(SID, defaultDraft())
+    setHighlightsForConversation(SID, null)
+    setBookingScreenshotUrlsForConversation(SID, [])
     setExtractOnce(false)
     clearScreenshotUi()
     cancelBookModal()
-  }, [cancelBookModal])
+  }, [cancelBookModal, setBookingScreenshotUrlsForConversation, setDraftForConversation, setHighlightsForConversation])
 
   const handleBooked = useCallback(async () => {
     try {
@@ -342,18 +335,21 @@ export default function ScreenshotBooking() {
     } catch {
       /* ignore */
     }
-    completeBookModal(SID)
     setPhotoSlots((prev) => {
       prev.forEach((s) => {
         if (s.kind === 'local') URL.revokeObjectURL(s.previewUrl)
       })
       return []
     })
+    setDraftForConversation(SID, defaultDraft())
+    setHighlightsForConversation(SID, null)
+    setBookingScreenshotUrlsForConversation(SID, [])
+    completeBookModal(SID)
     setExtractOnce(false)
     setError(null)
     setMobileTab('photos')
     clearScreenshotUi()
-  }, [completeBookModal])
+  }, [completeBookModal, setBookingScreenshotUrlsForConversation, setDraftForConversation, setHighlightsForConversation])
 
   const photosPanel = (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">

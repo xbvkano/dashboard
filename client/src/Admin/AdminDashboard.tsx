@@ -74,8 +74,12 @@ function IconUserCircle({ className }: { className?: string }) {
   )
 }
 
-const navLinkClass =
-  'flex flex-col md:flex-row items-center justify-center gap-0.5 md:gap-1.5 min-h-[44px] md:min-h-0 px-1.5 md:px-2 py-1.5 rounded-lg text-blue-700 hover:bg-blue-50 md:text-gray-700 md:hover:bg-gray-50'
+const baseNavLinkClass =
+  'flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 min-h-[58px] md:min-h-0 px-1.5 md:px-2 py-2 md:py-1.5 rounded-2xl md:rounded-lg transition-colors'
+const inactiveNavLinkClass =
+  `${baseNavLinkClass} text-slate-600 hover:bg-slate-100 active:bg-slate-200 md:text-gray-700 md:hover:bg-gray-50`
+const activeNavLinkClass =
+  `${baseNavLinkClass} bg-blue-600 text-white shadow-sm md:bg-blue-50 md:text-blue-700 md:shadow-none`
 
 function LegacyAccountsToContactsRedirect() {
   const location = useLocation()
@@ -154,58 +158,66 @@ function ReloadDeepLinkRestore() {
 }
 
 export default function AdminDashboard({ onLogout, onSwitchRole }: Props) {
+  const location = useLocation()
+  const navClass = (path: string) => {
+    const active = path === '/dashboard'
+      ? location.pathname === '/dashboard'
+      : location.pathname === path || location.pathname.startsWith(`${path}/`)
+    return active ? activeNavLinkClass : inactiveNavLinkClass
+  }
+
   return (
     <div className="flex min-h-[100dvh] flex-col bg-gray-100 text-gray-900">
       <ReloadDeepLinkRestore />
-      <nav className="z-50 w-full shrink-0 bg-white shadow fixed bottom-0 md:sticky md:top-0 border-t border-gray-200 md:border-t-0 md:border-b">
-        <ul className="flex flex-nowrap justify-around md:justify-start md:flex-wrap md:gap-1 p-1 md:p-2 text-sm">
+      <nav className="z-50 w-full shrink-0 bg-white/95 shadow-[0_-12px_30px_rgba(15,23,42,0.14)] backdrop-blur-md fixed bottom-0 left-0 right-0 md:sticky md:top-0 md:shadow md:backdrop-blur-none border-t border-slate-200 md:border-t-0 md:border-b md:border-gray-200">
+        <ul className="flex flex-nowrap justify-around md:justify-start md:flex-wrap gap-1 p-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] md:gap-1 md:p-2 text-sm">
           <li className="min-w-0 flex-1 md:flex-none">
-            <Link className={navLinkClass} to="/dashboard" aria-label="Home" title="Home">
+            <Link className={navClass('/dashboard')} to="/dashboard" aria-label="Home" title="Home">
               <IconHome className="w-6 h-6 md:w-5 md:h-5 shrink-0" />
-              <span className="hidden md:inline text-sm">Home</span>
+              <span className="block text-[11px] leading-none font-semibold md:text-sm">Home</span>
             </Link>
           </li>
           <li className="min-w-0 flex-1 md:flex-none">
-            <Link className={navLinkClass} to="/dashboard/calendar" aria-label="Calendar" title="Calendar">
+            <Link className={navClass('/dashboard/calendar')} to="/dashboard/calendar" aria-label="Calendar" title="Calendar">
               <IconCalendar className="w-6 h-6 md:w-5 md:h-5 shrink-0" />
-              <span className="hidden md:inline text-sm">Calendar</span>
+              <span className="block text-[11px] leading-none font-semibold md:text-sm">Calendar</span>
             </Link>
           </li>
           <li className="min-w-0 flex-1 md:flex-none">
-            <Link className={navLinkClass} to="/dashboard/messages" aria-label="Messages" title="Messages">
+            <Link className={navClass('/dashboard/messages')} to="/dashboard/messages" aria-label="Messages" title="Messages">
               <IconChat className="w-6 h-6 md:w-5 md:h-5 shrink-0" />
-              <span className="hidden md:inline text-sm">Messages</span>
+              <span className="block text-[11px] leading-none font-semibold md:text-sm">Messages</span>
             </Link>
           </li>
           <li className="min-w-0 flex-1 md:flex-none">
-            <Link className={navLinkClass} to="/dashboard/contacts" aria-label="Contacts" title="Contacts">
+            <Link className={navClass('/dashboard/contacts')} to="/dashboard/contacts" aria-label="Contacts" title="Contacts">
               <IconUsers className="w-6 h-6 md:w-5 md:h-5 shrink-0" />
-              <span className="hidden md:inline text-sm">Contacts</span>
+              <span className="block text-[11px] leading-none font-semibold md:text-sm">Contacts</span>
             </Link>
           </li>
           <li className="min-w-0 flex-1 md:flex-none">
-            <Link className={navLinkClass} to="/dashboard/financing" aria-label="Financing" title="Financing">
+            <Link className={navClass('/dashboard/financing')} to="/dashboard/financing" aria-label="Financing" title="Financing">
               <IconCurrency className="w-6 h-6 md:w-5 md:h-5 shrink-0" />
-              <span className="hidden md:inline text-sm">Financing</span>
+              <span className="block text-[11px] leading-none font-semibold md:text-sm">Finance</span>
             </Link>
           </li>
           {isDevToolsEnabled && (
             <li className="min-w-0 flex-1 md:flex-none">
-              <Link className={navLinkClass} to="/dashboard/devtools" aria-label="DevTools" title="DevTools">
+              <Link className={navClass('/dashboard/devtools')} to="/dashboard/devtools" aria-label="DevTools" title="DevTools">
                 <IconWrench className="w-6 h-6 md:w-5 md:h-5 shrink-0" />
-                <span className="hidden md:inline text-sm">DevTools</span>
+                <span className="block text-[11px] leading-none font-semibold md:text-sm">Dev</span>
               </Link>
             </li>
           )}
           <li className="min-w-0 flex-1 md:flex-none">
-            <Link className={navLinkClass} to="/dashboard/account" aria-label="Account" title="Account">
+            <Link className={navClass('/dashboard/account')} to="/dashboard/account" aria-label="Account" title="Account">
               <IconUserCircle className="w-6 h-6 md:w-5 md:h-5 shrink-0" />
-              <span className="hidden md:inline text-sm">Account</span>
+              <span className="block text-[11px] leading-none font-semibold md:text-sm">Account</span>
             </Link>
           </li>
         </ul>
       </nav>
-      <main className="flex min-h-0 flex-1 flex-col pb-[4.25rem] md:pb-0">
+      <main className="flex min-h-0 flex-1 flex-col pb-[5.6rem] md:pb-0">
         <Routes>
           <Route index element={<Home />} />
           <Route path="calendar" element={<Calendar />} />

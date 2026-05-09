@@ -5,6 +5,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Client } from './types'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
 import { formatPhone } from '../../../../formatPhone'
+import { copyTextToClipboard, phoneToE164 } from '../../../contactActions'
+import { formatApiError, startConversationFromContact } from '../../Messages/Inbox/messagingApi'
 
 import AppointmentsSection from "../../../components/AppointmentsSection"
 import RecurrenceFamiliesSection from "../../../components/RecurrenceFamiliesSection"
@@ -18,15 +20,14 @@ export default function ClientForm() {
     loadFormPersistence(storageKey, { name: '', number: '', from: '', notes: '', disabled: false }),
   )
   const [contactMenuOpen, setContactMenuOpen] = useState(false)
+  const [textBusy, setTextBusy] = useState(false)
+  const [phoneCopied, setPhoneCopied] = useState(false)
   const contactMenuRef = useRef<HTMLDivElement>(null)
   useFormPersistence(storageKey, data)
 
-  const telHref = useMemo(() => {
-    const d = (data.number || '').replace(/\D/g, '')
-    if (d.length === 10) return `tel:+1${d}`
-    if (d.length === 11 && d.startsWith('1')) return `tel:+${d}`
-    return null
-  }, [data.number])
+  const phoneE164 = useMemo(() => phoneToE164(data.number), [data.number])
+  const telHref = phoneE164 ? `tel:${phoneE164}` : null
+  const contactActionsEnabled = !isNew && !!phoneE164
 
   useEffect(() => {
     if (!contactMenuOpen) return
@@ -78,6 +79,39 @@ export default function ClientForm() {
     setData(updated)
   }
 
+  const handleCopyPhone = async () => {
+    if (!data.number) return
+    try {
+      await copyTextToClipboard(formatPhone(data.number))
+      setPhoneCopied(true)
+      setContactMenuOpen(false)
+      window.setTimeout(() => setPhoneCopied(false), 2000)
+    } catch (e) {
+      console.error(e)
+      await alert('Failed to copy phone number')
+    }
+  }
+
+  const handleOpenInboxText = async () => {
+    if (!phoneE164 || textBusy) return
+    setTextBusy(true)
+    setContactMenuOpen(false)
+    try {
+      const out = await startConversationFromContact({
+        phoneRaw: phoneE164,
+        name: data.name || null,
+        notes: data.notes || null,
+        clientFrom: data.from || 'Client',
+      })
+      navigate(`/dashboard/messages/inbox?conversation=${out.conversationId}`)
+    } catch (e) {
+      console.error(e)
+      await alert(formatApiError(e))
+    } finally {
+      setTextBusy(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const payload = {
@@ -121,7 +155,7 @@ export default function ClientForm() {
   return (
     <form onSubmit={handleSubmit} className="p-4 space-y-3">
       <div className="flex justify-end md:hidden min-h-[40px]">
-        {telHref && (
+        {contactActionsEnabled && telHref && (
           <div className="relative" ref={contactMenuRef}>
             <button
               type="button"
@@ -145,6 +179,21 @@ export default function ClientForm() {
                 >
                   Call
                 </a>
+                <button
+                  type="button"
+                  className="block w-full text-left px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                  onClick={() => void handleOpenInboxText()}
+                  disabled={textBusy}
+                >
+                  {textBusy ? 'Opening...' : 'Text'}
+                </button>
+                <button
+                  type="button"
+                  className="block w-full text-left px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50"
+                  onClick={() => void handleCopyPhone()}
+                >
+                  {phoneCopied ? 'Copied' : 'Copy phone'}
+                </button>
               </div>
             )}
           </div>
@@ -162,6 +211,31 @@ export default function ClientForm() {
           required
           className="w-full border p-2 rounded"
         />
+        {contactActionsEnabled && telHref && (
+          <div className="mt-2 hidden md:flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void handleOpenInboxText()}
+              disabled={textBusy}
+              className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-60"
+            >
+              {textBusy ? 'Opening...' : 'Text'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCopyPhone()}
+              className="px-3 py-1.5 bg-slate-100 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
+            >
+              {phoneCopied ? 'Copied' : 'Copy phone'}
+            </button>
+            <a
+              href={telHref}
+              className="px-3 py-1.5 bg-slate-100 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
+            >
+              Call
+            </a>
+          </div>
+        )}
       </div>
       <div>
         <label htmlFor="client-number" className="block text-sm">

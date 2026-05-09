@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   appointmentCalendarDateKey,
-  businessTodayLocalDateString,
   type Appointment,
 } from '../pages/Calendar/types'
 import { fetchJson } from "../../api"
@@ -43,9 +42,10 @@ export default function AppointmentsSection({ url }: Props) {
         setPage((p) => p + 1)
       }
     })
-    if (loader.current) obs.observe(loader.current)
+    const node = loader.current
+    if (node) obs.observe(node)
     return () => {
-      if (loader.current) obs.unobserve(loader.current)
+      if (node) obs.unobserve(node)
     }
   }, [hasMore])
 
@@ -56,84 +56,46 @@ export default function AppointmentsSection({ url }: Props) {
     return `${hh}:${m.toString().padStart(2, '0')} ${ampm}`
   }
 
-  const todayKey = businessTodayLocalDateString()
-
-  const futureAppointments = items.filter((a) => {
-    const key = appointmentCalendarDateKey(a)
-    return key >= todayKey
-  })
-
-  const previousAppointments = items.filter((a) => {
-    const key = appointmentCalendarDateKey(a)
-    return key < todayKey
-  })
+  const newestFirstAppointments = useMemo(
+    () =>
+      [...items].sort((a, b) => {
+        const dateCompare = appointmentCalendarDateKey(b).localeCompare(appointmentCalendarDateKey(a))
+        if (dateCompare !== 0) return dateCompare
+        const timeCompare = String(b.time || '').localeCompare(String(a.time || ''))
+        if (timeCompare !== 0) return timeCompare
+        return Number(b.id || 0) - Number(a.id || 0)
+      }),
+    [items]
+  )
 
   return (
     <div className="mt-6">
       <h3 className="text-lg font-semibold mb-2">Appointments</h3>
-      
-      {futureAppointments.length > 0 && (
-        <>
-          <div className="flex items-center my-4">
-            <div className="flex-grow border-t border-gray-300"></div>
-            <span className="px-3 text-sm font-medium text-gray-600">Future Appointments</span>
-            <div className="flex-grow border-t border-gray-300"></div>
-          </div>
-          <ul className="space-y-2">
-            {futureAppointments.map((a) => (
-              <li key={a.id} className="border rounded bg-white shadow">
-                <Link
-                  to={`/dashboard/calendar?date=${appointmentCalendarDateKey(a)}&appt=${a.id}`}
-                  className="block p-2"
-                >
-                  <div className="font-medium">
-                    {appointmentCalendarDateKey(a)} {formatTime(a.time)} - {a.type}
-                  </div>
+      {newestFirstAppointments.length > 0 ? (
+        <ul className="space-y-2">
+          {newestFirstAppointments.map((a) => (
+            <li key={a.id} className="border rounded bg-white shadow">
+              <Link
+                to={`/dashboard/calendar?date=${appointmentCalendarDateKey(a)}&appt=${a.id}`}
+                className="block p-2"
+              >
+                <div className="font-medium">
+                  {appointmentCalendarDateKey(a)} {formatTime(a.time)} - {a.type}
+                </div>
+                <div className="text-sm text-gray-600">
+                  {a.client?.name || ''} {a.address}
+                </div>
+                {a.employees && a.employees.length > 0 && (
                   <div className="text-sm text-gray-600">
-                    {a.client?.name || ''} {a.address}
+                    {a.employees.map((e) => e.name).join(', ')}
                   </div>
-                  {a.employees && a.employees.length > 0 && (
-                    <div className="text-sm text-gray-600">
-                      {a.employees.map((e) => e.name).join(', ')}
-                    </div>
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      
-      {previousAppointments.length > 0 && (
-        <>
-          <div className="flex items-center my-4">
-            <div className="flex-grow border-t border-gray-300"></div>
-            <span className="px-3 text-sm font-medium text-gray-600">Previous Appointments</span>
-            <div className="flex-grow border-t border-gray-300"></div>
-          </div>
-          <ul className="space-y-2">
-            {previousAppointments.map((a) => (
-              <li key={a.id} className="border rounded bg-white shadow">
-                <Link
-                  to={`/dashboard/calendar?date=${appointmentCalendarDateKey(a)}&appt=${a.id}`}
-                  className="block p-2"
-                >
-                  <div className="font-medium">
-                    {appointmentCalendarDateKey(a)} {formatTime(a.time)} - {a.type}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {a.client?.name || ''} {a.address}
-                  </div>
-                  {a.employees && a.employees.length > 0 && (
-                    <div className="text-sm text-gray-600">
-                      {a.employees.map((e) => e.name).join(', ')}
-                    </div>
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-gray-600">No appointments found.</p>
       )}
       
       <div ref={loader} className="h-5" />
