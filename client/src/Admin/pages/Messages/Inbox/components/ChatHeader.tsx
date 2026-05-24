@@ -40,7 +40,7 @@ export default function ChatHeader({
   mockingEnabled,
   onMockingChange,
 }: Props) {
-  const title = conversation.contactName ?? 'Unknown'
+  const title = conversation.contactName ?? conversation.phoneE164
   const subtitle = conversation.contactName ? conversation.phoneE164 : 'Text message'
 
   return (

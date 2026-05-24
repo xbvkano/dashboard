@@ -47,7 +47,7 @@ export default function Leads() {
   }, [])
 
   return (
-    <div className="p-2 md:p-3 flex flex-col h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-3.5rem)] min-h-0">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-2 md:p-3 md:h-[calc(100dvh-3.5rem)] md:max-h-[calc(100dvh-3.5rem)]">
       <h2 className="text-xl font-semibold text-slate-900 mb-2 shrink-0">Leads</h2>
 
       {/* Mobile: switch between Forms and Calls */}
@@ -76,11 +76,11 @@ export default function Leads() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 flex-1 min-h-0">
-        <div className={`flex flex-col min-h-0 ${mobileTab !== 'forms' ? 'hidden md:flex' : ''}`}>
+      <div className="grid grid-cols-1 md:grid-cols-2 grid-rows-[minmax(0,1fr)] gap-2 md:gap-4 flex-1 min-h-0 overflow-hidden">
+        <div className={`flex flex-col flex-1 min-h-0 ${mobileTab !== 'forms' ? 'hidden md:flex' : ''}`}>
           <FormList sources={sources} />
         </div>
-        <div className={`flex flex-col min-h-0 ${mobileTab !== 'calls' ? 'hidden md:flex' : ''}`}>
+        <div className={`flex flex-col flex-1 min-h-0 ${mobileTab !== 'calls' ? 'hidden md:flex' : ''}`}>
           <CallList sections={sections} />
         </div>
       </div>

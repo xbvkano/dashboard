@@ -77,7 +77,7 @@ export default function FormList({ sources = [] }: FormListProps) {
   }, [currentPage, items.length, nextOffset, loading])
 
   return (
-    <section className="flex flex-col min-h-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <section className="flex flex-col flex-1 min-h-0 h-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-200 shrink-0 space-y-2">
         <h3 className="text-lg font-semibold text-slate-800">Form submissions</h3>
         <select
