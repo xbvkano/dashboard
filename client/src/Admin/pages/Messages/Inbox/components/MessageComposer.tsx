@@ -17,6 +17,9 @@ function maxComposerTextareaHeightPx(): number {
 export default function MessageComposer({ onSend }: Props) {
   const [text, setText] = useState('')
   const [pending, setPending] = useState<PendingImage[]>([])
+  const [sending, setSending] = useState(false)
+  /** Sync guard — state updates are async, so rapid clicks can fire submit twice */
+  const sendInFlightRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const galleryId = useId()
@@ -77,17 +80,25 @@ export default function MessageComposer({ onSend }: Props) {
   }
 
   const submit = async () => {
+    if (sendInFlightRef.current) return
     const t = text.trim()
     const files = pending.map((p) => p.file)
     const hasMedia = files.length > 0
     if (!t && !hasMedia) return
-    await onSend(t, hasMedia ? files : undefined)
-    setText('')
-    setPending((prev) => {
-      prev.forEach((p) => URL.revokeObjectURL(p.url))
-      return []
-    })
-    requestAnimationFrame(() => syncTextareaHeight())
+    sendInFlightRef.current = true
+    setSending(true)
+    try {
+      await onSend(t, hasMedia ? files : undefined)
+      setText('')
+      setPending((prev) => {
+        prev.forEach((p) => URL.revokeObjectURL(p.url))
+        return []
+      })
+      requestAnimationFrame(() => syncTextareaHeight())
+    } finally {
+      sendInFlightRef.current = false
+      setSending(false)
+    }
   }
 
   const canSend = Boolean(text.trim() || pending.length > 0)
@@ -124,7 +135,8 @@ export default function MessageComposer({ onSend }: Props) {
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="shrink-0 mb-0.5 w-10 h-10 rounded-full border border-slate-300 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 active:scale-95 transition-transform"
+          disabled={sending}
+          className="shrink-0 mb-0.5 w-10 h-10 rounded-full border border-slate-300 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 active:scale-95 transition-transform disabled:opacity-40 disabled:pointer-events-none"
           aria-label="Add photo"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -142,18 +154,40 @@ export default function MessageComposer({ onSend }: Props) {
           onChange={(e) => setText(e.target.value)}
           placeholder="Message"
           rows={1}
-          className="flex-1 min-h-[40px] max-h-[50dvh] resize-none rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-[16px] md:text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50 box-border"
+          readOnly={sending}
+          aria-disabled={sending}
+          className="flex-1 min-h-[40px] max-h-[50dvh] resize-none rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-[16px] md:text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50 box-border disabled:opacity-70"
         />
         <button
           type="button"
-          onClick={() => void submit()}
-          disabled={!canSend}
-          className="shrink-0 mb-0.5 w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center disabled:opacity-40 disabled:pointer-events-none hover:bg-blue-600 active:scale-95 transition-transform"
-          aria-label="Send"
+          onClick={(e) => {
+            if (sendInFlightRef.current) {
+              e.preventDefault()
+              e.stopPropagation()
+              return
+            }
+            void submit()
+          }}
+          disabled={!canSend || sending}
+          tabIndex={sending ? -1 : undefined}
+          className={`shrink-0 mb-0.5 w-10 h-10 rounded-full flex items-center justify-center transition-transform ${
+            sending
+              ? 'bg-blue-500 text-white cursor-wait pointer-events-none opacity-100'
+              : 'bg-blue-500 text-white hover:bg-blue-600 active:scale-95 disabled:opacity-40 disabled:pointer-events-none'
+          }`}
+          aria-label={sending ? 'Sending message' : 'Send'}
+          aria-busy={sending}
         >
-          <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-          </svg>
+          {sending ? (
+            <span
+              className="w-5 h-5 rounded-full border-2 border-white/35 border-t-white motion-safe:animate-spin"
+              aria-hidden
+            />
+          ) : (
+            <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
+          )}
         </button>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { formatMessageTime } from '../formatTime'
 import { outboundBubbleStyle } from '../bubbleColor'
 import type { ThreadMessage } from '../types'
@@ -20,8 +21,15 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
   const imgs = message.media ?? []
   const [imgFailed, setImgFailed] = useState<Record<number, boolean>>({})
   const [actionsOpen, setActionsOpen] = useState(false)
+  const [copyNotice, setCopyNotice] = useState(false)
   const [translatedText, setTranslatedText] = useState<string | null>(null)
   const [viewingOriginal, setViewingOriginal] = useState(false)
+
+  useEffect(() => {
+    if (!copyNotice) return
+    const t = window.setTimeout(() => setCopyNotice(false), 2500)
+    return () => window.clearTimeout(t)
+  }, [copyNotice])
 
   useEffect(() => {
     setTranslatedText(null)
@@ -144,10 +152,24 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
           </button>
         )}
       </div>
+      {copyNotice &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="fixed left-1/2 -translate-x-1/2 z-[320] max-w-[min(100%,20rem)] rounded-full bg-slate-900 text-center text-white text-sm px-4 py-2 shadow-lg pointer-events-none"
+            style={{ bottom: 'max(5.5rem, calc(4.5rem + env(safe-area-inset-bottom)))' }}
+            role="status"
+            aria-live="polite"
+          >
+            Copied to clipboard
+          </div>,
+          document.body,
+        )}
       {actionsOpen && (
         <MessageActionSheet
           message={message}
           onClose={() => setActionsOpen(false)}
+          onCopied={() => setCopyNotice(true)}
           onTranslationApplied={(text) => {
             setTranslatedText(text)
             setViewingOriginal(false)

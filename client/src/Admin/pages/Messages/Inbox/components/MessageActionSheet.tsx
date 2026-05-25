@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { copyTextToClipboard } from '../../../../contactActions'
 import { postTranslateMessage } from '../messagingApi'
 import type { ThreadMessage } from '../types'
 
@@ -8,6 +9,8 @@ type Props = {
   onClose: () => void
   /** When translation succeeds, bubble shows this in the thread */
   onTranslationApplied?: (text: string) => void
+  /** When copy succeeds (sheet closes; parent may show confirmation) */
+  onCopied?: () => void
 }
 
 async function downloadMediaUrl(url: string, fileName: string): Promise<void> {
@@ -72,10 +75,10 @@ export default function MessageActionSheet({
   message,
   onClose,
   onTranslationApplied,
+  onCopied,
 }: Props) {
   const [translateError, setTranslateError] = useState<string | null>(null)
   const [translating, setTranslating] = useState(false)
-  const [copied, setCopied] = useState(false)
 
   const hasText = message.body.trim().length > 0
   const imgs = message.media?.filter((m) => m.publicUrl) ?? []
@@ -104,11 +107,11 @@ export default function MessageActionSheet({
 
   const copyOriginal = async () => {
     try {
-      await navigator.clipboard.writeText(message.body)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
+      await copyTextToClipboard(message.body)
+      onCopied?.()
+      onClose()
     } catch {
-      setCopied(false)
+      /* clipboard unavailable — keep sheet open */
     }
   }
 
@@ -173,7 +176,7 @@ export default function MessageActionSheet({
                   className="inline-flex items-center justify-center gap-2 min-h-[48px] rounded-xl border-2 border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-semibold text-sm px-4 shadow-sm"
                 >
                   <IconCopy className="w-5 h-5 shrink-0 text-slate-600" />
-                  {copied ? 'Copied!' : 'Copy original'}
+                  Copy original
                 </button>
               </div>
               {translateError && (
