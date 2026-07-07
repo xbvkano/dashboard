@@ -2,6 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, type ReactNode } from 
 import ChatHeader from './ChatHeader'
 import MessageBubble from './MessageBubble'
 import MessageComposer from './MessageComposer'
+import ChatDayDivider from './ChatDayDivider'
+import { groupMessagesByDay } from '../formatTime'
 import type { ThreadContact, ThreadMessage } from '../types'
 
 type Props = {
@@ -161,8 +163,13 @@ export default function ChatThread({
         )}
         {!detailLoading && (
           <div ref={contentRef} className="flex flex-col gap-0.5 pb-1">
-            {messages.map((m) => (
-              <MessageBubble key={m.id} message={m} onMediaLoad={scrollPinnedToBottom} />
+            {groupMessagesByDay(messages).map((group) => (
+              <div key={group.dayKey}>
+                <ChatDayDivider label={group.label} />
+                {group.messages.map((m) => (
+                  <MessageBubble key={m.id} message={m} onMediaLoad={scrollPinnedToBottom} />
+                ))}
+              </div>
             ))}
           </div>
         )}

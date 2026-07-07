@@ -473,6 +473,18 @@ export default function AppointmentDetails({
                     </button>
                   </span>
               )}
+              {!isMobile && clientPhoneE164 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenInboxText()}
+                    disabled={textBusy}
+                    className="inline-block px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 active:opacity-90 disabled:opacity-60"
+                  >
+                    {textBusy ? 'Opening...' : 'Text'}
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-sm text-slate-600 mt-0.5">—</p>

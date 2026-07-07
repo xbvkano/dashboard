@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { formatPhoneNational, phoneDigitsOnly } from '../../../../../formatPhone'
 import BookAgainPickerModal from './BookAgainPickerModal'
 import {
   formatApiError,
@@ -176,8 +177,10 @@ export default function BookAppointmentModal({
     ? draft.clientName.trim() || 'Screenshot booking'
     : detail?.client?.name ?? 'Unknown'
   const headerPhone = isScreenshot
-    ? draft.clientPhone.trim() || 'Phone from form'
-    : detail?.contactPoint.displayValue ?? detail?.contactPoint.value ?? ''
+    ? draft.clientPhone.trim()
+      ? formatPhoneNational(draft.clientPhone)
+      : 'Phone from form'
+    : formatPhoneNational(detail?.contactPoint.displayValue ?? detail?.contactPoint.value ?? '')
 
   const handlePickPrevious = (a: ClientAppointment) => {
     onDraftChange({
@@ -391,10 +394,10 @@ export default function BookAppointmentModal({
                   Phone <span className="text-red-600">*</span>
                 </label>
                 <input
-                  value={draft.clientPhone}
-                  onChange={(e) => onDraftChange({ ...draft, clientPhone: e.target.value })}
+                  value={formatPhoneNational(draft.clientPhone)}
+                  onChange={(e) => onDraftChange({ ...draft, clientPhone: phoneDigitsOnly(e.target.value) })}
                   className={fieldClass(attempted && missingClientPhone, 'clientPhone')}
-                  placeholder="e.g. (702) 555-1234"
+                  placeholder="e.g. (702)-555-1234"
                   inputMode="tel"
                   autoComplete="tel"
                   disabled={submitting}

@@ -1,4 +1,5 @@
 import { formatConversationTime } from '../formatTime'
+import { formatPhone } from '../../../../../formatPhone'
 import type { ThreadContact } from '../types'
 
 type Props = {
@@ -8,7 +9,7 @@ type Props = {
 }
 
 export default function ConversationListItem({ conversation, selected, onSelect }: Props) {
-  const title = conversation.contactName ?? conversation.phoneE164
+  const title = conversation.contactName ?? formatPhone(conversation.phoneE164)
   return (
     <button
       type="button"

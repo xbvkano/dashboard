@@ -1,5 +1,6 @@
 import ChatActionsMenu from './ChatActionsMenu'
 import MockingToggle from './MockingToggle'
+import { formatPhone } from '../../../../../formatPhone'
 import type { ThreadContact } from '../types'
 
 type Props = {
@@ -40,8 +41,9 @@ export default function ChatHeader({
   mockingEnabled,
   onMockingChange,
 }: Props) {
-  const title = conversation.contactName ?? conversation.phoneE164
-  const subtitle = conversation.contactName ? conversation.phoneE164 : 'Text message'
+  const phoneDisplay = formatPhone(conversation.phoneE164)
+  const title = conversation.contactName ?? phoneDisplay
+  const subtitle = conversation.contactName ? phoneDisplay : 'Text message'
 
   return (
     <header className="shrink-0 flex items-center gap-2 px-2 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-slate-200/90 bg-white/95 backdrop-blur-md">

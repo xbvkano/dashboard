@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { formatPhone } from '../../../../../formatPhone'
 import type { ThreadContact } from '../types'
 import { formatApiError, postSimulateInboundMessage, postSimulateOutboundTwilioError } from '../messagingApi'
 import TwilioContentSizeExceededModal from './TwilioContentSizeExceededModal'
@@ -144,7 +145,7 @@ export default function SimulateInboundDevControls({
             </option>
             {conversations.map((c) => (
               <option key={c.id} value={String(c.id)}>
-                {c.contactName ?? 'Unknown'} · {c.phoneE164} (#{c.id})
+                {c.contactName ?? 'Unknown'} · {formatPhone(c.phoneE164)} (#{c.id})
               </option>
             ))}
           </select>

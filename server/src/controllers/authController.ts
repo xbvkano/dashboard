@@ -25,8 +25,12 @@ export async function login(req: Request, res: Response) {
   // Handle username/password login
   if (userName && password) {
     try {
+      const digits = userName.replace(/\D/g, '')
+      const normalizedUserName =
+        digits.startsWith('1') && digits.length === 11 ? digits.slice(1) : digits
+
       const user = await prisma.user.findUnique({
-        where: { userName },
+        where: { userName: normalizedUserName },
         include: { employee: true },
       })
 

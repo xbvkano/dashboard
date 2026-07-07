@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import ComposerAttachmentPanel, { type AttachmentPanelView } from './ComposerAttachmentPanel'
 
 type Props = {
   onSend: (text: string, files?: File[]) => void | Promise<void>
 }
 
 type PendingImage = { file: File; url: string }
+
+type PanelState = 'closed' | AttachmentPanelView
 
 /** Half of the visual viewport — stable on mobile URL bar show/hide when using dvh */
 function maxComposerTextareaHeightPx(): number {
@@ -18,10 +21,14 @@ export default function MessageComposer({ onSend }: Props) {
   const [text, setText] = useState('')
   const [pending, setPending] = useState<PendingImage[]>([])
   const [sending, setSending] = useState(false)
+  const [panelState, setPanelState] = useState<PanelState>('closed')
   /** Sync guard — state updates are async, so rapid clicks can fire submit twice */
   const sendInFlightRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const selectionRef = useRef({ start: 0, end: 0 })
   const galleryId = useId()
 
   const syncTextareaHeight = useCallback(() => {
@@ -36,6 +43,40 @@ export default function MessageComposer({ onSend }: Props) {
     el.style.overflowY = contentH > maxH ? 'auto' : 'hidden'
   }, [])
 
+  const closePanel = useCallback(() => {
+    setPanelState('closed')
+  }, [])
+
+  const togglePanel = useCallback(() => {
+    setPanelState((prev) => (prev === 'closed' ? 'toolbox' : 'closed'))
+  }, [])
+
+  const updateSelection = useCallback(() => {
+    const el = textareaRef.current
+    if (!el) return
+    selectionRef.current = { start: el.selectionStart ?? 0, end: el.selectionEnd ?? 0 }
+  }, [])
+
+  const insertAtCursor = useCallback(
+    (insertion: string) => {
+      const { start, end } = selectionRef.current
+      setText((prev) => {
+        const next = prev.slice(0, start) + insertion + prev.slice(end)
+        const cursor = start + insertion.length
+        selectionRef.current = { start: cursor, end: cursor }
+        requestAnimationFrame(() => {
+          const el = textareaRef.current
+          if (!el) return
+          el.focus()
+          el.setSelectionRange(cursor, cursor)
+          syncTextareaHeight()
+        })
+        return next
+      })
+    },
+    [syncTextareaHeight],
+  )
+
   useEffect(() => {
     syncTextareaHeight()
   }, [text, syncTextareaHeight])
@@ -49,6 +90,24 @@ export default function MessageComposer({ onSend }: Props) {
       window.visualViewport?.removeEventListener('resize', onResize)
     }
   }, [syncTextareaHeight])
+
+  useEffect(() => {
+    if (panelState === 'closed') return
+
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node
+      if (panelRef.current?.contains(target)) return
+      if (toggleRef.current?.contains(target)) return
+      closePanel()
+    }
+
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('touchstart', onPointerDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('touchstart', onPointerDown)
+    }
+  }, [panelState, closePanel])
 
   const addFiles = (list: FileList | null) => {
     if (!list?.length) return
@@ -94,6 +153,7 @@ export default function MessageComposer({ onSend }: Props) {
         prev.forEach((p) => URL.revokeObjectURL(p.url))
         return []
       })
+      closePanel()
       requestAnimationFrame(() => syncTextareaHeight())
     } finally {
       sendInFlightRef.current = false
@@ -102,6 +162,7 @@ export default function MessageComposer({ onSend }: Props) {
   }
 
   const canSend = Boolean(text.trim() || pending.length > 0)
+  const panelOpen = panelState !== 'closed'
 
   return (
     <div className="shrink-0 border-t border-slate-200 bg-white/95 backdrop-blur-md px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
@@ -133,25 +194,32 @@ export default function MessageComposer({ onSend }: Props) {
           onChange={(e) => addFiles(e.target.files)}
         />
         <button
+          ref={toggleRef}
           type="button"
-          onClick={() => inputRef.current?.click()}
+          onClick={togglePanel}
           disabled={sending}
-          className="shrink-0 mb-0.5 w-10 h-10 rounded-full border border-slate-300 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 active:scale-95 transition-transform disabled:opacity-40 disabled:pointer-events-none"
-          aria-label="Add photo"
+          aria-expanded={panelOpen}
+          aria-label="Open attachments"
+          className={`shrink-0 mb-0.5 w-10 h-10 rounded-full border border-slate-300 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 active:scale-95 transition-transform disabled:opacity-40 disabled:pointer-events-none ${
+            panelOpen ? 'bg-slate-50' : ''
+          }`}
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-            />
+          <svg
+            className={`w-5 h-5 transition-transform ${panelOpen ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
         <textarea
           ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onSelect={updateSelection}
+          onClick={updateSelection}
+          onKeyUp={updateSelection}
           placeholder="Message"
           rows={1}
           readOnly={sending}
@@ -190,6 +258,17 @@ export default function MessageComposer({ onSend }: Props) {
           )}
         </button>
       </div>
+      {panelOpen && (
+        <div ref={panelRef} className="max-w-4xl mx-auto mt-2 rounded-xl border border-slate-200 bg-white px-2 py-2">
+          <ComposerAttachmentPanel
+            view={panelState}
+            onPickImage={() => inputRef.current?.click()}
+            onOpenEmoji={() => setPanelState('emoji')}
+            onEmojiBack={() => setPanelState('toolbox')}
+            onPickEmoji={insertAtCursor}
+          />
+        </div>
+      )}
     </div>
   )
 }

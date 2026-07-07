@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useGoogleLogin, CodeResponse } from '@react-oauth/google'
 import { API_ACCESS_TOKEN_KEY, API_BASE_URL, loginRequestHeaders } from '../../api'
+import { phoneDigitsOnly, phoneToLoginUserName } from '../../formatPhone'
 
 type Role = 'ADMIN' | 'OWNER' | 'EMPLOYEE'
 
@@ -107,7 +108,7 @@ export default function Login({ onLogin }: LoginProps) {
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: loginRequestHeaders(),
-        body: JSON.stringify({ userName: username, password })
+        body: JSON.stringify({ userName: phoneToLoginUserName(username), password })
       })
 
       const data = await response.json()
@@ -191,9 +192,11 @@ export default function Login({ onLogin }: LoginProps) {
           </label>
           <input
             id="username"
-            type="text"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(e) => setUsername(phoneDigitsOnly(e.target.value))}
             required
             className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Enter your phone number"
