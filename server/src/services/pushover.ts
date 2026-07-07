@@ -10,6 +10,10 @@ export interface PushoverInboundPayload {
   priority?: number
   /** Built-in sound name, e.g. `magic` — see https://pushover.net/api#sounds */
   sound?: string
+  /** Emergency priority: seconds between retries */
+  retry?: number
+  /** Emergency priority: stop retrying after this many seconds */
+  expire?: number
 }
 
 export function isPushoverConfigured(): boolean {
@@ -33,6 +37,15 @@ export async function sendPushoverMessage(payload: PushoverInboundPayload): Prom
   if (payload.url) body.set('url', payload.url.slice(0, 512))
   if (payload.priority !== undefined && Number.isFinite(payload.priority)) {
     body.set('priority', String(Math.trunc(payload.priority)))
+    const p = Math.trunc(payload.priority)
+    if (p === 2) {
+      if (payload.retry !== undefined && Number.isFinite(payload.retry)) {
+        body.set('retry', String(Math.trunc(payload.retry)))
+      }
+      if (payload.expire !== undefined && Number.isFinite(payload.expire)) {
+        body.set('expire', String(Math.trunc(payload.expire)))
+      }
+    }
   }
   if (payload.sound && payload.sound.trim()) {
     body.set('sound', payload.sound.trim().slice(0, 64))

@@ -21,16 +21,9 @@ import {
 import type { SmsTransport } from './smsTransport'
 import { isTwilioClientConfigured } from '../../utils/twilioSms'
 import { shouldSendInboundPushover } from '../../utils/pushoverDecision'
+import { buildInboundSmsPushoverPayload } from '../../utils/pushoverNotificationCopy'
 import { isPushoverConfigured, sendPushoverMessage } from '../pushover'
 import { MockSmsTransport, TwilioSmsTransport } from './smsTransport'
-
-function dashboardPublicUrlNoSlash(): string | null {
-  const raw = process.env.DASHBOARD_PUBLIC_URL
-  if (!raw) return null
-  const trimmed = raw.trim()
-  if (!trimmed) return null
-  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
-}
 
 function parseNumMedia(raw: unknown): number {
   const n = parseInt(String(raw ?? '0'), 10)
@@ -280,26 +273,13 @@ export async function ingestInboundSms(
           const n = client?.name?.trim()
           if (n) senderLabel = n
         }
-        const title = `New message from: ${senderLabel}`.slice(0, 250)
-        const basePreview =
-          body.trim().slice(0, 400) || (msg.mediaCount > 0 ? '📷 Photo' : '(empty)')
-        const when = receivedAt.toLocaleString(undefined, {
-          dateStyle: 'medium',
-          timeStyle: 'short',
+        const pushoverPayload = buildInboundSmsPushoverPayload({
+          senderLabel,
+          body,
+          mediaCount: msg.mediaCount,
+          receivedAt,
         })
-        const suffix = `\n\n${when}`
-        const maxPreviewLen = Math.max(0, 1024 - suffix.length)
-        const preview = basePreview.slice(0, maxPreviewLen)
-        const message = `${preview}${suffix}`.slice(0, 1024)
-        const base = dashboardPublicUrlNoSlash()
-        const url = base ? `${base}/dashboard/messages/inbox?conversation=${conv.id}` : undefined
-        await sendPushoverMessage({
-          title,
-          message,
-          url,
-          priority: 1,
-          sound: 'magic',
-        })
+        await sendPushoverMessage(pushoverPayload)
         await prisma.conversation.update({
           where: { id: conv.id },
           data: { lastPushoverNotifiedAt: now },

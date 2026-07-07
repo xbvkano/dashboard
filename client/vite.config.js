@@ -14,9 +14,18 @@ export default defineConfig(() => {
   return {
     plugins: [react()],
     server: {
-      host: '0.0.0.0', // Allow external access
+      host: '0.0.0.0', // Allow external access (ngrok, LAN)
       port: 5173,
-      allowedHosts: ['91e6f6a38b02.ngrok-free.app'],
+      allowedHosts: true,
+      proxy: {
+        // Same-origin /api → backend :3000 (required for HTTPS ngrok → avoid mixed content)
+        '/api': {
+          target: 'http://127.0.0.1:3000',
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api/, '') || '/',
+        },
+      },
     },
   }
 })

@@ -2,35 +2,79 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import Login from './Landing/components/Login'
 import Dashboard from './Landing/Dashboard'
-import { applyNoAuthDevSession, isViteNoAuth } from './devNoAuth'
+import { API_ACCESS_TOKEN_KEY } from './api'
+import { ensureNoAuthDevSession, isViteNoAuth } from './devNoAuth'
 
 type Role = 'ADMIN' | 'OWNER' | 'EMPLOYEE'
 
 export default function App() {
+  const [noAuthBootstrapping, setNoAuthBootstrapping] = useState(() => isViteNoAuth())
+  const [noAuthBootstrapError, setNoAuthBootstrapError] = useState<string | null>(null)
+
   const [role, setRole] = useState<Role | null>(() => {
     if (isViteNoAuth()) {
-      return applyNoAuthDevSession() as Role
+      return null
     }
-    
-    // Check if user was signed out
+
     const signedOut = localStorage.getItem('signedOut') === 'true'
     if (signedOut) {
-      // Clear sign out flag and don't restore role
       localStorage.removeItem('signedOut')
       return null
     }
-    
+
     const stored = localStorage.getItem('role')
     return stored === 'ADMIN' || stored === 'OWNER' || stored === 'EMPLOYEE'
-      ? (stored as Role) 
+      ? (stored as Role)
       : null
   })
 
   useEffect(() => {
-    if (isViteNoAuth()) {
-      setRole(applyNoAuthDevSession() as Role)
+    if (!isViteNoAuth()) return
+    let cancelled = false
+    ensureNoAuthDevSession()
+      .then((r) => {
+        if (!cancelled) {
+          setRole(r as Role)
+          setNoAuthBootstrapError(null)
+        }
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setNoAuthBootstrapError(
+            e instanceof Error ? e.message : 'NO_AUTH auto-login failed',
+          )
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setNoAuthBootstrapping(false)
+      })
+    return () => {
+      cancelled = true
     }
   }, [])
+
+  if (noAuthBootstrapping) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-600">
+        Signing in…
+      </div>
+    )
+  }
+
+  if (noAuthBootstrapError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-2 p-6 text-center">
+        <p className="text-red-600 font-medium">Dev auto-login failed</p>
+        <p className="text-sm text-gray-600 max-w-md">{noAuthBootstrapError}</p>
+        <p className="text-xs text-gray-500">
+          Ensure the API is running, <code className="bg-gray-100 px-1">npx prisma db seed</code> has
+          been run, and JWT secrets are set on the server. For ngrok use{' '}
+          <code className="bg-gray-100 px-1">npm run dev -- --ngrok --no-auth</code>.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <BrowserRouter>
       <AppRoutes role={role} onLogin={setRole} onLogout={() => setRole(null)} />
@@ -48,7 +92,6 @@ function AppRoutes({ role, onLogin, onLogout }: RoutesProps) {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Persist current path + query (used to recover deep links when a reload lands on `/` or `/dashboard`)
   useEffect(() => {
     if (role && location.pathname.startsWith('/dashboard')) {
       const href = location.pathname + location.search
@@ -56,9 +99,6 @@ function AppRoutes({ role, onLogin, onLogout }: RoutesProps) {
       localStorage.setItem('lastDashboardHref', href)
     }
   }, [role, location.pathname, location.search])
-
-  // No dedicated redirect effect is needed when role is restored because
-  // the '/' route conditionally navigates to the dashboard.
 
   const dashboardEntryPath = (() => {
     if (!role) return '/dashboard'
@@ -92,6 +132,7 @@ function AppRoutes({ role, onLogin, onLogout }: RoutesProps) {
                     localStorage.setItem('userName', userName)
                   }
                   localStorage.setItem('loginMethod', 'dev')
+                  localStorage.removeItem(API_ACCESS_TOKEN_KEY)
                 } else if (userName != null) {
                   localStorage.setItem('userName', userName)
                   localStorage.setItem('loginMethod', 'password')

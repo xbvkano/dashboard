@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useGoogleLogin, CodeResponse } from '@react-oauth/google'
-import { API_ACCESS_TOKEN_KEY, API_BASE_URL } from '../../api'
+import { API_ACCESS_TOKEN_KEY, API_BASE_URL, loginRequestHeaders } from '../../api'
 
 type Role = 'ADMIN' | 'OWNER' | 'EMPLOYEE'
 
@@ -13,8 +13,6 @@ export default function Login({ onLogin }: LoginProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  console.log("This iwndow: " + window.location.origin)
-  console.log("This is the API base: " + API_BASE_URL)
   useEffect(() => {
     // Check if user was signed out
     const signedOut = localStorage.getItem('signedOut') === 'true'
@@ -64,7 +62,7 @@ export default function Login({ onLogin }: LoginProps) {
 
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
+        headers: loginRequestHeaders(),
         body: JSON.stringify({ code })
       })
       const data = await response.json()
@@ -97,10 +95,8 @@ export default function Login({ onLogin }: LoginProps) {
   }, [onLogin])
 
   const me = window.location.origin.endsWith('/')
-  ? window.location.origin
-  : window.location.origin + '/'
-
-  console.log("me: " + me)
+    ? window.location.origin
+    : window.location.origin + '/'
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -110,7 +106,7 @@ export default function Login({ onLogin }: LoginProps) {
     try {
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
+        headers: loginRequestHeaders(),
         body: JSON.stringify({ userName: username, password })
       })
 
@@ -153,7 +149,7 @@ export default function Login({ onLogin }: LoginProps) {
     onSuccess: async (res: CodeResponse) => {
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', "ngrok-skip-browser-warning": "1" },
+        headers: loginRequestHeaders(),
         body: JSON.stringify({ code: res.code })
       })
       const data = await response.json()

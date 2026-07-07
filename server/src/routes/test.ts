@@ -10,6 +10,7 @@ import {
   testNoonEmployeeReminder,
   testBackfillAppointmentDateUtc,
 } from '../controllers/testController'
+import { getPushoverTestSamples, sendPushoverTest } from '../controllers/pushoverTestController'
 
 const router = Router()
 
@@ -23,6 +24,8 @@ router.post('/test/jobs/appointment-reminder', testAppointmentReminder)
 router.post('/test/jobs/unconfirmed-check', testUnconfirmedCheck)
 router.post('/test/jobs/noon-employee-reminder', testNoonEmployeeReminder)
 router.post('/test/jobs/backfill-appointment-date-utc', testBackfillAppointmentDateUtc)
+router.get('/test/pushover/samples', getPushoverTestSamples)
+router.post('/test/pushover/send', sendPushoverTest)
 
 export default router
 

@@ -21,7 +21,9 @@ interface DashboardProps {
 
 export default function Dashboard({ role, onLogout, onSwitchRole }: DashboardProps) {
   const navigate = useNavigate()
-  const [sessionReady, setSessionReady] = useState(() => isViteNoAuth())
+  const [sessionReady, setSessionReady] = useState(
+    () => isViteNoAuth() && localStorage.getItem('loginMethod') === 'dev',
+  )
 
   useEffect(() => {
     setAuthExpiredHandler(() => {
@@ -32,7 +34,10 @@ export default function Dashboard({ role, onLogout, onSwitchRole }: DashboardPro
   }, [onLogout, navigate])
 
   useEffect(() => {
-    if (isViteNoAuth()) return
+    if (isViteNoAuth() && localStorage.getItem('loginMethod') === 'dev') {
+      setSessionReady(true)
+      return
+    }
 
     let cancelled = false
     ;(async () => {

@@ -3,6 +3,7 @@ import { API_BASE_URL, fetchJson } from '../../../api'
 import { useModal } from '../../../ModalProvider'
 import type { ThreadContact } from '../Messages/Inbox/types'
 import SimulateInboundDevControls from '../Messages/Inbox/components/SimulateInboundDevControls'
+import PushoverTestDevControls from './PushoverTestDevControls'
 import {
   conversationInboxItemToThreadContact,
   fetchConversationsPage,
@@ -172,6 +173,18 @@ export default function DevTools({ onSwitchRole }: DevToolsProps) {
           <p className="text-xs text-gray-500 mt-2">{DEV_SEED_ADMIN_ACCOUNTS.map((a) => a.hint).join(' · ')}</p>
         </div>
       )}
+
+      <div className="border rounded-lg p-4 bg-white shadow">
+        <h3 className="text-lg font-semibold mb-2">Test Pushover notifications</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Preview and send sample Pushover alerts for inbound SMS, website quotes, and inbound calls.
+          Uses the same title/body format as production. Requires{' '}
+          <code className="text-xs bg-gray-100 px-1 rounded">PUSHOVER_APP_TOKEN</code> and{' '}
+          <code className="text-xs bg-gray-100 px-1 rounded">PUSHOVER_USER_TOKEN</code> on the server.
+          Form/call tests use emergency priority and will repeat until acknowledged.
+        </p>
+        <PushoverTestDevControls />
+      </div>
 
       <div className="border rounded-lg p-4 bg-white shadow">
         <h3 className="text-lg font-semibold mb-2">Simulate inbound SMS</h3>
