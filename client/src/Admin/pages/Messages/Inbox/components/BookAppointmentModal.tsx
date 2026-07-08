@@ -10,6 +10,7 @@ import {
 } from '../messagingApi'
 import { useBookAppointmentDrafts } from '../../BookAppointmentDraftsContext'
 import type { ConversationDetail } from '../messagingApi'
+import { SIZE_OPTIONS } from '../../../../../shared/sizeOptions'
 
 export type BookAppointmentDraft = {
   clientName: string
@@ -84,21 +85,6 @@ function isBookingSlotPastInBusinessTz(dateStr: string, timeStr: string, now: Da
 /** HTML time input values (24h) for quick-fill buttons */
 const DEFAULT_TIME_MORNING = '09:00'
 const DEFAULT_TIME_AFTERNOON = '14:00'
-
-const sizeOptions = [
-  '0-1000',
-  '1000-1500',
-  '1500-2000',
-  '2000-2500',
-  '2500-3000',
-  '3000-3500',
-  '3500-4000',
-  '4000-4500',
-  '4500-5000',
-  '5000-5500',
-  '5500-6000',
-  '6000+',
-]
 
 type Props = {
   open: boolean
@@ -348,17 +334,19 @@ export default function BookAppointmentModal({
               <h2 className="text-base font-semibold text-slate-900 truncate">{headerName}</h2>
               <p className="text-[11px] text-slate-400 truncate">{headerPhone}</p>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="shrink-0 p-2 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-600"
-              aria-label="Close"
-              disabled={submitting}
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12l-4.9 4.89a1 1 0 1 0 1.41 1.42L12 13.41l4.89 4.9a1 1 0 0 0 1.42-1.41L13.41 12l4.9-4.89a1 1 0 0 0-.01-1.4z" />
-              </svg>
-            </button>
+            {!(isInline && bookingSource === 'screenshot') && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="shrink-0 p-2 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-600"
+                aria-label="Close"
+                disabled={submitting}
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12l-4.9 4.89a1 1 0 1 0 1.41 1.42L12 13.41l4.89 4.9a1 1 0 0 0 1.42-1.41L13.41 12l4.9-4.89a1 1 0 0 0-.01-1.4z" />
+                </svg>
+              </button>
+            )}
           </div>
 
           <div
@@ -443,7 +431,7 @@ export default function BookAppointmentModal({
                   <option value="" disabled>
                     Select…
                   </option>
-                  {sizeOptions.map((s) => (
+                  {SIZE_OPTIONS.map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>

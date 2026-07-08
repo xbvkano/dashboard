@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { parseSqft, calculatePayRate, calculateCarpetRate } from '../utils/appointmentUtils'
-import { getDefaultTeamSize, getDefaultPrice, getSizeRange } from '../data/teamSizeData'
+import { getPricing } from '../data/teamSizeData'
+import { resolvePricingInput, type PricingSearchInput } from '../services/pricing/resolvePricingInput'
 
 export function getTeamSize(req: Request, res: Response) {
   const size = String(req.query.size || '')
@@ -8,9 +9,28 @@ export function getTeamSize(req: Request, res: Response) {
   if (!size || !type) {
     return res.status(400).json({ error: 'size and type required' })
   }
-  const teamSize = getDefaultTeamSize(size, type)
-  const price = getDefaultPrice(size, type)
-  res.json({ teamSize, price })
+  res.json(getPricing(size, type))
+}
+
+export function postPricingCalculate(req: Request, res: Response) {
+  const input = req.body as PricingSearchInput
+  if (!input?.mode) {
+    return res.status(400).json({ error: 'mode required' })
+  }
+  if (input.mode === 'sizeType') {
+    if (!input.size || !input.type) {
+      return res.status(400).json({ error: 'size and type required' })
+    }
+  }
+  try {
+    res.json(resolvePricingInput(input))
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Pricing lookup failed'
+    if (message.includes('not implemented')) {
+      return res.status(501).json({ error: message })
+    }
+    return res.status(400).json({ error: message })
+  }
 }
 
 export function getPayRate(req: Request, res: Response) {
