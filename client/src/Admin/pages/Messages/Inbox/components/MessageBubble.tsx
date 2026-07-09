@@ -46,7 +46,7 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
   const obStyle = outbound ? outboundBubbleStyle(message.senderBubbleColor) : null
 
   return (
-    <div className={`flex ${outbound ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex py-1 ${outbound ? 'justify-end' : 'justify-start'}`}>
       <div
         className={`flex max-w-[min(85%,20rem)] flex-col ${outbound ? 'items-end' : 'items-start'}`}
       >
@@ -126,18 +126,14 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
             <p className="text-[15px] leading-snug whitespace-pre-wrap break-words">{displayBody}</p>
           )}
           {!hasText && imgs.length > 0 && <span className="sr-only">Photo message</span>}
-          <p
-            className={`text-[11px] mt-1 tabular-nums ${
-              outbound
-                ? customOutbound && obStyle
-                  ? obStyle.timeClass
-                  : 'text-blue-100'
-                : 'text-slate-500'
-            }`}
-          >
-            {formatMessageTime(message.createdAt)}
-          </p>
         </button>
+        <p
+          className={`mt-1 px-0.5 text-[11px] tabular-nums text-slate-500 ${
+            outbound ? 'text-right self-end' : 'text-left self-start'
+          }`}
+        >
+          {formatMessageTime(message.createdAt)}
+        </p>
         {translatedText != null && hasText && (
           <button
             type="button"

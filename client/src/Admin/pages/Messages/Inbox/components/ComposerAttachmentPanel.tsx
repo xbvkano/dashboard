@@ -1,11 +1,12 @@
 import EmojiPickerGrid from './EmojiPickerGrid'
 
-export type AttachmentPanelView = 'toolbox' | 'emoji'
+export type AttachmentPanelView = 'toolbox' | 'emoji' | 'message-bank'
 
 type Props = {
   view: AttachmentPanelView
   onPickImage: () => void
   onOpenEmoji: () => void
+  onOpenMessageBank: () => void
   onEmojiBack: () => void
   onPickEmoji: (emoji: string) => void
 }
@@ -14,6 +15,7 @@ export default function ComposerAttachmentPanel({
   view,
   onPickImage,
   onOpenEmoji,
+  onOpenMessageBank,
   onEmojiBack,
   onPickEmoji,
 }: Props) {
@@ -22,11 +24,11 @@ export default function ComposerAttachmentPanel({
   }
 
   return (
-    <div className="flex items-center justify-center gap-8 py-1">
+    <div className="flex items-center justify-center gap-6 sm:gap-8 py-1">
       <button
         type="button"
         onClick={onPickImage}
-        className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 active:bg-slate-200"
+        className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-slate-600 hover:bg-slate-100 active:bg-slate-200"
         aria-label="Add photo"
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -42,13 +44,24 @@ export default function ComposerAttachmentPanel({
       <button
         type="button"
         onClick={onOpenEmoji}
-        className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 active:bg-slate-200"
+        className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-slate-600 hover:bg-slate-100 active:bg-slate-200"
         aria-label="Add emoji"
       >
         <span className="text-2xl leading-none" aria-hidden>
           😀
         </span>
         <span className="text-xs font-medium">Emoji</span>
+      </button>
+      <button
+        type="button"
+        onClick={onOpenMessageBank}
+        className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-slate-600 hover:bg-slate-100 active:bg-slate-200"
+        aria-label="Message Bank"
+      >
+        <span className="text-2xl leading-none" aria-hidden>
+          📝
+        </span>
+        <span className="text-xs font-medium">Templates</span>
       </button>
     </div>
   )

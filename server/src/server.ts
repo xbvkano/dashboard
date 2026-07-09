@@ -570,6 +570,7 @@ import aiAppointmentRoutes from './routes/aiAppointments'
 import couponsRoutes from './routes/coupons'
 import websiteApiRoutes from './routes/websiteApi'
 import messagingRoutes from './routes/messaging'
+import messageBankRoutes from './routes/messageBank'
 import { verifySupabaseMessagingBucketOnStartup } from './services/supabaseStorage'
 import { verifySupabaseAppointmentBucketOnStartup } from './services/supabaseAppointmentStorage'
 
@@ -591,6 +592,7 @@ app.use('/', aiAppointmentRoutes)
 app.use('/api', couponsRoutes)
 app.use('/api', websiteApiRoutes)
 app.use('/', messagingRoutes)
+app.use('/', messageBankRoutes)
 
 // Initialize cron jobs
 setupScheduleCleanupJob()

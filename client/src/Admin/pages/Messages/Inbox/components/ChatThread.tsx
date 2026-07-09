@@ -28,6 +28,8 @@ type Props = {
   onMockingChange?: (enabled: boolean) => void
   /** e.g. “Appointment booked” pill — rendered directly under the thread header */
   belowHeader?: ReactNode
+  conversationId?: number | null
+  messageBankInitialValues?: Record<string, string>
 }
 
 /** Pixels from bottom to still count as "at bottom" for auto-scroll */
@@ -72,6 +74,8 @@ export default function ChatThread({
   mockingEnabled,
   onMockingChange,
   belowHeader,
+  conversationId,
+  messageBankInitialValues,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -162,7 +166,7 @@ export default function ChatThread({
           <p className="text-center text-sm text-slate-500 py-6">Loading messages…</p>
         )}
         {!detailLoading && (
-          <div ref={contentRef} className="flex flex-col gap-0.5 pb-1">
+          <div ref={contentRef} className="flex flex-col gap-1 pb-1">
             {groupMessagesByDay(messages).map((group) => (
               <div key={group.dayKey}>
                 <ChatDayDivider label={group.label} />
@@ -174,7 +178,11 @@ export default function ChatThread({
           </div>
         )}
       </div>
-      <MessageComposer onSend={onSend} />
+      <MessageComposer
+        onSend={onSend}
+        conversationId={conversationId ?? conversation.id}
+        messageBankInitialValues={messageBankInitialValues}
+      />
     </div>
   )
 }

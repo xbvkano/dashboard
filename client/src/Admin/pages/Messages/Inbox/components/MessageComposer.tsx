@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import ComposerAttachmentPanel, { type AttachmentPanelView } from './ComposerAttachmentPanel'
+import MessageBankToolPanel from '../../MessageBank/MessageBankToolPanel'
+import MessageBankUseModal from '../../MessageBank/MessageBankUseModal'
+import type { MessageBankTemplateDto } from '../../MessageBank/messageBankApi'
 
 type Props = {
   onSend: (text: string, files?: File[]) => void | Promise<void>
+  conversationId?: number | null
+  messageBankInitialValues?: Record<string, string>
 }
 
 type PendingImage = { file: File; url: string }
@@ -17,11 +22,16 @@ function maxComposerTextareaHeightPx(): number {
   return Math.max(120, Math.floor(h * 0.5))
 }
 
-export default function MessageComposer({ onSend }: Props) {
+export default function MessageComposer({
+  onSend,
+  conversationId,
+  messageBankInitialValues = {},
+}: Props) {
   const [text, setText] = useState('')
   const [pending, setPending] = useState<PendingImage[]>([])
   const [sending, setSending] = useState(false)
   const [panelState, setPanelState] = useState<PanelState>('closed')
+  const [messageBankTemplate, setMessageBankTemplate] = useState<MessageBankTemplateDto | null>(null)
   /** Sync guard — state updates are async, so rapid clicks can fire submit twice */
   const sendInFlightRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -260,14 +270,39 @@ export default function MessageComposer({ onSend }: Props) {
       </div>
       {panelOpen && (
         <div ref={panelRef} className="max-w-4xl mx-auto mt-2 rounded-xl border border-slate-200 bg-white px-2 py-2">
-          <ComposerAttachmentPanel
-            view={panelState}
-            onPickImage={() => inputRef.current?.click()}
-            onOpenEmoji={() => setPanelState('emoji')}
-            onEmojiBack={() => setPanelState('toolbox')}
-            onPickEmoji={insertAtCursor}
-          />
+          {panelState === 'message-bank' && conversationId != null ? (
+            <MessageBankToolPanel
+              conversationId={conversationId}
+              onSelectTemplate={(t) => {
+                setMessageBankTemplate(t)
+                setPanelState('closed')
+              }}
+              onBack={() => setPanelState('toolbox')}
+            />
+          ) : (
+            <ComposerAttachmentPanel
+              view={panelState === 'closed' ? 'toolbox' : panelState}
+              onPickImage={() => inputRef.current?.click()}
+              onOpenEmoji={() => setPanelState('emoji')}
+              onOpenMessageBank={() => setPanelState('message-bank')}
+              onEmojiBack={() => setPanelState('toolbox')}
+              onPickEmoji={insertAtCursor}
+            />
+          )}
         </div>
+      )}
+      {conversationId != null && (
+        <MessageBankUseModal
+          open={messageBankTemplate != null}
+          template={messageBankTemplate}
+          conversationId={conversationId}
+          initialValues={messageBankInitialValues}
+          onClose={() => setMessageBankTemplate(null)}
+          onSend={async (msg) => {
+            await onSend(msg)
+            setMessageBankTemplate(null)
+          }}
+        />
       )}
     </div>
   )

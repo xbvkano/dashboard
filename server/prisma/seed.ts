@@ -30,6 +30,7 @@ async function main() {
   await prisma.recurrenceFamily.deleteMany() // Delete recurrence families before clients
   await prisma.employeeTemplate.deleteMany()
   await prisma.appointmentTemplate.deleteMany()
+  await prisma.messageBankTemplate.deleteMany()
   await prisma.employee.deleteMany()
   await prisma.client.deleteMany()
   await prisma.user.deleteMany()
@@ -39,6 +40,7 @@ async function main() {
   await prisma.$executeRawUnsafe(`ALTER SEQUENCE "Employee_id_seq" RESTART WITH 1`)
   await prisma.$executeRawUnsafe(`ALTER SEQUENCE "Client_id_seq" RESTART WITH 1`)
   await prisma.$executeRawUnsafe(`ALTER SEQUENCE "RecurrenceFamily_id_seq" RESTART WITH 1`)
+  await prisma.$executeRawUnsafe(`ALTER SEQUENCE "MessageBankTemplate_id_seq" RESTART WITH 1`)
 
   // Seed base users/clients/employees
   // First user is id 1 — used by client VITE_NO_AUTH (see client devNoAuth.ts defaults).
@@ -1291,6 +1293,93 @@ async function main() {
       {
         dir: 'OUTBOUND',
         body: 'Baseboard cleaning is included.',
+      },
+    ],
+  })
+
+  // --- Message Bank (SMS templates for inbox / copy) ---
+  const mbGroupLeads = await prisma.messageBankGroup.create({
+    data: { name: 'Leads', color: '#E0F2FE' },
+  })
+  const mbGroupConfirmations = await prisma.messageBankGroup.create({
+    data: { name: 'Confirmations', color: '#DCFCE7' },
+  })
+  const mbGroupAccess = await prisma.messageBankGroup.create({
+    data: { name: 'Access', color: '#FEF9C3' },
+  })
+
+  await prisma.messageBankTemplate.createMany({
+    data: [
+      {
+        name: 'New lead — quote follow-up',
+        body: `Hi {{Name}}! This is Evidence Cleaning 😊
+
+We got your request for a {{ServiceType}}.
+The price for this cleaning is {{Price}}.
+
+To schedule, I just need your gate code (if any) and the time that works best for you.
+
+Reminder: until the appointment is finalized, the time slot stays available for other clients.`,
+        builtinVariables: ['NAME', 'PRICE', 'SERVICE_TYPE'],
+        customVariables: [],
+        groupId: mbGroupLeads.id,
+      },
+      {
+        name: 'Confirm date & time',
+        body: `Hi {{Name}}! Your {{ServiceType}} is confirmed for {{appointment_date}} at {{preferred_time}}.
+
+Total: {{Price}}. Address on file — reply if anything changed.
+
+Gate code we have: {{gate_code}} (reply if different).`,
+        builtinVariables: ['NAME', 'PRICE', 'SERVICE_TYPE'],
+        customVariables: [
+          { key: 'appointment_date', label: 'Appointment Date' },
+          { key: 'preferred_time', label: 'Preferred Time' },
+          { key: 'gate_code', label: 'Gate Code' },
+        ],
+        groupId: mbGroupConfirmations.id,
+      },
+      {
+        name: 'Price & size check',
+        body: `Hi {{Name}}! Before we lock in your {{ServiceType}}, could you confirm the home size is about {{home_size}} sqft? That way we can make sure {{Price}} is still accurate.`,
+        builtinVariables: ['NAME', 'PRICE', 'SERVICE_TYPE'],
+        customVariables: [{ key: 'home_size', label: 'Home Size (sqft)' }],
+        groupId: mbGroupLeads.id,
+      },
+      {
+        name: 'Gate code & access',
+        body: `Hi {{Name}}! Quick question for your upcoming cleaning — what's the gate or door code? (Reply "none" if not applicable.)
+
+Preferred arrival window: {{arrival_window}}.`,
+        builtinVariables: ['NAME'],
+        customVariables: [{ key: 'arrival_window', label: 'Arrival Window' }],
+        groupId: mbGroupAccess.id,
+      },
+      {
+        name: 'Estimate only (no name)',
+        body: `Thanks for reaching out! For a {{ServiceType}} at the size discussed, our estimate is {{Price}}.
+
+Let us know if you'd like to book a slot.`,
+        builtinVariables: ['PRICE', 'SERVICE_TYPE'],
+        customVariables: [],
+        groupId: mbGroupLeads.id,
+      },
+      {
+        name: 'Move-in / move-out recap',
+        body: `Hi {{Name}}! Recap for your {{move_type}} {{ServiceType}}:
+
+Price: {{Price}}
+Date: {{move_date}}
+Address: {{service_address}}
+
+Reply with any updates or gate codes. Thanks!`,
+        builtinVariables: ['NAME', 'PRICE', 'SERVICE_TYPE'],
+        customVariables: [
+          { key: 'move_type', label: 'Move Type' },
+          { key: 'move_date', label: 'Move Date' },
+          { key: 'service_address', label: 'Service Address' },
+        ],
+        groupId: mbGroupConfirmations.id,
       },
     ],
   })

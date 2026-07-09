@@ -553,3 +553,33 @@ model MessageMedia {
   @@index([messageId])
   @@index([source])
 }
+
+enum MessageBankBuiltinVariable {
+  NAME
+  PRICE
+  SERVICE_TYPE
+}
+
+model MessageBankTemplate {
+  id               Int                          @id @default(autoincrement())
+  name             String
+  body             String
+  builtinVariables MessageBankBuiltinVariable[]
+  customVariables  Json                         @default("[]")
+  groupId          Int?
+  group            MessageBankGroup?            @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+
+  @@index([groupId])
+}
+
+model MessageBankGroup {
+  id        Int                 @id @default(autoincrement())
+  name      String              @unique
+  /** CSS color value (e.g. #FFFFFF). General group is virtual client-side. */
+  color     String
+  templates MessageBankTemplate[]
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+}

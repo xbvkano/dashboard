@@ -32,6 +32,12 @@ import {
 import type { ThreadContact, ThreadMessage } from './types'
 import { isDevToolsEnabled } from '../../../../devTools'
 import { inboxListAfterStatusPatch } from './inboxArchiveListPlan'
+import { API_BASE_URL, fetchJson } from '../../../../api'
+import type { Call, FormData } from '../../../../external_prisma_schemas/website_schema'
+import {
+  resolveMessageBankVariables,
+  resolvedToVariableValues,
+} from '../MessageBank/resolveMessageBankVariables'
 
 const MESSAGING_MOCK_SESSION_KEY = 'messagingMockSms'
 
@@ -172,6 +178,8 @@ export default function Inbox() {
   const [showArchived, setShowArchived] = useState(false)
   const [archiveBusy, setArchiveBusy] = useState(false)
   const [mockingEnabled, setMockingEnabled] = useState(readInitialMockingEnabled)
+  const [leadQuotes, setLeadQuotes] = useState<FormData[]>([])
+  const [leadCalls, setLeadCalls] = useState<Call[]>([])
   const didInitSelect = useRef(false)
   const openedFromQueryRef = useRef(false)
   const selectedIdRef = useRef<number | null>(null)
@@ -590,6 +598,34 @@ export default function Inbox() {
     return detailToMessages(detail)
   }, [detail, selectedId])
 
+  const messageBankInitialValues = useMemo(() => {
+    const resolved = resolveMessageBankVariables({
+      detail: detail?.conversation.id === selectedId ? detail : null,
+      threadContact,
+      bookingDraft: selectedId != null ? draftsByConversationId[selectedId] : null,
+      quotes: leadQuotes,
+      calls: leadCalls,
+    })
+    return resolvedToVariableValues(resolved)
+  }, [detail, selectedId, threadContact, draftsByConversationId, leadQuotes, leadCalls])
+
+  useEffect(() => {
+    if (selectedId == null) return
+    let cancelled = false
+    Promise.all([
+      fetchJson<FormData[]>(`${API_BASE_URL}/api/quotes`).catch(() => [] as FormData[]),
+      fetchJson<Call[]>(`${API_BASE_URL}/api/calls`).catch(() => [] as Call[]),
+    ]).then(([quotes, calls]) => {
+      if (!cancelled) {
+        setLeadQuotes(Array.isArray(quotes) ? quotes : [])
+        setLeadCalls(Array.isArray(calls) ? calls : [])
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedId])
+
   useEffect(() => {
     setInboxSelectedConversationId(selectedId)
     return () => setInboxSelectedConversationId(null)
@@ -937,6 +973,8 @@ export default function Inbox() {
                     mockingEnabled={mockingEnabled}
                     onMockingChange={setMockingEnabled}
                     belowHeader={bookedToastStrip}
+                    conversationId={selectedId}
+                    messageBankInitialValues={messageBankInitialValues}
                   />
                 </div>
                 <div className="w-[min(440px,42%)] min-w-[300px] shrink-0 flex flex-col min-h-0 bg-slate-100/90 p-2 border-l border-slate-200/80">
@@ -982,6 +1020,8 @@ export default function Inbox() {
                 mockingEnabled={mockingEnabled}
                 onMockingChange={setMockingEnabled}
                 belowHeader={bookedToastStrip}
+                conversationId={selectedId}
+                messageBankInitialValues={messageBankInitialValues}
               />
             )
           ) : (
@@ -1045,6 +1085,8 @@ export default function Inbox() {
                     mockingEnabled={mockingEnabled}
                     onMockingChange={setMockingEnabled}
                     belowHeader={bookedToastStrip}
+                    conversationId={selectedId}
+                    messageBankInitialValues={messageBankInitialValues}
                   />
                 ) : (
                   <div className="flex-1 min-h-0 min-w-0 p-2 overflow-hidden overflow-x-hidden flex flex-col">
@@ -1092,6 +1134,8 @@ export default function Inbox() {
               mockingEnabled={mockingEnabled}
               onMockingChange={setMockingEnabled}
               belowHeader={bookedToastStrip}
+              conversationId={selectedId}
+              messageBankInitialValues={messageBankInitialValues}
             />
           )}
         </div>
