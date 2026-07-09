@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import {
   slugifyVariableKey,
   tokenForKey,
   type CustomVariableDef,
 } from '../../../../shared/messageBank'
+import AddCustomVariableModal from './AddCustomVariableModal'
 
 type Props = {
   customVariables: CustomVariableDef[]
@@ -15,12 +17,12 @@ export default function CustomVariablesEditor({
   onChange,
   onInsertToken,
 }: Props) {
-  function addVariable() {
-    const label = window.prompt('Custom variable label (e.g. Gate Code)')
-    if (!label?.trim()) return
+  const [addOpen, setAddOpen] = useState(false)
+
+  function confirmAddVariable(label: string) {
     const existingKeys = customVariables.map((c) => c.key)
     const key = slugifyVariableKey(label, existingKeys)
-    const next = [...customVariables, { key, label: label.trim() }]
+    const next = [...customVariables, { key, label }]
     onChange(next)
     onInsertToken(tokenForKey(key))
   }
@@ -40,7 +42,7 @@ export default function CustomVariablesEditor({
         <h3 className="text-sm font-semibold text-slate-800">Custom variables</h3>
         <button
           type="button"
-          onClick={addVariable}
+          onClick={() => setAddOpen(true)}
           className="text-sm font-medium text-blue-600 hover:text-blue-700 min-h-[44px] px-2"
         >
           + Add
@@ -79,6 +81,11 @@ export default function CustomVariablesEditor({
           ))}
         </ul>
       )}
+      <AddCustomVariableModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onConfirm={confirmAddVariable}
+      />
     </div>
   )
 }
