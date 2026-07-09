@@ -1,28 +1,28 @@
 import { useEffect, useState } from 'react'
-import { formatApiError, updateMessageBankGroup, type MessageBankGroupDto } from './messageBankApi'
+import { createMessageBankGroup, formatApiError, type MessageBankGroupDto } from './messageBankApi'
 import { normalizeHexColor } from './groupColor'
 
 type Props = {
-  group: MessageBankGroupDto | null
+  open: boolean
   onClose: () => void
-  onSaved: (group: MessageBankGroupDto) => void
+  onCreated: (group: MessageBankGroupDto) => void
 }
 
-export default function EditGroupModal({ group, onClose, onSaved }: Props) {
+export default function CreateGroupModal({ open, onClose, onCreated }: Props) {
   const [name, setName] = useState('')
   const [color, setColor] = useState('#ffffff')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!group) return
-    setName(group.name)
-    setColor(normalizeHexColor(group.color))
+    if (!open) return
+    setName('')
+    setColor('#ffffff')
     setError(null)
     setSubmitting(false)
-  }, [group])
+  }, [open])
 
-  if (!group) return null
+  if (!open) return null
 
   const submit = async () => {
     const trimmedName = name.trim()
@@ -33,11 +33,11 @@ export default function EditGroupModal({ group, onClose, onSaved }: Props) {
     setSubmitting(true)
     setError(null)
     try {
-      const updated = await updateMessageBankGroup(group.id, {
+      const created = await createMessageBankGroup({
         name: trimmedName,
         color: normalizeHexColor(color),
       })
-      onSaved(updated)
+      onCreated(created)
       onClose()
     } catch (e) {
       setError(formatApiError(e))
@@ -51,12 +51,12 @@ export default function EditGroupModal({ group, onClose, onSaved }: Props) {
       <div
         className="bg-white w-full sm:max-w-md sm:rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-5 max-h-[min(90dvh,28rem)] overflow-y-auto"
         role="dialog"
-        aria-labelledby="edit-group-title"
+        aria-labelledby="create-group-title"
       >
-        <h2 id="edit-group-title" className="text-lg font-semibold text-slate-900">
-          Edit group
+        <h2 id="create-group-title" className="text-lg font-semibold text-slate-900">
+          New group
         </h2>
-        <p className="text-sm text-slate-600 mt-1">Rename the group or pick a new color.</p>
+        <p className="text-sm text-slate-600 mt-1">Give the group a name and pick a color.</p>
 
         <div className="mt-4 space-y-4">
           <label className="block">
@@ -116,7 +116,7 @@ export default function EditGroupModal({ group, onClose, onSaved }: Props) {
             disabled={submitting}
             className="min-h-[44px] px-4 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50"
           >
-            {submitting ? 'Saving…' : 'Save changes'}
+            {submitting ? 'Creating…' : 'Create group'}
           </button>
         </div>
       </div>

@@ -5,8 +5,8 @@ import TemplateList from './TemplateList'
 import TemplateEditor from './TemplateEditor'
 import UseTemplatePanel from './UseTemplatePanel'
 import EditGroupModal from './EditGroupModal'
+import CreateGroupModal from './CreateGroupModal'
 import {
-  createMessageBankGroup,
   deleteMessageBankTemplate,
   deleteMessageBankGroup,
   fetchMessageBankGroups,
@@ -32,6 +32,7 @@ export default function MessageBank() {
   const [useTemplateId, setUseTemplateId] = useState<number | null>(null)
   const [selectedGroupId, setSelectedGroupId] = useState<SelectedGroupId>('root')
   const [groupsModal, setGroupsModal] = useState<GroupsModalMode>('closed')
+  const [createGroupOpen, setCreateGroupOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<MessageBankGroupDto | null>(null)
 
   const load = useCallback(async () => {
@@ -200,6 +201,14 @@ export default function MessageBank() {
         )}
       </div>
 
+      <CreateGroupModal
+        open={createGroupOpen}
+        onClose={() => setCreateGroupOpen(false)}
+        onCreated={(created) => {
+          setGroups((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+        }}
+      />
+
       <EditGroupModal
         group={editingGroup}
         onClose={() => setEditingGroup(null)}
@@ -226,17 +235,7 @@ export default function MessageBank() {
             <div className="p-4 space-y-3 max-h-[70dvh] overflow-y-auto">
               <button
                 type="button"
-                onClick={async () => {
-                  const name = window.prompt('Group name')?.trim()
-                  if (!name) return
-                  const color = window.prompt('Group color (hex like #FFCC00)', '#FFFFFF')?.trim() || '#FFFFFF'
-                  try {
-                    const g = await createMessageBankGroup({ name, color })
-                    setGroups((prev) => [...prev, g].sort((a, b) => a.name.localeCompare(b.name)))
-                  } catch (e) {
-                    window.alert(formatApiError(e))
-                  }
-                }}
+                onClick={() => setCreateGroupOpen(true)}
                 className="w-full min-h-[48px] rounded-xl bg-blue-600 text-white font-semibold"
               >
                 + New group
