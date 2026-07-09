@@ -85,7 +85,6 @@ export default function MessageBank() {
   }
 
   async function handleDelete(id: number) {
-    if (!window.confirm('Delete this template?')) return
     try {
       await deleteMessageBankTemplate(id)
       setTemplates((prev) => prev.filter((t) => t.id !== id))
@@ -96,6 +95,7 @@ export default function MessageBank() {
       }
     } catch (e) {
       window.alert(formatApiError(e))
+      throw e
     }
   }
 

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { MessageBankGroupDto, MessageBankTemplateDto } from './messageBankApi'
+import DeleteTemplateConfirmModal from './DeleteTemplateConfirmModal'
 
 type Props = {
   templates: MessageBankTemplateDto[]
@@ -11,7 +12,7 @@ type Props = {
   onManageGroups: () => void
   onSelect: (id: number) => void
   onNew: () => void
-  onDelete: (id: number) => void
+  onDelete: (id: number) => void | Promise<void>
   onUse: (id: number) => void
 }
 
@@ -29,6 +30,8 @@ export default function TemplateList({
   onUse,
 }: Props) {
   const [q, setQ] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<MessageBankTemplateDto | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const filtered = useMemo(() => {
     const qq = q.trim().toLowerCase()
@@ -148,18 +151,18 @@ export default function TemplateList({
                             {t.builtinVariables.length + t.customVariables.length === 1 ? '' : 's'}
                           </span>
                         </button>
-                        <div className="flex flex-col justify-center gap-1 pr-2 shrink-0">
+                        <div className="flex flex-col justify-center gap-1.5 pr-3 py-2 shrink-0">
                           <button
                             type="button"
                             onClick={() => onUse(t.id)}
-                            className="text-xs font-medium text-blue-600 min-h-[36px] px-2"
+                            className="min-h-[36px] px-3 rounded-lg border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700 hover:bg-blue-100 active:bg-blue-200"
                           >
                             Use
                           </button>
                           <button
                             type="button"
-                            onClick={() => onDelete(t.id)}
-                            className="text-xs text-red-600 min-h-[36px] px-2"
+                            onClick={() => setDeleteTarget(t)}
+                            className="min-h-[36px] px-3 rounded-lg border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 active:bg-red-200"
                           >
                             Delete
                           </button>
@@ -173,6 +176,26 @@ export default function TemplateList({
           </>
         )}
       </div>
+
+      <DeleteTemplateConfirmModal
+        open={deleteTarget != null}
+        templateName={deleteTarget?.name ?? ''}
+        confirming={deleting}
+        onClose={() => {
+          if (deleting) return
+          setDeleteTarget(null)
+        }}
+        onConfirm={() => {
+          if (!deleteTarget || deleting) return
+          setDeleting(true)
+          Promise.resolve(onDelete(deleteTarget.id))
+            .catch(() => {})
+            .finally(() => {
+              setDeleting(false)
+              setDeleteTarget(null)
+            })
+        }}
+      />
     </div>
   )
 }
