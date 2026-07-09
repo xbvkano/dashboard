@@ -343,6 +343,27 @@ export function renderMessageBankTemplate(
   return collapseWhitespace(out)
 }
 
+/** Preview with each variable shown as its label in uppercase (for template editor). */
+export function renderMessageBankLabelPreview(
+  body: string,
+  customVariables: CustomVariableDef[] = [],
+): string {
+  const values: Record<string, string> = {}
+  for (const [key, meta] of Object.entries(BUILTIN_VARIABLE_META)) {
+    values[key] = meta.label.toUpperCase()
+  }
+  for (const cv of customVariables) {
+    values[cv.key] = cv.label.toUpperCase()
+  }
+  const parsed = parseVariablesFromBody(body)
+  for (const key of parsed.customKeys) {
+    if (!values[key]) {
+      values[key] = key.replace(/_/g, ' ').toUpperCase()
+    }
+  }
+  return renderMessageBankTemplate(body, values, [])
+}
+
 export function getTemplateVariableKeys(template: MessageBankTemplateShape): string[] {
   const builtins = enumsToBuiltinKeys(template.builtinVariables)
   const customs = (template.customVariables ?? []).map((c) => c.key)

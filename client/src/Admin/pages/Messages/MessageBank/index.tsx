@@ -186,7 +186,7 @@ export default function MessageBank() {
 
         {isDesktop && (
           <div className="flex min-h-0 w-96 shrink-0 flex-col overflow-hidden bg-white border border-slate-200 rounded-xl shadow-sm">
-            <UseTemplatePanel templates={templates} initialTemplateId={useTemplateId} />
+            <UseTemplatePanel templates={templates} groups={groups} initialTemplateId={useTemplateId} />
           </div>
         )}
 
@@ -194,6 +194,7 @@ export default function MessageBank() {
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
             <UseTemplatePanel
               templates={templates}
+              groups={groups}
               initialTemplateId={useTemplateId}
               onBack={() => setMobileView('list')}
             />

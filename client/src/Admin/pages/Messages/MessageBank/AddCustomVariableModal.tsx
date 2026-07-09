@@ -34,7 +34,6 @@ export default function AddCustomVariableModal({ open, onClose, onConfirm }: Pro
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-custom-variable-title"
-      onClick={onClose}
     >
       <div
         className="bg-white w-full sm:max-w-md sm:rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-5"

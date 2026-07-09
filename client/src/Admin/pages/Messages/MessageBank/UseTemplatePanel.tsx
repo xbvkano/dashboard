@@ -10,16 +10,19 @@ import {
   renderMessageBankTemplate,
   type RemovedVariableAnchor,
 } from '../../../../shared/messageBank'
-import type { MessageBankTemplateDto } from './messageBankApi'
+import type { MessageBankGroupDto, MessageBankTemplateDto } from './messageBankApi'
 import ResetTemplateConfirmModal from './ResetTemplateConfirmModal'
 import TemplatePlaceholderPreview from './TemplatePlaceholderPreview'
 import VariableFieldList from './VariableFieldList'
 
 type Props = {
   templates: MessageBankTemplateDto[]
+  groups: MessageBankGroupDto[]
   initialTemplateId?: number | null
   onBack?: () => void
 }
+
+type SelectedGroupId = number | null | 'root'
 
 async function copyText(text: string): Promise<void> {
   try {
@@ -36,7 +39,13 @@ async function copyText(text: string): Promise<void> {
   }
 }
 
-export default function UseTemplatePanel({ templates, initialTemplateId, onBack }: Props) {
+export default function UseTemplatePanel({
+  templates,
+  groups,
+  initialTemplateId,
+  onBack,
+}: Props) {
+  const [selectedGroupId, setSelectedGroupId] = useState<SelectedGroupId>('root')
   const [templateId, setTemplateId] = useState<number | null>(initialTemplateId ?? null)
   const [values, setValues] = useState<Record<string, string>>({})
   const [excludedKeys, setExcludedKeys] = useState<string[]>([])
@@ -53,6 +62,45 @@ export default function UseTemplatePanel({ templates, initialTemplateId, onBack 
     [templates, templateId],
   )
 
+  const groupedTemplates = useMemo(() => {
+    const byGroup: Record<string, MessageBankTemplateDto[]> = { general: [] }
+    for (const g of groups) byGroup[String(g.id)] = []
+    for (const t of templates) {
+      if (t.groupId == null) byGroup.general.push(t)
+      else {
+        const k = String(t.groupId)
+        if (!byGroup[k]) byGroup[k] = []
+        byGroup[k].push(t)
+      }
+    }
+    for (const k of Object.keys(byGroup)) {
+      byGroup[k].sort((a, b) => a.name.localeCompare(b.name))
+    }
+    return byGroup
+  }, [templates, groups])
+
+  const groupTemplates =
+    selectedGroupId === 'root'
+      ? []
+      : selectedGroupId === null
+        ? groupedTemplates.general
+        : groupedTemplates[String(selectedGroupId)] ?? []
+
+  const headerTitle = template
+    ? template.name
+    : selectedGroupId === 'root'
+      ? 'Use template'
+      : selectedGroupId === null
+        ? 'General'
+        : (groups.find((g) => g.id === selectedGroupId)?.name ?? 'Group')
+
+  useEffect(() => {
+    if (initialTemplateId == null) return
+    const t = templates.find((x) => x.id === initialTemplateId)
+    setTemplateId(initialTemplateId)
+    if (t) setSelectedGroupId(t.groupId ?? null)
+  }, [initialTemplateId, templates])
+
   const renderedBody = useMemo(
     () =>
       template
@@ -60,10 +108,6 @@ export default function UseTemplatePanel({ templates, initialTemplateId, onBack 
         : '',
     [template, instanceBody, values, excludedKeys],
   )
-
-  useEffect(() => {
-    if (initialTemplateId != null) setTemplateId(initialTemplateId)
-  }, [initialTemplateId])
 
   useEffect(() => {
     if (!template) {
@@ -155,20 +199,37 @@ export default function UseTemplatePanel({ templates, initialTemplateId, onBack 
     ? allActiveVariablesFilled(template, values, excludedKeys)
     : false
 
+  const showPickerBack = template != null || selectedGroupId !== 'root'
+  const showExitBack = onBack != null && selectedGroupId === 'root' && template == null
+
+  function handleHeaderBack() {
+    if (template != null) {
+      setTemplateId(null)
+      setEditMode(false)
+      setEditDraft('')
+      return
+    }
+    if (selectedGroupId !== 'root') {
+      setSelectedGroupId('root')
+      return
+    }
+    onBack?.()
+  }
+
   return (
     <div className="flex flex-col min-h-0 h-full">
       <div className="flex items-center gap-2 px-3 py-3 border-b border-slate-200 shrink-0">
-        {onBack && (
+        {(showPickerBack || showExitBack) && (
           <button
             type="button"
-            onClick={onBack}
+            onClick={handleHeaderBack}
             className="min-h-[44px] min-w-[44px] text-slate-600"
             aria-label="Back"
           >
             ←
           </button>
         )}
-        <h2 className="flex-1 font-semibold text-slate-900 truncate">Use template</h2>
+        <h2 className="flex-1 font-semibold text-slate-900 truncate">{headerTitle}</h2>
         {template && (
           <>
             <button
@@ -191,21 +252,72 @@ export default function UseTemplatePanel({ templates, initialTemplateId, onBack 
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Template</label>
-          <select
-            value={templateId ?? ''}
-            onChange={(e) => setTemplateId(e.target.value ? Number(e.target.value) : null)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-[16px] md:text-sm"
-          >
-            <option value="">Select…</option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!template && selectedGroupId === 'root' && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide px-1">
+              Choose a group
+            </p>
+            {templates.length === 0 ? (
+              <p className="text-sm text-slate-500">No templates yet.</p>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSelectedGroupId(null)}
+                  className="w-full min-h-[52px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:bg-slate-50 active:bg-slate-100"
+                >
+                  <span className="text-sm font-semibold text-slate-900">General</span>
+                  <span className="text-xs text-slate-500 block">
+                    {groupedTemplates.general.length} template
+                    {groupedTemplates.general.length === 1 ? '' : 's'}
+                  </span>
+                </button>
+                {groups.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => setSelectedGroupId(g.id)}
+                    className="w-full min-h-[52px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:bg-slate-50 active:bg-slate-100"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-3 h-3 rounded-full border border-slate-200 shrink-0"
+                        style={{ backgroundColor: g.color }}
+                      />
+                      <span className="text-sm font-semibold text-slate-900">{g.name}</span>
+                    </div>
+                    <span className="text-xs text-slate-500 block pl-5">
+                      {(groupedTemplates[String(g.id)] ?? []).length} template
+                      {(groupedTemplates[String(g.id)] ?? []).length === 1 ? '' : 's'}
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
+        {!template && selectedGroupId !== 'root' && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide px-1">
+              Choose a template
+            </p>
+            {groupTemplates.length === 0 ? (
+              <p className="text-sm text-slate-500">No templates in this group yet.</p>
+            ) : (
+              groupTemplates.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTemplateId(t.id)}
+                  className="w-full min-h-[52px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left hover:bg-slate-50 active:bg-slate-100"
+                >
+                  <span className="text-sm font-semibold text-slate-900">{t.name}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
 
         {template && (
           <>
@@ -272,20 +384,22 @@ export default function UseTemplatePanel({ templates, initialTemplateId, onBack 
         )}
       </div>
 
-      <div className="shrink-0 border-t border-slate-200 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <button
-          type="button"
-          disabled={!canCopy || editMode}
-          onClick={async () => {
-            await copyText(renderedBody)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 2000)
-          }}
-          className="w-full min-h-[48px] rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-40"
-        >
-          {copied ? 'Copied!' : 'Copy to clipboard'}
-        </button>
-      </div>
+      {template && (
+        <div className="shrink-0 border-t border-slate-200 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            disabled={!canCopy || editMode}
+            onClick={async () => {
+              await copyText(renderedBody)
+              setCopied(true)
+              setTimeout(() => setCopied(false), 2000)
+            }}
+            className="w-full min-h-[48px] rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-40"
+          >
+            {copied ? 'Copied!' : 'Copy to clipboard'}
+          </button>
+        </div>
+      )}
 
       <ResetTemplateConfirmModal
         open={showResetConfirm}

@@ -3,7 +3,7 @@ import {
   BUILTIN_VARIABLE_META,
   isDuplicateTemplateNameInGroup,
   parseVariablesFromBody,
-  renderMessageBankTemplate,
+  renderMessageBankLabelPreview,
   suggestUniqueTemplateName,
   syncTemplateVariablesFromBody,
   type CustomVariableDef,
@@ -82,7 +82,7 @@ export default function TemplateEditor({
   }, [body.length])
 
   const parsed = parseVariablesFromBody(body)
-  const preview = renderMessageBankTemplate(body, {}, [])
+  const preview = renderMessageBankLabelPreview(body, customVariables)
 
   async function persistTemplate(saveName: string) {
     setSaving(true)
@@ -243,7 +243,7 @@ export default function TemplateEditor({
         />
 
         <div>
-          <h3 className="text-sm font-semibold text-slate-800 mb-1">Preview (empty values)</h3>
+          <h3 className="text-sm font-semibold text-slate-800 mb-1">Preview</h3>
           <pre className="text-sm text-slate-600 whitespace-pre-wrap bg-slate-50 rounded-lg p-3 border border-slate-100">
             {preview || '—'}
           </pre>
