@@ -34,6 +34,13 @@ export default function MessageBank() {
   const [groupsModal, setGroupsModal] = useState<GroupsModalMode>('closed')
   const [createGroupOpen, setCreateGroupOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<MessageBankGroupDto | null>(null)
+  const [saveSnackbar, setSaveSnackbar] = useState(false)
+
+  useEffect(() => {
+    if (!saveSnackbar) return
+    const t = setTimeout(() => setSaveSnackbar(false), 2500)
+    return () => clearTimeout(t)
+  }, [saveSnackbar])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -81,7 +88,11 @@ export default function MessageBank() {
     })
     setSelectedId(t.id)
     setIsNew(false)
-    if (!isDesktop) setMobileView('editor')
+    setSaveSnackbar(true)
+    if (!isDesktop) {
+      setSelectedGroupId(t.groupId ?? null)
+      setMobileView('list')
+    }
   }
 
   async function handleDelete(id: number) {
@@ -110,6 +121,15 @@ export default function MessageBank() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden h-[calc(100dvh-3.5rem)] max-h-[calc(100dvh-3.5rem)]">
+      {saveSnackbar && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[120] px-4 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg shadow-lg"
+        >
+          Template saved
+        </div>
+      )}
       {(isDesktop || mobileView === 'list') && (
         <div className="shrink-0 px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between gap-2">
           <div>
