@@ -13,7 +13,7 @@ type Props = {
   onSelect: (id: number) => void
   onNew: () => void
   onDelete: (id: number) => void | Promise<void>
-  onUse: (id: number) => void
+  onOpenUse: () => void
 }
 
 export default function TemplateList({
@@ -27,7 +27,7 @@ export default function TemplateList({
   onSelect,
   onNew,
   onDelete,
-  onUse,
+  onOpenUse,
 }: Props) {
   const [q, setQ] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<MessageBankTemplateDto | null>(null)
@@ -67,13 +67,24 @@ export default function TemplateList({
             Groups
           </button>
         </div>
-        <button
-          type="button"
-          onClick={onNew}
-          className="w-full min-h-[48px] rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 active:bg-blue-800"
-        >
-          + New template
-        </button>
+        <div className="flex gap-2">
+          {templates.length > 0 && (
+            <button
+              type="button"
+              onClick={onOpenUse}
+              className="flex-1 min-h-[48px] rounded-xl border border-blue-200 bg-blue-50 text-blue-700 font-semibold text-sm hover:bg-blue-100 active:bg-blue-200"
+            >
+              Use template
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onNew}
+            className={`${templates.length > 0 ? 'flex-1' : 'w-full'} min-h-[48px] rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 active:bg-blue-800`}
+          >
+            + New template
+          </button>
+        </div>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto">
         {selectedGroupId === 'root' ? (
@@ -151,14 +162,7 @@ export default function TemplateList({
                             {t.builtinVariables.length + t.customVariables.length === 1 ? '' : 's'}
                           </span>
                         </button>
-                        <div className="flex flex-col justify-center gap-1.5 pr-3 py-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => onUse(t.id)}
-                            className="min-h-[36px] px-3 rounded-lg border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700 hover:bg-blue-100 active:bg-blue-200"
-                          >
-                            Use
-                          </button>
+                        <div className="flex items-center pr-3 py-2 shrink-0">
                           <button
                             type="button"
                             onClick={() => setDeleteTarget(t)}

@@ -99,8 +99,8 @@ export default function MessageBank() {
     }
   }
 
-  function handleUse(id: number) {
-    setUseTemplateId(id)
+  function handleOpenUse() {
+    setUseTemplateId(null)
     if (!isDesktop) setMobileView('use')
   }
 
@@ -121,18 +121,6 @@ export default function MessageBank() {
             </Link>
             <h1 className="text-xl font-semibold text-slate-900 mt-1">Message Bank</h1>
           </div>
-          {!isDesktop && templates.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                setUseTemplateId(null)
-                setMobileView('use')
-              }}
-              className="min-h-[44px] px-3 rounded-lg border border-slate-200 text-sm font-medium"
-            >
-              Use
-            </button>
-          )}
         </div>
       )}
 
@@ -158,7 +146,7 @@ export default function MessageBank() {
               onSelect={handleSelect}
               onNew={handleNew}
               onDelete={(id) => void handleDelete(id)}
-              onUse={handleUse}
+              onOpenUse={handleOpenUse}
             />
           </div>
         )}

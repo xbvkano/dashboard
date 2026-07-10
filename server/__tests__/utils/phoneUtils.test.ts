@@ -1,5 +1,8 @@
 import {
   normalizePhone,
+  generateUserName,
+  loginUserNameFromInput,
+  loginUserNameCandidates,
   phoneLookupVariants,
   phoneNumbersMatchForLinking,
   supervisorPhoneE164,
@@ -25,16 +28,60 @@ describe('phoneUtils', () => {
       expect(normalizePhone('555123456')).toBeNull()
     })
 
-    it('returns null for 12+ digits', () => {
-      expect(normalizePhone('155512345678')).toBeNull()
-    })
-
     it('returns null for empty string', () => {
       expect(normalizePhone('')).toBeNull()
     })
 
-    it('returns null for 11-digit numbers that are not US (+1)', () => {
-      expect(normalizePhone('25551234567')).toBeNull()
+    it('accepts international E.164 with + prefix', () => {
+      expect(normalizePhone('+61 433 441 476')).toBe('+61433441476')
+    })
+
+    it('accepts international digits without + prefix', () => {
+      expect(normalizePhone('61433441476')).toBe('+61433441476')
+    })
+
+    it('accepts other international country codes', () => {
+      expect(normalizePhone('+44 7911 123456')).toBe('+447911123456')
+    })
+
+    it('returns null for too few digits', () => {
+      expect(normalizePhone('+6112345')).toBeNull()
+    })
+
+    it('returns null for too many digits', () => {
+      expect(normalizePhone('+6112345678901234')).toBeNull()
+    })
+  })
+
+  describe('generateUserName', () => {
+    it('stores 10-digit national for US numbers', () => {
+      expect(generateUserName('+17255774523')).toBe('7255774523')
+    })
+
+    it('stores full digits for international numbers', () => {
+      expect(generateUserName('+61433441476')).toBe('61433441476')
+    })
+  })
+
+  describe('loginUserNameFromInput', () => {
+    it('normalizes US numbers to 10 digits', () => {
+      expect(loginUserNameFromInput('+1 (725) 577-4523')).toBe('7255774523')
+    })
+
+    it('keeps international digits', () => {
+      expect(loginUserNameFromInput('+61 433 441 476')).toBe('61433441476')
+    })
+  })
+
+  describe('loginUserNameCandidates', () => {
+    it('includes US legacy variants', () => {
+      const c = loginUserNameCandidates('17255774523')
+      expect(c).toContain('7255774523')
+      expect(c).toContain('17255774523')
+    })
+
+    it('includes international digits', () => {
+      expect(loginUserNameCandidates('+61433441476')).toContain('61433441476')
     })
   })
 
@@ -57,6 +104,10 @@ describe('phoneUtils', () => {
     it('does not match different lines', () => {
       expect(phoneNumbersMatchForLinking('+15551234567', '+16145842138')).toBe(false)
     })
+
+    it('matches identical international numbers', () => {
+      expect(phoneNumbersMatchForLinking('+61433441476', '61433441476')).toBe(true)
+    })
   })
 
   describe('supervisorPhoneE164', () => {
@@ -71,6 +122,15 @@ describe('phoneUtils', () => {
 
     it('falls back to userName digits', () => {
       expect(supervisorPhoneE164({ userName: '7255774523', employee: null })).toBe('+17255774523')
+    })
+
+    it('normalizes international employee numbers', () => {
+      expect(
+        supervisorPhoneE164({
+          userName: 'ignored',
+          employee: { number: '+61433441476' },
+        })
+      ).toBe('+61433441476')
     })
   })
 })

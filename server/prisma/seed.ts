@@ -4,16 +4,9 @@ import { ruleToJson, calculateNextAppointmentDate } from '../src/utils/recurrenc
 import { calculateAppointmentHours } from '../src/utils/appointmentUtils'
 import { normalizeToBusinessDayAnchorUtc } from '../src/utils/appointmentTimezone'
 import { getNextOrThisUpdateDay } from '../src/utils/schedulePolicyUtils'
-import { normalizePhone } from '../src/utils/phoneUtils'
+import { normalizePhone, generateUserName } from '../src/utils/phoneUtils'
 
 const prisma = new PrismaClient()
-
-// Generate userName from phone number (remove +1 and formatting)
-function generateUserName(phoneNumber: string): string {
-  // Remove all non-digit characters, then remove leading 1 if present
-  const digits = phoneNumber.replace(/\D/g, '')
-  return digits.startsWith('1') && digits.length === 11 ? digits.slice(1) : digits
-}
 
 async function main() {
   // Clear existing data to avoid duplicates when reseeding

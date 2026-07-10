@@ -1,11 +1,65 @@
 /**
- * US-focused phone normalization. Prefer storing E.164 (`+1XXXXXXXXXX`) for SMS/Twilio.
+ * Phone normalization and login identity helpers.
+ * US numbers use 10-digit national `userName` for legacy accounts; international numbers use full country-code digits.
  */
+
+const E164_MIN_DIGITS = 8
+const E164_MAX_DIGITS = 15
+
+/** US-focused phone normalization. Returns E.164 (+...) or null. */
 export function normalizePhone(num: string): string | null {
-  const digits = num.replace(/\D/g, '')
+  const trimmed = num.trim()
+  if (!trimmed) return null
+
+  if (trimmed.startsWith('+')) {
+    const digits = trimmed.replace(/\D/g, '')
+    if (digits.length < E164_MIN_DIGITS || digits.length > E164_MAX_DIGITS) return null
+    return `+${digits}`
+  }
+
+  const digits = trimmed.replace(/\D/g, '')
   if (digits.length === 10) return `+1${digits}`
   if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
+  if (digits.length > 11 && digits.length <= E164_MAX_DIGITS) return `+${digits}`
+  if (digits.length >= 10 && digits.length <= 11 && !digits.startsWith('1')) {
+    return `+${digits}`
+  }
+
   return null
+}
+
+/** Login / User.userName from E.164 or stored employee number. US → 10-digit national; intl → all digits. */
+export function generateUserName(phoneNumber: string): string {
+  const digits = phoneNumber.replace(/\D/g, '')
+  if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1)
+  return digits
+}
+
+/** Normalize login phone input to stored userName form. */
+export function loginUserNameFromInput(input: string): string {
+  const digits = input.replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1)
+  return digits
+}
+
+/** Candidate userNames to try when logging in (legacy US variants). */
+export function loginUserNameCandidates(input: string): string[] {
+  const digits = input.replace(/\D/g, '')
+  const out = new Set<string>()
+  if (!digits) return []
+
+  out.add(loginUserNameFromInput(input))
+  out.add(digits)
+
+  if (digits.length === 10) {
+    out.add(`1${digits}`)
+  }
+  if (digits.length === 11 && digits.startsWith('1')) {
+    out.add(digits.slice(1))
+  }
+
+  return [...out]
 }
 
 /**
@@ -38,8 +92,11 @@ export function nanp10DigitsForComparison(raw: string): string | null {
 export function phoneNumbersMatchForLinking(a: string, b: string): boolean {
   const da = nanp10DigitsForComparison(a)
   const db = nanp10DigitsForComparison(b)
-  if (da == null || db == null) return false
-  return da === db
+  if (da != null && db != null) return da === db
+  const ea = a.replace(/\D/g, '')
+  const eb = b.replace(/\D/g, '')
+  if (ea.length >= E164_MIN_DIGITS && eb.length >= E164_MIN_DIGITS) return ea === eb
+  return false
 }
 
 /** Supervisor User: prefer linked Employee number, else `userName` as digits (same rules as `normalizePhone`). */

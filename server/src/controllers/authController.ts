@@ -5,6 +5,7 @@ import axios from 'axios'
 import bcrypt from 'bcrypt'
 import { parseUserIdHeader } from '../utils/httpUser'
 import { signAccessToken, verifyBearerTokenForRefresh } from '../auth/jwtTokens'
+import { loginUserNameCandidates } from '../utils/phoneUtils'
 
 const prisma = new PrismaClient()
 
@@ -25,14 +26,15 @@ export async function login(req: Request, res: Response) {
   // Handle username/password login
   if (userName && password) {
     try {
-      const digits = userName.replace(/\D/g, '')
-      const normalizedUserName =
-        digits.startsWith('1') && digits.length === 11 ? digits.slice(1) : digits
-
-      const user = await prisma.user.findUnique({
-        where: { userName: normalizedUserName },
-        include: { employee: true },
-      })
+      const candidates = loginUserNameCandidates(userName)
+      let user = null
+      for (const candidate of candidates) {
+        user = await prisma.user.findUnique({
+          where: { userName: candidate },
+          include: { employee: true },
+        })
+        if (user) break
+      }
 
       if (!user) {
         return res.status(401).json({ error: 'Invalid username or password' })

@@ -5,11 +5,10 @@ import { Employee, SupervisorOption } from './types'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from '../../../../useFormPersistence'
 import AppointmentsSection from "../../../components/AppointmentsSection"
-import { formatPhone } from '../../../../formatPhone'
+import { formatPhone, phoneDigitsOnly, phoneHasMinDigits, phoneToApiPayload } from '../../../../formatPhone'
 
 function normalizeNumberForCompare(num: string): string {
-  const digits = num.replace(/\D/g, '')
-  return digits.length === 10 ? '1' + digits : digits
+  return num.replace(/\D/g, '')
 }
 
 export default function EmployeeForm() {
@@ -63,7 +62,7 @@ export default function EmployeeForm() {
 
   const hasSaveableChange = ((): boolean => {
     if (isNew) {
-      const hasRequired = data.name.trim() !== '' && data.number.replace(/\D/g, '').length >= 10 && (data.supervisorId != null && data.supervisorId !== '') && data.password?.trim() !== ''
+      const hasRequired = data.name.trim() !== '' && phoneHasMinDigits(data.number) && (data.supervisorId != null && data.supervisorId !== '') && data.password?.trim() !== ''
       return !!hasRequired
     }
     if (lastSaved == null) return false
@@ -109,8 +108,8 @@ export default function EmployeeForm() {
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    const digits = value.replace(/\D/g, '').slice(0, 11)
-    const updated = { ...data, [name]: digits }
+    const normalized = phoneDigitsOnly(value)
+    const updated = { ...data, [name]: normalized }
     persist(updated)
     setData(updated)
   }
@@ -124,7 +123,7 @@ export default function EmployeeForm() {
     }
     const payload: any = {
       name: data.name,
-      number: data.number.length === 10 ? '1' + data.number : data.number,
+      number: phoneToApiPayload(data.number),
       notes: data.notes,
       disabled: data.disabled ?? false,
       supervisorId,
@@ -153,7 +152,7 @@ export default function EmployeeForm() {
       return
     }
     clearFormPersistence(storageKey)
-    const normalizedNumber = data.number.length === 10 ? '1' + data.number : data.number
+    const normalizedNumber = phoneToApiPayload(data.number)
     setData((prev) => ({
       ...prev,
       password: '',
@@ -218,6 +217,9 @@ export default function EmployeeForm() {
           value={formatPhone(data.number)}
           onChange={handleNumberChange}
           type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          placeholder="+1 or +61…"
           required
           className="w-full border p-2 rounded"
         />

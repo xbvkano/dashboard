@@ -1,7 +1,7 @@
 import { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { DateTime } from 'luxon'
-import { normalizePhone } from '../utils/phoneUtils'
+import { normalizePhone, generateUserName } from '../utils/phoneUtils'
 import {
   appointmentLocalDateKey,
   DEFAULT_APPOINTMENT_TIMEZONE,
@@ -14,13 +14,6 @@ import { getNextOrThisUpdateDay } from '../utils/schedulePolicyUtils'
 import bcrypt from 'bcrypt'
 
 const prisma = new PrismaClient()
-
-// Generate userName from phone number (remove +1 and formatting)
-function generateUserName(phoneNumber: string): string {
-  // Remove all non-digit characters, then remove leading 1 if present
-  const digits = phoneNumber.replace(/\D/g, '')
-  return digits.startsWith('1') && digits.length === 11 ? digits.slice(1) : digits
-}
 
 export async function getEmployees(req: Request, res: Response) {
   const searchTerm = String(req.query.search || '').trim()
@@ -229,7 +222,7 @@ export async function createEmployee(req: Request, res: Response) {
     }
     const normalized = normalizePhone(number)
     if (!normalized) {
-      return res.status(400).json({ error: 'Number must be 10 or 11 digits' })
+      return res.status(400).json({ error: 'Invalid phone number. Use a full number with country code (e.g. +1 or +61).' })
     }
     const userName = generateUserName(normalized)
     

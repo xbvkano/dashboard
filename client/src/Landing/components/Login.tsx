@@ -193,13 +193,13 @@ export default function Login({ onLogin }: LoginProps) {
           <input
             id="username"
             type="tel"
-            inputMode="numeric"
+            inputMode="tel"
             autoComplete="tel"
             value={username}
             onChange={(e) => setUsername(phoneDigitsOnly(e.target.value))}
             required
             className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter your phone number"
+            placeholder="+1 or +61…"
           />
         </div>
         
