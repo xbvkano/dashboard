@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import type { Appointment } from '../types'
 
@@ -17,21 +17,6 @@ function formatDateAsUTC(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
-/**
- * Convert UTC date (from server) to local date string (YYYY-MM-DD) for display
- * Server sends dates as UTC, we convert to local for user display
- */
-function formatUTCDateAsLocal(dateStr: string | Date): string {
-  // If it's a Date object, convert to ISO string first
-  const isoStr = typeof dateStr === 'string' ? dateStr : dateStr.toISOString()
-  // Parse as UTC and get local date components
-  const utcDate = new Date(isoStr)
-  const localYear = utcDate.getFullYear()
-  const localMonth = String(utcDate.getMonth() + 1).padStart(2, '0')
-  const localDay = String(utcDate.getDate()).padStart(2, '0')
-  return `${localYear}-${localMonth}-${localDay}`
-}
-
 export function useCalendarData(
   selected: Date,
   setMonthInfo: (info: { startDay: number; endDay: number; daysInMonth: number } | null) => void,
@@ -39,6 +24,8 @@ export function useCalendarData(
   setWeekCounts: (counts: Record<string, number>) => void,
   setAppointments: (appts: { prev: Appointment[]; current: Appointment[]; next: Appointment[] }) => void
 ) {
+  const [isLoadingDay, setIsLoadingDay] = useState(true)
+
   const refreshMonthCounts = (d = selected) => {
     const year = d.getFullYear()
     const month = d.getMonth() + 1
@@ -60,7 +47,7 @@ export function useCalendarData(
   }
 
   const refresh = (d = selected) => {
-    const fetchDay = (day: Date) => {
+    const fetchDay = (day: Date): Promise<Appointment[]> => {
       const dateStr = formatDateAsUTC(day)
       return fetchJson(`${API_BASE_URL}/appointments?date=${dateStr}`)
         .then((res) => {
@@ -73,15 +60,19 @@ export function useCalendarData(
         })
         .catch((err) => {
           console.error('Error fetching appointments:', err)
-          return []
+          return [] as Appointment[]
         })
     }
-    Promise.all([
+    return Promise.all([
       fetchDay(addDays(d, -1)),
       fetchDay(d),
       fetchDay(addDays(d, 1)),
     ]).then(([prev, current, next]) => {
-      setAppointments({ prev, current, next })
+      setAppointments({
+        prev: prev as Appointment[],
+        current: current as Appointment[],
+        next: next as Appointment[],
+      })
     })
   }
 
@@ -100,15 +91,28 @@ export function useCalendarData(
     refreshWeekCounts(selected)
   }, [selected])
 
+  // Mark loading synchronously before paint when selected day changes
+  useLayoutEffect(() => {
+    setIsLoadingDay(true)
+  }, [selected])
+
   // Fetch appointments when selected date changes
   useEffect(() => {
-    refresh(selected)
+    let cancelled = false
+    setIsLoadingDay(true)
+    refresh(selected).finally(() => {
+      if (!cancelled) setIsLoadingDay(false)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [selected])
 
   return {
     refresh,
     refreshMonthCounts,
     refreshWeekCounts,
+    isLoadingDay,
   }
 }
 

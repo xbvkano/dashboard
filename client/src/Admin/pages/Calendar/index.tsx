@@ -5,7 +5,9 @@ import type { Appointment } from './types'
 import { useCalendarState } from './hooks/useCalendarState'
 import { useCalendarData } from './hooks/useCalendarData'
 import { useCalendarActions } from './hooks/useCalendarActions'
-import { startOfWeek, addDays, addMonths } from './utils/dateUtils'
+import { startOfWeek, addDays } from './utils/dateUtils'
+import { isCalendarTransitioning } from './utils/dayTimelinePaging'
+import { businessTodayDate, isSelectedBusinessToday } from './utils/goToToday'
 import MonthSelector from './components/MonthSelector'
 import WeekSelector from './components/WeekSelector'
 import DayTimeline from './components/DayTimeline'
@@ -16,6 +18,7 @@ export default function Calendar() {
   const [headerHeight, setHeaderHeight] = useState(0)
   const [isDesktop, setIsDesktop] = useState(false)
   const [navHeight, setNavHeight] = useState(48)
+  const [isSettling, setIsSettling] = useState(false)
   const headerRef = useRef<HTMLDivElement>(null)
   const {
     selected,
@@ -40,13 +43,15 @@ export default function Calendar() {
     queryAppt,
   } = useCalendarState()
 
-  const { refresh, refreshMonthCounts, refreshWeekCounts } = useCalendarData(
+  const { refresh, refreshMonthCounts, refreshWeekCounts, isLoadingDay } = useCalendarData(
     selected,
     setMonthInfo,
     setMonthCounts,
     setWeekCounts,
     setAppointments
   )
+
+  const isTransitioning = isCalendarTransitioning(isLoadingDay, isSettling)
 
   const { handleUpdate, handleCreateFrom, handleEdit, handleCreated, handleRescheduled } = useCalendarActions(
     setCreateParams,
@@ -103,12 +108,22 @@ export default function Calendar() {
   const weekStart = startOfWeek(selected)
   const days = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i))
 
-  const prevMonth = () => setSelected((d) => addMonths(d, -1))
-  const nextMonth = () => setSelected((d) => addMonths(d, 1))
-  const prevWeek = () => setSelected((d) => addDays(d, -7))
-  const nextWeek = () => setSelected((d) => addDays(d, 7))
+  const prevWeek = () => {
+    if (isTransitioning) return
+    setSelected((d) => addDays(d, -7))
+  }
+  const nextWeek = () => {
+    if (isTransitioning) return
+    setSelected((d) => addDays(d, 7))
+  }
   const prevDay = () => setSelected((d) => addDays(d, -1))
   const nextDay = () => setSelected((d) => addDays(d, 1))
+
+  const goToToday = () => {
+    if (isTransitioning) return
+    setSelected(businessTodayDate())
+    setShowMonth(false)
+  }
 
   // Measure header height for padding calculations
   useEffect(() => {
@@ -148,6 +163,7 @@ export default function Calendar() {
     }
   }, [])
   const contentPadding = isDesktop ? 108 : headerHeight
+  const showTodayButton = !isSelectedBusinessToday(selected)
 
   return (
     <div id="calendar-page" className="flex flex-col h-full">
@@ -162,25 +178,35 @@ export default function Calendar() {
       >
         <MonthSelector
           selected={selected}
-          setSelected={setSelected}
+          setSelected={(d) => {
+            if (isTransitioning) return
+            setSelected(d)
+          }}
           show={showMonth}
           setShow={setShowMonth}
           monthInfo={monthInfo}
           counts={monthCounts}
+          navigationLocked={isTransitioning}
+          onGoToToday={goToToday}
+          showTodayButton={showTodayButton}
         />
         <WeekSelector
           days={days}
           selected={selected}
-          setSelected={setSelected}
+          setSelected={(d) => {
+            if (isTransitioning) return
+            setSelected(d)
+          }}
           showMonth={showMonth}
           prevWeek={prevWeek}
           nextWeek={nextWeek}
           counts={weekCounts}
+          navigationLocked={isTransitioning}
         />
       </div>
       <div 
         id="calendar-content"
-        className="flex flex-col flex-1 overflow-hidden"
+        className="flex flex-col flex-1 overflow-hidden relative"
         style={{ 
           paddingTop: `${contentPadding}px`
         }}
@@ -210,7 +236,25 @@ export default function Calendar() {
             refreshMonthCounts(selected)
             refreshWeekCounts(selected)
           }}
+          onSettlingChange={setIsSettling}
+          navigationLocked={isTransitioning}
         />
+        {isTransitioning ? (
+          <div
+            className="absolute inset-0 z-30 flex items-center justify-center bg-white/80"
+            style={{ top: contentPadding }}
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <div className="flex flex-col items-center gap-2 text-gray-700">
+              <div
+                className="h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"
+                aria-hidden
+              />
+              <span className="text-sm">Loading day…</span>
+            </div>
+          </div>
+        ) : null}
       </div>
       <button
         className="fixed bottom-20 right-6 w-12 h-12 rounded-full bg-black text-white text-2xl flex items-center justify-center"

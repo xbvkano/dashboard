@@ -7,6 +7,9 @@ interface Props {
   setShow: (v: boolean) => void
   monthInfo: { startDay: number; endDay: number; daysInMonth: number } | null
   counts: Record<string, number>
+  navigationLocked?: boolean
+  onGoToToday?: () => void
+  showTodayButton?: boolean
 }
 
 function getPaddedMonthDays(date: Date) {
@@ -30,16 +33,20 @@ type MonthGridProps = {
   setSelected: (d: Date) => void
   setShow: (v: boolean) => void
   counts: Record<string, number>
+  navigationLocked?: boolean
 }
 
-function MonthGrid({ days, selected, setSelected, setShow, counts }: MonthGridProps) {
+function MonthGrid({ days, selected, setSelected, setShow, counts, navigationLocked = false }: MonthGridProps) {
   return (
     <div className="grid grid-cols-7 text-center flex-shrink-0 w-1/3">
       {days.map((day, idx) =>
         day ? (
           <button
             key={day.toDateString()}
+            type="button"
+            disabled={navigationLocked}
             onClick={() => {
+              if (navigationLocked) return
               setSelected(day)
               setShow(false)
             }}
@@ -47,7 +54,7 @@ function MonthGrid({ days, selected, setSelected, setShow, counts }: MonthGridPr
               day.toDateString() === selected.toDateString()
                 ? 'bg-blue-500 text-white'
                 : 'hover:bg-gray-200'
-            }`}
+            } ${navigationLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             {day.getDate()}
             {counts[day.toISOString().slice(0, 10)] ? (
@@ -71,6 +78,9 @@ export default function MonthSelector({
   setShow,
   monthInfo,
   counts,
+  navigationLocked = false,
+  onGoToToday,
+  showTodayButton = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const touchStartX = useRef<number | null>(null)
@@ -98,6 +108,7 @@ export default function MonthSelector({
 
   // internal prev/next handlers with clamp logic
   const handlePrevMonth = () => {
+    if (navigationLocked) return
     const year = selected.getFullYear()
     const month = selected.getMonth()
     const day = selected.getDate()
@@ -111,6 +122,7 @@ export default function MonthSelector({
   }
 
   const handleNextMonth = () => {
+    if (navigationLocked) return
     const year = selected.getFullYear()
     const month = selected.getMonth()
     const day = selected.getDate()
@@ -131,18 +143,24 @@ export default function MonthSelector({
   const nextDays = getPaddedMonthDays(nextDate)
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (navigationLocked) return
     touchStartX.current = e.touches[0].clientX
     setDragDelta(0)
     setAnimating(false)
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    if (navigationLocked) return
     if (touchStartX.current == null || !containerRef.current) return
     const diff = e.touches[0].clientX - touchStartX.current
     setDragDelta(diff)
   }
 
   const handleTouchEnd = () => {
+    if (navigationLocked) {
+      touchStartX.current = null
+      return
+    }
     if (touchStartX.current == null || !containerRef.current) return
     const w = containerRef.current.offsetWidth
     const threshold = w * 0.25
@@ -199,33 +217,50 @@ export default function MonthSelector({
   return (
     <>
       <div className="relative">
-        <div
-          className="p-2 text-center font-semibold border-b cursor-pointer flex items-center justify-center gap-1"
-          onClick={() => setShow(!show)}
-        >
-          {selected.toLocaleString('default', { month: 'long', year: 'numeric' })}
-          <svg
-            className={`w-4 h-4 transition-transform ${show ? 'rotate-180' : ''}`}
-            viewBox="0 0 20 20"
-            fill="currentColor"
+        <div className="p-2 text-center font-semibold border-b flex items-center justify-center gap-2 relative">
+          <button
+            type="button"
+            className="cursor-pointer flex items-center justify-center gap-1"
+            onClick={() => setShow(!show)}
           >
-            <path
-              fillRule="evenodd"
-              d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.061l-4.24 4.25a.75.75 0 01-1.06 0l-4.24-4.25a.75.75 0 01.02-1.06z"
-              clipRule="evenodd"
-            />
-          </svg>
+            {selected.toLocaleString('default', { month: 'long', year: 'numeric' })}
+            <svg
+              className={`w-4 h-4 transition-transform ${show ? 'rotate-180' : ''}`}
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.061l-4.24 4.25a.75.75 0 01-1.06 0l-4.24-4.25a.75.75 0 01.02-1.06z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+          {showTodayButton && onGoToToday ? (
+            <button
+              type="button"
+              disabled={navigationLocked}
+              onClick={onGoToToday}
+              className="px-2 py-1 text-sm font-normal text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Today
+            </button>
+          ) : null}
         </div>
         {show && (
           <>
             <button
-              className="hidden md:block absolute left-2 top-1/2 -translate-y-1/2"
+              type="button"
+              disabled={navigationLocked}
+              className="hidden md:block absolute left-2 top-1/2 -translate-y-1/2 disabled:opacity-50"
               onClick={handlePrevMonth}
             >
               &#8592;
             </button>
             <button
-              className="hidden md:block absolute right-2 top-1/2 -translate-y-1/2"
+              type="button"
+              disabled={navigationLocked}
+              className="hidden md:block absolute right-2 top-1/2 -translate-y-1/2 disabled:opacity-50"
               onClick={handleNextMonth}
             >
               &#8594;
@@ -252,6 +287,7 @@ export default function MonthSelector({
               setSelected={setSelected}
               setShow={setShow}
               counts={counts}
+              navigationLocked={navigationLocked}
             />
             <MonthGrid
               days={paddedCurrent}
@@ -259,6 +295,7 @@ export default function MonthSelector({
               setSelected={setSelected}
               setShow={setShow}
               counts={counts}
+              navigationLocked={navigationLocked}
             />
             <MonthGrid
               days={nextDays}
@@ -266,6 +303,7 @@ export default function MonthSelector({
               setSelected={setSelected}
               setShow={setShow}
               counts={counts}
+              navigationLocked={navigationLocked}
             />
           </div>
         </div>

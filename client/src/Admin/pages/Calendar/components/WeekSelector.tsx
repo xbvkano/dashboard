@@ -8,18 +8,33 @@ interface Props {
   prevWeek: () => void
   nextWeek: () => void
   counts: Record<string, number>
+  navigationLocked?: boolean
 }
 
-export default function WeekSelector({ days, selected, setSelected, showMonth, prevWeek, nextWeek, counts }: Props) {
+export default function WeekSelector({
+  days,
+  selected,
+  setSelected,
+  showMonth,
+  prevWeek,
+  nextWeek,
+  counts,
+  navigationLocked = false,
+}: Props) {
   const weekTouchStart = useRef<number | null>(null)
 
   return (
     <div
       className={`grid grid-cols-7 text-center border-b ${showMonth ? 'hidden' : ''}`}
       onTouchStart={(e) => {
+        if (navigationLocked) return
         weekTouchStart.current = e.touches[0].clientX
       }}
       onTouchEnd={(e) => {
+        if (navigationLocked) {
+          weekTouchStart.current = null
+          return
+        }
         if (weekTouchStart.current !== null) {
           const diff = e.changedTouches[0].clientX - weekTouchStart.current
           if (Math.abs(diff) > 50) {
@@ -35,8 +50,15 @@ export default function WeekSelector({ days, selected, setSelected, showMonth, p
         return (
           <button
             key={day.toDateString()}
-            onClick={() => setSelected(day)}
-            className={`p-1 ${isSelected ? 'bg-blue-500 text-white' : 'hover:bg-gray-200'}`}
+            type="button"
+            disabled={navigationLocked}
+            onClick={() => {
+              if (navigationLocked) return
+              setSelected(day)
+            }}
+            className={`p-1 ${isSelected ? 'bg-blue-500 text-white' : 'hover:bg-gray-200'} ${
+              navigationLocked ? 'opacity-60 cursor-not-allowed' : ''
+            }`}
           >
             <div className="text-xs">
               {day.toLocaleDateString('default', { weekday: 'short' })}

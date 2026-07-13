@@ -13,6 +13,14 @@ import { useModal } from '../../../../ModalProvider'
 import { formatPhone } from '../../../../formatPhone'
 import DayTimelineModalContainer from './DayTimelineHelpers/DayTimelineModalContainer'
 import type { DayTimelineModalView } from './DayTimelineHelpers/DayTimelineModalContainer'
+import {
+  bounceBackOffset,
+  centerOffset,
+  settleAfterSwipe,
+  shouldCommitSwipe,
+  swipeDirection,
+  targetOffsetAfterSwipe,
+} from '../utils/dayTimelinePaging'
 
 const CALENDAR_APPT_MODAL_STATE_KEY = 'calendarAppointmentModalState'
 
@@ -1062,6 +1070,10 @@ interface Props {
   onRescheduled?: (newAppointment: Appointment) => void
   onNavigateToDate?: (date: Date) => void
   onRefresh?: () => void
+  /** True while a day-page swipe is animating/settling. */
+  onSettlingChange?: (settling: boolean) => void
+  /** When true, ignore swipe gestures that change the day. */
+  navigationLocked?: boolean
 }
 
 export default function DayTimeline({
@@ -1080,6 +1092,8 @@ export default function DayTimeline({
   onRescheduled,
   onNavigateToDate,
   onRefresh,
+  onSettlingChange,
+  navigationLocked = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const currentDayRef = useRef<HTMLDivElement | null>(null)
@@ -1088,7 +1102,22 @@ export default function DayTimeline({
   const [dragDelta, setDragDelta] = useState(0)
   const [baseOffset, setBaseOffset] = useState(0)
   const [animating, setAnimating] = useState(false)
+  const [isSettling, setIsSettling] = useState(false)
   const lastSelectedDateRef = useRef<string>('')
+  const settleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onSettlingChangeRef = useRef(onSettlingChange)
+  onSettlingChangeRef.current = onSettlingChange
+
+  const setSettling = (value: boolean) => {
+    setIsSettling(value)
+    onSettlingChangeRef.current?.(value)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (settleTimeoutRef.current) clearTimeout(settleTimeoutRef.current)
+    }
+  }, [])
 
   // Reset baseOffset when selected date changes externally or window resizes
   // This ensures the displayed day always matches the selected date in the header
@@ -1101,10 +1130,12 @@ export default function DayTimeline({
     // (e.g., from WeekSelector/MonthSelector click, not from swipe navigation)
     // Only reset if not currently animating (to avoid interrupting swipe animations)
     if (lastSelectedDateRef.current !== selectedDateStr && !animating) {
-      setBaseOffset(-w)
-      setDragDelta(0)
-      setAnimating(false)
+      const settled = settleAfterSwipe(w)
+      setBaseOffset(settled.baseOffset)
+      setDragDelta(settled.dragDelta)
+      setAnimating(settled.animating)
       lastSelectedDateRef.current = selectedDateStr
+      setSettling(false)
     }
   }, [selectedDate, animating])
 
@@ -1115,9 +1146,10 @@ export default function DayTimeline({
     // Reset to center when appointments are reloaded
     // This handles cases where appointments update but selectedDate hasn't changed yet
     if (!animating) {
-      setBaseOffset(-w)
-      setDragDelta(0)
-      setAnimating(false)
+      const settled = settleAfterSwipe(w)
+      setBaseOffset(settled.baseOffset)
+      setDragDelta(settled.dragDelta)
+      setAnimating(settled.animating)
     }
   }, [appointments, prevAppointments, nextAppointments, animating])
 
@@ -1127,7 +1159,7 @@ export default function DayTimeline({
     const handleResize = () => {
       if (!containerRef.current || animating) return
       const w = containerRef.current.offsetWidth
-      setBaseOffset(-w)
+      setBaseOffset(centerOffset(w))
       setDragDelta(0)
     }
     window.addEventListener('resize', handleResize)
@@ -1135,6 +1167,7 @@ export default function DayTimeline({
   }, [animating])
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (navigationLocked || isSettling) return
     touchStartX.current = e.touches[0].clientX
     isPaging.current = false
     setDragDelta(0)
@@ -1142,6 +1175,7 @@ export default function DayTimeline({
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    if (navigationLocked || isSettling) return
     if (touchStartX.current == null) return
     const diff = e.touches[0].clientX - touchStartX.current
     const dayEl = currentDayRef.current
@@ -1170,30 +1204,31 @@ export default function DayTimeline({
       return
     }
     const w = containerRef.current.offsetWidth
-    const threshold = w * 0.25
     const moved = dragDelta
 
-    if (Math.abs(moved) > threshold) {
+    if (shouldCommitSwipe(moved, w)) {
+      const direction = swipeDirection(moved)
+      setSettling(true)
       setAnimating(true)
       setDragDelta(0)
-      if (moved < 0) {
-        // swipe left → next
-        setBaseOffset(-2 * w)
-        setTimeout(() => {
-          nextDay()
-        }, 300)
-      } else {
-        // swipe right → prev
-        setBaseOffset(0)
-        setTimeout(() => {
-          prevDay()
-        }, 300)
-      }
+      setBaseOffset(targetOffsetAfterSwipe(direction, w))
+      if (settleTimeoutRef.current) clearTimeout(settleTimeoutRef.current)
+      settleTimeoutRef.current = setTimeout(() => {
+        if (direction === 'next') nextDay()
+        else prevDay()
+        const settled = settleAfterSwipe(w)
+        setBaseOffset(settled.baseOffset)
+        setDragDelta(settled.dragDelta)
+        setAnimating(settled.animating)
+        // Keep isSettling true until selectedDate catches up (see layout effect above).
+      }, 300)
     } else {
-      setAnimating(true)
-      setBaseOffset(-w)
-      setDragDelta(0)
-      setTimeout(() => {
+      const bounce = bounceBackOffset(w)
+      setAnimating(bounce.animating)
+      setBaseOffset(bounce.baseOffset)
+      setDragDelta(bounce.dragDelta)
+      if (settleTimeoutRef.current) clearTimeout(settleTimeoutRef.current)
+      settleTimeoutRef.current = setTimeout(() => {
         setAnimating(false)
       }, 300)
     }
