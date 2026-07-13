@@ -10,9 +10,9 @@ import { useNavigate } from 'react-router-dom'
 import type { Appointment } from '../types'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
-import { formatPhone } from '../../../../formatPhone'
 import DayTimelineModalContainer from './DayTimelineHelpers/DayTimelineModalContainer'
 import type { DayTimelineModalView } from './DayTimelineHelpers/DayTimelineModalContainer'
+import AppointmentCard from './DayTimelineHelpers/AppointmentCard'
 import {
   bounceBackOffset,
   centerOffset,
@@ -783,66 +783,17 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
           const top = (l.start / 60) * 84
           const height = ((l.end - l.start) / 60) * 84 - 2
           const leftStyle = `calc(${dividerPx}px + 8px + ${l.lane} * (40vw + ${LANE_GAP}px))`
-          // Convert UTC date from server to local date for display
-          // Server stores dates as UTC, we display in user's local timezone
-          const apptDate = typeof l.appt.date === 'string' ? new Date(l.appt.date) : l.appt.date
-          const [year, month, day] = [
-            apptDate.getFullYear(),
-            apptDate.getMonth() + 1,
-            apptDate.getDate()
-          ];
 
-          // 2) pull out the hour/minute
-          const [sh, sm] = l.appt.time.split(':').map((n) => parseInt(n, 10));
-
-
-          // Unconfirmed recurring appointments are always blue
-          let bg = 'bg-red-200 border-red-400'
-          if (l.appt.status === 'RECURRING_UNCONFIRMED') {
-            bg = 'bg-blue-200 border-blue-400'
-          } else if (l.appt.paid) {
-            bg = 'bg-green-200 border-green-400'
-          } else if (l.appt.status === 'CANCEL') {
-            bg = 'bg-gray-200 border-gray-400'
-          } else if (l.appt.observe) {
-            bg = 'bg-yellow-200 border-yellow-400'
-          }
           return (
-            <div
+            <AppointmentCard
               key={l.appt.id ?? idx}
-              className={`absolute border rounded-md text-xs overflow-hidden cursor-pointer ${bg}`}
-              style={{ top, left: leftStyle, width: apptWidth, height, zIndex: 10 }}
+              appointment={l.appt}
+              style={{ top, left: leftStyle, width: apptWidth, height }}
               onClick={() => {
                 setSelected(l.appt)
                 setModalView('details')
               }}
-            >
-              <div className="flex justify-between items-start p-1">
-                <div className="pr-1 overflow-hidden flex-1">
-                  <div className="font-medium truncate">
-                    {l.appt.client?.name || 'Client'}
-                  </div>
-                  {l.appt.client?.number && (
-                    <div className="text-[10px] leading-tight">
-                      {formatPhone(l.appt.client.number)}
-                    </div>
-                  )}
-                </div>
-                <div
-                  className={`w-3 h-3 rounded-sm ${l.appt.noTeam ? 'bg-purple-500' : l.appt.infoSent ? 'bg-green-500' : 'bg-red-500'}`}
-                />
-              </div>
-              <div className="px-1 pb-1">{l.appt.type}</div>
-              <div className="px-1 pb-1 border-t border-gray-300 text-[10px] leading-tight">
-                {l.appt.employees && l.appt.employees.length > 0 ? (
-                  l.appt.employees.map((e) => (
-                    <div key={e.id}>{e.name}</div>
-                  ))
-                ) : (
-                  <div>no team</div>
-                )}
-              </div>
-            </div>
+            />
           )
         })}
 

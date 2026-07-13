@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
+import { businessTodayDate, isSameLocalDay } from '../utils/goToToday'
 
 interface Props {
   selected: Date
@@ -34,13 +35,30 @@ type MonthGridProps = {
   setShow: (v: boolean) => void
   counts: Record<string, number>
   navigationLocked?: boolean
+  today: Date
 }
 
-function MonthGrid({ days, selected, setSelected, setShow, counts, navigationLocked = false }: MonthGridProps) {
+function MonthGrid({
+  days,
+  selected,
+  setSelected,
+  setShow,
+  counts,
+  navigationLocked = false,
+  today,
+}: MonthGridProps) {
   return (
     <div className="grid grid-cols-7 text-center flex-shrink-0 w-1/3">
-      {days.map((day, idx) =>
-        day ? (
+      {days.map((day, idx) => {
+        if (!day) return <div key={idx} className="p-1" />
+        const isSelected = day.toDateString() === selected.toDateString()
+        const isToday = isSameLocalDay(day, today)
+        const dayClass = isSelected
+          ? 'bg-blue-500 text-white'
+          : isToday
+            ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+            : 'hover:bg-gray-200'
+        return (
           <button
             key={day.toDateString()}
             type="button"
@@ -50,11 +68,9 @@ function MonthGrid({ days, selected, setSelected, setShow, counts, navigationLoc
               setSelected(day)
               setShow(false)
             }}
-            className={`relative p-1 flex flex-col items-center ${
-              day.toDateString() === selected.toDateString()
-                ? 'bg-blue-500 text-white'
-                : 'hover:bg-gray-200'
-            } ${navigationLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+            className={`relative p-1 flex flex-col items-center ${dayClass} ${
+              navigationLocked ? 'opacity-60 cursor-not-allowed' : ''
+            }`}
           >
             {day.getDate()}
             {counts[day.toISOString().slice(0, 10)] ? (
@@ -63,10 +79,8 @@ function MonthGrid({ days, selected, setSelected, setShow, counts, navigationLoc
               </span>
             ) : null}
           </button>
-        ) : (
-          <div key={idx} className="p-1" />
         )
-      )}
+      })}
     </div>
   )
 }
@@ -84,6 +98,7 @@ export default function MonthSelector({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const touchStartX = useRef<number | null>(null)
+  const today = businessTodayDate()
 
   // pixels we've dragged
   const [dragDelta, setDragDelta] = useState(0)
@@ -241,9 +256,9 @@ export default function MonthSelector({
               type="button"
               disabled={navigationLocked}
               onClick={onGoToToday}
-              className="px-2 py-1 text-sm font-normal text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-md shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Today
+              Go to Today
             </button>
           ) : null}
         </div>
@@ -288,6 +303,7 @@ export default function MonthSelector({
               setShow={setShow}
               counts={counts}
               navigationLocked={navigationLocked}
+              today={today}
             />
             <MonthGrid
               days={paddedCurrent}
@@ -296,6 +312,7 @@ export default function MonthSelector({
               setShow={setShow}
               counts={counts}
               navigationLocked={navigationLocked}
+              today={today}
             />
             <MonthGrid
               days={nextDays}
@@ -304,6 +321,7 @@ export default function MonthSelector({
               setShow={setShow}
               counts={counts}
               navigationLocked={navigationLocked}
+              today={today}
             />
           </div>
         </div>

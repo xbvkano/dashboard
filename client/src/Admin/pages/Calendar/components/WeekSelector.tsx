@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { businessTodayDate, isSameLocalDay } from '../utils/goToToday'
 
 interface Props {
   days: Date[]
@@ -22,6 +23,7 @@ export default function WeekSelector({
   navigationLocked = false,
 }: Props) {
   const weekTouchStart = useRef<number | null>(null)
+  const today = businessTodayDate()
 
   return (
     <div
@@ -46,7 +48,13 @@ export default function WeekSelector({
     >
       {days.map((day) => {
         const isSelected = day.toDateString() === selected.toDateString()
+        const isToday = isSameLocalDay(day, today)
         const count = counts[day.toISOString().slice(0, 10)]
+        const dayClass = isSelected
+          ? 'bg-blue-500 text-white'
+          : isToday
+            ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+            : 'hover:bg-gray-200'
         return (
           <button
             key={day.toDateString()}
@@ -56,7 +64,7 @@ export default function WeekSelector({
               if (navigationLocked) return
               setSelected(day)
             }}
-            className={`p-1 ${isSelected ? 'bg-blue-500 text-white' : 'hover:bg-gray-200'} ${
+            className={`p-1 ${dayClass} ${
               navigationLocked ? 'opacity-60 cursor-not-allowed' : ''
             }`}
           >
