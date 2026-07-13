@@ -55,8 +55,12 @@ export default function MessagesBookAppointmentModalHost() {
     id === SCREENSHOT_BOOKING_CONVERSATION_ID &&
     /\/messages\/screenshot-booking\/?$/.test(location.pathname)
 
+  /** Screenshot booking is only inline on its route — never as a global overlay (e.g. when navigating to Messages home). */
+  const useScreenshotBooking =
+    id === SCREENSHOT_BOOKING_CONVERSATION_ID
+
   useEffect(() => {
-    if (!bookModalOpen || id == null || useInboxSplitPanel || useScreenshotSplitPanel || id === SCREENSHOT_BOOKING_CONVERSATION_ID) {
+    if (!bookModalOpen || id == null || useInboxSplitPanel || useScreenshotSplitPanel || useScreenshotBooking) {
       setDetail(null)
       return
     }
@@ -72,11 +76,11 @@ export default function MessagesBookAppointmentModalHost() {
     return () => {
       cancelled = true
     }
-  }, [bookModalOpen, id, useInboxSplitPanel, useScreenshotSplitPanel])
+  }, [bookModalOpen, id, useInboxSplitPanel, useScreenshotSplitPanel, useScreenshotBooking])
 
   return (
     <>
-      {bookModalOpen && id != null && draft != null && !useInboxSplitPanel && !useScreenshotSplitPanel && (
+      {bookModalOpen && id != null && draft != null && !useInboxSplitPanel && !useScreenshotBooking && (
         <BookAppointmentModal
           open
           conversationId={id}

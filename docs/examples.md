@@ -30,13 +30,13 @@ Client:
  Ok thank you. Payment after completion?
 
 Client:
- And to confirm this is for move in for $360?
+ And to confirm this is for move in for $320?
 
 Admin:
  We do not require any upfront payment. Payment can be made preferably via Zelle after the cleaning is completed.
 
 Admin:
- Yes, move in 360
+ Yes, move in 320
 
 Client:
  Ok works for me!
@@ -54,7 +54,7 @@ Client:
  Yes
 
 Expected body:
-{"clientName":"Reem Witwit","clientPhone":"805-470-0072","appointmentAddress":"11584 Ashy Storm Ave, Las Vegas, NV 89138","price":360,"date":"2026-04-13","time":"09:00","notes":"Move-in cleaning, no gate code, payment after completion via Zelle","size":"1500-2000","serviceType":"MOVE_IN_OUT"}
+{"clientName":"Reem Witwit","clientPhone":"805-470-0072","appointmentAddress":"11584 Ashy Storm Ave, Las Vegas, NV 89138","price":320,"date":"2026-04-13","time":"09:00","notes":"Move-in cleaning, no gate code, payment after completion via Zelle","size":"1500-2000","serviceType":"MOVE_IN_OUT"}
 ----------------
 
 ----------------
@@ -62,7 +62,7 @@ Example 2:
 Admin:
  Service: Deep Cleaning
  Size: 0–1000
-Hi, this is Evidence Cleaning, the price for this cleaning will be 240, to schedule your cleaning I will only need your address, gate code and your name. We are a highly recommended company by Yelp and Google, our cleaners have a lot of experience in this type of cleaning. If you are interested let me know.
+Hi, this is Evidence Cleaning, the price for this cleaning will be 290, to schedule your cleaning I will only need your address, gate code and your name. We are a highly recommended company by Yelp and Google, our cleaners have a lot of experience in this type of cleaning. If you are interested let me know.
 
 Client:
  Hi, my house is actually 1179 square feet. How much would a deep cleaning cost? I’m looking for Thursday 4/16. How long would that take?
@@ -71,7 +71,7 @@ Admin:
  I’m available on 04/16 at 9 AM or 2 PM. Would you like me to reserve one of these times for you?
 
 Admin:
- Deep cleaning 240.
+ Deep cleaning 290.
 
 Client:
  Okay, great. My name is Hallie Lyons and my address is 9074 Living Rose Street. No gate code. Thursday, April 16 at 9:00 would be perfect. Let me know what else you need. I do have one cat in case anyone is allergic.
@@ -89,7 +89,7 @@ Admin:
  Have a great week
 
 Expected body:
- {"clientName":"Hallie Lyons","clientPhone":"702-277-9546","appointmentAddress":"9074 Living Rose Street","price":240,"date":"2026-04-16","time":"09:00","notes":"No gate code, client has one cat","size":"1000-1500","serviceType":"DEEP"}
+ {"clientName":"Hallie Lyons","clientPhone":"702-277-9546","appointmentAddress":"9074 Living Rose Street","price":290,"date":"2026-04-16","time":"09:00","notes":"No gate code, client has one cat","size":"1000-1500","serviceType":"DEEP"}
 ----------------
 
 
@@ -97,7 +97,7 @@ Expected body:
 Example 3:
 Admin:
  Hi Corey 😊! This is Evidence Cleaning, your trusted choice for top-quality cleaning services in Las Vegas! We're proud to be top-rated on Yelp and Google, feel free to check out what our amazing clients are saying about us! ⭐⭐⭐⭐⭐
-The price is 360
+The price is 320
 If you need anything at all, don't hesitate to message us at +1 (725) 577-4524, we usually reply very quickly!
 
 Client:
@@ -146,7 +146,7 @@ Client:
 Thank you for confirming, Marcelo. I would like to schedule my move-out cleaning for Monday, April 27, at 9 am, if that time slot is still open. I am a senior and plan to pay cash so if this qualifies for any kind of discount, it will make me very happy. Kindly confirm. Thank you for your patience.
 
 Admin:
-Confirmed, and we can apply a $30 discount, so the total for this cleaning will be 330.
+Confirmed, and we can apply a $30 discount, so the total for this cleaning will be 290.
 
 Your appointment is confirmed.
 Thank you for your service, we truly appreciate it. Have a great day!
@@ -180,5 +180,5 @@ Hello, thank you very much for your message, and I apologize for not replying to
 
 
 Expected body:
-{"clientName":"Roxanne Vierra","clientPhone":"808-722-5279","appointmentAddress":"318 Palm Trace Ave, Las Vegas NV 89148","price":330,"date":"2026-04-27","time":"09:00","notes":"Move-out cleaning, senior discount applied ($30), no carpet, laminate and tile flooring, high ceilings, clean ledges and tops of cabinets, baseboard cleaning included","size":"1500-2000","serviceType":"MOVE_IN_OUT"}
+{"clientName":"Roxanne Vierra","clientPhone":"808-722-5279","appointmentAddress":"318 Palm Trace Ave, Las Vegas NV 89148","price":290,"date":"2026-04-27","time":"09:00","notes":"Move-out cleaning, senior discount applied ($30 off $320 base), no carpet, laminate and tile flooring, high ceilings, clean ledges and tops of cabinets, baseboard cleaning included","size":"1500-2000","serviceType":"MOVE_IN_OUT"}
 ----------------

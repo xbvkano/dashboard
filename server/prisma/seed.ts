@@ -249,7 +249,7 @@ async function main() {
       type: 'STANDARD',
       size: '1500-2000',
       address: '123 Main St',
-      price: 120,
+      price: 240,
       clientId: john.id,
     },
   })
@@ -259,7 +259,7 @@ async function main() {
       type: 'DEEP',
       size: '2000-2500',
       address: '456 Oak Ave',
-      price: 200,
+      price: 380,
       clientId: jane.id,
     },
   })
@@ -269,7 +269,7 @@ async function main() {
       type: 'STANDARD',
       size: '1500-2000',
       address: '789 Test St',
-      price: 150,
+      price: 240,
       clientId: marcos.id,
       instructions: 'Use side door. Pet in backyard. Leave invoice in mailbox.',
     },
@@ -1252,7 +1252,7 @@ async function main() {
     name: 'Corey Heckman',
     phoneDigits: '7025694250',
     messages: [
-      { dir: 'OUTBOUND', body: 'The price is 360. Availability: 27 at 9am.' },
+      { dir: 'OUTBOUND', body: 'The price is 320. Availability: 27 at 9am.' },
       {
         dir: 'INBOUND',
         body: 'Can I reserve the 27th at 9am?',

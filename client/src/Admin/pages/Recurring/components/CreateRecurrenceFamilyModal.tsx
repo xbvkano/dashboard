@@ -3,6 +3,7 @@ import { API_BASE_URL, fetchJson } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
 import { formatPhone } from '../../../../formatPhone'
 import type { RecurrenceRule } from '../../../../types'
+import { SIZE_OPTIONS } from '../../../../shared/sizeOptions'
 
 interface Client {
   id: number
@@ -73,21 +74,6 @@ export default function CreateRecurrenceFamilyModal({
   const [dayOfMonth, setDayOfMonth] = useState<number | undefined>(undefined)
   const [loading, setLoading] = useState(false)
   const [intervalError, setIntervalError] = useState<string>('')
-
-  const sizeOptions = [
-    '0-1000',
-    '1000-1500',
-    '1500-2000',
-    '2000-2500',
-    '2500-3000',
-    '3000-3500',
-    '3500-4000',
-    '4000-4500',
-    '4500-5000',
-    '5000-5500',
-    '5500-6000',
-    '6000+',
-  ]
 
   useEffect(() => {
     fetchJson(`${API_BASE_URL}/admins`)
@@ -444,7 +430,7 @@ export default function CreateRecurrenceFamilyModal({
                     className="w-full border p-2 rounded"
                   >
                     <option value="">Select size</option>
-                    {sizeOptions.map((s) => (
+                    {SIZE_OPTIONS.map((s) => (
                       <option key={s} value={s}>
                         {s}
                       </option>

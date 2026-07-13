@@ -104,9 +104,9 @@ export default function ScreenshotBooking() {
     setDraftForConversation,
     setHighlightsForConversation,
     setBookingScreenshotUrlsForConversation,
+    bookingScreenshotUrlsByConversationId,
     openBookModal,
     ensureDraft,
-    closeBookModal,
     cancelBookModal,
     completeBookModal,
   } = useBookAppointmentDrafts()
@@ -145,8 +145,11 @@ export default function ScreenshotBooking() {
 
     screenshotRestoreDoneRef.current = true
     const p = loadScreenshotUi()
+    const sessionActive =
+      bookModalOpen && activeBookConversationId === SID && hasMeaningfulDraft(d)
     /** Do not open from `hasMeaningfulDraft(d)` alone — stale draft "0" in LS could reopen after book when `p` was cleared. */
     const shouldOpenBooking =
+      sessionActive ||
       Boolean(p?.extractOnce) ||
       hasHighlightContent(p?.highlights ?? null) ||
       (Boolean(p) && hasMeaningfulDraft(d))
@@ -154,10 +157,16 @@ export default function ScreenshotBooking() {
     if (p?.highlights && hasHighlightContent(p.highlights)) {
       setHighlightsForConversation(SID, p.highlights)
     }
-    if (p?.extractOnce) {
+    if (sessionActive || p?.extractOnce) {
       setExtractOnce(true)
     }
-    if (shouldOpenBooking) {
+    const savedUrls = bookingScreenshotUrlsByConversationId[SID] ?? []
+    if (savedUrls.length > 0) {
+      setPhotoSlots(
+        savedUrls.map((publicUrl) => ({ kind: 'saved' as const, publicUrl })),
+      )
+    }
+    if (shouldOpenBooking && !sessionActive) {
       openBookModal(SID)
       if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
         const tab =
@@ -166,7 +175,14 @@ export default function ScreenshotBooking() {
       }
     }
     setUiHydrated(true)
-  }, [draftsByConversationId, openBookModal, setHighlightsForConversation])
+  }, [
+    draftsByConversationId,
+    bookModalOpen,
+    activeBookConversationId,
+    bookingScreenshotUrlsByConversationId,
+    openBookModal,
+    setHighlightsForConversation,
+  ])
 
   /** Persist highlights + extract-once + mobile tab (draft already persists via BookAppointmentDraftsContext). */
   useEffect(() => {
@@ -524,7 +540,7 @@ export default function ScreenshotBooking() {
         draft={draft}
         highlights={highlights}
         onDraftChange={(next) => setDraftForConversation(SID, next)}
-        onClose={closeBookModal}
+        onClose={() => {}}
         onCancel={handleCancelBooking}
         onBooked={handleBooked}
       />

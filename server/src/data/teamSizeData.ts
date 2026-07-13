@@ -9,45 +9,53 @@ export interface TeamSizeRow {
   service: string
   teamSize: number
   price: number
+  requiresReview?: boolean
+}
+
+export interface PricingResult {
+  teamSize: number | null
+  price: number | null
+  requiresReview: boolean
+  message?: string
 }
 
 export const teamSizeData: TeamSizeRow[] = [
-  { size: '0-1000', service: 'Standard', teamSize: 1, price: 195 },
-  { size: '0-1000', service: 'Deep', teamSize: 1, price: 240 },
-  { size: '0-1000', service: 'Move', teamSize: 1, price: 280 },
-  { size: '1000-1500', service: 'Standard', teamSize: 1, price: 210 },
-  { size: '1000-1500', service: 'Deep', teamSize: 1, price: 260 },
-  { size: '1000-1500', service: 'Move', teamSize: 1, price: 280 },
-  { size: '1500-2000', service: 'Standard', teamSize: 1, price: 220 },
-  { size: '1500-2000', service: 'Deep', teamSize: 1, price: 290 },
+  { size: '0-1000', service: 'Standard', teamSize: 1, price: 210 },
+  { size: '0-1000', service: 'Deep', teamSize: 1, price: 249 },
+  { size: '0-1000', service: 'Move', teamSize: 1, price: 249 },
+  { size: '1000-1500', service: 'Standard', teamSize: 1, price: 220 },
+  { size: '1000-1500', service: 'Deep', teamSize: 1, price: 290 },
+  { size: '1000-1500', service: 'Move', teamSize: 1, price: 290 },
+  { size: '1500-2000', service: 'Standard', teamSize: 1, price: 240 },
+  { size: '1500-2000', service: 'Deep', teamSize: 1, price: 320 },
   { size: '1500-2000', service: 'Move', teamSize: 1, price: 320 },
-  { size: '2000-2500', service: 'Standard', teamSize: 1, price: 240 },
-  { size: '2000-2500', service: 'Deep', teamSize: 2, price: 360 },
+  { size: '2000-2500', service: 'Standard', teamSize: 1, price: 260 },
+  { size: '2000-2500', service: 'Deep', teamSize: 2, price: 380 },
   { size: '2000-2500', service: 'Move', teamSize: 2, price: 380 },
-  { size: '2500-3000', service: 'Standard', teamSize: 1, price: 260 },
-  { size: '2500-3000', service: 'Deep', teamSize: 2, price: 380 },
-  { size: '2500-3000', service: 'Move', teamSize: 2, price: 380 },
-  { size: '3000-3500', service: 'Standard', teamSize: 2, price: 295 },
-  { size: '3000-3500', service: 'Deep', teamSize: 2, price: 395 },
+  { size: '2500-3000', service: 'Standard', teamSize: 1, price: 290 },
+  { size: '2500-3000', service: 'Deep', teamSize: 2, price: 395 },
+  { size: '2500-3000', service: 'Move', teamSize: 2, price: 395 },
+  { size: '3000-3500', service: 'Standard', teamSize: 2, price: 320 },
+  { size: '3000-3500', service: 'Deep', teamSize: 2, price: 420 },
   { size: '3000-3500', service: 'Move', teamSize: 2, price: 420 },
-  { size: '3500-4000', service: 'Standard', teamSize: 2, price: 320 },
-  { size: '3500-4000', service: 'Deep', teamSize: 2, price: 420 },
+  { size: '3500-4000', service: 'Standard', teamSize: 2, price: 360 },
+  { size: '3500-4000', service: 'Deep', teamSize: 2, price: 440 },
   { size: '3500-4000', service: 'Move', teamSize: 2, price: 440 },
-  { size: '4000-4500', service: 'Standard', teamSize: 2, price: 380 },
-  { size: '4000-4500', service: 'Deep', teamSize: 2, price: 450 },
+  { size: '4000-4500', service: 'Standard', teamSize: 2, price: 420 },
+  { size: '4000-4500', service: 'Deep', teamSize: 2, price: 480 },
   { size: '4000-4500', service: 'Move', teamSize: 2, price: 480 },
-  { size: '4500-5000', service: 'Standard', teamSize: 2, price: 420 },
+  { size: '4500-5000', service: 'Standard', teamSize: 2, price: 440 },
   { size: '4500-5000', service: 'Deep', teamSize: 2, price: 520 },
-  { size: '4500-5000', service: 'Move', teamSize: 2, price: 560 },
-  { size: '5000-5500', service: 'Standard', teamSize: 2, price: 450 },
-  { size: '5000-5500', service: 'Deep', teamSize: 2, price: 550 },
-  { size: '5000-5500', service: 'Move', teamSize: 2, price: 580 },
-  { size: '5500-6000', service: 'Standard', teamSize: 2, price: 480 },
-  { size: '5500-6000', service: 'Deep', teamSize: 2, price: 595 },
-  { size: '5500-6000', service: 'Move', teamSize: 3, price: 620 },
-  { size: '6000+', service: 'Standard', teamSize: 2, price: 480 },
-  { size: '6000+', service: 'Deep', teamSize: 2, price: 595 },
-  { size: '6000+', service: 'Move', teamSize: 3, price: 620 },
+  { size: '4500-5000', service: 'Move', teamSize: 2, price: 520 },
+  { size: '5000-5500', service: 'Standard', teamSize: 2, price: 480 },
+  { size: '5000-5500', service: 'Deep', teamSize: 3, price: 620 },
+  { size: '5000-5500', service: 'Move', teamSize: 3, price: 620 },
+  { size: '5500-6000', service: 'Standard', teamSize: 2, price: 520 },
+  { size: '5500-6000', service: 'Deep', teamSize: 3, price: 660 },
+  { size: '5500-6000', service: 'Move', teamSize: 3, price: 660 },
+  { size: '6000+', service: 'Standard', teamSize: 0, price: 0, requiresReview: true },
+  { size: '6000+', service: 'Deep', teamSize: 0, price: 0, requiresReview: true },
+  { size: '6000+', service: 'Move', teamSize: 0, price: 0, requiresReview: true },
 ]
 
 const serviceMap: Record<string, string> = {
@@ -56,14 +64,36 @@ const serviceMap: Record<string, string> = {
   MOVE_IN_OUT: 'Move',
 }
 
-export function getDefaultTeamSize(size: string, type: string): number {
+const SUPERVISOR_REVIEW_MESSAGE = 'Price requires supervisor review'
+
+export function getPricing(size: string, type: string): PricingResult {
   const row = findRow(size, type)
-  return row?.teamSize ?? 1
+  if (!row) {
+    return { teamSize: null, price: null, requiresReview: false }
+  }
+  if (row.requiresReview) {
+    return {
+      teamSize: null,
+      price: null,
+      requiresReview: true,
+      message: SUPERVISOR_REVIEW_MESSAGE,
+    }
+  }
+  return {
+    teamSize: row.teamSize,
+    price: row.price,
+    requiresReview: false,
+  }
+}
+
+export function getDefaultTeamSize(size: string, type: string): number {
+  const result = getPricing(size, type)
+  return result.teamSize ?? 1
 }
 
 export function getDefaultPrice(size: string, type: string): number {
-  const row = findRow(size, type)
-  return row?.price ?? 0
+  const result = getPricing(size, type)
+  return result.price ?? 0
 }
 
 function findRow(size: string, type: string): TeamSizeRow | undefined {
@@ -75,7 +105,7 @@ function findRow(size: string, type: string): TeamSizeRow | undefined {
 }
 
 export function getSizeRange(size: string): string {
-  if (size.includes('-')) return size
+  if (size.includes('-') || size.endsWith('+')) return size
   const sqft = parseSqft(size)
   if (sqft === null) return size
   if (sqft <= 1000) return '0-1000'
