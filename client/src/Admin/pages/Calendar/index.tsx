@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { API_BASE_URL, fetchJson } from '../../../api'
 import type { Appointment } from './types'
@@ -15,11 +15,9 @@ import CreateAppointmentModal from './components/CreateAppointmentModal'
 
 export default function Calendar() {
   const [scrollToApptId, setScrollToApptId] = useState<number | undefined>(undefined)
-  const [headerHeight, setHeaderHeight] = useState(0)
   const [isDesktop, setIsDesktop] = useState(false)
   const [navHeight, setNavHeight] = useState(48)
   const [isSettling, setIsSettling] = useState(false)
-  const headerRef = useRef<HTMLDivElement>(null)
   const {
     selected,
     setSelected,
@@ -125,14 +123,6 @@ export default function Calendar() {
     setShowMonth(false)
   }
 
-  // Measure header height for padding calculations
-  useEffect(() => {
-    if (headerRef.current) {
-      const height = headerRef.current.offsetHeight
-      setHeaderHeight(height)
-    }
-  }, [showMonth, selected])
-
   // Detect desktop vs mobile for responsive padding and measure nav height
   useEffect(() => {
     const checkDesktop = () => {
@@ -162,14 +152,14 @@ export default function Calendar() {
       clearTimeout(timeoutId)
     }
   }, [])
-  const contentPadding = isDesktop ? 108 : headerHeight
+  // Mobile header is sticky (in flow); only desktop fixed header needs content padding.
+  const contentPadding = isDesktop ? 108 : 0
   const showTodayButton = !isSelectedBusinessToday(selected)
 
   return (
     <div id="calendar-page" className="flex flex-col h-full">
       <div 
         id="calendar-header"
-        ref={headerRef}
         className="sticky md:fixed top-0 left-0 right-0 z-40 bg-white"
         style={{ 
           top: isDesktop ? `${navHeight}px` : '0px',
@@ -257,10 +247,17 @@ export default function Calendar() {
         ) : null}
       </div>
       <button
-        className="fixed bottom-20 right-6 w-12 h-12 rounded-full bg-black text-white text-2xl flex items-center justify-center"
+        type="button"
+        aria-label="Create appointment"
+        className="fixed right-6 z-40 w-12 h-12 rounded-full bg-black text-white text-2xl leading-none flex items-center justify-center"
+        style={{
+          bottom: 'max(6.5rem, calc(5.25rem + env(safe-area-inset-bottom)))',
+        }}
         onClick={() => setCreateParams({})}
       >
-        +
+        <span className="leading-none flex items-center justify-center translate-y-[-1px]" aria-hidden>
+          +
+        </span>
       </button>
       {createParams && (
         <CreateAppointmentModal
