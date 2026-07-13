@@ -158,11 +158,12 @@ export function whereAppointmentOnOrAfterLocalDate(
 
 /** Compare / order using calendar anchor (dateUtc or legacy). */
 export function orderByAppointmentCalendar(): Prisma.AppointmentOrderByWithRelationInput[] {
-  return [{ dateUtc: 'asc' }, { date: 'asc' }, { time: 'asc' }]
+  return [{ dateUtc: { sort: 'asc', nulls: 'last' } }, { date: 'asc' }, { time: 'asc' }]
 }
 
 export function orderByAppointmentCalendarDesc(): Prisma.AppointmentOrderByWithRelationInput[] {
-  return [{ dateUtc: 'desc' }, { date: 'desc' }, { time: 'desc' }]
+  // Postgres DESC defaults to NULLS FIRST; put missing dateUtc last so latest filled days stay on top.
+  return [{ dateUtc: { sort: 'desc', nulls: 'last' } }, { date: 'desc' }, { time: 'desc' }]
 }
 
 /** Re-anchor any instant to the business local calendar day’s UTC start (after date math / recurrence). */

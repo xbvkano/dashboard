@@ -496,6 +496,8 @@ export async function postExtractAppointmentFromStandaloneImages(
 export type ClientAppointment = {
   id: number
   date: string
+  /** YYYY-MM-DD in business timezone when provided by API. */
+  localDate?: string
   time: string
   address: string | null
   type: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'

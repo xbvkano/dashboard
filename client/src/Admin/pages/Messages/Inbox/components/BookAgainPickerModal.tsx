@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchClientAppointments, type ClientAppointment } from '../messagingApi'
+import { sortClientAppointmentsNewestFirst } from '../bookAgainSort'
 
 type Props = {
   open: boolean
@@ -8,11 +9,11 @@ type Props = {
   onPick: (appt: ClientAppointment) => void
 }
 
-function formatDay(iso: string): string {
+function formatDay(a: ClientAppointment): string {
   try {
-    return iso.slice(0, 10)
+    return (a.localDate || a.date).slice(0, 10)
   } catch {
-    return iso
+    return a.date
   }
 }
 
@@ -28,7 +29,7 @@ export default function BookAgainPickerModal({ open, clientId, onClose, onPick }
     setError(null)
     fetchClientAppointments(clientId, 25)
       .then((rows) => {
-        if (!cancelled) setItems(rows)
+        if (!cancelled) setItems(sortClientAppointmentsNewestFirst(rows))
       })
       .catch((e) => {
         console.error(e)
@@ -64,7 +65,7 @@ export default function BookAgainPickerModal({ open, clientId, onClose, onPick }
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-slate-900 truncate">
-                  {formatDay(a.date)} {a.time}
+                  {formatDay(a)} {a.time}
                 </p>
                 <p className="text-xs text-slate-500 truncate">
                   {a.type} • {a.size ?? '—'} • ${Number(a.price ?? 0).toFixed(0)}
@@ -102,4 +103,3 @@ export default function BookAgainPickerModal({ open, clientId, onClose, onPick }
     </div>
   )
 }
-
