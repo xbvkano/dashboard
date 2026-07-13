@@ -3,6 +3,10 @@ export interface PricingResult {
   price: number | null
   requiresReview: boolean
   message?: string
+  size?: string
+  extraCleanerAmount?: number | null
+  baseboardsPrice?: number | null
+  carpetShampoo?: { rooms: number; ratePerRoom: number; total: number } | null
 }
 
 export interface ResultField {
@@ -22,11 +26,36 @@ function buildResultFields(result: PricingResult): ResultField[] {
     return []
   }
   const fields: ResultField[] = []
+  if (result.size) {
+    fields.push({ id: 'size', label: 'Estimated Size (SQFT)', value: result.size })
+  }
   if (result.teamSize != null) {
     fields.push({ id: 'teamSize', label: 'Team Size', value: String(result.teamSize) })
   }
   if (result.price != null) {
-    fields.push({ id: 'price', label: 'Price', value: `$${result.price}` })
+    fields.push({ id: 'price', label: 'Base Price', value: `$${result.price}` })
+  }
+  if (result.extraCleanerAmount != null) {
+    fields.push({
+      id: 'extraCleaner',
+      label: 'Extra Cleaner',
+      value: `$${result.extraCleanerAmount}`,
+    })
+  }
+  if (result.carpetShampoo) {
+    const { rooms, ratePerRoom, total } = result.carpetShampoo
+    fields.push({
+      id: 'carpetShampoo',
+      label: 'Carpet Shampoo',
+      value: `${rooms} room${rooms !== 1 ? 's' : ''} × $${ratePerRoom} = $${total}`,
+    })
+  }
+  if (result.baseboardsPrice != null) {
+    fields.push({
+      id: 'baseboards',
+      label: 'Baseboards Add-on',
+      value: `$${result.baseboardsPrice}`,
+    })
   }
   return fields
 }
@@ -51,7 +80,7 @@ export default function PricingResult({ result, loading, error }: PricingResultP
   if (!result) {
     return (
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-        Select a size and type to see pricing.
+        Select inputs above to see pricing.
       </div>
     )
   }

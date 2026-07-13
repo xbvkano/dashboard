@@ -19,7 +19,7 @@ describe('teamSizeData', () => {
     it('returns correct price and team size for 2000-2500 Deep', () => {
       expect(getPricing('2000-2500', 'DEEP')).toEqual({
         teamSize: 2,
-        price: 380,
+        price: 410,
         requiresReview: false,
       })
     })
@@ -27,7 +27,7 @@ describe('teamSizeData', () => {
     it('returns correct price and team size for 5000-5500 Move-in/out', () => {
       expect(getPricing('5000-5500', 'MOVE_IN_OUT')).toEqual({
         teamSize: 3,
-        price: 620,
+        price: 660,
         requiresReview: false,
       })
     })
@@ -44,7 +44,7 @@ describe('teamSizeData', () => {
     it('maps raw sqft to bucket via getSizeRange', () => {
       expect(getPricing('3200', 'STANDARD')).toEqual({
         teamSize: 2,
-        price: 320,
+        price: 380,
         requiresReview: false,
       })
     })
@@ -53,7 +53,7 @@ describe('teamSizeData', () => {
   describe('getDefaultTeamSize / getDefaultPrice backward compat', () => {
     it('delegates to getPricing for normal rows', () => {
       expect(getDefaultTeamSize('1500-2000', 'DEEP')).toBe(1)
-      expect(getDefaultPrice('1500-2000', 'DEEP')).toBe(320)
+      expect(getDefaultPrice('1500-2000', 'DEEP')).toBe(340)
     })
 
     it('falls back when requires review', () => {
@@ -76,19 +76,55 @@ describe('teamSizeData', () => {
 })
 
 describe('resolvePricingInput', () => {
-  it('resolves sizeType mode', () => {
+  it('resolves sizeType mode with add-ons', () => {
     expect(
       resolvePricingInput({ mode: 'sizeType', size: '1000-1500', type: 'DEEP' })
     ).toEqual({
       teamSize: 1,
-      price: 290,
+      price: 295,
       requiresReview: false,
+      size: '1000-1500',
+      extraCleanerAmount: 100,
+      baseboardsPrice: 20,
+      carpetShampoo: null,
     })
   })
 
-  it('throws for unimplemented bedBath mode', () => {
+  it('resolves bedBath mode', () => {
+    expect(
+      resolvePricingInput({
+        mode: 'bedBath',
+        bedrooms: 3,
+        bathrooms: 2,
+        type: 'STANDARD',
+      })
+    ).toEqual({
+      teamSize: 1,
+      price: 260,
+      requiresReview: false,
+      size: '1500-2000',
+      extraCleanerAmount: 80,
+      baseboardsPrice: 20,
+      carpetShampoo: null,
+    })
+  })
+
+  it('includes carpet shampoo when rooms provided', () => {
+    expect(
+      resolvePricingInput({
+        mode: 'sizeType',
+        size: '0-1000',
+        type: 'STANDARD',
+        carpetShampooRooms: 2,
+      })
+    ).toMatchObject({
+      carpetShampoo: { rooms: 2, ratePerRoom: 45, total: 90 },
+    })
+  })
+
+  it('throws for unmapped bedBath combo', () => {
     expect(() =>
-      resolvePricingInput({ mode: 'bedBath', bedrooms: 3, bathrooms: 2, type: 'STANDARD' })
-    ).toThrow('not implemented')
+      resolvePricingInput({ mode: 'bedBath', bedrooms: 5, bathrooms: 2, type: 'STANDARD' })
+    ).toThrow('No size mapping')
   })
 })

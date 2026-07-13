@@ -549,19 +549,19 @@ const preserveTeamRef = useRef(false)
       ? templates.find((tt) => tt.id === selectedTemplate)?.size
       : templateForm.size
     if (!size) return
-    const parseSize = (s: string): number | null => {
-      const parts = s.split('-')
-      let n = parseInt(parts[1] || parts[0])
-      if (isNaN(n)) n = parseInt(s)
-      return isNaN(n) ? null : n
-    }
-    const sqft = parseSize(size)
-    if (sqft === null) return
-    const price = (parseInt(carpetRooms, 10) || 0) * (sqft >= 4000 ? 40 : 35)
-    setDefaultCarpetPrice(price)
-    if (!overrideCarpetPrice) {
-      setTemplateForm((prev: typeof templateForm) => ({ ...prev, carpetPrice: String(price) }))
-    }
+    fetchJson<{ total: number }>(
+      `${API_BASE_URL}/carpet-shampoo-price?size=${encodeURIComponent(size)}&rooms=${carpetRooms}`
+    )
+      .then((data) => {
+        setDefaultCarpetPrice(data.total)
+        if (!overrideCarpetPrice) {
+          setTemplateForm((prev: typeof templateForm) => ({
+            ...prev,
+            carpetPrice: String(data.total),
+          }))
+        }
+      })
+      .catch(() => setDefaultCarpetPrice(null))
   }, [carpetEnabled, carpetRooms, selectedTemplate, templateForm.size, overrideCarpetPrice])
 
   

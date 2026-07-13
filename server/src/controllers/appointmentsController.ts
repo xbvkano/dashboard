@@ -7,6 +7,7 @@ import {
   calculateAppointmentHours,
   getSlotFromTime,
 } from '../utils/appointmentUtils'
+import { getCarpetShampooPrice } from '../data/addonPricing'
 import {
   appointmentAnchorUtc,
   appointmentLocalDateKey,
@@ -241,9 +242,9 @@ export async function createAppointment(req: Request, res: Response) {
       if (template.carpetPrice != null && carpetRoomsFinal) {
         finalCarpetPrice = template.carpetPrice
       } else if (carpetRoomsFinal && template.size) {
-        const sqft = parseSqft(template.size)
-        if (sqft !== null) {
-          finalCarpetPrice = carpetRoomsFinal * (sqft >= 4000 ? 40 : 35)
+        const carpetResult = getCarpetShampooPrice(template.size, carpetRoomsFinal)
+        if (carpetResult) {
+          finalCarpetPrice = carpetResult.total
         }
       }
     }
@@ -412,9 +413,9 @@ export async function updateAppointment(req: Request, res: Response) {
           template.size
         ) {
           const cr = data.carpetRooms ?? template.carpetRooms
-          const sqft = parseSqft(template.size)
-          if (sqft !== null) {
-            data.carpetPrice = cr * (sqft >= 4000 ? 40 : 35)
+          const carpetResult = getCarpetShampooPrice(template.size, cr)
+          if (carpetResult) {
+            data.carpetPrice = carpetResult.total
           }
         }
       }

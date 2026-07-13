@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { parseSqft, calculatePayRate, calculateCarpetRate } from '../utils/appointmentUtils'
+import { getCarpetShampooPrice } from '../data/addonPricing'
 import { getPricing } from '../data/teamSizeData'
 import { resolvePricingInput, type PricingSearchInput } from '../services/pricing/resolvePricingInput'
 
@@ -21,6 +22,16 @@ export function postPricingCalculate(req: Request, res: Response) {
     if (!input.size || !input.type) {
       return res.status(400).json({ error: 'size and type required' })
     }
+  } else if (input.mode === 'bedBath') {
+    if (
+      input.bedrooms == null ||
+      input.bathrooms == null ||
+      !input.type ||
+      isNaN(Number(input.bedrooms)) ||
+      isNaN(Number(input.bathrooms))
+    ) {
+      return res.status(400).json({ error: 'bedrooms, bathrooms, and type required' })
+    }
   }
   try {
     res.json(resolvePricingInput(input))
@@ -29,8 +40,27 @@ export function postPricingCalculate(req: Request, res: Response) {
     if (message.includes('not implemented')) {
       return res.status(501).json({ error: message })
     }
+    if (message.includes('No size mapping')) {
+      return res.status(400).json({ error: message })
+    }
     return res.status(400).json({ error: message })
   }
+}
+
+export function getCarpetShampooPriceEndpoint(req: Request, res: Response) {
+  const size = String(req.query.size || '')
+  const rooms = parseInt(String(req.query.rooms || '0'), 10)
+
+  if (!size || isNaN(rooms) || rooms <= 0) {
+    return res.status(400).json({ error: 'size and rooms required' })
+  }
+
+  const result = getCarpetShampooPrice(size, rooms)
+  if (!result) {
+    return res.status(400).json({ error: 'invalid size' })
+  }
+
+  res.json(result)
 }
 
 export function getPayRate(req: Request, res: Response) {
