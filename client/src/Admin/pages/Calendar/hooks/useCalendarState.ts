@@ -66,7 +66,12 @@ export function useCalendarState() {
     const stored = localStorage.getItem('createParams')
     if (stored) {
       try {
-        return JSON.parse(stored)
+        const parsed = JSON.parse(stored)
+        // Ignore blank "from scratch" drafts; creation lives on the client page now.
+        if (parsed && (parsed.clientId != null || parsed.appointment != null)) {
+          return parsed
+        }
+        localStorage.removeItem('createParams')
       } catch {}
     }
     return null

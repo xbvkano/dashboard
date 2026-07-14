@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useLocation, useSearchParams } from 'react-router-dom'
-import { API_BASE_URL, fetchJson } from '../../../api'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import type { Appointment } from './types'
 import { useCalendarState } from './hooks/useCalendarState'
 import { useCalendarData } from './hooks/useCalendarData'
@@ -12,12 +11,15 @@ import MonthSelector from './components/MonthSelector'
 import WeekSelector from './components/WeekSelector'
 import DayTimeline from './components/DayTimeline'
 import CreateAppointmentModal from './components/CreateAppointmentModal'
+import DayCapacityModal from './components/DayCapacityModal'
 
 export default function Calendar() {
   const [scrollToApptId, setScrollToApptId] = useState<number | undefined>(undefined)
   const [isDesktop, setIsDesktop] = useState(false)
   const [navHeight, setNavHeight] = useState(48)
   const [isSettling, setIsSettling] = useState(false)
+  const [dayInfoOpen, setDayInfoOpen] = useState(false)
+  const navigate = useNavigate()
   const {
     selected,
     setSelected,
@@ -76,32 +78,17 @@ export default function Calendar() {
     if (!isNaN(d.getTime())) setSelected(d)
   }, [location.search, setSelected])
 
-  // Open create modal from Schedule "Book Again" link (bookAgain=appointmentId)
+  // Legacy Schedule "Book Again" link: redirect to client booking page
   useEffect(() => {
     const bookAgainId = searchParams.get('bookAgain')
     if (!bookAgainId) return
-    const id = parseInt(bookAgainId, 10)
-    if (Number.isNaN(id)) return
-    let cancelled = false
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       next.delete('bookAgain')
       return next
-    })
-    fetchJson(`${API_BASE_URL}/appointments/${id}`)
-      .then((appt: Appointment) => {
-        if (cancelled || !appt) return
-        const dateStr = appt.date
-        const parts = dateStr.split('-')
-        if (parts.length === 3) {
-          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
-          if (!isNaN(d.getTime())) setSelected(d)
-        }
-        handleCreateFrom(appt, 'APPOINTED')
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [searchParams])
+    }, { replace: true })
+    // Without client id we cannot open the client page; ignore orphan params.
+  }, [searchParams, setSearchParams])
 
   const weekStart = startOfWeek(selected)
   const days = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i))
@@ -121,6 +108,15 @@ export default function Calendar() {
     if (isTransitioning) return
     setSelected(businessTodayDate())
     setShowMonth(false)
+  }
+
+  const handleCreateOrBookAgain = (appt: Appointment, status: Appointment['status']) => {
+    if (status === 'APPOINTED' && appt.clientId) {
+      const qs = appt.id != null ? `?sourceAppt=${appt.id}` : ''
+      navigate(`/dashboard/contacts/clients/${appt.clientId}/book-appointment${qs}`)
+      return
+    }
+    void handleCreateFrom(appt, status)
   }
 
   // Detect desktop vs mobile for responsive padding and measure nav height
@@ -212,7 +208,7 @@ export default function Calendar() {
           scrollToApptId={scrollToApptId}
           selectedDate={selected}
           onUpdate={handleUpdate}
-          onCreate={(appt, status) => handleCreateFrom(appt, status)}
+          onCreate={handleCreateOrBookAgain}
           onEdit={handleEdit}
           onRescheduled={handleRescheduled}
           onNavigateToDate={(date) => {
@@ -248,17 +244,25 @@ export default function Calendar() {
       </div>
       <button
         type="button"
-        aria-label="Create appointment"
+        aria-label="Day overview"
+        title="Day overview"
         className="fixed right-6 z-40 w-12 h-12 rounded-full bg-black text-white text-2xl leading-none flex items-center justify-center"
         style={{
           bottom: 'max(6.5rem, calc(5.25rem + env(safe-area-inset-bottom)))',
         }}
-        onClick={() => setCreateParams({})}
+        onClick={() => setDayInfoOpen(true)}
       >
         <span className="leading-none flex items-center justify-center translate-y-[-1px]" aria-hidden>
-          +
+          ?
         </span>
       </button>
+      {dayInfoOpen && (
+        <DayCapacityModal
+          date={selected}
+          appointments={appointments.current}
+          onClose={() => setDayInfoOpen(false)}
+        />
+      )}
       {createParams && (
         <CreateAppointmentModal
           onClose={() => {

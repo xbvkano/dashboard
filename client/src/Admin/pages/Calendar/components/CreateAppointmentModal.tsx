@@ -39,20 +39,42 @@ interface Props {
   initialAppointment?: import('../types').Appointment
   /** Pre-fill time when opening from "Book Again" (date is not pre-filled) */
   initialTime?: string
+  /** Modal overlay (default) or inline page content */
+  variant?: 'modal' | 'page'
+  /** When true, hide client search/change; form is locked to initialClientId */
+  lockClient?: boolean
+  /** localStorage key for draft state (defaults to createAppointmentState) */
+  persistenceKey?: string
+  /** localStorage key for selected template id */
+  templatePersistenceKey?: string
 }
 
-export default function CreateAppointmentModal({ onClose, onCreated, initialClientId, initialTemplateId, newStatus, initialAppointment, initialTime: initialTimeProp }: Props) {
+export default function CreateAppointmentModal({
+  onClose,
+  onCreated,
+  initialClientId,
+  initialTemplateId,
+  newStatus,
+  initialAppointment,
+  initialTime: initialTimeProp,
+  variant = 'modal',
+  lockClient = false,
+  persistenceKey = 'createAppointmentState',
+  templatePersistenceKey = 'createAppointmentSelectedTemplateId',
+}: Props) {
   const { alert, confirm } = useModal()
+  const isPage = variant === 'page'
 
   useEffect(() => {
+    if (isPage) return
     const original = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
       document.body.style.overflow = original
     }
-  }, [])
+  }, [isPage])
   const persisted = (() => {
-    const stored = localStorage.getItem('createAppointmentState')
+    const stored = localStorage.getItem(persistenceKey)
     if (stored) {
       try {
         return JSON.parse(stored) as Record<string, any>
@@ -65,11 +87,15 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
 
   const [clientSearch, setClientSearch] = useState<string>(persisted.clientSearch ?? '')
   const [clients, setClients] = useState<Client[]>([])
-  const [selectedClient, setSelectedClient] = useState<Client | null>(persisted.selectedClient ?? null)
+  const [selectedClient, setSelectedClient] = useState<Client | null>(
+    lockClient ? null : (persisted.selectedClient ?? null),
+  )
   const [newClient, setNewClient] = useState<{ name: string; number: string; notes: string; from: string }>(
     persisted.newClient ?? { name: '', number: '', notes: '', from: '' },
   )
-  const [showNewClient, setShowNewClient] = useState<boolean>(persisted.showNewClient ?? false)
+  const [showNewClient, setShowNewClient] = useState<boolean>(
+    lockClient ? false : (persisted.showNewClient ?? false),
+  )
 
   const handleNewClientNumberChange = (
     e: React.ChangeEvent<HTMLInputElement>
@@ -80,14 +106,17 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   }
 
   const getInitialTemplate = () => {
-    const stored = localStorage.getItem('createAppointmentState')
+    if (initialTemplateId != null && !Number.isNaN(initialTemplateId)) {
+      return initialTemplateId
+    }
+    const stored = localStorage.getItem(persistenceKey)
     if (stored) {
       try {
         const s = JSON.parse(stored)
         if (typeof s.selectedTemplate === 'number') return s.selectedTemplate
       } catch {}
     }
-    const local = localStorage.getItem('createAppointmentSelectedTemplateId')
+    const local = localStorage.getItem(templatePersistenceKey)
     if (local) {
       const id = Number(local)
       if (!isNaN(id)) return id
@@ -175,15 +204,18 @@ export default function CreateAppointmentModal({ onClose, onCreated, initialClie
   // Legacy recurring state removed - use Recurring Appointments page instead
   const [creating, setCreating] = useState(false)
 
+  const clearDraft = () => {
+    localStorage.removeItem(persistenceKey)
+    localStorage.removeItem(templatePersistenceKey)
+  }
+
   const handleClose = () => {
-    localStorage.removeItem('createAppointmentState')
-    localStorage.removeItem('createAppointmentSelectedTemplateId')
+    clearDraft()
     onClose()
   }
 
   const handleCancel = () => {
-    localStorage.removeItem('createAppointmentState')
-    localStorage.removeItem('createAppointmentSelectedTemplateId')
+    clearDraft()
     onClose()
   }
 
@@ -247,16 +279,17 @@ const preserveTeamRef = useRef(false)
         setCarpetRooms(String((initialAppointment as any).carpetRooms))
       }
       initializedRef.current = true
-      localStorage.removeItem('createAppointmentState')
+      localStorage.removeItem(persistenceKey)
+      localStorage.removeItem(templatePersistenceKey)
     } else {
-      const stored = localStorage.getItem('createAppointmentState')
+      const stored = localStorage.getItem(persistenceKey)
       if (stored) {
         try {
           const s = JSON.parse(stored)
-          if (s.clientSearch) setClientSearch(s.clientSearch)
-          if (s.selectedClient) setSelectedClient(s.selectedClient)
-          if (s.newClient) setNewClient({ from: '', ...s.newClient })
-          if (typeof s.showNewClient === 'boolean') setShowNewClient(s.showNewClient)
+          if (s.clientSearch && !lockClient) setClientSearch(s.clientSearch)
+          if (s.selectedClient && !lockClient) setSelectedClient(s.selectedClient)
+          if (s.newClient && !lockClient) setNewClient({ from: '', ...s.newClient })
+          if (typeof s.showNewClient === 'boolean' && !lockClient) setShowNewClient(s.showNewClient)
           if (typeof s.selectedTemplate !== 'undefined') {
             setSelectedTemplate(s.selectedTemplate)
             storedTemplateIdRef.current = s.selectedTemplate
@@ -317,26 +350,26 @@ const preserveTeamRef = useRef(false)
       overrideCarpetPrice,
       carpetEmployees,
     }
-    localStorage.setItem('createAppointmentState', JSON.stringify(data))
-  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, paid, tip, paymentMethod, otherPayment, employeeSearch, selectedEmployees, carpetEnabled, carpetRooms, templateForm.carpetPrice, overrideCarpetPrice, carpetEmployees])
+    localStorage.setItem(persistenceKey, JSON.stringify(data))
+  }, [clientSearch, selectedClient, newClient, showNewClient, selectedTemplate, showNewTemplate, editing, editingTemplateId, templateForm, date, time, paid, tip, paymentMethod, otherPayment, employeeSearch, selectedEmployees, carpetEnabled, carpetRooms, templateForm.carpetPrice, overrideCarpetPrice, carpetEmployees, persistenceKey])
 
   useEffect(() => {
     if (selectedTemplate !== null) {
-      localStorage.setItem('createAppointmentSelectedTemplateId', String(selectedTemplate))
+      localStorage.setItem(templatePersistenceKey, String(selectedTemplate))
     } else {
-      localStorage.removeItem('createAppointmentSelectedTemplateId')
+      localStorage.removeItem(templatePersistenceKey)
     }
 
-    const stored = localStorage.getItem('createAppointmentState')
+    const stored = localStorage.getItem(persistenceKey)
     if (stored) {
       try {
         const data = JSON.parse(stored)
         data.selectedTemplate = selectedTemplate
         data.editingTemplateId = editingTemplateId
-        localStorage.setItem('createAppointmentState', JSON.stringify(data))
+        localStorage.setItem(persistenceKey, JSON.stringify(data))
       } catch {}
     }
-  }, [selectedTemplate, templates, editingTemplateId])
+  }, [selectedTemplate, templates, editingTemplateId, persistenceKey, templatePersistenceKey])
 
   const resetCarpet = (disable: boolean = true) => {
     if (disable) setCarpetEnabled(false)
@@ -398,8 +431,9 @@ const preserveTeamRef = useRef(false)
       .catch(() => {})
   }, [initialClientId])
 
-  // Load clients when search changes
+  // Load clients when search changes (skipped when client is locked to the route)
   useEffect(() => {
+    if (lockClient) return
     fetchJson(
       `${API_BASE_URL}/clients?search=${encodeURIComponent(
         clientSearch
@@ -407,7 +441,7 @@ const preserveTeamRef = useRef(false)
     )
       .then((d) => setClients(d))
       .catch((err) => console.error(err))
-  }, [clientSearch])
+  }, [clientSearch, lockClient])
 
   // Load templates when client selected
   const prevClientRef = useRef<Client | null>(null)
@@ -875,8 +909,10 @@ const preserveTeamRef = useRef(false)
       
       if (res.ok) {
         const appt = await res.json()
+        clearDraft()
         onCreated(appt)
-        handleCancel()
+        // Modal edit/create needs onClose to dismiss overlay. Page flow navigates in onCreated.
+        if (!isPage) onClose()
       } else {
         const errorText = await res.text()
         let errorData
@@ -902,34 +938,19 @@ const preserveTeamRef = useRef(false)
   const btnCancel = 'px-4 py-2 text-sm font-medium bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors'
   const btnClose = 'text-slate-500 hover:text-slate-700 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200 transition-colors'
 
-  return (
-    <>
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-2 overflow-hidden"
-    >
-      <div
-        className="bg-white rounded-xl shadow-lg w-full max-w-xl overflow-hidden max-h-[90vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-2 shrink-0">
-          <h2 className="text-lg font-semibold text-slate-800">
-            {initialAppointment ? 'Edit Appointment' : 'New Appointment'}
-          </h2>
-          <button type="button" onClick={handleClose} className={btnClose}>
-            ×
-          </button>
-        </div>
-
-        <div className="p-4 space-y-4 overflow-y-auto overflow-x-hidden min-h-0 flex-1">
+  const formBody = (
+        <div className={isPage ? 'p-0 space-y-4' : 'p-4 space-y-4 overflow-y-auto overflow-x-hidden min-h-0 flex-1'}>
         {/* Client block */}
         {selectedClient ? (
           <div className={blockClass}>
             <h4 className={sectionTitleClass}>Client</h4>
             <div className="flex items-center justify-between gap-2">
               <p className="font-medium text-slate-900">{selectedClient.name}</p>
-              <button type="button" className={btnSecondary} onClick={resetAll}>
-                Change
-              </button>
+              {!lockClient && (
+                <button type="button" className={btnSecondary} onClick={resetAll}>
+                  Change
+                </button>
+              )}
             </div>
             <div className="text-sm text-slate-600 mt-2 space-y-1 border-t border-slate-100 pt-2">
               <div>
@@ -967,6 +988,11 @@ const preserveTeamRef = useRef(false)
               {selectedClient.from && <div>From: {selectedClient.from}</div>}
               {selectedClient.notes && <div>Notes: {selectedClient.notes}</div>}
             </div>
+          </div>
+        ) : lockClient ? (
+          <div className={blockClass}>
+            <h4 className={sectionTitleClass}>Client</h4>
+            <p className="text-sm text-slate-500">Loading client…</p>
           </div>
         ) : showNewClient ? (
           <div className={`${blockClass} space-y-3`}>
@@ -1490,7 +1516,6 @@ const preserveTeamRef = useRef(false)
               !date ||
               !time ||
               !isValidCarpet() ||
-              false &&
               creating
             }
             onClick={createAppointment}
@@ -1499,6 +1524,37 @@ const preserveTeamRef = useRef(false)
           </button>
         </div>
         </div>
+  )
+
+  if (isPage) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+          <h2 className="text-lg font-semibold text-slate-800">New Appointment</h2>
+        </div>
+        <div className="p-4">{formBody}</div>
+      </div>
+    )
+  }
+
+  return (
+    <>
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-2 overflow-hidden"
+    >
+      <div
+        className="bg-white rounded-xl shadow-lg w-full max-w-xl overflow-hidden max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-2 shrink-0">
+          <h2 className="text-lg font-semibold text-slate-800">
+            {initialAppointment ? 'Edit Appointment' : 'New Appointment'}
+          </h2>
+          <button type="button" onClick={handleClose} className={btnClose}>
+            ×
+          </button>
+        </div>
+        {formBody}
       </div>
     </div>
     {/* Legacy recurring modal removed - use Recurring Appointments page */}

@@ -947,9 +947,12 @@ export default function Schedule() {
           }}
           onViewChange={setEmployeeModalView}
           onCreate={() => {
-            if (employeeViewAppointment?.id != null) {
+            const appt = employeeViewAppointment
+            if (appt?.clientId != null) {
+              const source = appt.id
               setEmployeeViewAppointment(null)
-              navigate(`/dashboard/calendar?date=${employeeViewAppointment.date}&bookAgain=${employeeViewAppointment.id}`)
+              const qs = source != null ? `?sourceAppt=${source}` : ''
+              navigate(`/dashboard/contacts/clients/${appt.clientId}/book-appointment${qs}`)
             }
           }}
           onViewInCalendar={() => {

@@ -28,6 +28,7 @@ export default function ClientForm() {
   const phoneE164 = useMemo(() => phoneToE164(data.number), [data.number])
   const telHref = phoneE164 ? `tel:${phoneE164}` : null
   const contactActionsEnabled = !isNew && !!phoneE164
+  const canBookAppointment = !isNew && Number.isFinite(Number(id))
 
   useEffect(() => {
     if (!contactMenuOpen) return
@@ -155,7 +156,7 @@ export default function ClientForm() {
   return (
     <form onSubmit={handleSubmit} className="p-4 space-y-3">
       <div className="flex justify-end md:hidden min-h-[40px]">
-        {contactActionsEnabled && telHref && (
+        {(contactActionsEnabled || canBookAppointment) && (
           <div className="relative" ref={contactMenuRef}>
             <button
               type="button"
@@ -172,28 +173,44 @@ export default function ClientForm() {
             </button>
             {contactMenuOpen && (
               <div className="absolute right-0 mt-1 w-44 rounded-lg border border-slate-200 bg-white shadow-lg z-20 py-1">
-                <a
-                  href={telHref}
-                  className="block px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50"
-                  onClick={() => setContactMenuOpen(false)}
-                >
-                  Call
-                </a>
-                <button
-                  type="button"
-                  className="block w-full text-left px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-                  onClick={() => void handleOpenInboxText()}
-                  disabled={textBusy}
-                >
-                  {textBusy ? 'Opening...' : 'Text'}
-                </button>
-                <button
-                  type="button"
-                  className="block w-full text-left px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50"
-                  onClick={() => void handleCopyPhone()}
-                >
-                  {phoneCopied ? 'Copied' : 'Copy phone'}
-                </button>
+                {canBookAppointment && (
+                  <button
+                    type="button"
+                    className="block w-full text-left px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50"
+                    onClick={() => {
+                      setContactMenuOpen(false)
+                      navigate(`/dashboard/contacts/clients/${id}/book-appointment`)
+                    }}
+                  >
+                    Book appointment
+                  </button>
+                )}
+                {contactActionsEnabled && telHref && (
+                  <>
+                    <a
+                      href={telHref}
+                      className="block px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50"
+                      onClick={() => setContactMenuOpen(false)}
+                    >
+                      Call
+                    </a>
+                    <button
+                      type="button"
+                      className="block w-full text-left px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                      onClick={() => void handleOpenInboxText()}
+                      disabled={textBusy}
+                    >
+                      {textBusy ? 'Opening...' : 'Text'}
+                    </button>
+                    <button
+                      type="button"
+                      className="block w-full text-left px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50"
+                      onClick={() => void handleCopyPhone()}
+                    >
+                      {phoneCopied ? 'Copied' : 'Copy phone'}
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -211,29 +228,42 @@ export default function ClientForm() {
           required
           className="w-full border p-2 rounded"
         />
-        {contactActionsEnabled && telHref && (
+        {(contactActionsEnabled || canBookAppointment) && (
           <div className="mt-2 hidden md:flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void handleOpenInboxText()}
-              disabled={textBusy}
-              className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-60"
-            >
-              {textBusy ? 'Opening...' : 'Text'}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleCopyPhone()}
-              className="px-3 py-1.5 bg-slate-100 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
-            >
-              {phoneCopied ? 'Copied' : 'Copy phone'}
-            </button>
-            <a
-              href={telHref}
-              className="px-3 py-1.5 bg-slate-100 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
-            >
-              Call
-            </a>
+            {canBookAppointment && (
+              <button
+                type="button"
+                onClick={() => navigate(`/dashboard/contacts/clients/${id}/book-appointment`)}
+                className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+              >
+                Book appointment
+              </button>
+            )}
+            {contactActionsEnabled && telHref && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleOpenInboxText()}
+                  disabled={textBusy}
+                  className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-60"
+                >
+                  {textBusy ? 'Opening...' : 'Text'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCopyPhone()}
+                  className="px-3 py-1.5 bg-slate-100 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
+                >
+                  {phoneCopied ? 'Copied' : 'Copy phone'}
+                </button>
+                <a
+                  href={telHref}
+                  className="px-3 py-1.5 bg-slate-100 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
+                >
+                  Call
+                </a>
+              </>
+            )}
           </div>
         )}
       </div>
