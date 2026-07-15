@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../../../api'
 import type { Call } from '../../../../../external_prisma_schemas/website_schema'
 import CallCard from './CallCard'
@@ -6,6 +6,7 @@ import CallCard from './CallCard'
 const CARDS_PER_PAGE = 5
 const INITIAL_PAGES = 4
 const FETCH_COUNT = CARDS_PER_PAGE * INITIAL_PAGES
+const SEARCH_FETCH_COUNT = 500
 
 interface CallsResponse {
   data: Call[]
@@ -18,6 +19,10 @@ interface CallListProps {
   sections?: string[]
 }
 
+function digitsOnly(value: string): string {
+  return (value || '').replace(/\D/g, '')
+}
+
 export default function CallList({ sections = [] }: CallListProps) {
   const [items, setItems] = useState<Call[]>([])
   const [total, setTotal] = useState(0)
@@ -25,9 +30,21 @@ export default function CallList({ sections = [] }: CallListProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [sectionFilter, setSectionFilter] = useState<string>('')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
 
-  const totalPages = Math.max(1, Math.ceil(total / CARDS_PER_PAGE))
-  const pageItems = items.slice(
+  const filteredItems = useMemo(() => {
+    if (!debouncedSearch) return items
+    return items.filter(
+      (c) =>
+        digitsOnly(c.caller).includes(debouncedSearch) ||
+        digitsOnly(c.called).includes(debouncedSearch)
+    )
+  }, [items, debouncedSearch])
+
+  const displayTotal = debouncedSearch ? filteredItems.length : total
+  const totalPages = Math.max(1, Math.ceil(displayTotal / CARDS_PER_PAGE))
+  const pageItems = filteredItems.slice(
     (currentPage - 1) * CARDS_PER_PAGE,
     currentPage * CARDS_PER_PAGE
   )
@@ -35,8 +52,9 @@ export default function CallList({ sections = [] }: CallListProps) {
   function fetchPage(offset: number) {
     if (loading) return
     setLoading(true)
+    const count = debouncedSearch ? SEARCH_FETCH_COUNT : FETCH_COUNT
     const params = new URLSearchParams({
-      count: String(FETCH_COUNT),
+      count: String(count),
       offset: String(offset),
     })
     if (sectionFilter) params.set('section', sectionFilter)
@@ -58,13 +76,22 @@ export default function CallList({ sections = [] }: CallListProps) {
   }
 
   useEffect(() => {
+    const timeout = window.setTimeout(
+      () => setDebouncedSearch(digitsOnly(search)),
+      300
+    )
+    return () => window.clearTimeout(timeout)
+  }, [search])
+
+  useEffect(() => {
     setItems([])
     setNextOffset(null)
     setCurrentPage(1)
     fetchPage(0)
-  }, [sectionFilter])
+  }, [sectionFilter, debouncedSearch])
 
   useEffect(() => {
+    if (debouncedSearch) return
     const needIndex = currentPage * CARDS_PER_PAGE - 1
     if (
       currentPage > INITIAL_PAGES &&
@@ -74,31 +101,49 @@ export default function CallList({ sections = [] }: CallListProps) {
     ) {
       fetchPage(nextOffset)
     }
-  }, [currentPage, items.length, nextOffset, loading])
+  }, [currentPage, items.length, nextOffset, loading, debouncedSearch])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(displayTotal / CARDS_PER_PAGE))
+    if (currentPage > maxPage) setCurrentPage(maxPage)
+  }, [displayTotal, currentPage])
 
   return (
     <section className="flex flex-col flex-1 min-h-0 h-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-200 shrink-0 space-y-2">
         <h3 className="text-lg font-semibold text-slate-800">Calls</h3>
-        <select
-          value={sectionFilter}
-          onChange={(e) => setSectionFilter(e.target.value)}
-          className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-        >
-          <option value="">All sections</option>
-          {(sections ?? []).map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="search"
+            inputMode="tel"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search calls by phone"
+            aria-label="Search calls by phone number"
+            className="w-full sm:flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          />
+          <select
+            value={sectionFilter}
+            onChange={(e) => setSectionFilter(e.target.value)}
+            className="w-full sm:w-auto sm:max-w-xs rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">All sections</option>
+            {(sections ?? []).map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
         <div className="p-4 space-y-4">
           {loading && items.length === 0 ? (
             <div className="p-8 text-center text-slate-500">Loading…</div>
           ) : pageItems.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">No calls yet</div>
+            <div className="p-8 text-center text-slate-500">
+              {debouncedSearch ? 'No calls match that phone number' : 'No calls yet'}
+            </div>
           ) : (
             pageItems.map((call) => (
               <CallCard
@@ -125,8 +170,8 @@ export default function CallList({ sections = [] }: CallListProps) {
         </button>
         <span className="text-sm text-slate-600">
           Page {currentPage} of {totalPages}
-          {total > 0 && (
-            <span className="ml-1 text-slate-400">({total} total)</span>
+          {displayTotal > 0 && (
+            <span className="ml-1 text-slate-400">({displayTotal} total)</span>
           )}
         </span>
         <button

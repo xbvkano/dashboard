@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../../../api'
 import type { FormData } from '../../../../../external_prisma_schemas/website_schema'
 import FormCard from './FormCard'
@@ -6,6 +6,7 @@ import FormCard from './FormCard'
 const CARDS_PER_PAGE = 5
 const INITIAL_PAGES = 4
 const FETCH_COUNT = CARDS_PER_PAGE * INITIAL_PAGES
+const SEARCH_FETCH_COUNT = 500
 
 interface QuotesResponse {
   data: FormData[]
@@ -25,9 +26,18 @@ export default function FormList({ sources = [] }: FormListProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [sourceFilter, setSourceFilter] = useState<string>('')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
 
-  const totalPages = Math.max(1, Math.ceil(total / CARDS_PER_PAGE))
-  const pageItems = items.slice(
+  const filteredItems = useMemo(() => {
+    if (!debouncedSearch) return items
+    const q = debouncedSearch.toLowerCase()
+    return items.filter((f) => (f.name || '').toLowerCase().includes(q))
+  }, [items, debouncedSearch])
+
+  const displayTotal = debouncedSearch ? filteredItems.length : total
+  const totalPages = Math.max(1, Math.ceil(displayTotal / CARDS_PER_PAGE))
+  const pageItems = filteredItems.slice(
     (currentPage - 1) * CARDS_PER_PAGE,
     currentPage * CARDS_PER_PAGE
   )
@@ -35,8 +45,9 @@ export default function FormList({ sources = [] }: FormListProps) {
   function fetchPage(offset: number) {
     if (loading) return
     setLoading(true)
+    const count = debouncedSearch ? SEARCH_FETCH_COUNT : FETCH_COUNT
     const params = new URLSearchParams({
-      count: String(FETCH_COUNT),
+      count: String(count),
       offset: String(offset),
     })
     if (sourceFilter) params.set('source', sourceFilter)
@@ -58,13 +69,19 @@ export default function FormList({ sources = [] }: FormListProps) {
   }
 
   useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => window.clearTimeout(timeout)
+  }, [search])
+
+  useEffect(() => {
     setItems([])
     setNextOffset(null)
     setCurrentPage(1)
     fetchPage(0)
-  }, [sourceFilter])
+  }, [sourceFilter, debouncedSearch])
 
   useEffect(() => {
+    if (debouncedSearch) return
     const needIndex = currentPage * CARDS_PER_PAGE - 1
     if (
       currentPage > INITIAL_PAGES &&
@@ -74,24 +91,39 @@ export default function FormList({ sources = [] }: FormListProps) {
     ) {
       fetchPage(nextOffset)
     }
-  }, [currentPage, items.length, nextOffset, loading])
+  }, [currentPage, items.length, nextOffset, loading, debouncedSearch])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(displayTotal / CARDS_PER_PAGE))
+    if (currentPage > maxPage) setCurrentPage(maxPage)
+  }, [displayTotal, currentPage])
 
   return (
     <section className="flex flex-col flex-1 min-h-0 h-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-200 shrink-0 space-y-2">
         <h3 className="text-lg font-semibold text-slate-800">Form submissions</h3>
-        <select
-          value={sourceFilter}
-          onChange={(e) => setSourceFilter(e.target.value)}
-          className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-        >
-          <option value="">All sources</option>
-          {(sources ?? []).map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search leads by name"
+            aria-label="Search form leads by name"
+            className="w-full sm:flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          />
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            className="w-full sm:w-auto sm:max-w-xs rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">All sources</option>
+            {(sources ?? []).map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
         <div className="p-4 space-y-4">
@@ -99,7 +131,7 @@ export default function FormList({ sources = [] }: FormListProps) {
             <div className="p-8 text-center text-slate-500">Loading…</div>
           ) : pageItems.length === 0 ? (
             <div className="p-8 text-center text-slate-500">
-              No form submissions yet
+              {debouncedSearch ? 'No leads match that name' : 'No form submissions yet'}
             </div>
           ) : (
             pageItems.map((form) => (
@@ -127,9 +159,9 @@ export default function FormList({ sources = [] }: FormListProps) {
         </button>
         <span className="text-sm text-slate-600">
           Page {currentPage} of {totalPages}
-          {total > 0 && (
+          {displayTotal > 0 && (
             <span className="ml-1 text-slate-400">
-              ({total} total)
+              ({displayTotal} total)
             </span>
           )}
         </span>
