@@ -109,6 +109,61 @@ describe('resolvePricingInput', () => {
     })
   })
 
+  it('resolves formerly missing bedBath combinations through pricing', () => {
+    expect(
+      resolvePricingInput({
+        mode: 'bedBath',
+        bedrooms: 1,
+        bathrooms: 2,
+        type: 'DEEP',
+      })
+    ).toMatchObject({
+      size: '1000-1500',
+      price: 295,
+      teamSize: 1,
+      requiresReview: false,
+    })
+    expect(
+      resolvePricingInput({
+        mode: 'bedBath',
+        bedrooms: 2,
+        bathrooms: 3,
+        type: 'STANDARD',
+      })
+    ).toMatchObject({
+      size: '2000-2500',
+      price: 295,
+      teamSize: 1,
+      requiresReview: false,
+    })
+    expect(
+      resolvePricingInput({
+        mode: 'bedBath',
+        bedrooms: 3,
+        bathrooms: 3.5,
+        type: 'MOVE_IN_OUT',
+      })
+    ).toMatchObject({
+      size: '3000-3500',
+      price: 480,
+      teamSize: 2,
+      requiresReview: false,
+    })
+    expect(
+      resolvePricingInput({
+        mode: 'bedBath',
+        bedrooms: 4,
+        bathrooms: 1,
+        type: 'STANDARD',
+      })
+    ).toMatchObject({
+      size: '1000-1500',
+      price: 240,
+      teamSize: 1,
+      requiresReview: false,
+    })
+  })
+
   it('includes carpet shampoo when rooms provided', () => {
     expect(
       resolvePricingInput({
@@ -122,9 +177,41 @@ describe('resolvePricingInput', () => {
     })
   })
 
-  it('throws for unmapped bedBath combo', () => {
+  it('returns supervisor review for 5+ bedrooms (like 6000+ sqft)', () => {
+    expect(
+      resolvePricingInput({
+        mode: 'bedBath',
+        bedrooms: 5,
+        bathrooms: 2,
+        type: 'STANDARD',
+      })
+    ).toEqual({
+      teamSize: null,
+      price: null,
+      requiresReview: true,
+      message: 'Price requires supervisor review',
+    })
+  })
+
+  it('returns supervisor review for 5+ bathrooms (like 6000+ sqft)', () => {
+    expect(
+      resolvePricingInput({
+        mode: 'bedBath',
+        bedrooms: 4,
+        bathrooms: 5,
+        type: 'DEEP',
+      })
+    ).toEqual({
+      teamSize: null,
+      price: null,
+      requiresReview: true,
+      message: 'Price requires supervisor review',
+    })
+  })
+
+  it('throws for unmapped bedBath combo within unsupported ranges', () => {
     expect(() =>
-      resolvePricingInput({ mode: 'bedBath', bedrooms: 5, bathrooms: 2, type: 'STANDARD' })
+      resolvePricingInput({ mode: 'bedBath', bedrooms: 0, bathrooms: 2, type: 'STANDARD' })
     ).toThrow('No size mapping')
   })
 })

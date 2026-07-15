@@ -26,6 +26,10 @@ export function resolvePricingInput(input: PricingSearchInput): PricingResult {
       )
     }
     case 'bedBath': {
+      // 5+ beds or baths: no automatic size — match 6000+ supervisor review.
+      if (input.bedrooms >= 5 || input.bathrooms >= 5) {
+        return getPricing('6000+', input.type)
+      }
       const size = resolveSizeFromBedBath(input.bedrooms, input.bathrooms)
       if (!size) {
         throw new Error(
