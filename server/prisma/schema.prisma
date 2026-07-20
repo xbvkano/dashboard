@@ -218,17 +218,23 @@ enum AppointmentStatus {
   DELETED
 }
 
+enum InvoiceKind {
+  SERVICE
+  ESTIMATE
+}
+
 model Invoice {
-  id          String   @id @default(uuid()) @db.Uuid
-  number      String?  @unique
+  id          String      @id @default(uuid()) @db.Uuid
+  number      String?     @unique
+  kind        InvoiceKind @default(SERVICE)
   clientName  String
   billedTo    String
-  address     String
+  address     String?
   city        String?
   state       String?
   zip         String?
-  serviceDate DateTime
-  serviceTime String
+  serviceDate DateTime?
+  serviceTime String?
   serviceType String
   price       Float
   carpetPrice Float?
@@ -236,9 +242,9 @@ model Invoice {
   taxPercent  Float?
   comment     String?
   otherItems  Json?
-  paid        Boolean  @default(true)
+  paid        Boolean     @default(true)
   total       Float
-  createdAt   DateTime @default(now())
+  createdAt   DateTime    @default(now())
 }
 
 model PayrollItem {

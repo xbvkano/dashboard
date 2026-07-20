@@ -8,34 +8,40 @@ import useFormPersistence, {
 } from '../../../../useFormPersistence'
 
 interface Props {
-  appointment: Appointment
+  mode?: 'service' | 'estimate'
+  appointment?: Appointment | null
   onClose: () => void
 }
 
-export default function CreateInvoiceModal({ appointment, onClose }: Props) {
+export default function CreateInvoiceModal({
+  mode = 'service',
+  appointment = null,
+  onClose,
+}: Props) {
   const { alert } = useModal()
-  const storageKey = 'createInvoiceState'
+  const isEstimate = mode === 'estimate'
+  const storageKey = isEstimate ? 'createEstimateState' : 'createInvoiceState'
   const persisted = loadFormPersistence(storageKey, {
     sendEmail: '',
-    clientName: appointment.client?.name || '',
-    billedTo: appointment.client?.name || '',
-    address: appointment.address,
+    clientName: appointment?.client?.name || '',
+    billedTo: appointment?.client?.name || '',
+    address: appointment?.address || '',
     city: '',
     stateField: '',
     zip: '',
-    serviceDate: appointmentCalendarDateKey(appointment),
-    time: appointment.time,
-    serviceType: appointment.type,
-    price: String(appointment.price ?? ''),
+    serviceDate: appointment ? appointmentCalendarDateKey(appointment) : '',
+    time: appointment?.time || '',
+    serviceType: appointment?.type || 'STANDARD',
+    price: appointment?.price != null ? String(appointment.price) : '',
     carpetPrice:
-      appointment.carpetPrice != null
+      appointment?.carpetPrice != null
         ? String(appointment.carpetPrice)
         : '',
     discount: '',
     taxEnabled: false,
     taxPercent: '',
     comment: '',
-    paid: true,
+    paid: isEstimate ? false : true,
     others: [] as { name: string; price: string }[],
     invoiceId: null as string | null,
     dirty: false,
@@ -94,7 +100,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
   })
 
   useEffect(() => {
-    if (carpetPrice) return
+    if (isEstimate || carpetPrice || !appointment) return
     const cp = appointment.carpetPrice
     if (cp != null) {
       setCarpetPrice(String(cp))
@@ -108,7 +114,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         .then((d) => setCarpetPrice(String(d.rate)))
         .catch(() => {})
     }
-  }, [appointment, carpetPrice])
+  }, [appointment, carpetPrice, isEstimate])
 
   useEffect(() => {
     const original = document.body.style.overflow
@@ -153,18 +159,17 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     paid,
   ])
 
-  const create = async () => {
-    if (creating) return
-    setCreating(true)
-    const payload = {
+  function buildPayload() {
+    return {
+      kind: isEstimate ? 'ESTIMATE' : 'SERVICE',
       clientName,
       billedTo,
-      address,
+      address: address || undefined,
       city: city || undefined,
       state: stateField || undefined,
       zip: zip || undefined,
-      serviceDate,
-      serviceTime: time,
+      serviceDate: isEstimate ? undefined : serviceDate,
+      serviceTime: isEstimate ? undefined : time,
       serviceType,
       price: parseFloat(price) || 0,
       carpetPrice: carpetPrice ? parseFloat(carpetPrice) : undefined,
@@ -174,6 +179,22 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       otherItems: others.map((o) => ({ name: o.name, price: parseFloat(o.price) || 0 })),
       paid,
     }
+  }
+
+  const create = async () => {
+    if (creating) return
+    if (!clientName.trim() || !billedTo.trim() || !serviceType.trim()) {
+      await alert(isEstimate
+        ? 'Client name, billed to, and service type are required'
+        : 'Please fill in required fields')
+      return
+    }
+    if (!isEstimate && (!address.trim() || !serviceDate || !time.trim())) {
+      await alert('Address, date of service, and time are required')
+      return
+    }
+    setCreating(true)
+    const payload = buildPayload()
     const newWindow = window.open('', '_blank')
     const res = await fetch(`${API_BASE_URL}/invoices`, withApiAuth({
       method: 'POST',
@@ -206,40 +227,35 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       }
     } else {
       if (newWindow) newWindow.close()
-      await alert('Failed to create invoice')
+      await alert(isEstimate ? 'Failed to create estimate' : 'Failed to create invoice')
     }
     setCreating(false)
   }
 
   const sendInvoice = async (email: string) => {
     if (sending) return
-    setSending(true)
-    const payload = {
-      clientName,
-      billedTo,
-      address,
-      city: city || undefined,
-      state: stateField || undefined,
-      zip: zip || undefined,
-      serviceDate,
-      serviceTime: time,
-      serviceType,
-      price: parseFloat(price) || 0,
-      carpetPrice: carpetPrice ? parseFloat(carpetPrice) : undefined,
-      discount: discount ? parseFloat(discount) : undefined,
-      taxPercent: taxEnabled ? parseFloat(taxPercent) || 0 : undefined,
-      comment: comment || undefined,
-      otherItems: others.map((o) => ({ name: o.name, price: parseFloat(o.price) || 0 })),
+    if (!clientName.trim() || !billedTo.trim() || !serviceType.trim()) {
+      await alert(isEstimate
+        ? 'Client name, billed to, and service type are required'
+        : 'Please fill in required fields')
+      return
     }
+    if (!isEstimate && (!address.trim() || !serviceDate || !time.trim())) {
+      await alert('Address, date of service, and time are required')
+      return
+    }
+    setSending(true)
+    const payload = buildPayload()
     let id = invoiceId
     if (!id || dirty) {
       const res = await fetch(`${API_BASE_URL}/invoices`, withApiAuth({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
-        body: JSON.stringify({ ...payload, paid }),
+        body: JSON.stringify(payload),
       }))
       if (!res.ok) {
-        await alert('Failed to create invoice')
+        await alert(isEstimate ? 'Failed to create estimate' : 'Failed to create invoice')
+        setSending(false)
         return
       }
       const data = await res.json()
@@ -256,10 +272,11 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
     if (sendRes.ok) {
       setShowEmailModal(false)
       setSending(false)
+      clearFormPersistence(storageKey)
       onClose()
     } else {
       const text = await sendRes.text()
-      await alert(text || 'Failed to send invoice')
+      await alert(text || (isEstimate ? 'Failed to send estimate' : 'Failed to send invoice'))
       setSending(false)
     }
   }
@@ -272,13 +289,27 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
         className="bg-white p-4 rounded w-full max-w-md space-y-3 max-h-[calc(100dvh-1rem)] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center">
-          <h2 className="text-lg font-semibold">Create Invoice</h2>
+        <div className="flex justify-between items-center gap-2">
+          <div>
+            <h2 className="text-lg font-semibold">
+              {isEstimate ? 'Create Estimate' : 'Create Invoice'}
+            </h2>
+            {isEstimate && (
+              <p className="text-xs text-amber-700 mt-0.5">
+                Quote only — no booking, date, or time required
+              </p>
+            )}
+          </div>
           <button onClick={() => {
             clearFormPersistence(storageKey)
             onClose()
           }}>X</button>
         </div>
+        {isEstimate && (
+          <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            This will be saved and labeled as an <strong>estimate</strong>, not a service invoice.
+          </div>
+        )}
         <div>
           <label className="text-sm">Client Name</label>
           <input className="w-full border p-2 rounded" value={clientName} onChange={(e) => setClientName(e.target.value)} />
@@ -288,7 +319,9 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
           <input className="w-full border p-2 rounded" value={billedTo} onChange={(e) => setBilledTo(e.target.value)} />
         </div>
         <div>
-          <label className="text-sm">Address</label>
+          <label className="text-sm">
+            Address{isEstimate ? ' (optional)' : ''}
+          </label>
           <input className="w-full border p-2 rounded" value={address} onChange={(e) => setAddress(e.target.value)} />
         </div>
         <div className="flex gap-2">
@@ -305,20 +338,30 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
             <input className="w-full border p-2 rounded" value={zip} onChange={(e) => setZip(e.target.value)} />
           </div>
         </div>
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <label className="text-sm">Date of Service</label>
-            <input type="date" className="w-full border p-2 rounded" value={serviceDate} onChange={(e) => setServiceDate(e.target.value)} />
+        {!isEstimate && (
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-sm">Date of Service</label>
+              <input type="date" className="w-full border p-2 rounded" value={serviceDate} onChange={(e) => setServiceDate(e.target.value)} />
+            </div>
+            <div className="flex-1">
+              <label className="text-sm">Time</label>
+              <input className="w-full border p-2 rounded" value={time} onChange={(e) => setTime(e.target.value)} />
+            </div>
           </div>
-          <div className="flex-1">
-            <label className="text-sm">Time</label>
-            <input className="w-full border p-2 rounded" value={time} onChange={(e) => setTime(e.target.value)} />
-          </div>
-        </div>
+        )}
         <div className="flex gap-2">
           <div className="flex-1">
             <label className="text-sm">Service Type</label>
-            <input className="w-full border p-2 rounded" value={serviceType} onChange={(e) => setServiceType(e.target.value)} />
+            <select
+              className="w-full border p-2 rounded"
+              value={serviceType}
+              onChange={(e) => setServiceType(e.target.value)}
+            >
+              <option value="STANDARD">Standard</option>
+              <option value="DEEP">Deep</option>
+              <option value="MOVE_IN_OUT">Move in/out</option>
+            </select>
           </div>
           <div className="flex-1">
             <label className="text-sm">Price</label>
@@ -399,12 +442,14 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
             <input type="number" className="w-full border p-2 rounded mt-1" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} placeholder="Percent" />
           )}
         </div>
-        <div>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={!paid} onChange={(e) => setPaid(!e.target.checked)} />
-            Not Paid
-          </label>
-        </div>
+        {!isEstimate && (
+          <div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={!paid} onChange={(e) => setPaid(!e.target.checked)} />
+              Not Paid
+            </label>
+          </div>
+        )}
         <div className="font-medium">Total: ${total.toFixed(2)}</div>
         <div className="flex justify-end gap-2 pt-2">
           <button className="px-4 py-1" onClick={() => {
@@ -416,9 +461,14 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
             disabled={creating}
             onClick={create}
           >
-            {creating ? 'Creating...' : 'Create'}
+            {creating ? 'Creating...' : isEstimate ? 'Create Estimate' : 'Create'}
           </button>
-          <button className="px-4 py-1 bg-green-600 text-white rounded" onClick={() => setShowEmailModal(true)}>Send</button>
+          <button
+            className="px-4 py-1 bg-green-600 text-white rounded"
+            onClick={() => setShowEmailModal(true)}
+          >
+            Send
+          </button>
         </div>
       </div>
       {showOtherModal && (
@@ -463,7 +513,7 @@ export default function CreateInvoiceModal({ appointment, onClose }: Props) {
       {showEmailModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10151]" onClick={() => setShowEmailModal(false)}>
           <div className="bg-white p-4 rounded w-full max-w-xs space-y-2" onClick={(e) => e.stopPropagation()}>
-            <h4 className="font-medium">Send Invoice</h4>
+            <h4 className="font-medium">{isEstimate ? 'Send Estimate' : 'Send Invoice'}</h4>
             <input type="email" className="w-full border p-2 rounded" placeholder="Email" value={sendEmail} onChange={(e) => setSendEmail(e.target.value)} />
             <div className="flex justify-end gap-2">
               <button className="px-4 py-1" onClick={() => setShowEmailModal(false)}>Cancel</button>

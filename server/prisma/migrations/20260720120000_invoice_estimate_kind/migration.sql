@@ -1,0 +1,8 @@
+-- CreateEnum
+CREATE TYPE "InvoiceKind" AS ENUM ('SERVICE', 'ESTIMATE');
+
+-- AlterTable
+ALTER TABLE "Invoice" ADD COLUMN "kind" "InvoiceKind" NOT NULL DEFAULT 'SERVICE';
+ALTER TABLE "Invoice" ALTER COLUMN "address" DROP NOT NULL;
+ALTER TABLE "Invoice" ALTER COLUMN "serviceDate" DROP NOT NULL;
+ALTER TABLE "Invoice" ALTER COLUMN "serviceTime" DROP NOT NULL;

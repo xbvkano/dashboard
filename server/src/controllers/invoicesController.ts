@@ -29,6 +29,10 @@ async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
       .toISOString()
       .slice(0, 10)
 
+  const isEstimate = inv.kind === 'ESTIMATE'
+  const docTitle = isEstimate ? 'ESTIMATE' : 'INVOICE'
+  const docNumberLabel = isEstimate ? 'Estimate #' : 'Invoice #'
+
   const serviceTypeMap: Record<string, string> = {
     DEEP: 'Deep Cleaning',
     MOVE_IN_OUT: 'Move in/out Cleaning',
@@ -81,8 +85,8 @@ async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
   const invoiceNumber =
     (inv.number as string | undefined) ||
     BigInt('0x' + inv.id.replace(/-/g, '')).toString().slice(-20)
-  page.drawText('INVOICE', {
-    x: width - margin - 120,
+  page.drawText(docTitle, {
+    x: width - margin - (isEstimate ? 140 : 120),
     y: y - 20,
     size: 26,
     font: bold,
@@ -94,23 +98,34 @@ async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
     size: 10,
     font,
   })
-  page.drawText(`Invoice # ${invoiceNumber}`, {
+  page.drawText(`${docNumberLabel} ${invoiceNumber}`, {
     x: width - margin - 200,
     y: y - 62,
     size: 10,
     font,
   })
-  page.drawText(`Service date: ${formatDate(inv.serviceDate)}`, {
-    x: width - margin - 200,
-    y: y - 74,
-    size: 10,
-    font,
-  })
+  if (!isEstimate && inv.serviceDate) {
+    page.drawText(`Service date: ${formatDate(new Date(inv.serviceDate))}`, {
+      x: width - margin - 200,
+      y: y - 74,
+      size: 10,
+      font,
+    })
+  } else if (isEstimate) {
+    page.drawText('Quote — not a bill for completed service', {
+      x: width - margin - 220,
+      y: y - 74,
+      size: 9,
+      font,
+      color: rgb(0.45, 0.35, 0.1),
+    })
+  }
 
   y = infoY - 20
 
   // Section 2 - Bill to
-  const billLines = [`Name: ${inv.billedTo}`, `Address: ${inv.address}`]
+  const billLines = [`Name: ${inv.billedTo}`]
+  if (inv.address) billLines.push(`Address: ${inv.address}`)
   if (inv.city) billLines.push(`City: ${inv.city}`)
   if (inv.state) billLines.push(`State: ${inv.state}`)
   if (inv.zip) billLines.push(`ZIP: ${inv.zip}`)
@@ -275,16 +290,33 @@ async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
 
   y = y - commentBoxHeight - footerGap
 
-  const qText = 'If you have any questions about this invoice, please contact'
+  const qText = isEstimate
+    ? 'If you have any questions about this estimate, please contact'
+    : 'If you have any questions about this invoice, please contact'
   const cText = 'Marcelo Kano, contact@worldwideevidence.com'
-  const tText = 'Thank You For Your Business!'
+  const tText = isEstimate
+    ? 'This is an estimate only — not a final invoice.'
+    : 'Thank You For Your Business!'
   const centerX = (txt: string, size: number, f: PDFFont) =>
     margin + contentWidth / 2 - f.widthOfTextAtSize(txt, size) / 2
   page.drawText(qText, { x: centerX(qText, 11, font), y, font, size: 11 })
   page.drawText(cText, { x: centerX(cText, 11, font), y: y - 14, font, size: 11 })
   page.drawText(tText, { x: centerX(tText, 12, bold), y: y - 28, font: bold, size: 12 })
 
-  if (inv.paid === false) {
+  if (isEstimate) {
+    const wm = 'ESTIMATE'
+    const size = 72
+    const wmWidth = bold.widthOfTextAtSize(wm, size)
+    page.drawText(wm, {
+      x: width / 2 - wmWidth / 2,
+      y: height / 2,
+      size,
+      font: bold,
+      color: rgb(0.2, 0.45, 0.75),
+      rotate: degrees(45),
+      opacity: 0.22,
+    })
+  } else if (inv.paid === false) {
     const wm = 'NOT PAID'
     const size = 80
     const wmWidth = bold.widthOfTextAtSize(wm, size)
@@ -306,6 +338,7 @@ async function generateInvoicePdf(inv: any, tzOffset = 0): Promise<Buffer> {
 export async function createInvoice(req: Request, res: Response) {
   try {
     const {
+      kind: kindRaw,
       clientName,
       billedTo,
       address,
@@ -323,6 +356,7 @@ export async function createInvoice(req: Request, res: Response) {
       paid,
       otherItems,
     } = req.body as {
+      kind?: string
       clientName?: string
       billedTo?: string
       address?: string
@@ -340,9 +374,16 @@ export async function createInvoice(req: Request, res: Response) {
       paid?: boolean
       otherItems?: { name: string; price: number | string }[]
     }
-    if (!clientName || !billedTo || !address || !serviceDate || !serviceTime || !serviceType || price === undefined) {
+    const kind = kindRaw === 'ESTIMATE' ? 'ESTIMATE' : 'SERVICE'
+    const isEstimate = kind === 'ESTIMATE'
+
+    if (!clientName || !billedTo || !serviceType || price === undefined) {
       return res.status(400).json({ error: 'Missing fields' })
     }
+    if (!isEstimate && (!address || !serviceDate || !serviceTime)) {
+      return res.status(400).json({ error: 'Missing fields' })
+    }
+
     const normalizedItems = (otherItems || []).map((i) => ({
       name: i.name,
       price: Number(i.price) || 0,
@@ -357,14 +398,15 @@ export async function createInvoice(req: Request, res: Response) {
       data: {
         id: uuid,
         number,
+        kind,
         clientName,
         billedTo,
-        address,
+        address: address?.trim() ? address.trim() : null,
         city: city ?? null,
         state: state ?? null,
         zip: zip ?? null,
-        serviceDate: new Date(serviceDate),
-        serviceTime,
+        serviceDate: isEstimate || !serviceDate ? null : new Date(serviceDate),
+        serviceTime: isEstimate ? null : (serviceTime || null),
         serviceType,
         price,
         carpetPrice: carpetPrice ?? null,
@@ -372,7 +414,7 @@ export async function createInvoice(req: Request, res: Response) {
         taxPercent: taxPercent ?? null,
         comment: comment ?? null,
         otherItems: normalizedItems.length ? normalizedItems : undefined,
-        paid: paid ?? true,
+        paid: paid ?? (isEstimate ? false : true),
         total,
       },
     })
@@ -409,6 +451,21 @@ export async function sendInvoice(req: Request, res: Response) {
 
     const tzOffset = Number((req.body as any).tzOffset) || 0
     const attachment = await generateInvoicePdf(inv, tzOffset)
+    const isEstimate = inv.kind === 'ESTIMATE'
+    const emailSubject = isEstimate
+      ? 'Evidence Cleaning Estimate'
+      : 'Evidence Cleaning Invoice'
+    const emailText = isEstimate
+      ? 'Hello,\n\nthis is an automated message from Evidence Cleaning. Attached is your estimate (quote). This is not a bill for a completed service.\n\nPlease feel free to text Cassia at 725-577-4524 if you have any questions.\nBest,\nEvidence Cleaning.'
+      : 'Hello,\n\nthis is an automated message from Evidence Cleaning. Attached is you invoice.\n\nPlease feel free to text Cassia at 725-577-4524 if you have any questions.\nBest,\nEvidence Cleaning.'
+    const pdfFilename = isEstimate ? 'estimate.pdf' : 'invoice.pdf'
+    const serviceDateLabel = inv.serviceDate
+      ? new Date(inv.serviceDate).toLocaleDateString()
+      : 'N/A (estimate)'
+    const adminSubject = isEstimate
+      ? `Estimate Sent Confirmation - ${inv.clientName}`
+      : `Invoice Sent Confirmation - ${inv.clientName}`
+    const adminText = `${isEstimate ? 'Estimate' : 'Invoice'} has been sent to: ${email}\n\nClient: ${inv.clientName}\nService Date: ${serviceDateLabel}\nAmount: $${inv.price}\n\n${isEstimate ? 'Estimate' : 'Invoice'} details are attached.`
 
     // Try Mailtrap API first, fallback to SMTP
     let emailSent = false
@@ -424,12 +481,12 @@ export async function sendInvoice(req: Request, res: Response) {
         body: JSON.stringify({
           from: { email: process.env.MAILTRAP_FROM || 'no-reply@worldwideevidence.com' },
           to: [{ email }],
-          subject: 'Evidence Cleaning Invoice',
-          text: 'Hello,\n\nthis is an automated message from Evidence Cleaning. Attached is you invoice.\n\nPlease feel free to text Cassia at 725-577-4524 if you have any questions.\nBest,\nEvidence Cleaning.',
+          subject: emailSubject,
+          text: emailText,
           attachments: [
             {
               content: attachment.toString('base64'),
-              filename: 'invoice.pdf',
+              filename: pdfFilename,
               type: 'application/pdf',
               disposition: 'attachment'
             }
@@ -509,11 +566,10 @@ export async function sendInvoice(req: Request, res: Response) {
       await transport.sendMail({
         from: process.env.MAILTRAP_FROM || 'no-reply@example.com',
         to: email,
-        subject: 'Evidence Cleaning Invoice',
-        text:
-          'Hello,\n\nthis is an automated message from Evidence Cleaning. Attached is you invoice.\n\nPlease feel free to text Cassia at 725-577-4524 if you have any questions.\nBest,\nEvidence Cleaning.',
+        subject: emailSubject,
+        text: emailText,
         attachments: [
-          { filename: 'invoice.pdf', content: attachment },
+          { filename: pdfFilename, content: attachment },
         ],
       })
       console.log('✅ Email sent successfully via SMTP')
@@ -532,12 +588,12 @@ export async function sendInvoice(req: Request, res: Response) {
         body: JSON.stringify({
           from: { email: process.env.MAILTRAP_FROM || 'no-reply@worldwideevidence.com' },
           to: [{ email: 'admin@worldwideevidence.com' }],
-          subject: `Invoice Sent Confirmation - ${inv.clientName}`,
-          text: `Invoice has been sent to: ${email}\n\nClient: ${inv.clientName}\nService Date: ${new Date(inv.serviceDate).toLocaleDateString()}\nAmount: $${inv.price}\n\nInvoice details are attached.`,
+          subject: adminSubject,
+          text: adminText,
           attachments: [
             {
               content: attachment.toString('base64'),
-              filename: `invoice_${inv.clientName.replace(/[^a-z0-9]/gi, '_')}.pdf`,
+              filename: `${isEstimate ? 'estimate' : 'invoice'}_${inv.clientName.replace(/[^a-z0-9]/gi, '_')}.pdf`,
               type: 'application/pdf',
               disposition: 'attachment'
             }
@@ -567,10 +623,10 @@ export async function sendInvoice(req: Request, res: Response) {
         await adminTransport.sendMail({
           from: process.env.MAILTRAP_FROM || 'no-reply@example.com',
           to: 'admin@worldwideevidence.com',
-          subject: `Invoice Sent Confirmation - ${inv.clientName}`,
-          text: `Invoice has been sent to: ${email}\n\nClient: ${inv.clientName}\nService Date: ${new Date(inv.serviceDate).toLocaleDateString()}\nAmount: $${inv.price}\n\nInvoice details are attached.`,
+          subject: adminSubject,
+          text: adminText,
           attachments: [
-            { filename: `invoice_${inv.clientName.replace(/[^a-z0-9]/gi, '_')}.pdf`, content: attachment },
+            { filename: `${isEstimate ? 'estimate' : 'invoice'}_${inv.clientName.replace(/[^a-z0-9]/gi, '_')}.pdf`, content: attachment },
           ],
         })
         console.log('✅ Admin confirmation email sent successfully via SMTP')
@@ -597,6 +653,7 @@ export async function sendInvoice(req: Request, res: Response) {
 export async function getRevenue(_req: Request, res: Response) {
   try {
     const invoices = await prisma.invoice.findMany({
+      where: { kind: 'SERVICE', serviceDate: { not: null } },
       orderBy: { serviceDate: 'asc' },
       select: { serviceDate: true, total: true, serviceType: true },
     })

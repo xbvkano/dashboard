@@ -15,6 +15,7 @@ export default function Invoice() {
   )
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [selected, setSelected] = useState<Appointment | null>(null)
+  const [estimateOpen, setEstimateOpen] = useState(false)
   const initialAppt = params.get('appt')
   const dateFromUrl = params.get('date')
 
@@ -65,7 +66,22 @@ export default function Invoice() {
   return (
     <div className="p-4 pb-16">
       <Link to=".." className="text-blue-500 text-sm">&larr; Back</Link>
-      <h2 className="text-xl font-semibold mb-2">Invoice</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <h2 className="text-xl font-semibold">Invoice</h2>
+        <button
+          type="button"
+          className="px-3 py-1.5 bg-amber-600 text-white text-sm rounded hover:bg-amber-700"
+          onClick={() => {
+            setSelected(null)
+            setEstimateOpen(true)
+          }}
+        >
+          Create Estimate
+        </button>
+      </div>
+      <p className="text-sm text-slate-600 mb-3">
+        Pick a booking for a service invoice, or create an estimate quote without a booking.
+      </p>
       <div className="mb-4">
         <input type="date" className="border p-2 rounded" value={date} onChange={(e) => setDate(e.target.value)} />
       </div>
@@ -74,7 +90,10 @@ export default function Invoice() {
           <div
             key={a.id}
             className="bg-white shadow rounded p-3 cursor-pointer"
-            onClick={() => setSelected(a)}
+            onClick={() => {
+              setEstimateOpen(false)
+              setSelected(a)
+            }}
           >
             <div className="font-medium">{a.client?.name}</div>
             <div className="text-sm">{formatPhone(a.client?.number || '')}</div>
@@ -87,7 +106,19 @@ export default function Invoice() {
       </div>
       {selected &&
         createPortal(
-          <CreateInvoiceModal appointment={selected} onClose={() => setSelected(null)} />,
+          <CreateInvoiceModal
+            mode="service"
+            appointment={selected}
+            onClose={() => setSelected(null)}
+          />,
+          document.body
+        )}
+      {estimateOpen &&
+        createPortal(
+          <CreateInvoiceModal
+            mode="estimate"
+            onClose={() => setEstimateOpen(false)}
+          />,
           document.body
         )}
     </div>

@@ -32,19 +32,20 @@ export async function uploadInvoiceToDrive(inv: Invoice, pdf: Buffer) {
 
   const drive = google.drive({ version: 'v3', auth })
 
-  const serviceDate = new Date(inv.serviceDate)
-  const year = String(serviceDate.getFullYear())
-  const month = String(serviceDate.getMonth() + 1).padStart(2, '0')
+  const isEstimate = inv.kind === 'ESTIMATE'
+  const dateSource = inv.serviceDate ? new Date(inv.serviceDate) : new Date(inv.createdAt)
+  const year = String(dateSource.getFullYear())
+  const month = String(dateSource.getMonth() + 1).padStart(2, '0')
 
-  const invoicesFolder = await ensureFolder(drive, 'invoices')
-  const yearFolder = await ensureFolder(drive, year, invoicesFolder)
+  const rootFolder = await ensureFolder(drive, isEstimate ? 'estimates' : 'invoices')
+  const yearFolder = await ensureFolder(drive, year, rootFolder)
   const monthFolder = await ensureFolder(drive, month, yearFolder)
 
   const safeName = inv.clientName.replace(/[^a-z0-9]+/gi, '_').toLowerCase()
   const invoiceNumber =
     (inv.number as string | undefined) ||
     BigInt('0x' + inv.id.replace(/-/g, '')).toString().slice(-20)
-  const fileName = `${safeName}_${invoiceNumber}.pdf`
+  const fileName = `${isEstimate ? 'estimate_' : ''}${safeName}_${invoiceNumber}.pdf`
 
   const existingRes = await drive.files.list({
     q: `name = '${fileName}' and '${monthFolder}' in parents and trashed = false`,
