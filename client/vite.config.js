@@ -14,11 +14,11 @@ export default defineConfig(() => {
   return {
     plugins: [react()],
     server: {
-      host: '0.0.0.0', // Allow external access (ngrok, LAN)
+      host: '0.0.0.0', // Allow external access (ngrok, Cloudflare Tunnel, LAN)
       port: 5173,
       allowedHosts: true,
       proxy: {
-        // Same-origin /api → backend :3000 (required for HTTPS ngrok → avoid mixed content)
+        // Same-origin /api → backend :3000 (required for HTTPS tunnels → avoid mixed content)
         '/api': {
           target: 'http://127.0.0.1:3000',
           changeOrigin: true,

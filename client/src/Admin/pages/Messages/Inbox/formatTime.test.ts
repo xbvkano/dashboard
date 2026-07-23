@@ -14,6 +14,7 @@ function msg(id: number, createdAt: string): ThreadMessage {
     body: 'hi',
     createdAt,
     senderBubbleColor: null,
+    attributionLabel: null,
     media: [],
   }
 }

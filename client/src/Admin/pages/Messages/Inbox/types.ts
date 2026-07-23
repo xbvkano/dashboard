@@ -27,4 +27,6 @@ export type ThreadMessage = {
   createdAt: string
   media: ThreadMessageMedia[]
   senderBubbleColor: string | null
+  /** Shown above the bubble in chat only (e.g. employee who triggered status SMS) */
+  attributionLabel: string | null
 }

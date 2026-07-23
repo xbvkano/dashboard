@@ -17,6 +17,7 @@ import { deleteMessagingStorageKeys } from '../services/supabaseStorage'
 import { extensionForMime } from '../services/messaging/twilioInboundMedia'
 import type { ConversationDetailDto } from '../types/messaging'
 import { mapConversationsToInboxDto } from '../utils/messagingDto'
+import { resolveOutboundBubbleColor } from '../utils/messageBubbleDisplay'
 import {
   clampInboxLimit,
   decodeInboxCursor,
@@ -464,7 +465,11 @@ export async function getConversationDetail(req: Request, res: Response) {
         status: m.status,
         createdAt: m.createdAt.toISOString(),
         userId: m.userId,
-        senderBubbleColor: m.userId != null ? bubbleByUserId.get(m.userId) ?? null : null,
+        senderBubbleColor: resolveOutboundBubbleColor({
+          bubbleColorOverride: m.bubbleColorOverride,
+          staffBubbleColor: m.userId != null ? bubbleByUserId.get(m.userId) ?? null : null,
+        }),
+        attributionLabel: m.attributionLabel ?? null,
         sessionId: m.sessionId,
         mediaCount: m.mediaCount,
         media: m.media.map((x) => ({

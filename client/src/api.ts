@@ -3,8 +3,9 @@ import { isNgrokBrowserContext } from './ngrokHost'
 export { isNgrokBrowserContext, isNgrokHostname } from './ngrokHost'
 
 /**
- * API origin for fetch(). On ngrok we use same-origin `/api` (Vite proxies to :3000)
- * so HTTPS pages are not blocked from calling http://localhost:3000 (mixed content).
+ * API origin for fetch(). On HTTPS tunnels (ngrok, trycloudflare.com, etc.) we use
+ * same-origin `/api` (Vite proxies to :3000) so pages are not blocked from calling
+ * http://localhost:3000 (mixed content / wrong host).
  */
 export function resolveApiBaseUrl(): string {
   if (isNgrokBrowserContext()) {

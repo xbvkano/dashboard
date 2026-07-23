@@ -66,6 +66,8 @@ export interface ConversationDetailDto {
     userId: number | null
     /** Bubble background for outbound; null = default blue */
     senderBubbleColor: string | null
+    /** Chat-only label above bubble (e.g. employee name for service-status SMS) */
+    attributionLabel: string | null
     sessionId: number | null
     mediaCount: number
     media: Array<{

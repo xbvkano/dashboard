@@ -73,6 +73,7 @@ function detailToMessages(detail: ConversationDetail): ThreadMessage[] {
     body: m.body,
     createdAt: m.createdAt,
     senderBubbleColor: m.senderBubbleColor ?? null,
+    attributionLabel: m.attributionLabel ?? null,
     media: (m.media ?? []).map((x) => ({
       id: x.id,
       publicUrl: x.publicUrl,

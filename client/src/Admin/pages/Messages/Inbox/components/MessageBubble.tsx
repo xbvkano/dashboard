@@ -50,6 +50,11 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
       <div
         className={`flex max-w-[min(85%,20rem)] flex-col ${outbound ? 'items-end' : 'items-start'}`}
       >
+        {outbound && message.attributionLabel?.trim() ? (
+          <p className="mb-0.5 px-1 text-[11px] font-medium text-slate-500">
+            {message.attributionLabel.trim()}
+          </p>
+        ) : null}
         <button
           type="button"
           onClick={() => setActionsOpen(true)}

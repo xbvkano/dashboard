@@ -2,7 +2,7 @@ import { API_BASE_URL, fetchJson } from '../../../api'
 import { useCallback, useEffect, useState } from 'react'
 import { useModal } from '../../../ModalProvider'
 
-type PushoverTestType = 'INBOUND_SMS' | 'WEBSITE_FORM' | 'INBOUND_CALL'
+type PushoverTestType = 'INBOUND_SMS' | 'WEBSITE_FORM' | 'INBOUND_CALL' | 'SERVICE_STATUS'
 
 type PushoverPayload = {
   title: string

@@ -131,7 +131,7 @@ export async function ensureNoAuthDevSession(): Promise<DevNoAuthRole> {
     })
   } catch {
     throw new Error(
-      'Cannot reach the API. If you use ngrok, open the app via the ngrok URL (requests go to /api on the same host). Ensure the server is running on port 3000.',
+      'Cannot reach the API. If you use a tunnel (ngrok / trycloudflare.com), open the app via the tunnel URL (requests go to /api on the same host). Ensure the server is running on port 3000.',
     )
   }
   const text = await response.text()

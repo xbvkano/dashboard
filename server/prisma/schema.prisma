@@ -72,6 +72,7 @@ model Employee {
   manualItems  ManualPayrollItem[]
 
   templateLinks EmployeeTemplateEmployee[] @relation("EmployeeOnTemplate")
+  serviceStatusEvents AppointmentServiceStatusEvent[]
 }
 
 model Appointment {
@@ -123,6 +124,7 @@ model Appointment {
   conversationSessionId Int?
   conversationSession   ConversationSession? @relation(fields: [conversationSessionId], references: [id], onDelete: SetNull)
   messages              Message[]
+  serviceStatusEvents   AppointmentServiceStatusEvent[]
   /** Public Supabase URLs for screenshots used to book (messaging / screenshot flow). */
   bookingScreenshotUrls String[] @default([])
 }
@@ -461,6 +463,10 @@ model Message {
   appointmentId        Int?
   appointment          Appointment?          @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   body                 String
+  /** Chat-only label (e.g. employee name for service-status SMS); not part of SMS body. */
+  attributionLabel     String?
+  /** When set, inbox uses this bubble color instead of the staff user's color. */
+  bubbleColorOverride  String?
   mediaCount           Int                   @default(0)
   numSegments          Int?
   price                Float?
@@ -588,4 +594,26 @@ model MessageBankGroup {
   templates MessageBankTemplate[]
   createdAt DateTime            @default(now())
   updatedAt DateTime            @updatedAt
+}
+
+enum ServiceStatusKind {
+  ON_THE_WAY
+  ARRIVED
+  THIRTY_MINUTES_LEFT
+}
+
+/** One click per employee per status kind on an appointment (dedupe + first-wins SMS). */
+model AppointmentServiceStatusEvent {
+  id            Int               @id @default(autoincrement())
+  appointmentId Int
+  appointment   Appointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  kind          ServiceStatusKind
+  employeeId    Int
+  employee      Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  /** Set when this click won the client SMS for this kind. */
+  smsMessageId  Int?
+  createdAt     DateTime          @default(now())
+
+  @@unique([appointmentId, kind, employeeId])
+  @@index([appointmentId, kind])
 }

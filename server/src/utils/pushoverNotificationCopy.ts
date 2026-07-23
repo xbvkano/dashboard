@@ -16,13 +16,18 @@ export function pushoverEmergencyDeliveryCount(retrySec: number, expireSec: numb
 }
 export const PUSHOVER_FORM_CALL_SOUND = 'cashregister'
 export const PUSHOVER_SMS_SOUND = 'magic'
+export const PUSHOVER_SERVICE_STATUS_SOUND = 'pushover'
+export const PUSHOVER_SERVICE_STATUS_PRIORITY = 1
 
-export type PushoverTestType = 'INBOUND_SMS' | 'WEBSITE_FORM' | 'INBOUND_CALL'
+export type PushoverTestType = 'INBOUND_SMS' | 'WEBSITE_FORM' | 'INBOUND_CALL' | 'SERVICE_STATUS'
+
+export type ServiceStatusPushoverKind = 'ON_THE_WAY' | 'ARRIVED' | 'THIRTY_MINUTES_LEFT'
 
 export const PUSHOVER_TEST_TYPES: PushoverTestType[] = [
   'INBOUND_SMS',
   'WEBSITE_FORM',
   'INBOUND_CALL',
+  'SERVICE_STATUS',
 ]
 
 function joinParts(parts: Array<string | null | undefined>): string {
@@ -82,6 +87,43 @@ export function buildInboundSmsPushoverPayload(input: {
     message,
     priority: 1,
     sound: PUSHOVER_SMS_SOUND,
+  }
+}
+
+function serviceStatusKindLabel(kind: ServiceStatusPushoverKind): string {
+  switch (kind) {
+    case 'ON_THE_WAY':
+      return 'On the way'
+    case 'ARRIVED':
+      return 'Arrived'
+    case 'THIRTY_MINUTES_LEFT':
+      return '30 min left'
+    default: {
+      const _exhaustive: never = kind
+      throw new Error(`Unknown service status kind: ${String(_exhaustive)}`)
+    }
+  }
+}
+
+export function buildServiceStatusPushoverPayload(input: {
+  kind: ServiceStatusPushoverKind
+  employeeName: string
+  clientName: string
+  address: string
+  time: string
+}): PushoverInboundPayload {
+  const employee = input.employeeName.trim() || 'Employee'
+  const client = input.clientName.trim() || 'Client'
+  const title = `${serviceStatusKindLabel(input.kind)} — ${client} · ${employee}`.slice(0, 250)
+  const message = joinParts([client, employee, input.address, input.time]).slice(
+    0,
+    PUSHOVER_MESSAGE_MAX,
+  )
+  return {
+    title,
+    message,
+    priority: PUSHOVER_SERVICE_STATUS_PRIORITY,
+    sound: PUSHOVER_SERVICE_STATUS_SOUND,
   }
 }
 
@@ -146,6 +188,19 @@ export function buildPushoverTestSample(type: PushoverTestType): PushoverTestSam
           retry: PUSHOVER_FORM_CALL_RETRY_SEC,
           expire: PUSHOVER_FORM_CALL_EXPIRE_SEC,
         },
+      }
+    case 'SERVICE_STATUS':
+      return {
+        type,
+        label: 'Service status',
+        description: 'Employee on the way / arrived / 30 min left (priority 1, default sound)',
+        payload: buildServiceStatusPushoverPayload({
+          kind: 'ON_THE_WAY',
+          employeeName: 'Maria',
+          clientName: 'Jane Client',
+          address: '123 Main St',
+          time: '09:00',
+        }),
       }
   }
 }

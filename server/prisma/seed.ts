@@ -203,6 +203,16 @@ async function main() {
     },
   })
 
+  // Rita Kano OWNER also has an Employee (same pattern as Marcos SUPERVISOR) for schedule / text
+  const ritaEmployee = await prisma.employee.create({
+    data: {
+      name: 'Rita Kano',
+      number: '+17255774524',
+      userId: rita.id,
+      supervisorId: null,
+    },
+  })
+
   // Demo employee for demonstrations: 1234567890 / password. Has open dates, availability, unconfirmed and scheduled jobs, and schedule update.
   const demoPassword = await bcrypt.hash('passwordPlease', 10)
   const demoUserName = generateUserName('1234567890')
@@ -709,7 +719,7 @@ async function main() {
 
   // Create schedules for each employee with a mix of available/unavailable for current week (for Team Options modal testing)
   // Slot A = AM (before 2pm), M = PM (2pm+). Status F = free/available.
-  const employees = [empOne, empTwo, empThree, empFour]
+  const employees = [empOne, empTwo, empThree, empFour, ritaEmployee]
   const employeeIndex = (emp: { id: number }) => employees.findIndex((e) => e.id === emp.id)
 
   for (const employee of employees) {
@@ -1291,18 +1301,29 @@ async function main() {
   })
 
   // --- Message Bank (SMS templates for inbox / copy) ---
-  const mbGroupLeads = await prisma.messageBankGroup.create({
-    data: { name: 'Leads', color: '#E0F2FE' },
+  const mbGroupLeads = await prisma.messageBankGroup.upsert({
+    where: { name: 'Leads' },
+    update: { color: '#E0F2FE' },
+    create: { name: 'Leads', color: '#E0F2FE' },
   })
-  const mbGroupConfirmations = await prisma.messageBankGroup.create({
-    data: { name: 'Confirmations', color: '#DCFCE7' },
+  const mbGroupConfirmations = await prisma.messageBankGroup.upsert({
+    where: { name: 'Confirmations' },
+    update: { color: '#DCFCE7' },
+    create: { name: 'Confirmations', color: '#DCFCE7' },
   })
-  const mbGroupAccess = await prisma.messageBankGroup.create({
-    data: { name: 'Access', color: '#FEF9C3' },
+  const mbGroupAccess = await prisma.messageBankGroup.upsert({
+    where: { name: 'Access' },
+    update: { color: '#FEF9C3' },
+    create: { name: 'Access', color: '#FEF9C3' },
   })
 
-  await prisma.messageBankTemplate.createMany({
-    data: [
+  const messageBankTemplates: Array<{
+    name: string
+    body: string
+    builtinVariables: Array<'NAME' | 'PRICE' | 'SERVICE_TYPE'>
+    customVariables: unknown
+    groupId: number
+  }> = [
       {
         name: 'New lead — quote follow-up',
         body: `Hi {{Name}}! This is Evidence Cleaning 😊
@@ -1374,9 +1395,32 @@ Reply with any updates or gate codes. Thanks!`,
         ],
         groupId: mbGroupConfirmations.id,
       },
-    ],
-  })
+  ]
 
+  for (const t of messageBankTemplates) {
+    const existing = await prisma.messageBankTemplate.findFirst({ where: { name: t.name } })
+    if (existing) {
+      await prisma.messageBankTemplate.update({
+        where: { id: existing.id },
+        data: {
+          body: t.body,
+          builtinVariables: t.builtinVariables,
+          customVariables: t.customVariables as object,
+          groupId: t.groupId,
+        },
+      })
+    } else {
+      await prisma.messageBankTemplate.create({
+        data: {
+          name: t.name,
+          body: t.body,
+          builtinVariables: t.builtinVariables,
+          customVariables: t.customVariables as object,
+          groupId: t.groupId,
+        },
+      })
+    }
+  }
   await prisma.appointment.updateMany({
     where: { id: { in: [futureSingle.id, demoApptUnconfirmed.id] } },
     data: { conversationSessionId: janeSess.id },

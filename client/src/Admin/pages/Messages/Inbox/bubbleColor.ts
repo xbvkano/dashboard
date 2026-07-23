@@ -1,5 +1,8 @@
 const DEFAULT_OUTBOUND_BG = '#3b82f6' // tailwind blue-500
 
+/** Service-status SMS bubbles (On the way / 30 min left) — keep in sync with server SERVICE_STATUS_BUBBLE_COLOR */
+export const SERVICE_STATUS_BUBBLE_COLOR = '#7C3AED'
+
 /** Relative luminance 0–1; used to pick readable text color */
 export function relativeLuminance(hex: string): number {
   const rgb = parseHex(hex)

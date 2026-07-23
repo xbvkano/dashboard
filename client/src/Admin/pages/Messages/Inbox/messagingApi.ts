@@ -105,6 +105,7 @@ export type ConversationDetail = {
     createdAt: string
     userId: number | null
     senderBubbleColor: string | null
+    attributionLabel: string | null
     sessionId: number | null
     mediaCount: number
     media: Array<{

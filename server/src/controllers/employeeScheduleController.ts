@@ -11,6 +11,25 @@ import {
   DEFAULT_APPOINTMENT_TIMEZONE,
   whereAppointmentOnInclusiveLocalDateRange,
 } from '../utils/appointmentTimezone'
+import {
+  SERVICE_STATUS_BUBBLE_COLOR,
+  SERVICE_STATUS_SMS_BODIES,
+  isServiceStatusKind,
+  type ServiceStatusKind,
+} from '../constants/serviceStatus'
+import {
+  getAppointmentServiceWindow,
+  listActiveAppointments,
+  pickActiveAppointment,
+} from '../utils/serviceStatusWindow'
+import {
+  resolveArrivedActions,
+  resolveOnTheWayActions,
+  resolveThirtyMinutesActions,
+} from '../services/serviceStatusActions'
+import { buildServiceStatusPushoverPayload } from '../utils/pushoverNotificationCopy'
+import { isPushoverConfigured, sendPushoverMessage } from '../services/pushover'
+import { sendOutboundSms } from '../services/messaging'
 
 const prisma = new PrismaClient()
 const smsClient = twilio(
@@ -18,8 +37,8 @@ const smsClient = twilio(
   process.env.TWILIO_AUTH_TOKEN || '',
 )
 
-/** Result: employee id, disabled, or not authenticated */
-type EmployeeAuth = { employeeId: number } | { disabled: true } | null
+/** Result: employee id (+ name), disabled, or not authenticated */
+type EmployeeAuth = { employeeId: number; name: string } | { disabled: true } | null
 
 // Helper to get employee from request; returns null if not authenticated, { disabled: true } if employee is disabled
 async function getEmployeeAuth(req: Request): Promise<EmployeeAuth> {
@@ -31,7 +50,7 @@ async function getEmployeeAuth(req: Request): Promise<EmployeeAuth> {
     })
     if (user?.employee) {
       if (user.employee.disabled) return { disabled: true }
-      return { employeeId: user.employee.id }
+      return { employeeId: user.employee.id, name: user.employee.name }
     }
   }
 
@@ -43,7 +62,7 @@ async function getEmployeeAuth(req: Request): Promise<EmployeeAuth> {
     })
     if (user?.employee) {
       if (user.employee.disabled) return { disabled: true }
-      return { employeeId: user.employee.id }
+      return { employeeId: user.employee.id, name: user.employee.name }
     }
   }
 
@@ -502,6 +521,254 @@ export async function confirmJob(req: Request, res: Response) {
   } catch (e) {
     console.error('Error confirming job:', e)
     res.status(500).json({ error: 'Failed to confirm job' })
+  }
+}
+
+export async function getActiveJob(req: Request, res: Response) {
+  try {
+    const auth = await getEmployeeAuth(req)
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' })
+    if ('disabled' in auth) return res.status(403).json({ error: 'Account disabled' })
+    const employeeId = auth.employeeId
+
+    const z = DEFAULT_APPOINTMENT_TIMEZONE
+    const now = new Date()
+    const nowZ = DateTime.fromJSDate(now).setZone(z)
+    // ±1 day so early window near midnight still finds the appointment
+    const startStr = nowZ.minus({ days: 1 }).toFormat('yyyy-LL-dd')
+    const endStr = nowZ.plus({ days: 1 }).toFormat('yyyy-LL-dd')
+    const windowWhere = whereAppointmentOnInclusiveLocalDateRange(startStr, endStr, z)
+
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        employees: { some: { id: employeeId } },
+        status: { notIn: ['RESCHEDULE_OLD', 'DELETED', 'CANCEL'] },
+        AND: [windowWhere],
+      },
+      select: {
+        id: true,
+        dateUtc: true,
+        date: true,
+        time: true,
+        hours: true,
+        size: true,
+        type: true,
+        status: true,
+        address: true,
+      },
+    })
+
+    const actives = listActiveAppointments(appointments, now, z)
+    if (actives.length === 0) {
+      return res.json({ activeJob: null, activeJobs: [] })
+    }
+
+    const allEvents = await prisma.appointmentServiceStatusEvent.findMany({
+      where: { appointmentId: { in: actives.map((a) => a.id) } },
+      select: { appointmentId: true, kind: true, employeeId: true, smsMessageId: true },
+    })
+
+    const activeJobs = actives.map((active) => {
+      const { start, end } = getAppointmentServiceWindow(active, z)
+      const events = allEvents.filter((e) => e.appointmentId === active.id)
+      const clicked = {
+        ON_THE_WAY: events.some((e) => e.kind === 'ON_THE_WAY' && e.employeeId === employeeId),
+        ARRIVED: events.some((e) => e.kind === 'ARRIVED' && e.employeeId === employeeId),
+        THIRTY_MINUTES_LEFT: events.some(
+          (e) => e.kind === 'THIRTY_MINUTES_LEFT' && e.employeeId === employeeId,
+        ),
+      }
+      const smsSent = {
+        ON_THE_WAY: events.some((e) => e.kind === 'ON_THE_WAY' && e.smsMessageId != null),
+        THIRTY_MINUTES_LEFT: events.some(
+          (e) => e.kind === 'THIRTY_MINUTES_LEFT' && e.smsMessageId != null,
+        ),
+      }
+      const thirtyMinDone = events.some((e) => e.kind === 'THIRTY_MINUTES_LEFT')
+      return {
+        id: active.id,
+        address: active.address,
+        time: active.time,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        clicked,
+        smsSent,
+        thirtyMinDone,
+      }
+    })
+
+    res.json({
+      activeJob: activeJobs[0] ?? null,
+      activeJobs,
+    })
+  } catch (e) {
+    console.error('Error fetching active job:', e)
+    res.status(500).json({ error: 'Failed to fetch active job' })
+  }
+}
+
+async function resolveServiceStatusConversationId(appt: {
+  clientId: number
+  conversationSessionId: number | null
+  conversationSession: { conversationId: number } | null
+}): Promise<number | null> {
+  if (appt.conversationSession?.conversationId) {
+    return appt.conversationSession.conversationId
+  }
+  const byClient = await prisma.conversation.findFirst({
+    where: {
+      clientId: appt.clientId,
+      status: { not: 'ARCHIVED' },
+    },
+    orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
+    select: { id: true },
+  })
+  return byClient?.id ?? null
+}
+
+export async function postAppointmentServiceStatus(req: Request, res: Response) {
+  try {
+    const auth = await getEmployeeAuth(req)
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' })
+    if ('disabled' in auth) return res.status(403).json({ error: 'Account disabled' })
+    const { employeeId, name: employeeName } = auth
+
+    const appointmentId = parseInt(String(req.params.id), 10)
+    if (Number.isNaN(appointmentId)) {
+      return res.status(400).json({ error: 'Invalid appointment id' })
+    }
+
+    const kindRaw = (req.body as { kind?: string })?.kind
+    if (!kindRaw || !isServiceStatusKind(kindRaw)) {
+      return res.status(400).json({ error: 'Invalid kind' })
+    }
+    const kind: ServiceStatusKind = kindRaw
+
+    const appt = await prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        employees: { some: { id: employeeId } },
+        status: { notIn: ['RESCHEDULE_OLD', 'DELETED', 'CANCEL'] },
+      },
+      include: {
+        conversationSession: { select: { conversationId: true } },
+        client: { select: { id: true, name: true, number: true } },
+      },
+    })
+    if (!appt) {
+      return res.status(404).json({ error: 'Appointment not found or not assigned to you' })
+    }
+
+    const z = DEFAULT_APPOINTMENT_TIMEZONE
+    const now = new Date()
+    const inWindow = pickActiveAppointment([appt], now, z)
+    if (!inWindow) {
+      return res.status(409).json({ error: 'Appointment is not currently in service window' })
+    }
+
+    let plan
+    if (kind === 'ON_THE_WAY') {
+      const self = await prisma.appointmentServiceStatusEvent.findFirst({
+        where: { appointmentId, kind, employeeId },
+      })
+      const teamSms = await prisma.appointmentServiceStatusEvent.findFirst({
+        where: { appointmentId, kind, smsMessageId: { not: null } },
+      })
+      plan = resolveOnTheWayActions({
+        alreadyClickedByThisEmployee: self != null,
+        teamAlreadySentSms: teamSms != null,
+      })
+    } else if (kind === 'ARRIVED') {
+      const self = await prisma.appointmentServiceStatusEvent.findFirst({
+        where: { appointmentId, kind, employeeId },
+      })
+      plan = resolveArrivedActions({ alreadyClickedByThisEmployee: self != null })
+    } else {
+      const any = await prisma.appointmentServiceStatusEvent.findFirst({
+        where: { appointmentId, kind },
+      })
+      plan = resolveThirtyMinutesActions({ anyTeamMemberAlreadyClicked: any != null })
+    }
+
+    if (plan.outcome === 'already_handled' || plan.outcome === 'ignored') {
+      return res.json({
+        outcome: plan.outcome,
+        smsSent: false,
+        pushoverSent: false,
+      })
+    }
+
+    let smsSent = false
+    let smsMessageId: number | null = null
+    let smsError: string | undefined
+
+    if (plan.sendSms) {
+      const conversationId = await resolveServiceStatusConversationId(appt)
+      const body = SERVICE_STATUS_SMS_BODIES[kind]
+      if (!conversationId || !body) {
+        smsError = 'Could not send SMS (no conversation or body)'
+      } else {
+        try {
+          const sent = await sendOutboundSms(prisma, {
+            conversationId,
+            body,
+            userId: null,
+          })
+          smsMessageId = sent.messageId
+          await prisma.message.update({
+            where: { id: sent.messageId },
+            data: {
+              appointmentId,
+              attributionLabel: employeeName,
+              bubbleColorOverride: SERVICE_STATUS_BUBBLE_COLOR,
+            },
+          })
+          smsSent = true
+        } catch (e) {
+          console.error('service status SMS failed', e)
+          smsError = 'Failed to send SMS'
+        }
+      }
+    }
+
+    if (plan.recordClick) {
+      await prisma.appointmentServiceStatusEvent.create({
+        data: {
+          appointmentId,
+          kind,
+          employeeId,
+          smsMessageId: smsMessageId ?? undefined,
+        },
+      })
+    }
+
+    let pushoverSent = false
+    if (plan.sendPushover && isPushoverConfigured()) {
+      try {
+        await sendPushoverMessage(
+          buildServiceStatusPushoverPayload({
+            kind,
+            employeeName,
+            clientName: appt.client?.name ?? 'Client',
+            address: appt.address,
+            time: appt.time,
+          }),
+        )
+        pushoverSent = true
+      } catch (e) {
+        console.error('service status pushover failed', e)
+      }
+    }
+
+    res.json({
+      outcome: 'ok',
+      smsSent,
+      pushoverSent,
+      ...(smsError ? { smsError } : {}),
+    })
+  } catch (e) {
+    console.error('Error posting service status:', e)
+    res.status(500).json({ error: 'Failed to post service status' })
   }
 }
 

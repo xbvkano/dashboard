@@ -165,6 +165,94 @@ function getHeaders(): Headers {
   return h
 }
 
+type ServiceStatusKind = 'ON_THE_WAY' | 'ARRIVED' | 'THIRTY_MINUTES_LEFT'
+
+type ActiveJob = {
+  id: number
+  address: string
+  time: string
+  startTime: string
+  endTime: string
+  clicked: {
+    ON_THE_WAY: boolean
+    ARRIVED: boolean
+    THIRTY_MINUTES_LEFT: boolean
+  }
+  smsSent: {
+    ON_THE_WAY: boolean
+    THIRTY_MINUTES_LEFT: boolean
+  }
+  thirtyMinDone: boolean
+}
+
+function CurrentJobBanner({
+  job,
+  jobIndex,
+  jobTotal,
+  postingKind,
+  statusMessage,
+  onAction,
+}: {
+  job: ActiveJob
+  jobIndex: number
+  jobTotal: number
+  postingKind: ServiceStatusKind | null
+  statusMessage: string
+  onAction: (kind: ServiceStatusKind) => void
+}) {
+  const buttons: Array<{
+    kind: ServiceStatusKind
+    label: string
+    disabled: boolean
+  }> = [
+    {
+      kind: 'ON_THE_WAY',
+      label: job.clicked.ON_THE_WAY ? 'On the way ✓' : 'On the way',
+      disabled: job.clicked.ON_THE_WAY,
+    },
+    {
+      kind: 'ARRIVED',
+      label: job.clicked.ARRIVED ? 'Arrived ✓' : 'Arrived',
+      disabled: job.clicked.ARRIVED,
+    },
+    {
+      kind: 'THIRTY_MINUTES_LEFT',
+      label: job.thirtyMinDone ? '30 minutes left ✓' : '30 minutes left',
+      disabled: job.thirtyMinDone || job.clicked.THIRTY_MINUTES_LEFT,
+    },
+  ]
+
+  return (
+    <div className="rounded-xl border-2 border-emerald-500 bg-emerald-50 p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+            {jobTotal > 1 ? `Current job (${jobIndex + 1} of ${jobTotal})` : 'Current job'}
+          </p>
+          <p className="mt-1 font-semibold text-emerald-950 break-words">{job.address}</p>
+          <p className="text-sm text-emerald-800 mt-0.5">{formatTime(job.time)}</p>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {buttons.map((b) => (
+          <button
+            key={b.kind}
+            type="button"
+            disabled={b.disabled || postingKind != null}
+            onClick={() => onAction(b.kind)}
+            className="min-h-[44px] rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed active:bg-emerald-700"
+          >
+            {postingKind === b.kind ? 'Sending…' : b.label}
+          </button>
+        ))}
+      </div>
+      {statusMessage ? (
+        <p className="mt-2 text-xs text-emerald-900">{statusMessage}</p>
+      ) : null}
+    </div>
+  )
+}
+
 export default function UpcomingJobs() {
   const { t } = useEmployeeLanguage()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -175,6 +263,29 @@ export default function UpcomingJobs() {
   const [error, setError] = useState('')
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
   const [confirmModalAppointmentId, setConfirmModalAppointmentId] = useState<number | null>(null)
+  const [activeJobs, setActiveJobs] = useState<ActiveJob[]>([])
+  const [posting, setPosting] = useState<{ id: number; kind: ServiceStatusKind } | null>(null)
+  const [statusByJobId, setStatusByJobId] = useState<Record<number, string>>({})
+
+  function loadActiveJob() {
+    return fetch(`${API_BASE_URL}/employee/active-job`, { headers: getHeaders() })
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load active job')
+        return res.json()
+      })
+      .then((data: { activeJob?: ActiveJob | null; activeJobs?: ActiveJob[] }) => {
+        if (Array.isArray(data.activeJobs)) {
+          setActiveJobs(data.activeJobs)
+        } else if (data.activeJob) {
+          setActiveJobs([data.activeJob])
+        } else {
+          setActiveJobs([])
+        }
+      })
+      .catch(() => {
+        /* banner is best-effort; jobs list still loads */
+      })
+  }
 
   function loadList() {
     fetch(`${API_BASE_URL}/employee/upcoming-appointments`, { headers: getHeaders() })
@@ -205,9 +316,46 @@ export default function UpcomingJobs() {
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
-    return () => { cancelled = true }
+    loadActiveJob()
+    const poll = window.setInterval(() => {
+      void loadActiveJob()
+    }, 60_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(poll)
+    }
   }, [])
 
+  async function postServiceStatus(jobId: number, kind: ServiceStatusKind) {
+    setPosting({ id: jobId, kind })
+    setStatusByJobId((prev) => ({ ...prev, [jobId]: '' }))
+    try {
+      const res = await fetch(`${API_BASE_URL}/employee/appointments/${jobId}/service-status`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ kind }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to send status')
+      let message = 'Sent.'
+      if (data.outcome === 'ignored') {
+        message = 'Already sent by a teammate.'
+      } else if (data.outcome === 'already_handled') {
+        message = 'You already sent this.'
+      } else if (data.smsError) {
+        message = data.smsError
+      }
+      setStatusByJobId((prev) => ({ ...prev, [jobId]: message }))
+      await loadActiveJob()
+    } catch (err: unknown) {
+      setStatusByJobId((prev) => ({
+        ...prev,
+        [jobId]: err instanceof Error ? err.message : 'Failed to send status',
+      }))
+    } finally {
+      setPosting(null)
+    }
+  }
   // When opened with ?highlight=id from Schedule, scroll to that job and highlight it.
   // Outline is not removed by a timer; it disappears when the user leaves this page and comes back.
   const HIGHLIGHT_LEFT_KEY = 'employee-upcoming-jobs-highlight-left'
@@ -292,6 +440,22 @@ export default function UpcomingJobs() {
     <div className="pb-4">
       <h1 className="text-xl md:text-2xl font-semibold text-slate-800 mb-1 tracking-tight">Upcoming Jobs</h1>
       <p className="text-sm text-slate-500 mb-6">Your scheduled appointments for the next 14 days</p>
+
+      {activeJobs.length > 0 ? (
+        <div className="mb-6 space-y-3">
+          {activeJobs.map((job, index) => (
+            <CurrentJobBanner
+              key={job.id}
+              job={job}
+              jobIndex={index}
+              jobTotal={activeJobs.length}
+              postingKind={posting?.id === job.id ? posting.kind : null}
+              statusMessage={statusByJobId[job.id] ?? ''}
+              onAction={(kind) => postServiceStatus(job.id, kind)}
+            />
+          ))}
+        </div>
+      ) : null}
 
       {error && (
         <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-lg text-sm border border-red-100">

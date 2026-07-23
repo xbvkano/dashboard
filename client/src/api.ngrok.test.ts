@@ -22,6 +22,14 @@ describe('resolveApiBaseUrl (ngrok)', () => {
     expect(resolveApiBaseUrl()).toBe('/api')
   })
 
+  it('uses /api proxy on trycloudflare.com hostnames', () => {
+    vi.stubGlobal('window', {
+      location: { hostname: 'random-words.trycloudflare.com', protocol: 'https:' },
+    })
+    expect(isNgrokBrowserContext()).toBe(true)
+    expect(resolveApiBaseUrl()).toBe('/api')
+  })
+
   it('does not use /api on localhost', () => {
     vi.stubGlobal('window', {
       location: { hostname: 'localhost', protocol: 'http:' },
