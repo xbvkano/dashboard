@@ -50,6 +50,7 @@ export default function LeadMessageModal({ open, onClose, defaultText, title = '
       document.execCommand('copy')
       document.body.removeChild(ta)
     }
+    onClose()
   }
 
   if (!open) return null
