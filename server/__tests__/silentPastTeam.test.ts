@@ -60,11 +60,12 @@ describe('silent past appointment team assignment', () => {
   })
 
   it('when updating team for a past appointment, marks payroll items confirmed and does not send reminders', async () => {
+    // Yesterday (Apr 13) — past is calendar-day based, not appointment time
     mockAppointmentFindUniqueResult = {
       id: 1,
-      dateUtc: new Date('2026-04-14T07:00:00.000Z'),
-      date: new Date('2026-04-14T07:00:00.000Z'),
-      time: '09:00', // 9am LA, in the past relative to 11am LA
+      dateUtc: new Date('2026-04-13T07:00:00.000Z'),
+      date: new Date('2026-04-13T07:00:00.000Z'),
+      time: '09:00',
       employees: [],
       client: {},
       admin: {},
@@ -91,8 +92,8 @@ describe('silent past appointment team assignment', () => {
   it('blocks sendAppointmentInfo for a past appointment', async () => {
     mockAppointmentFindUniqueResult = {
       id: 2,
-      dateUtc: new Date('2026-04-14T07:00:00.000Z'),
-      date: new Date('2026-04-14T07:00:00.000Z'),
+      dateUtc: new Date('2026-04-13T07:00:00.000Z'),
+      date: new Date('2026-04-13T07:00:00.000Z'),
       time: '09:00',
       employees: [{ id: 1, number: '+15551234567' }],
       payrollItems: [],
