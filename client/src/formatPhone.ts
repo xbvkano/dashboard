@@ -86,3 +86,76 @@ export function phoneToApiPayload(value: string): string {
   if (digits.length === 11 && digits.startsWith('1')) return digits
   return digits.length > 0 ? `+${digits}` : ''
 }
+
+export type PhoneParts = { countryCode: string; national: string }
+
+/**
+ * Split a stored/API phone into country code + national digits for the split input UI.
+ * Empty → default +1. Prefers US (+1 / 10-digit / 11-digit) before intl heuristics.
+ */
+export function splitPhone(value: string): PhoneParts {
+  const trimmed = value.trim()
+  if (!trimmed) return { countryCode: '1', national: '' }
+
+  const digits = digitsOnly(trimmed)
+  if (!digits) return { countryCode: '1', national: '' }
+
+  const hasPlus = trimmed.startsWith('+')
+
+  // Explicit or implied US / NANP
+  if (hasPlus && digits.startsWith('1')) {
+    return { countryCode: '1', national: digits.slice(1).slice(0, 10) }
+  }
+  if (!hasPlus) {
+    if (digits.length === 11 && digits.startsWith('1')) {
+      return { countryCode: '1', national: digits.slice(1, 11) }
+    }
+    if (digits.length <= 10) {
+      return { countryCode: '1', national: digits.slice(0, 10) }
+    }
+  }
+
+  // International: 1 and 7 are single-digit codes; otherwise prefer 2-digit
+  if (digits.startsWith('7') && (hasPlus || digits.length > 11)) {
+    return { countryCode: '7', national: digits.slice(1) }
+  }
+  if (digits.length <= 3 && hasPlus) {
+    return { countryCode: digits, national: '' }
+  }
+  const codeLen = digits.length > 11 ? 2 : Math.min(2, digits.length)
+  return {
+    countryCode: digits.slice(0, codeLen) || '1',
+    national: digits.slice(codeLen),
+  }
+}
+
+/** Combine country code + national into one value for form state / API (`+CC…`). Empty national → ''. */
+export function combinePhone(countryCode: string, national: string): string {
+  const code = digitsOnly(countryCode) || '1'
+  const nat = digitsOnly(national)
+  if (!nat) return ''
+  return `+${code}${nat}`
+}
+
+/** Format national digits for the number box (US mask when country is 1). */
+export function formatNationalInput(countryCode: string, national: string): string {
+  const code = digitsOnly(countryCode) || '1'
+  const nat = digitsOnly(national)
+  if (!nat) return ''
+  if (code === '1') {
+    let result = ''
+    if (nat.length > 0) result += '(' + nat.slice(0, 3)
+    if (nat.length >= 3) result += ')'
+    if (nat.length > 3) result += '-' + nat.slice(3, 6)
+    if (nat.length > 6) result += '-' + nat.slice(6, 10)
+    return result
+  }
+  return nat
+}
+
+/** Max national digits given a country code (E.164 total ≤ 15). */
+export function maxNationalDigits(countryCode: string): number {
+  const code = digitsOnly(countryCode) || '1'
+  if (code === '1') return 10
+  return Math.max(1, E164_MAX_DIGITS - code.length)
+}

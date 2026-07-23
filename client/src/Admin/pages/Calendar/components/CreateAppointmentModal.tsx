@@ -27,7 +27,8 @@ function dashboardHeadersNoBody(): Headers {
   return headers
 }
 import { useModal } from '../../../../ModalProvider'
-import { formatPhone } from '../../../../formatPhone'
+import { formatPhone, phoneToApiPayload } from '../../../../formatPhone'
+import PhoneInput from '../../../components/PhoneInput'
 import { SIZE_OPTIONS } from '../../../../shared/sizeOptions'
 
 interface Props {
@@ -97,12 +98,8 @@ export default function CreateAppointmentModal({
     lockClient ? false : (persisted.showNewClient ?? false),
   )
 
-  const handleNewClientNumberChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const value = e.target.value
-    const digits = value.replace(/\D/g, '').slice(0, 11)
-    setNewClient({ ...newClient, number: digits })
+  const handleNewClientNumberChange = (combined: string) => {
+    setNewClient({ ...newClient, number: combined })
   }
 
   const getInitialTemplate = () => {
@@ -611,7 +608,7 @@ const preserveTeamRef = useRef(false)
     }
     const payload = {
       name: newClient.name,
-      number: newClient.number.length === 10 ? '1' + newClient.number : newClient.number,
+      number: phoneToApiPayload(newClient.number),
       from: newClient.from,
       notes: newClient.notes,
     }
@@ -1006,12 +1003,13 @@ const preserveTeamRef = useRef(false)
               onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
             />
               <label className="block text-sm text-slate-600">Number <span className="text-red-500">*</span></label>
-            <input
+            <PhoneInput
               id="appointment-new-client-number"
-              className="w-full border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Number"
-              value={formatPhone(newClient.number)}
+              value={newClient.number}
               onChange={handleNewClientNumberChange}
+              required
+              className="border border-slate-200 p-2 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              nationalPlaceholder="Number"
             />
               <label className="block text-sm text-slate-600">From <span className="text-red-500">*</span></label>
             <select

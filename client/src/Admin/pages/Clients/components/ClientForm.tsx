@@ -4,7 +4,8 @@ import useFormPersistence, { clearFormPersistence, loadFormPersistence } from ".
 import { useNavigate, useParams } from 'react-router-dom'
 import { Client } from './types'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
-import { formatPhone } from '../../../../formatPhone'
+import { formatPhone, phoneToApiPayload } from '../../../../formatPhone'
+import PhoneInput from '../../../components/PhoneInput'
 import { copyTextToClipboard, phoneToE164 } from '../../../contactActions'
 import { formatApiError, startConversationFromContact } from '../../Messages/Inbox/messagingApi'
 
@@ -66,10 +67,8 @@ export default function ClientForm() {
     setData(updated)
   }
 
-  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    const digits = value.replace(/\D/g, '').slice(0, 11)
-    const updated = { ...data, [name]: digits }
+  const handleNumberChange = (combined: string) => {
+    const updated = { ...data, number: combined }
     persist(updated)
     setData(updated)
   }
@@ -117,7 +116,7 @@ export default function ClientForm() {
     e.preventDefault()
     const payload = {
       name: data.name,
-      number: data.number.length === 10 ? '1' + data.number : data.number,
+      number: phoneToApiPayload(data.number),
       from: data.from,
       notes: data.notes,
       disabled: data.disabled ?? false,
@@ -271,14 +270,12 @@ export default function ClientForm() {
         <label htmlFor="client-number" className="block text-sm">
           Phone number <span className="text-red-500">*</span>
         </label>
-        <input
+        <PhoneInput
           id="client-number"
-          name="number"
-          value={formatPhone(data.number)}
+          value={data.number}
           onChange={handleNumberChange}
-          type="tel"
           required
-          className="w-full border p-2 rounded"
+          className="border p-2 rounded"
         />
       </div>
       <div>

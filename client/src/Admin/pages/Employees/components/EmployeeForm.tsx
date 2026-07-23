@@ -5,7 +5,8 @@ import { Employee, SupervisorOption } from './types'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from '../../../../useFormPersistence'
 import AppointmentsSection from "../../../components/AppointmentsSection"
-import { formatPhone, phoneDigitsOnly, phoneHasMinDigits, phoneToApiPayload } from '../../../../formatPhone'
+import { phoneHasMinDigits, phoneToApiPayload } from '../../../../formatPhone'
+import PhoneInput from '../../../components/PhoneInput'
 
 function normalizeNumberForCompare(num: string): string {
   return num.replace(/\D/g, '')
@@ -106,10 +107,8 @@ export default function EmployeeForm() {
     setData(updated)
   }
 
-  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    const normalized = phoneDigitsOnly(value)
-    const updated = { ...data, [name]: normalized }
+  const handleNumberChange = (combined: string) => {
+    const updated = { ...data, number: combined }
     persist(updated)
     setData(updated)
   }
@@ -211,17 +210,12 @@ export default function EmployeeForm() {
         <label htmlFor="employee-number" className="block text-sm">
           Phone number <span className="text-red-500">*</span>
         </label>
-        <input
+        <PhoneInput
           id="employee-number"
-          name="number"
-          value={formatPhone(data.number)}
+          value={data.number}
           onChange={handleNumberChange}
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          placeholder="+1 or +61…"
           required
-          className="w-full border p-2 rounded"
+          className="border p-2 rounded"
         />
       </div>
       <div>
