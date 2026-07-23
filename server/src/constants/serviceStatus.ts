@@ -6,9 +6,9 @@ export type ServiceStatusKind = (typeof SERVICE_STATUS_KINDS)[number]
 
 export const SERVICE_STATUS_SMS_BODIES: Partial<Record<ServiceStatusKind, string>> = {
   ON_THE_WAY:
-    'Hi! This is Evidence Cleaning — your cleaning team is on the way to your appointment.',
+    'Hi! This is Evidence Cleaning. Your cleaning team is on the way to your appointment.',
   THIRTY_MINUTES_LEFT:
-    'Hi! This is Evidence Cleaning — there are about 30 minutes left on your cleaning.',
+    'The cleaning team just informed us that they will be done with the cleaning in about minutes. Please let me know if they did a good job 😊.',
 }
 
 export function isServiceStatusKind(value: string): value is ServiceStatusKind {
