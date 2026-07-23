@@ -13,6 +13,8 @@ async function main() {
   // Delete in order to respect foreign key constraints
   await prisma.payrollItem.deleteMany()
   await prisma.employeePayment.deleteMany()
+  await prisma.onDutySchedule.deleteMany()
+  await prisma.onDutyRecurrence.deleteMany()
   await prisma.schedule.deleteMany() // Delete schedules before employees
   await prisma.message.deleteMany()
   await prisma.appointment.updateMany({ data: { conversationSessionId: null } })
@@ -96,13 +98,22 @@ async function main() {
 
   // OWNER and SUPERVISOR for supervisor assignment and future text notifications
   const ritaPassword = await bcrypt.hash('password123', 10)
+  const ritaPhone = normalizePhone('7255774524')!
   const rita = await prisma.user.create({
     data: {
       name: 'Rita Kano',
-      userName: '7255774524',
+      userName: generateUserName(ritaPhone),
       password: ritaPassword,
       type: 'password',
       role: 'OWNER',
+    },
+  })
+  // Employee row required for call-center privileged caller lookup (OWNER + phone)
+  await prisma.employee.create({
+    data: {
+      name: 'Rita Kano',
+      number: ritaPhone,
+      userId: rita.id,
     },
   })
   // Marcos Kano SUPERVISOR (same user as employee Marcos, used for supervisor dropdown + text)

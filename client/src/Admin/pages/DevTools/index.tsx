@@ -1,14 +1,26 @@
 import { useState, useEffect, useCallback } from 'react'
-import { API_BASE_URL, fetchJson } from '../../../api'
+import {
+  API_BASE_URL,
+  fetchJson,
+  loginRequestHeaders,
+  persistLoginResponse,
+  resolveApiBaseUrl,
+} from '../../../api'
 import { useModal } from '../../../ModalProvider'
 import type { ThreadContact } from '../Messages/Inbox/types'
 import SimulateInboundDevControls from '../Messages/Inbox/components/SimulateInboundDevControls'
 import PushoverTestDevControls from './PushoverTestDevControls'
+import CallCenterDevControls from './CallCenterDevControls'
 import {
   conversationInboxItemToThreadContact,
   fetchConversationsPage,
 } from '../Messages/Inbox/messagingApi'
-import { DEV_SEED_ADMIN_ACCOUNTS, isViteNoAuth } from '../../../devNoAuth'
+import {
+  DEV_SEED_ADMIN_ACCOUNTS,
+  isViteNoAuth,
+  RITA_KANO_OWNER_PROFILE,
+  setNoAuthLoginProfileId,
+} from '../../../devNoAuth'
 import { isDevToolsEnabled } from '../../../devTools'
 
 // Seed creates Marcos Kano with generateUserName('17255774523') → stored as '7255774523' in User.userName
@@ -175,6 +187,18 @@ export default function DevTools({ onSwitchRole }: DevToolsProps) {
       )}
 
       <div className="border rounded-lg p-4 bg-white shadow">
+        <h3 className="text-lg font-semibold mb-2">Admin call-center line</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Probe dashboard <code className="text-xs bg-gray-100 px-1 rounded">/api/call-center/*</code>{' '}
+          (via server DevTools) and optionally proxy TwiML from the call center when{' '}
+          <code className="text-xs bg-gray-100 px-1 rounded">CALL_CENTER_URL</code> is set. Twilio
+          webhooks hit the call center at <code className="text-xs bg-gray-100 px-1 rounded">/admin-voice</code>{' '}
+          — not under <code className="text-xs bg-gray-100 px-1 rounded">/api</code>.
+        </p>
+        <CallCenterDevControls />
+      </div>
+
+      <div className="border rounded-lg p-4 bg-white shadow">
         <h3 className="text-lg font-semibold mb-2">Test Pushover notifications</h3>
         <p className="text-sm text-gray-600 mb-4">
           Preview and send sample Pushover alerts for inbound SMS, website quotes, and inbound calls.
@@ -219,6 +243,54 @@ export default function DevTools({ onSwitchRole }: DevToolsProps) {
             className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
           >
             Open employee view (Marcos Kano)
+          </button>
+        </div>
+      )}
+
+      {onSwitchRole && (
+        <div className="border rounded-lg p-4 bg-white shadow">
+          <h3 className="text-lg font-semibold mb-2">View as owner</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Sign in as <strong>Rita Kano</strong> (OWNER, {RITA_KANO_OWNER_PROFILE.userName}) so admin UI
+            and APIs run as her account.
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              setLoading((s) => ({ ...s, viewAsOwner: true }))
+              try {
+                setNoAuthLoginProfileId(RITA_KANO_OWNER_PROFILE.id)
+                const response = await fetch(`${resolveApiBaseUrl()}/login`, {
+                  method: 'POST',
+                  headers: loginRequestHeaders(),
+                  body: JSON.stringify({
+                    userName: RITA_KANO_OWNER_PROFILE.userName,
+                    password: RITA_KANO_OWNER_PROFILE.password,
+                  }),
+                })
+                const data = await response.json().catch(() => ({}))
+                if (!response.ok) {
+                  throw new Error(
+                    typeof data?.error === 'string' ? data.error : `Login failed (${response.status})`,
+                  )
+                }
+                const role = persistLoginResponse(data, 'password')
+                if (role !== 'OWNER') {
+                  throw new Error(`Expected OWNER role, got ${String(data?.role)}`)
+                }
+                onSwitchRole('OWNER', RITA_KANO_OWNER_PROFILE.userName)
+              } catch (error: unknown) {
+                const message =
+                  error instanceof Error ? error.message : 'Failed to switch to Rita Kano'
+                await alert(message)
+              } finally {
+                setLoading((s) => ({ ...s, viewAsOwner: false }))
+              }
+            }}
+            disabled={!!loading.viewAsOwner}
+            className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {loading.viewAsOwner ? 'Signing in…' : 'Open owner view (Rita Kano)'}
           </button>
         </div>
       )}

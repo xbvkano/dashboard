@@ -11,6 +11,11 @@ import {
   testBackfillAppointmentDateUtc,
 } from '../controllers/testController'
 import { getPushoverTestSamples, sendPushoverTest } from '../controllers/pushoverTestController'
+import {
+  getCallCenterTestStatus,
+  probeCallCenterApi,
+  proxyCallCenterVoice,
+} from '../controllers/callCenterTestController'
 
 const router = Router()
 
@@ -26,6 +31,9 @@ router.post('/test/jobs/noon-employee-reminder', testNoonEmployeeReminder)
 router.post('/test/jobs/backfill-appointment-date-utc', testBackfillAppointmentDateUtc)
 router.get('/test/pushover/samples', getPushoverTestSamples)
 router.post('/test/pushover/send', sendPushoverTest)
+router.get('/test/call-center/status', getCallCenterTestStatus)
+router.post('/test/call-center/probe', probeCallCenterApi)
+router.post('/test/call-center/voice', proxyCallCenterVoice)
 
 export default router
 

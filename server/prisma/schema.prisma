@@ -72,6 +72,9 @@ model Employee {
   manualItems  ManualPayrollItem[]
 
   templateLinks EmployeeTemplateEmployee[] @relation("EmployeeOnTemplate")
+
+  onDutyRecurrences OnDutyRecurrence[]
+  onDutySchedules   OnDutySchedule[]
 }
 
 model Appointment {
@@ -301,6 +304,58 @@ model Schedule {
   updatedAt               DateTime  @updatedAt
 
   employee                Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+/// Recurring admin-line on-duty rule (Owner UI). One row = one person on a weekday time block.
+/// Biweekly intercalation: intervalWeeks=2 + phase 0|1 + shared anchorDate (a Monday).
+model OnDutyRecurrence {
+  id             Int      @id @default(autoincrement())
+  employeeId     Int
+  /// 0=Sunday .. 6=Saturday
+  dayOfWeek      Int
+  /// Local wall-clock HH:mm (e.g. "09:00")
+  startTimeLocal String
+  /// Local wall-clock HH:mm; if <= startTimeLocal, block crosses midnight
+  endTimeLocal   String
+  timeZone       String   @default("America/Los_Angeles")
+  /// 1 = every week; 2 = every other week
+  intervalWeeks  Int      @default(1)
+  /// Which week of the biweekly cycle (0 or 1); ignored when intervalWeeks=1
+  phase          Int      @default(0)
+  /// Monday (date-only) defining week 0 of the biweekly cycle
+  anchorDate     DateTime @db.Date
+  /// Lower = tried first when windows overlap
+  priority       Int      @default(0)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  employee  Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  schedules OnDutySchedule[]
+
+  @@index([active, dayOfWeek])
+  @@index([employeeId])
+}
+
+/// Materialized absolute UTC windows for call-center /on-duty lookup (expanded from OnDutyRecurrence).
+model OnDutySchedule {
+  id           Int      @id @default(autoincrement())
+  employeeId   Int
+  startAt      DateTime
+  endAt        DateTime
+  /// Lower = tried first when windows overlap
+  priority     Int      @default(0)
+  active       Boolean  @default(true)
+  recurrenceId Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee   Employee          @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  recurrence OnDutyRecurrence? @relation(fields: [recurrenceId], references: [id], onDelete: SetNull)
+
+  @@index([active, startAt, endAt])
+  @@index([employeeId])
+  @@index([recurrenceId])
 }
 
 // Admin-only: projected team size for days more than 14 days from today (used for capacity display; future: enforce at booking).

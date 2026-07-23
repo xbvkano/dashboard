@@ -4,6 +4,7 @@ import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
 import { formatPhone } from '../../../../formatPhone'
 import { appointmentCalendarDateKey, type Appointment } from '../../Calendar/types'
 import DayTimelineModalContainer, { type DayTimelineModalView } from '../../Calendar/components/DayTimelineHelpers/DayTimelineModalContainer'
+import AdminOnDutyModal from './AdminOnDutyModal'
 
 type ScheduleOverviewEmployee = {
   id: number
@@ -200,6 +201,8 @@ export default function Schedule() {
   const [selectedAvailabilitySlots, setSelectedAvailabilitySlots] = useState<Set<string>>(new Set())
   const [deletingAvailability, setDeletingAvailability] = useState(false)
   const [showSchedulePolicyModal, setShowSchedulePolicyModal] = useState(false)
+  const [showAdminOnDutyModal, setShowAdminOnDutyModal] = useState(false)
+  const isOwner = typeof window !== 'undefined' && localStorage.getItem('role') === 'OWNER'
   const [schedulePolicy, setSchedulePolicy] = useState<{
     updateDayOfWeek: number
     supervisorNotifyAfterDays: number
@@ -510,6 +513,15 @@ export default function Schedule() {
               >
                 Set schedule policy
               </button>
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => setShowAdminOnDutyModal(true)}
+                  className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+                >
+                  Admin on-duty
+                </button>
+              )}
             </>
           )}
         </div>
@@ -1106,6 +1118,11 @@ export default function Schedule() {
           </div>
         </div>
       )}
+
+      <AdminOnDutyModal
+        open={showAdminOnDutyModal}
+        onClose={() => setShowAdminOnDutyModal(false)}
+      />
     </div>
   )
 }
