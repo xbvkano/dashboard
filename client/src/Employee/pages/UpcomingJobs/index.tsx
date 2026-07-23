@@ -14,6 +14,7 @@ export type UpcomingAppointment = {
   pay?: number
   confirmed?: boolean
   type?: 'STANDARD' | 'DEEP' | 'MOVE_IN_OUT'
+  employees?: Array<{ id: number; name: string }>
 }
 
 function formatType(type: UpcomingAppointment['type']): string {
@@ -82,6 +83,25 @@ function AppointmentJobCard({
               <span className="text-xs text-slate-400">—</span>
             )}
           </div>
+          {a.employees && a.employees.length > 0 && (
+            <div className="mt-2.5 pt-2.5 border-t border-slate-100">
+              <div className="flex items-baseline gap-2">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  {t.teamLabel}
+                </span>
+                <span className="text-[10px] font-medium tabular-nums text-slate-400">
+                  ({a.employees.length})
+                </span>
+              </div>
+              <ul className="mt-1 space-y-0.5">
+                {a.employees.map((e) => (
+                  <li key={e.id} className="text-xs text-slate-700 truncate">
+                    {e.name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
         {a.pay != null && (
           <span className="shrink-0 font-semibold text-slate-800 tabular-nums text-sm">${a.pay.toFixed(2)}</span>

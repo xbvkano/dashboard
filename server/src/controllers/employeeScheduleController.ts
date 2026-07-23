@@ -386,14 +386,15 @@ export async function getUpcomingAppointments(req: Request, res: Response) {
           where: { employeeId },
           include: { extras: true },
         },
-        employees: true,
+        employees: { select: { id: true, name: true } },
       },
       orderBy: [{ dateUtc: 'asc' }, { date: 'asc' }, { time: 'asc' }],
     })
 
     const result = appointments.map((a) => {
       const dateStr = appointmentLocalDateKey({ dateUtc: a.dateUtc, date: a.date })
-      const count = a.employees?.length || 1
+      const team = [...(a.employees ?? [])].sort((x, y) => x.name.localeCompare(y.name))
+      const count = team.length || 1
       const defaultPay = calculatePayRate(a.type, a.size ?? null, count)
       const carpetIds = (a.carpetEmployees as number[]) || []
       const carpetShare =
@@ -420,6 +421,7 @@ export async function getUpcomingAppointments(req: Request, res: Response) {
         pay: Math.round(pay * 100) / 100,
         confirmed: pi?.confirmed ?? false,
         type: a.type,
+        employees: team,
       }
     })
 

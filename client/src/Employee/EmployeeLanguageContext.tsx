@@ -88,6 +88,7 @@ const scheduleTranslations = {
     unconfirmedJobsDesc: 'Confirm these jobs so we know you are coming. Unconfirmed jobs may be offered to someone else after 24 hours.',
     scheduledJobsTitle: 'Scheduled jobs',
     jobTypeLabel: 'Type',
+    teamLabel: 'Team',
     jobIndexInBlock: (n: number, total: number) => `Job ${n} of ${total}`,
   },
   pt: {
@@ -166,6 +167,7 @@ const scheduleTranslations = {
     unconfirmedJobsDesc: 'Confirme estes trabalhos para sabermos que você virá. Trabalhos não confirmados podem ser oferecidos a outra pessoa após 24 horas.',
     scheduledJobsTitle: 'Trabalhos agendados',
     jobTypeLabel: 'Tipo',
+    teamLabel: 'Equipe',
     jobIndexInBlock: (n: number, total: number) => `Trabalho ${n} de ${total}`,
   },
   es: {
@@ -244,6 +246,7 @@ const scheduleTranslations = {
     unconfirmedJobsDesc: 'Confirma estos trabajos para que sepamos que vendrás. Los trabajos sin confirmar pueden ofrecerse a otra persona después de 24 horas.',
     scheduledJobsTitle: 'Trabajos programados',
     jobTypeLabel: 'Tipo',
+    teamLabel: 'Equipo',
     jobIndexInBlock: (n: number, total: number) => `Trabajo ${n} de ${total}`,
   },
 } as const
