@@ -8,34 +8,16 @@ type DutyEmployee = {
   role: string | null
 }
 
-type WeekBlock = {
+type DraftShift = {
+  id: string
   dayOfWeek: number
-  date: string
   startTimeLocal: string
   endTimeLocal: string
-  timeZone: string
-  assignees: {
-    employeeId: number
-    name?: string
-    role?: string | null
-    intervalWeeks: number
-    phase: number
-    priority: number
-  }[]
-}
-
-type DraftAssignee = {
   employeeId: number
+  /** 1 = every week; 2 = every other week */
   intervalWeeks: 1 | 2
+  /** Only used when intervalWeeks === 2: 0 = week A, 1 = week B */
   phase: 0 | 1
-}
-
-type DraftBlock = {
-  key: string
-  dayOfWeek: number
-  startTimeLocal: string
-  endTimeLocal: string
-  assignees: DraftAssignee[]
 }
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -48,7 +30,6 @@ function toDateKey(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-/** Local Sunday for the week containing `d`. */
 function sundayOf(d: Date): Date {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate())
   x.setDate(x.getDate() - x.getDay())
@@ -61,9 +42,91 @@ function addDays(d: Date, n: number): Date {
   return x
 }
 
-/** Monday on/before Sunday week start (for biweekly anchor). */
 function mondayAfterSunday(sunday: Date): Date {
   return addDays(sunday, 1)
+}
+
+function newShiftId(): string {
+  return `s-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function hhMmToMinutes(s: string): number {
+  const m = /^(\d{2}):(\d{2})$/.exec(s)
+  if (!m) return NaN
+  const h = Number(m[1])
+  const min = Number(m[2])
+  if (h > 23 || min > 59) return NaN
+  return h * 60 + min
+}
+
+function localTimeRangesOverlap(
+  aStart: string,
+  aEnd: string,
+  bStart: string,
+  bEnd: string
+): boolean {
+  let a0 = hhMmToMinutes(aStart)
+  let a1 = hhMmToMinutes(aEnd)
+  let b0 = hhMmToMinutes(bStart)
+  let b1 = hhMmToMinutes(bEnd)
+  if (![a0, a1, b0, b1].every((n) => Number.isFinite(n))) return false
+  if (a1 <= a0) a1 += 24 * 60
+  if (b1 <= b0) b1 += 24 * 60
+  return a0 < b1 && b0 < a1
+}
+
+function cadencesCanCoOccur(a: DraftShift, b: DraftShift): boolean {
+  if (a.intervalWeeks === 1 || b.intervalWeeks === 1) return true
+  return a.phase === b.phase
+}
+
+/** True if `candidate` would put a second person on the line at the same time as an existing shift. */
+function findOverlapWith(
+  shifts: DraftShift[],
+  candidate: Omit<DraftShift, 'id'> & { id?: string }
+): DraftShift | null {
+  for (const existing of shifts) {
+    if (candidate.id && existing.id === candidate.id) continue
+    if (existing.dayOfWeek !== candidate.dayOfWeek) continue
+    if (
+      !localTimeRangesOverlap(
+        existing.startTimeLocal,
+        existing.endTimeLocal,
+        candidate.startTimeLocal,
+        candidate.endTimeLocal
+      )
+    ) {
+      continue
+    }
+    if (!cadencesCanCoOccur(existing, candidate as DraftShift)) continue
+    return existing
+  }
+  return null
+}
+
+function cadenceLabel(s: DraftShift): string {
+  if (s.intervalWeeks === 1) return 'Every week'
+  return s.phase === 0 ? 'Every other week (A)' : 'Every other week (B)'
+}
+
+function shiftActiveThisWeek(s: DraftShift, weekSunday: Date, anchorDate: string): boolean {
+  if (s.intervalWeeks === 1) return true
+  const monday = mondayAfterSunday(weekSunday)
+  const anchorMonday = mondayAfterSunday(sundayOf(new Date(anchorDate + 'T12:00:00')))
+  const weekMs = 7 * 24 * 60 * 60 * 1000
+  const weeks = Math.floor((monday.getTime() - anchorMonday.getTime()) / weekMs)
+  const mod = ((weeks % 2) + 2) % 2
+  return mod === s.phase
+}
+
+type DraftForm = {
+  dayOfWeek: number
+  startTimeLocal: string
+  endTimeLocal: string
+  employeeId: number | ''
+  intervalWeeks: 1 | 2
+  phase: 0 | 1
+  editingId: string | null
 }
 
 type Props = {
@@ -74,28 +137,29 @@ type Props = {
 export default function AdminOnDutyModal({ open, onClose }: Props) {
   const [weekSunday, setWeekSunday] = useState(() => sundayOf(new Date()))
   const [employees, setEmployees] = useState<DutyEmployee[]>([])
-  const [blocks, setBlocks] = useState<DraftBlock[]>([])
-  const [anchorDate, setAnchorDate] = useState(() => toDateKey(mondayAfterSunday(sundayOf(new Date()))))
+  const [shifts, setShifts] = useState<DraftShift[]>([])
+  const [anchorDate, setAnchorDate] = useState(() =>
+    toDateKey(mondayAfterSunday(sundayOf(new Date())))
+  )
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [draftDay, setDraftDay] = useState(0)
-  const [draftStart, setDraftStart] = useState('09:00')
-  const [draftEnd, setDraftEnd] = useState('17:00')
-  const [draftEmployeeId, setDraftEmployeeId] = useState<number | ''>('')
-  const [draftInterval, setDraftInterval] = useState<1 | 2>(1)
-  const [draftPhase, setDraftPhase] = useState<0 | 1>(0)
+  const [form, setForm] = useState<DraftForm | null>(null)
 
   const weekStartStr = toDateKey(weekSunday)
   const weekLabel = useMemo(() => {
     const end = addDays(weekSunday, 6)
-    return `${weekStartStr} → ${toDateKey(end)}`
-  }, [weekSunday, weekStartStr])
+    const fmt = (d: Date) =>
+      d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    return `${fmt(weekSunday)} – ${fmt(end)}`
+  }, [weekSunday])
 
   useEffect(() => {
     if (!open) return
     setLoading(true)
     setError(null)
+    setForm(null)
+    setWeekSunday(sundayOf(new Date()))
     Promise.all([
       fetchJson<{ employees: DutyEmployee[] }>(`${API_BASE_URL}/api/on-duty/assignees`),
       fetchJson<{
@@ -106,159 +170,140 @@ export default function AdminOnDutyModal({ open, onClose }: Props) {
           endTimeLocal: string
           intervalWeeks: number
           phase: number
-          priority: number
           anchorDate: string
           active: boolean
         }[]
       }>(`${API_BASE_URL}/api/on-duty/recurrences`),
-      fetchJson<{ blocks: WeekBlock[] }>(
-        `${API_BASE_URL}/api/on-duty/week?weekStart=${toDateKey(sundayOf(new Date()))}`
-      ),
     ])
-      .then(([assignees, rec, week]) => {
+      .then(([assignees, rec]) => {
         setEmployees(assignees.employees)
-        if (assignees.employees[0]) setDraftEmployeeId(assignees.employees[0].id)
         const active = (rec.recurrences || []).filter((r) => r.active !== false)
         if (active[0]?.anchorDate) setAnchorDate(active[0].anchorDate)
-        // Build drafts from all recurrences (not only this week)
-        const map = new Map<string, DraftBlock>()
-        for (const r of active) {
-          const key = `${r.dayOfWeek}|${r.startTimeLocal}|${r.endTimeLocal}`
-          let b = map.get(key)
-          if (!b) {
-            b = {
-              key,
-              dayOfWeek: r.dayOfWeek,
-              startTimeLocal: r.startTimeLocal,
-              endTimeLocal: r.endTimeLocal,
-              assignees: [],
-            }
-            map.set(key, b)
-          }
-          b.assignees.push({
+        setShifts(
+          active.map((r) => ({
+            id: newShiftId(),
+            dayOfWeek: r.dayOfWeek,
+            startTimeLocal: r.startTimeLocal,
+            endTimeLocal: r.endTimeLocal,
             employeeId: r.employeeId,
             intervalWeeks: r.intervalWeeks === 2 ? 2 : 1,
             phase: r.phase === 1 ? 1 : 0,
-          })
-        }
-        setBlocks([...map.values()])
-        void week
+          }))
+        )
       })
       .catch((e: Error) => setError(e.message || 'Failed to load'))
       .finally(() => setLoading(false))
   }, [open])
 
-  const weekPreview = useMemo(() => {
-    // Client-side filter for current week display from drafts + intercalation
-    const monday = mondayAfterSunday(weekSunday)
-    const anchorMonday = mondayAfterSunday(sundayOf(new Date(anchorDate + 'T12:00:00')))
-    const weekMs = 7 * 24 * 60 * 60 * 1000
-    const weeks = Math.floor((monday.getTime() - anchorMonday.getTime()) / weekMs)
+  const employeeName = (id: number) => employees.find((e) => e.id === id)?.name ?? `#${id}`
 
-    const out: { date: string; dayOfWeek: number; start: string; end: string; name: string; cadence: string }[] = []
-    for (const b of blocks) {
-      for (const a of b.assignees) {
-        if (a.intervalWeeks === 2) {
-          const mod = ((weeks % 2) + 2) % 2
-          if (mod !== a.phase) continue
-        }
-        const date = toDateKey(addDays(weekSunday, b.dayOfWeek))
-        const emp = employees.find((e) => e.id === a.employeeId)
-        out.push({
-          date,
-          dayOfWeek: b.dayOfWeek,
-          start: b.startTimeLocal,
-          end: b.endTimeLocal,
-          name: emp?.name ?? `#${a.employeeId}`,
-          cadence:
-            a.intervalWeeks === 1
-              ? 'Every week'
-              : a.phase === 0
-                ? 'Every other week (A)'
-                : 'Every other week (B)',
-        })
-      }
-    }
-    return out.sort((x, y) => x.dayOfWeek - y.dayOfWeek || x.start.localeCompare(y.start))
-  }, [blocks, weekSunday, anchorDate, employees])
-
-  const addAssigneeToBlock = () => {
-    if (draftEmployeeId === '') return
-    const key = `${draftDay}|${draftStart}|${draftEnd}`
-    setBlocks((prev) => {
-      const copy = [...prev]
-      let b = copy.find((x) => x.key === key)
-      if (!b) {
-        b = {
-          key,
-          dayOfWeek: draftDay,
-          startTimeLocal: draftStart,
-          endTimeLocal: draftEnd,
-          assignees: [],
-        }
-        copy.push(b)
-      }
-      if (b.assignees.some((a) => a.employeeId === draftEmployeeId && a.phase === draftPhase && a.intervalWeeks === draftInterval)) {
-        return prev
-      }
-      b.assignees.push({
-        employeeId: Number(draftEmployeeId),
-        intervalWeeks: draftInterval,
-        phase: draftInterval === 2 ? draftPhase : 0,
-      })
-      return copy
+  const openAddForDay = (dayOfWeek: number) => {
+    setError(null)
+    setForm({
+      dayOfWeek,
+      startTimeLocal: '09:00',
+      endTimeLocal: '17:00',
+      employeeId: employees[0]?.id ?? '',
+      intervalWeeks: 1,
+      phase: 0,
+      editingId: null,
     })
   }
 
-  const removeAssignee = (blockKey: string, employeeId: number, phase: number, intervalWeeks: number) => {
-    setBlocks((prev) =>
-      prev
-        .map((b) =>
-          b.key !== blockKey
-            ? b
-            : {
-                ...b,
-                assignees: b.assignees.filter(
-                  (a) =>
-                    !(a.employeeId === employeeId && a.phase === phase && a.intervalWeeks === intervalWeeks)
-                ),
-              }
-        )
-        .filter((b) => b.assignees.length > 0)
-    )
+  const openEdit = (shift: DraftShift) => {
+    setError(null)
+    setForm({
+      dayOfWeek: shift.dayOfWeek,
+      startTimeLocal: shift.startTimeLocal,
+      endTimeLocal: shift.endTimeLocal,
+      employeeId: shift.employeeId,
+      intervalWeeks: shift.intervalWeeks,
+      phase: shift.phase,
+      editingId: shift.id,
+    })
+  }
+
+  const commitForm = () => {
+    if (!form || form.employeeId === '') return
+    const start = hhMmToMinutes(form.startTimeLocal)
+    const end = hhMmToMinutes(form.endTimeLocal)
+    if (!Number.isFinite(start) || !Number.isFinite(end)) {
+      setError('Enter valid start and end times.')
+      return
+    }
+    if (start === end) {
+      setError('End time must be after start (use overnight only when end is earlier next day).')
+      return
+    }
+
+    const candidate: DraftShift = {
+      id: form.editingId ?? newShiftId(),
+      dayOfWeek: form.dayOfWeek,
+      startTimeLocal: form.startTimeLocal,
+      endTimeLocal: form.endTimeLocal,
+      employeeId: Number(form.employeeId),
+      intervalWeeks: form.intervalWeeks,
+      phase: form.intervalWeeks === 2 ? form.phase : 0,
+    }
+
+    const conflict = findOverlapWith(shifts, candidate)
+    if (conflict) {
+      setError(
+        `Overlaps ${employeeName(conflict.employeeId)} on ${DAY_LABELS[conflict.dayOfWeek]} (${conflict.startTimeLocal}–${conflict.endTimeLocal}). Only one person can be on duty at a time.`
+      )
+      return
+    }
+
+    setShifts((prev) => {
+      if (form.editingId) {
+        return prev.map((s) => (s.id === form.editingId ? candidate : s))
+      }
+      return [...prev, candidate]
+    })
+    setForm(null)
+    setError(null)
+  }
+
+  const removeShift = (id: string) => {
+    setShifts((prev) => prev.filter((s) => s.id !== id))
+    if (form?.editingId === id) setForm(null)
   }
 
   const save = async () => {
     setSaving(true)
     setError(null)
+    const conflict = shifts.find((s, i) =>
+      findOverlapWith(
+        shifts.filter((_, j) => j !== i),
+        s
+      )
+    )
+    if (conflict) {
+      const other = findOverlapWith(
+        shifts.filter((s) => s.id !== conflict.id),
+        conflict
+      )
+      setError(
+        other
+          ? `Overlapping shifts: ${employeeName(conflict.employeeId)} and ${employeeName(other.employeeId)} on ${DAY_LABELS[conflict.dayOfWeek]}.`
+          : 'Overlapping shifts found. Fix them before saving.'
+      )
+      setSaving(false)
+      return
+    }
+
     try {
-      const rules: {
-        employeeId: number
-        dayOfWeek: number
-        startTimeLocal: string
-        endTimeLocal: string
-        timeZone: string
-        intervalWeeks: number
-        phase: number
-        priority: number
-        active: boolean
-      }[] = []
-      let prio = 0
-      for (const b of blocks) {
-        for (const a of b.assignees) {
-          rules.push({
-            employeeId: a.employeeId,
-            dayOfWeek: b.dayOfWeek,
-            startTimeLocal: b.startTimeLocal,
-            endTimeLocal: b.endTimeLocal,
-            timeZone: TZ,
-            intervalWeeks: a.intervalWeeks,
-            phase: a.intervalWeeks === 2 ? a.phase : 0,
-            priority: prio++,
-            active: true,
-          })
-        }
-      }
+      const rules = shifts.map((s, i) => ({
+        employeeId: s.employeeId,
+        dayOfWeek: s.dayOfWeek,
+        startTimeLocal: s.startTimeLocal,
+        endTimeLocal: s.endTimeLocal,
+        timeZone: TZ,
+        intervalWeeks: s.intervalWeeks,
+        phase: s.intervalWeeks === 2 ? s.phase : 0,
+        priority: i,
+        active: true,
+      }))
       await fetchJson(`${API_BASE_URL}/api/on-duty/recurrences`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -276,13 +321,13 @@ export default function AdminOnDutyModal({ open, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-5">
+      <div className="bg-white rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-5">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
             <h3 className="text-lg font-semibold text-slate-900">Admin phone on-duty</h3>
             <p className="text-sm text-slate-600 mt-1">
-              Set who answers the admin Twilio line by weekday time block. Use every-other-week to
-              intercalate two people on the same hours.
+              Click a day to add who covers the admin line. Only one person per overlapping time —
+              no double coverage on the same day.
             </p>
           </div>
           <button type="button" onClick={onClose} className="text-slate-500 hover:text-slate-800 text-sm">
@@ -303,21 +348,247 @@ export default function AdminOnDutyModal({ open, onClose }: Props) {
             <div className="flex flex-wrap items-center gap-2 mb-4">
               <button
                 type="button"
-                className="px-3 py-1.5 border rounded-lg text-sm"
+                className="px-3 py-1.5 border rounded-lg text-sm hover:bg-slate-50"
                 onClick={() => setWeekSunday((d) => addDays(d, -7))}
               >
-                ← Prev week
+                ← Prev
               </button>
-              <span className="text-sm font-medium text-slate-800 min-w-[200px] text-center">{weekLabel}</span>
+              <span className="text-sm font-medium text-slate-800 min-w-[160px] text-center">
+                {weekLabel}
+              </span>
               <button
                 type="button"
-                className="px-3 py-1.5 border rounded-lg text-sm"
+                className="px-3 py-1.5 border rounded-lg text-sm hover:bg-slate-50"
                 onClick={() => setWeekSunday((d) => addDays(d, 7))}
               >
-                Next week →
+                Next →
               </button>
-              <label className="text-xs text-slate-600 ml-auto flex items-center gap-2">
-                Biweekly anchor (Monday)
+              <button
+                type="button"
+                className="px-3 py-1.5 border rounded-lg text-sm hover:bg-slate-50"
+                onClick={() => setWeekSunday(sundayOf(new Date()))}
+              >
+                This week
+              </button>
+              <p className="text-xs text-slate-500 ml-auto max-w-xs text-right">
+                Week nav previews every-other-week rotation. Dimmed cards are off this week.
+              </p>
+            </div>
+
+            {/* Week grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
+              {DAY_LABELS.map((label, dayOfWeek) => {
+                const date = addDays(weekSunday, dayOfWeek)
+                const dayShifts = shifts
+                  .filter((s) => s.dayOfWeek === dayOfWeek)
+                  .sort((a, b) => a.startTimeLocal.localeCompare(b.startTimeLocal))
+                const isToday = toDateKey(date) === toDateKey(new Date())
+
+                return (
+                  <div
+                    key={label}
+                    className={`rounded-lg border min-h-[140px] flex flex-col ${
+                      isToday ? 'border-indigo-300 bg-indigo-50/40' : 'border-slate-200 bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="px-2 pt-2 pb-1">
+                      <div className="text-xs font-semibold text-slate-800">{label}</div>
+                      <div className="text-[11px] text-slate-500">
+                        {date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </div>
+                    </div>
+
+                    <div className="flex-1 px-1.5 space-y-1.5 pb-1.5">
+                      {dayShifts.length === 0 && (
+                        <p className="text-[11px] text-slate-400 px-1 py-2">Nobody on duty</p>
+                      )}
+                      {dayShifts.map((s) => {
+                        const active = shiftActiveThisWeek(s, weekSunday, anchorDate)
+                        const emp = employees.find((e) => e.id === s.employeeId)
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => openEdit(s)}
+                            className={`w-full text-left rounded-md border px-2 py-1.5 transition ${
+                              active
+                                ? 'bg-white border-indigo-200 shadow-sm hover:border-indigo-400'
+                                : 'bg-slate-100/80 border-slate-200 opacity-55 hover:opacity-80'
+                            }`}
+                          >
+                            <div className="text-[11px] font-semibold text-slate-800 truncate">
+                              {emp?.name ?? `#${s.employeeId}`}
+                            </div>
+                            <div className="text-[10px] text-slate-600">
+                              {s.startTimeLocal}–{s.endTimeLocal}
+                            </div>
+                            {s.intervalWeeks === 2 && (
+                              <div className="text-[10px] text-slate-500 mt-0.5">
+                                {cadenceLabel(s)}
+                                {!active ? ' · off' : ''}
+                              </div>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => openAddForDay(dayOfWeek)}
+                      className="m-1.5 mt-0 rounded-md border border-dashed border-slate-300 py-1 text-[11px] font-medium text-slate-600 hover:border-indigo-400 hover:text-indigo-700 hover:bg-white"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Add / edit panel */}
+            {form && (
+              <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h4 className="text-sm font-semibold text-slate-800">
+                    {form.editingId ? 'Edit shift' : 'Add shift'} · {DAY_LABELS[form.dayOfWeek]}
+                  </h4>
+                  <button
+                    type="button"
+                    className="text-xs text-slate-500 underline"
+                    onClick={() => {
+                      setForm(null)
+                      setError(null)
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-3 items-end">
+                  <label className="text-xs flex flex-col gap-1 min-w-[160px]">
+                    Person
+                    <select
+                      value={form.employeeId}
+                      onChange={(e) =>
+                        setForm((f) =>
+                          f
+                            ? {
+                                ...f,
+                                employeeId: e.target.value ? Number(e.target.value) : '',
+                              }
+                            : f
+                        )
+                      }
+                      className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                    >
+                      {employees.length === 0 && <option value="">No eligible people</option>}
+                      {employees.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.name} ({e.role})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="text-xs flex flex-col gap-1">
+                    Start
+                    <input
+                      type="time"
+                      value={form.startTimeLocal}
+                      onChange={(e) =>
+                        setForm((f) => (f ? { ...f, startTimeLocal: e.target.value } : f))
+                      }
+                      className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                    />
+                  </label>
+
+                  <label className="text-xs flex flex-col gap-1">
+                    End
+                    <input
+                      type="time"
+                      value={form.endTimeLocal}
+                      onChange={(e) =>
+                        setForm((f) => (f ? { ...f, endTimeLocal: e.target.value } : f))
+                      }
+                      className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                    />
+                  </label>
+
+                  <label className="text-xs flex flex-col gap-1">
+                    Repeats
+                    <select
+                      value={form.intervalWeeks}
+                      onChange={(e) =>
+                        setForm((f) =>
+                          f
+                            ? {
+                                ...f,
+                                intervalWeeks: Number(e.target.value) as 1 | 2,
+                                phase: Number(e.target.value) === 1 ? 0 : f.phase,
+                              }
+                            : f
+                        )
+                      }
+                      className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                    >
+                      <option value={1}>Every week</option>
+                      <option value={2}>Every other week</option>
+                    </select>
+                  </label>
+
+                  {form.intervalWeeks === 2 && (
+                    <label className="text-xs flex flex-col gap-1">
+                      Week set
+                      <select
+                        value={form.phase}
+                        onChange={(e) =>
+                          setForm((f) =>
+                            f ? { ...f, phase: Number(e.target.value) as 0 | 1 } : f
+                          )
+                        }
+                        className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                      >
+                        <option value={0}>Week A (anchor week)</option>
+                        <option value={1}>Week B (other week)</option>
+                      </select>
+                    </label>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={commitForm}
+                    disabled={form.employeeId === '' || employees.length === 0}
+                    className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 disabled:bg-slate-300"
+                  >
+                    {form.editingId ? 'Update' : 'Add to schedule'}
+                  </button>
+
+                  {form.editingId && (
+                    <button
+                      type="button"
+                      onClick={() => removeShift(form.editingId!)}
+                      className="px-3 py-2 text-sm text-red-600 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                {form.intervalWeeks === 2 && (
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    Pair Week A and Week B on the same hours to rotate two people — they never
+                    overlap. Same hours with “every week” will be blocked.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <details className="mb-4 text-sm text-slate-600">
+              <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-700">
+                Advanced: biweekly anchor
+              </summary>
+              <label className="mt-2 flex items-center gap-2 text-xs">
+                Anchor Monday (starts Week A)
                 <input
                   type="date"
                   value={anchorDate}
@@ -325,153 +596,9 @@ export default function AdminOnDutyModal({ open, onClose }: Props) {
                   className="border rounded px-2 py-1 text-sm"
                 />
               </label>
-            </div>
+            </details>
 
-            <div className="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-              <h4 className="text-sm font-semibold text-slate-700 mb-2">This week (preview)</h4>
-              {weekPreview.length === 0 ? (
-                <p className="text-xs text-slate-500">No one on duty this week with current rules.</p>
-              ) : (
-                <ul className="text-sm space-y-1">
-                  {weekPreview.map((row, i) => (
-                    <li key={i} className="flex flex-wrap gap-2">
-                      <span className="font-medium">{DAY_LABELS[row.dayOfWeek]} {row.date}</span>
-                      <span>
-                        {row.start}–{row.end}
-                      </span>
-                      <span>{row.name}</span>
-                      <span className="text-slate-500 text-xs self-center">{row.cadence}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div className="mb-4 p-3 border border-slate-200 rounded-lg space-y-2">
-              <h4 className="text-sm font-semibold text-slate-700">Add assignment</h4>
-              <div className="flex flex-wrap gap-2 items-end">
-                <label className="text-xs flex flex-col gap-1">
-                  Day
-                  <select
-                    value={draftDay}
-                    onChange={(e) => setDraftDay(Number(e.target.value))}
-                    className="border rounded px-2 py-1 text-sm"
-                  >
-                    {DAY_LABELS.map((d, i) => (
-                      <option key={d} value={i}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs flex flex-col gap-1">
-                  Start
-                  <input
-                    type="time"
-                    value={draftStart}
-                    onChange={(e) => setDraftStart(e.target.value)}
-                    className="border rounded px-2 py-1 text-sm"
-                  />
-                </label>
-                <label className="text-xs flex flex-col gap-1">
-                  End
-                  <input
-                    type="time"
-                    value={draftEnd}
-                    onChange={(e) => setDraftEnd(e.target.value)}
-                    className="border rounded px-2 py-1 text-sm"
-                  />
-                </label>
-                <label className="text-xs flex flex-col gap-1">
-                  Person
-                  <select
-                    value={draftEmployeeId}
-                    onChange={(e) => setDraftEmployeeId(e.target.value ? Number(e.target.value) : '')}
-                    className="border rounded px-2 py-1 text-sm min-w-[160px]"
-                  >
-                    {employees.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name} ({e.role})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs flex flex-col gap-1">
-                  Cadence
-                  <select
-                    value={draftInterval}
-                    onChange={(e) => setDraftInterval(Number(e.target.value) as 1 | 2)}
-                    className="border rounded px-2 py-1 text-sm"
-                  >
-                    <option value={1}>Every week</option>
-                    <option value={2}>Every other week</option>
-                  </select>
-                </label>
-                {draftInterval === 2 && (
-                  <label className="text-xs flex flex-col gap-1">
-                    Week set
-                    <select
-                      value={draftPhase}
-                      onChange={(e) => setDraftPhase(Number(e.target.value) as 0 | 1)}
-                      className="border rounded px-2 py-1 text-sm"
-                    >
-                      <option value={0}>Set A (anchor week)</option>
-                      <option value={1}>Set B (other week)</option>
-                    </select>
-                  </label>
-                )}
-                <button
-                  type="button"
-                  onClick={addAssigneeToBlock}
-                  className="px-3 py-2 bg-slate-800 text-white rounded-lg text-sm hover:bg-slate-900"
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-
-            <div className="mb-4 space-y-2">
-              <h4 className="text-sm font-semibold text-slate-700">Saved rules (all weeks)</h4>
-              {blocks.length === 0 ? (
-                <p className="text-xs text-slate-500">No rules yet.</p>
-              ) : (
-                blocks.map((b) => (
-                  <div key={b.key} className="border rounded-lg p-3 text-sm">
-                    <div className="font-medium text-slate-800 mb-1">
-                      {DAY_LABELS[b.dayOfWeek]} {b.startTimeLocal}–{b.endTimeLocal}
-                    </div>
-                    <ul className="space-y-1">
-                      {b.assignees.map((a) => {
-                        const emp = employees.find((e) => e.id === a.employeeId)
-                        return (
-                          <li key={`${a.employeeId}-${a.intervalWeeks}-${a.phase}`} className="flex justify-between gap-2">
-                            <span>
-                              {emp?.name ?? a.employeeId} ·{' '}
-                              {a.intervalWeeks === 1
-                                ? 'every week'
-                                : a.phase === 0
-                                  ? 'every other (A)'
-                                  : 'every other (B)'}
-                            </span>
-                            <button
-                              type="button"
-                              className="text-red-600 text-xs underline"
-                              onClick={() =>
-                                removeAssignee(b.key, a.employeeId, a.phase, a.intervalWeeks)
-                              }
-                            >
-                              Remove
-                            </button>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">
               <button type="button" onClick={onClose} className="px-4 py-2 border rounded-lg text-sm">
                 Cancel
               </button>
@@ -481,7 +608,7 @@ export default function AdminOnDutyModal({ open, onClose }: Props) {
                 onClick={() => void save()}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:bg-gray-400"
               >
-                {saving ? 'Saving…' : 'Save & rematerialize'}
+                {saving ? 'Saving…' : 'Save schedule'}
               </button>
             </div>
           </>

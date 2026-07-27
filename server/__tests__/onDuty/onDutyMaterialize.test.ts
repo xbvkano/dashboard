@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon'
 import {
+  findOnDutyRuleConflicts,
   materializeRecurrences,
   recurrenceAppliesOnWeek,
   resolveWeekBlocks,
@@ -122,5 +123,91 @@ describe('materializeRecurrences + resolveWeekBlocks intercalation', () => {
         expect(overlap).toBe(false)
       }
     }
+  })
+})
+
+describe('findOnDutyRuleConflicts', () => {
+  it('flags two weekly people on overlapping same-day hours', () => {
+    const conflicts = findOnDutyRuleConflicts([
+      {
+        employeeId: 1,
+        dayOfWeek: 1,
+        startTimeLocal: '09:00',
+        endTimeLocal: '17:00',
+        intervalWeeks: 1,
+      },
+      {
+        employeeId: 2,
+        dayOfWeek: 1,
+        startTimeLocal: '12:00',
+        endTimeLocal: '20:00',
+        intervalWeeks: 1,
+      },
+    ])
+    expect(conflicts).toHaveLength(1)
+    expect(conflicts[0].dayOfWeek).toBe(1)
+  })
+
+  it('allows opposite-phase biweekly on the same hours', () => {
+    const conflicts = findOnDutyRuleConflicts([
+      {
+        employeeId: 1,
+        dayOfWeek: 0,
+        startTimeLocal: '09:00',
+        endTimeLocal: '17:00',
+        intervalWeeks: 2,
+        phase: 0,
+      },
+      {
+        employeeId: 2,
+        dayOfWeek: 0,
+        startTimeLocal: '09:00',
+        endTimeLocal: '17:00',
+        intervalWeeks: 2,
+        phase: 1,
+      },
+    ])
+    expect(conflicts).toHaveLength(0)
+  })
+
+  it('flags weekly + biweekly on overlapping hours', () => {
+    const conflicts = findOnDutyRuleConflicts([
+      {
+        employeeId: 1,
+        dayOfWeek: 3,
+        startTimeLocal: '09:00',
+        endTimeLocal: '17:00',
+        intervalWeeks: 1,
+      },
+      {
+        employeeId: 2,
+        dayOfWeek: 3,
+        startTimeLocal: '09:00',
+        endTimeLocal: '17:00',
+        intervalWeeks: 2,
+        phase: 0,
+      },
+    ])
+    expect(conflicts).toHaveLength(1)
+  })
+
+  it('allows adjacent non-overlapping times on the same day', () => {
+    const conflicts = findOnDutyRuleConflicts([
+      {
+        employeeId: 1,
+        dayOfWeek: 2,
+        startTimeLocal: '09:00',
+        endTimeLocal: '13:00',
+        intervalWeeks: 1,
+      },
+      {
+        employeeId: 2,
+        dayOfWeek: 2,
+        startTimeLocal: '13:00',
+        endTimeLocal: '17:00',
+        intervalWeeks: 1,
+      },
+    ])
+    expect(conflicts).toHaveLength(0)
   })
 })

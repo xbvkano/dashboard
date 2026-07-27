@@ -3,6 +3,7 @@ import { PrismaClient, Role } from '@prisma/client'
 import { parseUserIdHeader } from '../utils/httpUser'
 import {
   DEFAULT_ON_DUTY_TZ,
+  findOnDutyRuleConflicts,
   isValidHhMm,
   materializeRecurrences,
   parseDateOnly,
@@ -198,6 +199,15 @@ export async function replaceRecurrences(req: Request, res: Response) {
     if (okEmployees.length !== employeeIds.length) {
       return res.status(400).json({
         error: 'All assignees must be active employees with OWNER, ADMIN, or SUPERVISOR role',
+      })
+    }
+
+    const overlaps = findOnDutyRuleConflicts(rules)
+    if (overlaps.length > 0) {
+      return res.status(400).json({
+        error:
+          'Only one person can be on duty at a time on the same day. Overlapping shifts were found.',
+        conflicts: overlaps,
       })
     }
 

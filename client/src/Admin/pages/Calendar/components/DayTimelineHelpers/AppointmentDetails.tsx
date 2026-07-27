@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
 import { formatPhone } from '../../../../../formatPhone'
+import EmployeeCodeBadge from '../../../../components/EmployeeCodeBadge'
 import { copyTextToClipboard, phoneToE164 } from '../../../../contactActions'
 import { formatApiError, startConversationFromContact } from '../../../Messages/Inbox/messagingApi'
 import { appointmentCalendarDateKey, type Appointment } from '../../types'
@@ -698,7 +699,10 @@ export default function AppointmentDetails({
                   const extras = (payrollItem as any)?.extras ?? []
                   return (
                     <div key={employee.id} className="text-sm text-slate-800">
-                      <span className="font-medium">{employee.name}</span>
+                      <span className="inline-flex items-center gap-2 flex-wrap">
+                        <span className="font-medium">{employee.name}</span>
+                        <EmployeeCodeBadge employeeId={employee.id} />
+                      </span>
                       <span className="ml-1.5 text-slate-600">
                         ${total.toFixed(2)}
                         {onCarpet && carpetShare > 0 && (

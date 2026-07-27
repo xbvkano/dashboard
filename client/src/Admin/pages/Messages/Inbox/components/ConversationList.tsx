@@ -26,6 +26,8 @@ type Props = {
   onSimulateInboundSuccess?: () => void | Promise<void>
   showArchived?: boolean
   onToggleArchivedView?: () => void
+  /** List header title when not viewing archived */
+  title?: string
 }
 
 export default function ConversationList({
@@ -47,6 +49,7 @@ export default function ConversationList({
   onSimulateInboundSuccess,
   showArchived = false,
   onToggleArchivedView,
+  title = 'Messages',
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -73,7 +76,7 @@ export default function ConversationList({
             </svg>
           </Link>
           <h2 className="text-lg font-bold text-slate-900 truncate">
-            {showArchived ? 'Archived' : 'Messages'}
+            {showArchived ? 'Archived' : title}
           </h2>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">

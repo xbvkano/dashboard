@@ -6,6 +6,7 @@ import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from '../../../../useFormPersistence'
 import AppointmentsSection from "../../../components/AppointmentsSection"
 import { formatPhone, phoneDigitsOnly, phoneHasMinDigits, phoneToApiPayload } from '../../../../formatPhone'
+import EmployeeCodeBadge from '../../../components/EmployeeCodeBadge'
 
 function normalizeNumberForCompare(num: string): string {
   return num.replace(/\D/g, '')
@@ -194,6 +195,19 @@ export default function EmployeeForm() {
         </div>
       )}
       <Link to="/dashboard/contacts/employees/accounts" className="text-blue-500 text-sm">&larr; Back to employee users</Link>
+      {!isNew && data.id != null && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 flex flex-wrap items-center gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Employee call code
+            </div>
+            <p className="text-xs text-slate-600 mt-0.5">
+              What they enter on the admin phone keypad (same as their account id).
+            </p>
+          </div>
+          <EmployeeCodeBadge employeeId={data.id} size="md" />
+        </div>
+      )}
       <div>
         <label htmlFor="employee-name" className="block text-sm">
           Name <span className="text-red-500">*</span>

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import ConversationList from './components/ConversationList'
+import EmployeeDirectoryList, {
+  type EmployeeDirectoryRow,
+} from './components/EmployeeDirectoryList'
 import ChatThread from './components/ChatThread'
 import InboxTakeOverConfirmModal from './components/InboxTakeOverConfirmModal'
 import NewConversationModal from './components/NewConversationModal'
@@ -14,7 +17,10 @@ import { useBookAppointmentDrafts } from '../BookAppointmentDraftsContext'
 import {
   type ConversationDetail,
   type ConversationInboxItem,
+  type MessagingInboxKind,
   conversationInboxItemToThreadContact,
+  formatApiError,
+  startConversationFromContact,
 } from './messagingApi'
 import {
   deleteConversationPresence,
@@ -40,6 +46,20 @@ import {
 } from '../MessageBank/resolveMessageBankVariables'
 
 const MESSAGING_MOCK_SESSION_KEY = 'messagingMockSms'
+
+function phoneDigits(value: string): string {
+  return value.replace(/\D/g, '')
+}
+
+function phonesMatch(a: string, b: string): boolean {
+  const da = phoneDigits(a)
+  const db = phoneDigits(b)
+  if (!da || !db) return false
+  if (da === db) return true
+  const na = da.length === 11 && da.startsWith('1') ? da.slice(1) : da
+  const nb = db.length === 11 && db.startsWith('1') ? db.slice(1) : db
+  return na === nb
+}
 
 function shouldShowInboxMockingToggle(): boolean {
   if (!isDevToolsEnabled) return false
@@ -134,7 +154,9 @@ function mergedThread(
   return null
 }
 
-export default function Inbox() {
+export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingInboxKind }) {
+  const isEmployeeInbox = inboxKind === 'employee'
+  const inboxTitle = isEmployeeInbox ? 'Employee inbox' : 'Client inbox'
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const {
@@ -154,6 +176,12 @@ export default function Inbox() {
   } = useBookAppointmentDrafts()
   const isDesktop = useMediaQuery('(min-width: 768px)')
   const [list, setList] = useState<ConversationInboxItem[]>([])
+  const [employees, setEmployees] = useState<
+    Array<{ id: number; name: string; number: string }>
+  >([])
+  const [employeesLoading, setEmployeesLoading] = useState(false)
+  const [startingEmployeeId, setStartingEmployeeId] = useState<number | null>(null)
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null)
   const [listLoading, setListLoading] = useState(true)
   const [listLoadingMore, setListLoadingMore] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
@@ -240,13 +268,14 @@ export default function Inbox() {
   const refreshList = useCallback(async () => {
     const res = await fetchConversationsPage({
       limit: 50,
-      q: debouncedSearch || undefined,
+      q: isEmployeeInbox ? undefined : debouncedSearch || undefined,
       status: showArchived ? 'ARCHIVED' : 'OPEN',
+      inbox: inboxKind,
     })
     setList(res.items)
     setNextCursor(res.nextCursor)
     return res.items
-  }, [debouncedSearch, showArchived])
+  }, [debouncedSearch, showArchived, inboxKind, isEmployeeInbox])
 
   useEffect(() => {
     let cancelled = false
@@ -255,8 +284,9 @@ export default function Inbox() {
     setNextCursor(null)
     fetchConversationsPage({
       limit: 50,
-      q: debouncedSearch || undefined,
+      q: isEmployeeInbox ? undefined : debouncedSearch || undefined,
       status: showArchived ? 'ARCHIVED' : 'OPEN',
+      inbox: inboxKind,
     })
       .then((res) => {
         if (!cancelled) {
@@ -266,7 +296,7 @@ export default function Inbox() {
       })
       .catch((e) => {
         console.error(e)
-        if (!cancelled) setListError('Could not load conversations')
+        if (!cancelled) setListError(formatApiError(e) || 'Could not load conversations')
       })
       .finally(() => {
         if (!cancelled) setListLoading(false)
@@ -274,13 +304,42 @@ export default function Inbox() {
     return () => {
       cancelled = true
     }
-  }, [debouncedSearch, showArchived])
+  }, [debouncedSearch, showArchived, inboxKind, isEmployeeInbox])
+
+  /** Employee directory (active / non-disabled only) */
+  useEffect(() => {
+    if (!isEmployeeInbox) {
+      setEmployees([])
+      return
+    }
+    let cancelled = false
+    setEmployeesLoading(true)
+    fetchJson<Array<{ id: number; name: string; number: string }>>(
+      `${API_BASE_URL}/employees?take=500`
+    )
+      .then((rows) => {
+        if (cancelled) return
+        setEmployees(Array.isArray(rows) ? rows : [])
+      })
+      .catch((e) => {
+        console.error(e)
+        if (!cancelled) {
+          setListError((prev) => prev || formatApiError(e) || 'Could not load employees')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setEmployeesLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isEmployeeInbox])
 
   /** Global inbox lease (single active viewer) */
   useEffect(() => {
     const run = async () => {
       try {
-        const r = await postInboxLeaseRequest({ tabId: tabIdRef.current })
+        const r = await postInboxLeaseRequest({ tabId: tabIdRef.current, inbox: inboxKind })
         setLeaseBlocked(!r.ok && r.conflict)
       } catch {
         /* ignore transient */
@@ -290,9 +349,9 @@ export default function Inbox() {
     const interval = window.setInterval(run, 25_000)
     return () => {
       window.clearInterval(interval)
-      deleteInboxLease().catch(() => {})
+      deleteInboxLease({ inbox: inboxKind }).catch(() => {})
     }
-  }, [])
+  }, [inboxKind])
 
   const handleGoHomeFromLeaseGate = useCallback(() => {
     navigate('/dashboard')
@@ -301,7 +360,7 @@ export default function Inbox() {
   const handleTakeOverInboxConfirm = useCallback(async () => {
     setTakeOverSubmitting(true)
     try {
-      const r = await postInboxLeaseRequest({ tabId: tabIdRef.current, force: true })
+      const r = await postInboxLeaseRequest({ tabId: tabIdRef.current, force: true, inbox: inboxKind })
       setLeaseBlocked(!r.ok && r.conflict)
       setTakeOverModalOpen(false)
     } catch (e) {
@@ -309,7 +368,7 @@ export default function Inbox() {
     } finally {
       setTakeOverSubmitting(false)
     }
-  }, [])
+  }, [inboxKind])
 
   useEffect(() => {
     if (!leaseBlocked) setTakeOverModalOpen(false)
@@ -483,6 +542,7 @@ export default function Inbox() {
         limit: 50,
         q: debouncedSearch || undefined,
         status: showArchived ? 'ARCHIVED' : 'OPEN',
+        inbox: inboxKind,
       })
         .then((res) => {
           setList(res.items)
@@ -499,7 +559,7 @@ export default function Inbox() {
       clearInterval(interval)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [debouncedSearch, showArchived])
+  }, [debouncedSearch, showArchived, inboxKind])
 
   const handleToggleArchivedView = useCallback(() => {
     setShowArchived((v) => !v)
@@ -533,6 +593,7 @@ export default function Inbox() {
           limit: 50,
           q: debouncedSearch || undefined,
           status: plan.fetchStatus,
+          inbox: inboxKind,
         })
         setList(res.items)
         setNextCursor(res.nextCursor)
@@ -580,6 +641,30 @@ export default function Inbox() {
   )
 
   const threadRows = useMemo(() => list.map(rowToThread), [list])
+
+  const employeeDirectoryRows = useMemo((): EmployeeDirectoryRow[] => {
+    const q = searchInput.trim().toLowerCase()
+    const filtered = employees.filter((e) => {
+      if (!q) return true
+      return (
+        e.name.toLowerCase().includes(q) ||
+        phoneDigits(e.number).includes(phoneDigits(q)) ||
+        e.number.toLowerCase().includes(q)
+      )
+    })
+    return filtered.map((e) => {
+      const conv = list.find((c) => phonesMatch(c.contactPoint.value, e.number))
+      return {
+        id: e.id,
+        name: e.name,
+        number: e.number,
+        conversationId: conv?.id ?? null,
+        unread: conv?.unread ?? false,
+        lastPreview: conv?.lastMessagePreview ?? null,
+      }
+    })
+  }, [employees, list, searchInput])
+
   const selectedRow = useMemo(
     () => list.find((r) => r.id === selectedId),
     [list, selectedId]
@@ -589,10 +674,11 @@ export default function Inbox() {
     [selectedRow, detail, selectedId]
   )
   const showSplitBooking = useMemo(() => {
+    if (isEmployeeInbox) return false
     if (selectedId == null) return false
     if (!bookModalOpen || activeBookConversationId !== selectedId) return false
     return Boolean(draftsByConversationId[selectedId])
-  }, [selectedId, bookModalOpen, activeBookConversationId, draftsByConversationId])
+  }, [isEmployeeInbox, selectedId, bookModalOpen, activeBookConversationId, draftsByConversationId])
   const messages = useMemo(() => {
     if (!detail || detail.conversation.id !== selectedId) return []
     return detailToMessages(detail)
@@ -713,6 +799,7 @@ export default function Inbox() {
         cursor: nextCursor,
         q: debouncedSearch || undefined,
         status: showArchived ? 'ARCHIVED' : 'OPEN',
+        inbox: inboxKind,
       })
       setList((prev) => {
         const seen = new Set(prev.map((p) => p.id))
@@ -724,7 +811,7 @@ export default function Inbox() {
     } finally {
       setListLoadingMore(false)
     }
-  }, [nextCursor, listLoadingMore, debouncedSearch, showArchived])
+  }, [nextCursor, listLoadingMore, debouncedSearch, showArchived, inboxKind])
 
   const handleBack = useCallback(() => {
     setSelectedId(null)
@@ -735,9 +822,51 @@ export default function Inbox() {
     if (cid != null) navigate(`/dashboard/contacts/clients/${cid}`)
   }, [navigate, threadContact?.clientId])
 
+  const linkedEmployeeId = useMemo(() => {
+    if (!isEmployeeInbox || !threadContact) return null
+    if (selectedEmployeeId != null) {
+      const sel = employees.find((e) => e.id === selectedEmployeeId)
+      if (sel && phonesMatch(sel.number, threadContact.phoneE164)) return selectedEmployeeId
+    }
+    const match = employees.find((e) => phonesMatch(e.number, threadContact.phoneE164))
+    return match?.id ?? null
+  }, [isEmployeeInbox, threadContact, selectedEmployeeId, employees])
+
+  const handleViewEmployee = useCallback(() => {
+    if (linkedEmployeeId == null) return
+    navigate(`/dashboard/contacts/employees/accounts/${linkedEmployeeId}`)
+  }, [navigate, linkedEmployeeId])
+
   const handleSelect = useCallback((id: number) => {
     setSelectedId(id)
   }, [])
+
+  const handleSelectEmployee = useCallback(
+    async (employee: EmployeeDirectoryRow) => {
+      setSelectedEmployeeId(employee.id)
+      if (employee.conversationId != null) {
+        setSelectedId(employee.conversationId)
+        return
+      }
+      setStartingEmployeeId(employee.id)
+      setListError(null)
+      try {
+        const out = await startConversationFromContact({
+          phoneRaw: employee.number,
+          name: employee.name,
+          inbox: 'employee',
+        })
+        await refreshList()
+        setSelectedId(out.conversationId)
+      } catch (e) {
+        console.error(e)
+        setListError(formatApiError(e) || 'Could not start conversation')
+      } finally {
+        setStartingEmployeeId(null)
+      }
+    },
+    [refreshList]
+  )
 
   const handleNewCreated = useCallback(
     async (conversationId: number) => {
@@ -920,26 +1049,44 @@ export default function Inbox() {
           }`}
         >
           <div className="flex-1 min-h-0 md:h-full border-0 md:border md:border-slate-200 md:rounded-l-xl overflow-hidden shadow-none md:shadow-sm">
-            <ConversationList
-              conversations={threadRows}
-              selectedId={selectedId}
-              onSelect={handleSelect}
-              onNewConversation={() => setNewOpen(true)}
-              listLoading={listLoading}
-              listLoadingMore={listLoadingMore}
-              hasMore={Boolean(nextCursor)}
-              onLoadMore={handleLoadMore}
-              searchQuery={searchInput}
-              onSearchChange={setSearchInput}
-              showMockingToggle={showMockingToggle}
-              mockingEnabled={mockingEnabled}
-              onMockingChange={setMockingEnabled}
-              showSimulateInbound={isDevToolsEnabled}
-              simulateInboundRows={list.map(conversationInboxItemToThreadContact)}
-              onSimulateInboundSuccess={handleSimulateInboundSuccess}
-              showArchived={showArchived}
-              onToggleArchivedView={handleToggleArchivedView}
-            />
+            {isEmployeeInbox ? (
+              <EmployeeDirectoryList
+                employees={employeeDirectoryRows}
+                selectedConversationId={selectedId}
+                selectedEmployeeId={selectedEmployeeId}
+                onSelectEmployee={handleSelectEmployee}
+                listLoading={employeesLoading || listLoading}
+                searchQuery={searchInput}
+                onSearchChange={setSearchInput}
+                showMockingToggle={showMockingToggle}
+                mockingEnabled={mockingEnabled}
+                onMockingChange={setMockingEnabled}
+                startingEmployeeId={startingEmployeeId}
+                title={inboxTitle}
+              />
+            ) : (
+              <ConversationList
+                conversations={threadRows}
+                selectedId={selectedId}
+                onSelect={handleSelect}
+                onNewConversation={() => setNewOpen(true)}
+                listLoading={listLoading}
+                listLoadingMore={listLoadingMore}
+                hasMore={Boolean(nextCursor)}
+                onLoadMore={handleLoadMore}
+                searchQuery={searchInput}
+                onSearchChange={setSearchInput}
+                showMockingToggle={showMockingToggle}
+                mockingEnabled={mockingEnabled}
+                onMockingChange={setMockingEnabled}
+                showSimulateInbound={isDevToolsEnabled}
+                simulateInboundRows={list.map(conversationInboxItemToThreadContact)}
+                onSimulateInboundSuccess={handleSimulateInboundSuccess}
+                showArchived={showArchived}
+                onToggleArchivedView={handleToggleArchivedView}
+                title={inboxTitle}
+              />
+            )}
           </div>
         </div>
 
@@ -966,6 +1113,8 @@ export default function Inbox() {
                     detailLoading={detailLoading}
                     linkedClientId={threadContact.clientId}
                     onViewClient={handleViewClient}
+                    linkedEmployeeId={linkedEmployeeId}
+                    onViewEmployee={handleViewEmployee}
                     conversationStatus={headerConversationStatus}
                     onArchiveToggle={handleConversationArchiveToggle}
                     archiveBusy={archiveBusy}
@@ -975,6 +1124,7 @@ export default function Inbox() {
                     belowHeader={bookedToastStrip}
                     conversationId={selectedId}
                     messageBankInitialValues={messageBankInitialValues}
+              showClientBookingActions={!isEmployeeInbox}
                   />
                 </div>
                 <div className="w-[min(440px,42%)] min-w-[300px] shrink-0 flex flex-col min-h-0 bg-slate-100/90 p-2 border-l border-slate-200/80">
@@ -1013,6 +1163,8 @@ export default function Inbox() {
                 detailLoading={detailLoading}
                 linkedClientId={threadContact.clientId}
                 onViewClient={handleViewClient}
+                linkedEmployeeId={linkedEmployeeId}
+                onViewEmployee={handleViewEmployee}
                 conversationStatus={headerConversationStatus}
                 onArchiveToggle={handleConversationArchiveToggle}
                 archiveBusy={archiveBusy}
@@ -1022,12 +1174,19 @@ export default function Inbox() {
                 belowHeader={bookedToastStrip}
                 conversationId={selectedId}
                 messageBankInitialValues={messageBankInitialValues}
+              showClientBookingActions={!isEmployeeInbox}
               />
             )
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 text-sm px-6">
-              <p className="font-medium text-slate-700">Select a conversation</p>
-              <p className="mt-1 text-center">Choose a thread on the left to read messages.</p>
+              <p className="font-medium text-slate-700">
+                {isEmployeeInbox ? 'Select an employee' : 'Select a conversation'}
+              </p>
+              <p className="mt-1 text-center">
+                {isEmployeeInbox
+                  ? 'Choose someone on the left to message them on the admin line.'
+                  : 'Choose a thread on the left to read messages.'}
+              </p>
             </div>
           )}
         </div>
@@ -1078,6 +1237,8 @@ export default function Inbox() {
                     detailLoading={detailLoading}
                     linkedClientId={threadContact.clientId}
                     onViewClient={handleViewClient}
+                    linkedEmployeeId={linkedEmployeeId}
+                    onViewEmployee={handleViewEmployee}
                     conversationStatus={headerConversationStatus}
                     onArchiveToggle={handleConversationArchiveToggle}
                     archiveBusy={archiveBusy}
@@ -1087,6 +1248,7 @@ export default function Inbox() {
                     belowHeader={bookedToastStrip}
                     conversationId={selectedId}
                     messageBankInitialValues={messageBankInitialValues}
+              showClientBookingActions={!isEmployeeInbox}
                   />
                 ) : (
                   <div className="flex-1 min-h-0 min-w-0 p-2 overflow-hidden overflow-x-hidden flex flex-col">
@@ -1127,6 +1289,8 @@ export default function Inbox() {
               detailLoading={detailLoading}
               linkedClientId={threadContact.clientId}
               onViewClient={handleViewClient}
+              linkedEmployeeId={linkedEmployeeId}
+              onViewEmployee={handleViewEmployee}
               conversationStatus={headerConversationStatus}
               onArchiveToggle={handleConversationArchiveToggle}
               archiveBusy={archiveBusy}
@@ -1136,16 +1300,20 @@ export default function Inbox() {
               belowHeader={bookedToastStrip}
               conversationId={selectedId}
               messageBankInitialValues={messageBankInitialValues}
+              showClientBookingActions={!isEmployeeInbox}
             />
           )}
         </div>
       )}
 
-      <NewConversationModal
-        open={newOpen}
-        onClose={() => setNewOpen(false)}
-        onCreated={handleNewCreated}
-      />
+      {!isEmployeeInbox && (
+        <NewConversationModal
+          open={newOpen}
+          onClose={() => setNewOpen(false)}
+          onCreated={handleNewCreated}
+          inboxKind={inboxKind}
+        />
+      )}
       {selectedId != null && threadContact && (
         <EditContactModal
           open={editOpen}

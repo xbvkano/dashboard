@@ -9,6 +9,10 @@ export interface SmsSendInput {
   body: string
   /** Public HTTPS URLs for MMS (Twilio fetches at send time) */
   mediaPublicUrls?: string[]
+  /** Conversation business line; when forceFrom, used as Twilio `from` */
+  fromE164?: string
+  /** Skip Messaging Service and send from `fromE164` (employee admin line) */
+  forceFrom?: boolean
 }
 
 export interface SmsSendResult {
@@ -29,14 +33,20 @@ export interface SmsTransport {
 export class MockSmsTransport implements SmsTransport {
   async send(input: SmsSendInput): Promise<SmsSendResult> {
     const urls = input.mediaPublicUrls?.filter(Boolean) ?? []
+    const outboundOpts = {
+      fromE164: input.fromE164,
+      forceFrom: input.forceFrom,
+    }
     const params =
       urls.length > 0
-        ? twilioMmsMessageCreateParams(input.toE164, input.body, urls)
-        : twilioMessageCreateParams(input.toE164, input.body)
+        ? twilioMmsMessageCreateParams(input.toE164, input.body, urls, outboundOpts)
+        : twilioMessageCreateParams(input.toE164, input.body, outboundOpts)
     console.log(
       '[messaging-mock-sms] not sent to Twilio (mock transport)',
       JSON.stringify({
         to: input.toE164,
+        from: input.fromE164,
+        forceFrom: input.forceFrom,
         bodyPreview: input.body.length > 400 ? `${input.body.slice(0, 400)}…` : input.body,
         mediaUrls: urls.length ? urls : undefined,
       }),
@@ -63,10 +73,14 @@ const twilioClient = twilio(
 export class TwilioSmsTransport implements SmsTransport {
   async send(input: SmsSendInput): Promise<SmsSendResult> {
     const urls = input.mediaPublicUrls?.filter(Boolean) ?? []
+    const outboundOpts = {
+      fromE164: input.fromE164,
+      forceFrom: input.forceFrom,
+    }
     const params =
       urls.length > 0
-        ? twilioMmsMessageCreateParams(input.toE164, input.body, urls)
-        : twilioMessageCreateParams(input.toE164, input.body)
+        ? twilioMmsMessageCreateParams(input.toE164, input.body, urls, outboundOpts)
+        : twilioMessageCreateParams(input.toE164, input.body, outboundOpts)
     const result = await twilioClient.messages.create(
       params as Parameters<typeof twilioClient.messages.create>[0],
     )

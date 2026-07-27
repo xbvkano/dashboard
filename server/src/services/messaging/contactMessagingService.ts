@@ -5,26 +5,34 @@ import { normalizePhone } from '../../utils/phoneUtils'
 import { pickUniqueClientDisplayName } from '../../utils/clientDisplayName'
 import { findFirstClientMatchingPhone, unlinkContactPointIfClientPhoneMismatch } from '../clientPhoneMatch'
 import { findOrCreateConversation } from './messagingService'
-
-function getInboxBusinessNumber(): string {
-  const n = process.env.TWILIO_FROM_NUMBER?.trim()
-  if (!n) {
-    throw new Error('TWILIO_FROM_NUMBER is not configured (required as inbox business line)')
-  }
-  return n
-}
+import {
+  type MessagingInboxKind,
+  resolveInboxBusinessNumber,
+} from './inboxLines'
 
 /**
- * Start or open a conversation for a phone contact. Optionally create/link a Client when name is provided.
- * Client name and notes live on Client, not ContactPoint.
+ * Start or open a conversation for a phone contact.
+ * Client inbox: optionally create/link a Client when name is provided.
+ * Employee inbox: uses TWILIO_ADMIN_FROM_NUMBER; optional name → ContactPoint.displayValue (no Client).
  */
 export async function startConversationFromContact(
   prisma: PrismaClient,
-  input: { phoneRaw: string; name?: string | null; notes?: string | null; clientFrom?: string | null }
+  input: {
+    phoneRaw: string
+    name?: string | null
+    notes?: string | null
+    clientFrom?: string | null
+    inbox?: MessagingInboxKind
+  }
 ): Promise<{ conversationId: number; contactPointId: number; clientId: number | null }> {
+  const inbox: MessagingInboxKind = input.inbox === 'employee' ? 'employee' : 'client'
   const name = input.name?.trim() || ''
   const notes = input.notes?.trim() || undefined
   const clientFromLabel = input.clientFrom?.trim() || 'SMS'
+
+  if (inbox === 'employee' && notes) {
+    throw new Error('Notes are only supported in the client inbox')
+  }
   if (notes && !name) {
     throw new Error('Notes can only be set when a name is provided')
   }
@@ -34,15 +42,54 @@ export async function startConversationFromContact(
     throw new Error('Invalid phone number')
   }
 
-  const businessNumber = getInboxBusinessNumber()
+  const businessNumber = resolveInboxBusinessNumber(inbox)
 
   let cp =
     (await prisma.contactPoint.findUnique({
       where: { type_value: { type: ContactPointType.PHONE, value } },
     })) ??
     (await prisma.contactPoint.create({
-      data: { type: ContactPointType.PHONE, value },
+      data: {
+        type: ContactPointType.PHONE,
+        value,
+        displayValue: inbox === 'employee' && name ? name : undefined,
+      },
     }))
+
+  if (inbox === 'employee') {
+    if (name && cp.displayValue !== name) {
+      cp = await prisma.contactPoint.update({
+        where: { id: cp.id },
+        data: { displayValue: name },
+      })
+    }
+
+    // Prefer Employee.name when phone matches an employee account
+    if (!name) {
+      const emp = await prisma.employee.findFirst({
+        where: { number: value, disabled: false },
+        select: { name: true },
+      })
+      if (emp?.name && !cp.displayValue) {
+        cp = await prisma.contactPoint.update({
+          where: { id: cp.id },
+          data: { displayValue: emp.name },
+        })
+      }
+    }
+
+    const conv = await findOrCreateConversation(prisma, {
+      contactPointId: cp.id,
+      businessNumber,
+      clientId: null,
+    })
+
+    return {
+      conversationId: conv.id,
+      contactPointId: cp.id,
+      clientId: null,
+    }
+  }
 
   await unlinkContactPointIfClientPhoneMismatch(prisma, cp.id, value, businessNumber)
   cp = (await prisma.contactPoint.findUnique({

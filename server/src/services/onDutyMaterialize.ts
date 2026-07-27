@@ -207,3 +207,105 @@ export function isValidHhMm(s: string): boolean {
     return h >= 0 && h <= 23 && m >= 0 && m <= 59
   })()
 }
+
+/** Minutes from midnight for HH:mm. Invalid → NaN. */
+export function hhMmToMinutes(s: string): number {
+  if (!isValidHhMm(s)) return NaN
+  const [h, m] = s.split(':').map(Number)
+  return h * 60 + m
+}
+
+/**
+ * Local wall-clock ranges on the same calendar day.
+ * Overnight (end <= start) is treated as spanning to end+24h for overlap checks on that day.
+ */
+export function localTimeRangesOverlap(
+  aStart: string,
+  aEnd: string,
+  bStart: string,
+  bEnd: string
+): boolean {
+  let a0 = hhMmToMinutes(aStart)
+  let a1 = hhMmToMinutes(aEnd)
+  let b0 = hhMmToMinutes(bStart)
+  let b1 = hhMmToMinutes(bEnd)
+  if (![a0, a1, b0, b1].every((n) => Number.isFinite(n))) return false
+  if (a1 <= a0) a1 += 24 * 60
+  if (b1 <= b0) b1 += 24 * 60
+  return a0 < b1 && b0 < a1
+}
+
+/**
+ * Whether two cadence patterns can ever both be on duty in the same calendar week.
+ * Weekly always co-occurs with anything; biweekly only co-occurs with the same phase.
+ */
+export function cadencesCanCoOccur(
+  a: { intervalWeeks: number; phase: number },
+  b: { intervalWeeks: number; phase: number }
+): boolean {
+  const aInterval = a.intervalWeeks === 2 ? 2 : 1
+  const bInterval = b.intervalWeeks === 2 ? 2 : 1
+  const aPhase = a.phase === 1 ? 1 : 0
+  const bPhase = b.phase === 1 ? 1 : 0
+  if (aInterval === 1 || bInterval === 1) return true
+  return aPhase === bPhase
+}
+
+export type OnDutyRuleConflictInput = {
+  employeeId: number
+  dayOfWeek: number
+  startTimeLocal: string
+  endTimeLocal: string
+  intervalWeeks?: number
+  phase?: number
+}
+
+export type OnDutyRuleConflict = {
+  dayOfWeek: number
+  a: { employeeId: number; startTimeLocal: string; endTimeLocal: string }
+  b: { employeeId: number; startTimeLocal: string; endTimeLocal: string }
+  message: string
+}
+
+/**
+ * Find pairs of rules that would put two people on the admin line at the same time
+ * on the same weekday (overlapping local times that can co-occur by cadence).
+ */
+export function findOnDutyRuleConflicts(rules: OnDutyRuleConflictInput[]): OnDutyRuleConflict[] {
+  const conflicts: OnDutyRuleConflict[] = []
+  const normalized = rules.map((r) => ({
+    employeeId: r.employeeId,
+    dayOfWeek: r.dayOfWeek,
+    startTimeLocal: r.startTimeLocal,
+    endTimeLocal: r.endTimeLocal,
+    intervalWeeks: r.intervalWeeks === 2 ? 2 : 1,
+    phase: r.intervalWeeks === 2 && r.phase === 1 ? 1 : 0,
+  }))
+
+  for (let i = 0; i < normalized.length; i++) {
+    for (let j = i + 1; j < normalized.length; j++) {
+      const a = normalized[i]
+      const b = normalized[j]
+      if (a.dayOfWeek !== b.dayOfWeek) continue
+      if (!localTimeRangesOverlap(a.startTimeLocal, a.endTimeLocal, b.startTimeLocal, b.endTimeLocal)) {
+        continue
+      }
+      if (!cadencesCanCoOccur(a, b)) continue
+      conflicts.push({
+        dayOfWeek: a.dayOfWeek,
+        a: {
+          employeeId: a.employeeId,
+          startTimeLocal: a.startTimeLocal,
+          endTimeLocal: a.endTimeLocal,
+        },
+        b: {
+          employeeId: b.employeeId,
+          startTimeLocal: b.startTimeLocal,
+          endTimeLocal: b.endTimeLocal,
+        },
+        message: `Two people overlap on day ${a.dayOfWeek} (${a.startTimeLocal}–${a.endTimeLocal} and ${b.startTimeLocal}–${b.endTimeLocal})`,
+      })
+    }
+  }
+  return conflicts
+}
