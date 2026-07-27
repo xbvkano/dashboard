@@ -109,11 +109,13 @@ async function main() {
     },
   })
   // Employee row required for call-center privileged caller lookup (OWNER + phone)
-  await prisma.employee.create({
+  // and for schedule / text (same pattern as Marcos SUPERVISOR).
+  const ritaEmployee = await prisma.employee.create({
     data: {
       name: 'Rita Kano',
       number: ritaPhone,
       userId: rita.id,
+      supervisorId: null,
     },
   })
   // Marcos Kano SUPERVISOR (same user as employee Marcos, used for supervisor dropdown + text)
@@ -211,16 +213,6 @@ async function main() {
       number: '+17255774523',
       userId: empFourUser.id,
       supervisorId: rita.id,
-    },
-  })
-
-  // Rita Kano OWNER also has an Employee (same pattern as Marcos SUPERVISOR) for schedule / text
-  const ritaEmployee = await prisma.employee.create({
-    data: {
-      name: 'Rita Kano',
-      number: '+17255774524',
-      userId: rita.id,
-      supervisorId: null,
     },
   })
 

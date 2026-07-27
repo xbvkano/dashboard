@@ -573,6 +573,7 @@ import messagingRoutes from './routes/messaging'
 import messageBankRoutes from './routes/messageBank'
 import callCenterRoutes from './routes/callCenter'
 import onDutyRoutes from './routes/onDuty'
+import adminAccountsRoutes from './routes/adminAccounts'
 import { verifySupabaseMessagingBucketOnStartup } from './services/supabaseStorage'
 import { verifySupabaseAppointmentBucketOnStartup } from './services/supabaseAppointmentStorage'
 
@@ -595,6 +596,7 @@ app.use('/api', couponsRoutes)
 app.use('/api', websiteApiRoutes)
 app.use('/api/call-center', callCenterRoutes)
 app.use('/api', onDutyRoutes)
+app.use('/', adminAccountsRoutes)
 app.use('/', messagingRoutes)
 app.use('/', messageBankRoutes)
 

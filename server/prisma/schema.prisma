@@ -21,6 +21,8 @@ model User {
   timeZone String   @default("America/Los_Angeles")
   role     Role     @default(EMPLOYEE)
   safe     Boolean  @default(false)
+  /// When true, this user cannot sign in (Owners/Admins/Supervisors managed on Admins page).
+  disabled Boolean  @default(false)
   type     UserType @default(Google)
   password String?
   userName String?  @unique

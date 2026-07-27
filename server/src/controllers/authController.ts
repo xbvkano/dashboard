@@ -53,7 +53,7 @@ export async function login(req: Request, res: Response) {
         return res.status(401).json({ error: 'Invalid username or password' })
       }
 
-      if (user.employee?.disabled) {
+      if (user.disabled || user.employee?.disabled) {
         return res.status(401).json({ error: 'This account cannot be used to sign in' })
       }
 
@@ -123,7 +123,7 @@ export async function login(req: Request, res: Response) {
       include: { employee: true },
     })
 
-    if (user.employee?.disabled) {
+    if (user.disabled || user.employee?.disabled) {
       return res.status(401).json({ error: 'This account cannot be used to sign in' })
     }
 
@@ -164,7 +164,7 @@ export async function refreshAccessToken(req: Request, res: Response) {
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
-    if (user.employee?.disabled) {
+    if (user.disabled || user.employee?.disabled) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
 

@@ -14,8 +14,16 @@ export const getUsers = async (_req: Request, res: Response) => {
 
 export const getAdmins = async (_req: Request, res: Response) => {
   const admins = await prisma.user.findMany({
-    where: { role: { in: ['ADMIN', 'OWNER'] } },
+    where: { role: { in: ['ADMIN', 'OWNER'] }, disabled: false },
     orderBy: { name: 'asc' },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      userName: true,
+      role: true,
+      type: true,
+    },
   })
   res.json(admins)
 }

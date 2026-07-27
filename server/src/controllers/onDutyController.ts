@@ -10,6 +10,7 @@ import {
   resolveWeekBlocks,
   type RecurrenceLike,
 } from '../services/onDutyMaterialize'
+import { ensureEmployeeForDutyUser } from '../services/ensureEmployeeForDutyUser'
 
 const prisma = new PrismaClient()
 
@@ -20,9 +21,10 @@ async function requireUser(req: Request): Promise<{ id: number; role: Role } | n
   if (id == null) return null
   const user = await prisma.user.findUnique({
     where: { id },
-    select: { id: true, role: true },
+    select: { id: true, role: true, disabled: true },
   })
-  return user
+  if (!user || user.disabled) return null
+  return { id: user.id, role: user.role }
 }
 
 async function rematerializeAll(): Promise<number> {
@@ -66,34 +68,39 @@ async function rematerializeAll(): Promise<number> {
   return windows.length
 }
 
-/** GET /api/on-duty/assignees — OWNER/ADMIN/SUPERVISOR employees for the picker */
+/** GET /api/on-duty/assignees — OWNER/ADMIN/SUPERVISOR users (ensures Employee rows exist). */
 export async function listDutyAssignees(req: Request, res: Response) {
   try {
     const user = await requireUser(req)
     if (!user || (user.role !== 'OWNER' && user.role !== 'ADMIN')) {
       return res.status(403).json({ error: 'Forbidden' })
     }
-    const employees = await prisma.employee.findMany({
+
+    const adminUsers = await prisma.user.findMany({
       where: {
         disabled: false,
-        user: { role: { in: DUTY_ROLES } },
+        role: { in: DUTY_ROLES },
       },
-      select: {
-        id: true,
-        name: true,
-        number: true,
-        user: { select: { role: true } },
-      },
+      select: { id: true, name: true, role: true, userName: true },
       orderBy: { name: 'asc' },
     })
-    return res.json({
-      employees: employees.map((e) => ({
-        id: e.id,
-        name: e.name,
-        phoneNumber: e.number,
-        role: e.user?.role ?? null,
-      })),
-    })
+
+    const employees = []
+    for (const u of adminUsers) {
+      try {
+        const emp = await ensureEmployeeForDutyUser(prisma, u.id)
+        employees.push({
+          id: emp.id,
+          name: emp.name,
+          phoneNumber: emp.number,
+          role: u.role,
+        })
+      } catch (e) {
+        console.warn('listDutyAssignees skip user', u.id, e)
+      }
+    }
+
+    return res.json({ employees })
   } catch (err) {
     console.error('listDutyAssignees', err)
     return res.status(500).json({ error: 'Internal server error' })
@@ -192,13 +199,13 @@ export async function replaceRecurrences(req: Request, res: Response) {
       where: {
         id: { in: employeeIds },
         disabled: false,
-        user: { role: { in: DUTY_ROLES } },
+        user: { role: { in: DUTY_ROLES }, disabled: false },
       },
       select: { id: true },
     })
     if (okEmployees.length !== employeeIds.length) {
       return res.status(400).json({
-        error: 'All assignees must be active employees with OWNER, ADMIN, or SUPERVISOR role',
+        error: 'All assignees must be active Owner/Admin/Supervisor accounts',
       })
     }
 
