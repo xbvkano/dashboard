@@ -11,13 +11,14 @@ export function isTierBPath(path: string): boolean {
 }
 
 /**
- * Tier C — no JWT: health, login, Twilio SMS inbound webhook.
+ * Tier C — no JWT: health, login, Twilio SMS inbound webhook, call-center service API.
  */
 export function isPublicApiRoute(method: string, path: string): boolean {
   if (method === 'GET' && path === '/') return true
   if (method === 'POST' && path === '/login') return true
   if (method === 'POST' && path === '/auth/refresh') return true
   if (method === 'POST' && path === '/messaging/inbound') return true
+  if (path === '/api/call-center' || path.startsWith('/api/call-center/')) return true
   return false
 }
 

@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { formatPhone } from '../../../../../formatPhone'
+import EmployeeCodeBadge from '../../../../components/EmployeeCodeBadge'
 import type { Appointment } from '../../types'
 
 type StatusTone = {
@@ -129,8 +130,9 @@ export default function AppointmentCard({ appointment, style, onClick }: Appoint
           <div className="text-[10px] text-slate-700 leading-tight">
             {employees.length > 0 ? (
               employees.map((e) => (
-                <div key={e.id} className="truncate">
-                  {e.name}
+                <div key={e.id} className="flex items-center gap-1 min-w-0 truncate">
+                  <span className="truncate">{e.name}</span>
+                  <EmployeeCodeBadge employeeId={e.id} size="compact" className="shrink-0" />
                 </div>
               ))
             ) : (

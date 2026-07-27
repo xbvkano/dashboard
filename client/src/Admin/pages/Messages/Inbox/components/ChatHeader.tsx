@@ -1,5 +1,6 @@
 import ChatActionsMenu from './ChatActionsMenu'
 import MockingToggle from './MockingToggle'
+import EmployeeCodeBadge from '../../../../components/EmployeeCodeBadge'
 import { formatPhone } from '../../../../../formatPhone'
 import type { ThreadContact } from '../types'
 
@@ -14,6 +15,8 @@ type Props = {
   extractAppointmentBusy?: boolean
   linkedClientId?: number | null
   onViewClient?: () => void
+  linkedEmployeeId?: number | null
+  onViewEmployee?: () => void
   conversationStatus?: 'OPEN' | 'ARCHIVED' | string
   onArchiveToggle?: () => void | Promise<void>
   archiveBusy?: boolean
@@ -21,6 +24,7 @@ type Props = {
   showMockingToggle?: boolean
   mockingEnabled?: boolean
   onMockingChange?: (enabled: boolean) => void
+  showClientBookingActions?: boolean
 }
 
 export default function ChatHeader({
@@ -34,12 +38,15 @@ export default function ChatHeader({
   extractAppointmentBusy,
   linkedClientId,
   onViewClient,
+  linkedEmployeeId,
+  onViewEmployee,
   conversationStatus,
   onArchiveToggle,
   archiveBusy,
   showMockingToggle,
   mockingEnabled,
   onMockingChange,
+  showClientBookingActions = true,
 }: Props) {
   const phoneDisplay = formatPhone(conversation.phoneE164)
   const title = conversation.contactName ?? phoneDisplay
@@ -63,7 +70,12 @@ export default function ChatHeader({
         {(conversation.contactName ?? conversation.phoneE164).slice(0, 2).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
-        <h3 className="font-semibold text-slate-900 truncate leading-tight">{title}</h3>
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="font-semibold text-slate-900 truncate leading-tight">{title}</h3>
+          {linkedEmployeeId != null && (
+            <EmployeeCodeBadge employeeId={linkedEmployeeId} size="compact" className="shrink-0" />
+          )}
+        </div>
         <p className="text-xs text-slate-500 truncate">{subtitle}</p>
       </div>
       {showMockingToggle &&
@@ -74,19 +86,22 @@ export default function ChatHeader({
             <MockingToggle enabled={mockingEnabled} onChange={onMockingChange} />
           </div>
         )}
-          <ChatActionsMenu
-            conversationId={conversation.id}
-            onEditContact={onEditContact}
-            onBookAppointment={onBookAppointment}
-            onGenerateAppointment={onGenerateAppointment}
-            onDeleteContact={onDeleteContact}
-            extractAppointmentBusy={extractAppointmentBusy}
-            linkedClientId={linkedClientId}
-            onViewClient={onViewClient}
-            conversationStatus={conversationStatus}
-            onArchiveToggle={onArchiveToggle}
-            archiveBusy={archiveBusy}
-          />
+      <ChatActionsMenu
+        conversationId={conversation.id}
+        onEditContact={onEditContact}
+        onBookAppointment={onBookAppointment}
+        onGenerateAppointment={onGenerateAppointment}
+        onDeleteContact={onDeleteContact}
+        extractAppointmentBusy={extractAppointmentBusy}
+        linkedClientId={linkedClientId}
+        onViewClient={onViewClient}
+        linkedEmployeeId={linkedEmployeeId}
+        onViewEmployee={onViewEmployee}
+        conversationStatus={conversationStatus}
+        onArchiveToggle={onArchiveToggle}
+        archiveBusy={archiveBusy}
+        showClientBookingActions={showClientBookingActions}
+      />
     </header>
   )
 }

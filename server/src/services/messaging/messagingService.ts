@@ -24,6 +24,7 @@ import { shouldSendInboundPushover } from '../../utils/pushoverDecision'
 import { buildInboundSmsPushoverPayload } from '../../utils/pushoverNotificationCopy'
 import { isPushoverConfigured, sendPushoverMessage } from '../pushover'
 import { MockSmsTransport, TwilioSmsTransport } from './smsTransport'
+import { isEmployeeInboxBusinessNumber } from './inboxLines'
 
 function parseNumMedia(raw: unknown): number {
   const n = parseInt(String(raw ?? '0'), 10)
@@ -360,10 +361,13 @@ export async function sendOutboundSms(
   }
 
   const mediaUrls = media.map((m) => m.publicUrl).filter(Boolean)
+  const forceFrom = isEmployeeInboxBusinessNumber(business)
   const sendResult = await transport.send({
     toE164: customer,
     body: trimmedBody,
     mediaPublicUrls: mediaUrls.length ? mediaUrls : undefined,
+    fromE164: business,
+    forceFrom,
   })
 
   const senderType =

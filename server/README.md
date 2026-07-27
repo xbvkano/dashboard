@@ -4,6 +4,15 @@ This server uses Express with Prisma for database access. Run `npm install` and 
 
 The database connection string is configured via `.env` and a `docker-compose.yml` file is provided to start a local PostgreSQL instance.
 
+## Call center API (admin Twilio line)
+
+Service endpoints for **evidence_call_center** (shared secret, not JWT):
+
+- [docs/CALL_CENTER_API.md](./docs/CALL_CENTER_API.md) — auth, endpoints, curl examples
+- [docs/ON_DUTY_OPS.md](./docs/ON_DUTY_OPS.md) — link privileged phones, seed on-duty rows
+
+Set `CALL_CENTER_API_KEY` in `.env` (see `.env.example`).
+
 To enable Google authentication set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` and `ADMIN_EMAILS` in your `.env` file. Emails listed in `ADMIN_EMAILS` (comma separated) will be treated as admins when logging in.
 
 ## Google Drive uploads

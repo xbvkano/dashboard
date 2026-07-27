@@ -22,16 +22,39 @@ export type TwilioMessageCreateParams =
   | { to: string; body: string; messagingServiceSid: string }
   | { to: string; body: string; from: string }
 
+export type TwilioOutboundOptions = {
+  /**
+   * Force a specific Twilio `from` number.
+   * Used for employee inbox (`TWILIO_ADMIN_FROM_NUMBER`) so sends do not go through the
+   * client Messaging Service sender pool.
+   */
+  fromE164?: string
+  /**
+   * When true with `fromE164`, always use `from` (never Messaging Service).
+   * Employee admin line should set this.
+   */
+  forceFrom?: boolean
+}
+
 /**
  * Build params for `twilioClient.messages.create(...)`.
- * Prefers Messaging Service SID when set (typical for US A2P).
+ * Prefers Messaging Service SID when set (typical for US A2P), unless `forceFrom` + `fromE164`.
  */
-export function twilioMessageCreateParams(to: string, body: string): TwilioMessageCreateParams {
+export function twilioMessageCreateParams(
+  to: string,
+  body: string,
+  options?: TwilioOutboundOptions,
+): TwilioMessageCreateParams {
+  const forcedFrom = options?.fromE164?.trim()
+  if (forcedFrom && options?.forceFrom) {
+    return { to, body, from: forcedFrom }
+  }
+
   const mg = process.env.TWILIO_MESSAGING_SERVICE_SID?.trim()
   if (mg) {
     return { to, body, messagingServiceSid: mg }
   }
-  const from = process.env.TWILIO_FROM_NUMBER?.trim()
+  const from = forcedFrom || process.env.TWILIO_FROM_NUMBER?.trim()
   if (!from) {
     throw new Error(TWILIO_OUTBOUND_NOT_CONFIGURED)
   }
@@ -47,11 +70,12 @@ export function twilioMmsMessageCreateParams(
   to: string,
   body: string,
   mediaUrls: string[],
+  options?: TwilioOutboundOptions,
 ): TwilioMessageCreateParams & { mediaUrl?: string[] } {
   const urls = mediaUrls.filter(Boolean).slice(0, 10)
   const trimmed = body.trim()
   const textBody = trimmed.length > 0 ? body : urls.length > 0 ? '' : body
-  const base = twilioMessageCreateParams(to, textBody)
+  const base = twilioMessageCreateParams(to, textBody, options)
   if (urls.length === 0) return base
   return { ...base, mediaUrl: urls }
 }

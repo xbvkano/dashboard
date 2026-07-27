@@ -20,6 +20,8 @@ type Props = {
   detailLoading?: boolean
   linkedClientId?: number | null
   onViewClient?: () => void
+  linkedEmployeeId?: number | null
+  onViewEmployee?: () => void
   conversationStatus?: 'OPEN' | 'ARCHIVED' | string
   onArchiveToggle?: () => void | Promise<void>
   archiveBusy?: boolean
@@ -30,6 +32,7 @@ type Props = {
   belowHeader?: ReactNode
   conversationId?: number | null
   messageBankInitialValues?: Record<string, string>
+  showClientBookingActions?: boolean
 }
 
 /** Pixels from bottom to still count as "at bottom" for auto-scroll */
@@ -67,6 +70,8 @@ export default function ChatThread({
   detailLoading,
   linkedClientId,
   onViewClient,
+  linkedEmployeeId,
+  onViewEmployee,
   conversationStatus,
   onArchiveToggle,
   archiveBusy,
@@ -76,6 +81,7 @@ export default function ChatThread({
   belowHeader,
   conversationId,
   messageBankInitialValues,
+  showClientBookingActions = true,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -149,12 +155,15 @@ export default function ChatThread({
         extractAppointmentBusy={extractAppointmentBusy}
         linkedClientId={linkedClientId}
         onViewClient={onViewClient}
+        linkedEmployeeId={linkedEmployeeId}
+        onViewEmployee={onViewEmployee}
         conversationStatus={conversationStatus}
         onArchiveToggle={onArchiveToggle}
         archiveBusy={archiveBusy}
         showMockingToggle={showMockingToggle}
         mockingEnabled={mockingEnabled}
         onMockingChange={onMockingChange}
+        showClientBookingActions={showClientBookingActions}
       />
       {belowHeader}
       <div

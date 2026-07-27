@@ -84,6 +84,16 @@ export function getNoAuthLoginProfile(): NoAuthLoginProfile {
   return NO_AUTH_LOGIN_PROFILES.find((p) => p.id === id) ?? NO_AUTH_JWT_ADMIN
 }
 
+export function setNoAuthLoginProfileId(id: string): void {
+  if (NO_AUTH_LOGIN_PROFILES.some((p) => p.id === id)) {
+    localStorage.setItem(NO_AUTH_LOGIN_PROFILE_KEY, id)
+  }
+}
+
+/** Seed OWNER Rita Kano (User.userName 7255774524 / password123). */
+export const RITA_KANO_OWNER_PROFILE =
+  NO_AUTH_LOGIN_PROFILES.find((p) => p.id === 'owner-rita')!
+
 /** DevTools-only fake session (x-user-id headers; server NO_AUTH may still fill defaults). */
 function applyDevTabSwitchSession(): DevNoAuthRole {
   const uidStored = localStorage.getItem('userId')

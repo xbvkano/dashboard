@@ -51,7 +51,7 @@ export function conversationInboxItemToThreadContact(row: ConversationInboxItem)
     id: row.id,
     businessNumber: row.businessNumber,
     phoneE164: row.contactPoint.value,
-    contactName: row.client?.name ?? null,
+    contactName: row.client?.name ?? row.contactPoint.displayValue ?? null,
     clientNotes: row.client?.notes ?? null,
     clientId: row.client?.id ?? null,
     lastPreview: row.lastMessagePreview,
@@ -121,18 +121,23 @@ export type ConversationDetail = {
   }>
 }
 
+export type MessagingInboxKind = 'client' | 'employee'
+
 export async function fetchConversationsPage(options?: {
   limit?: number
   cursor?: string | null
   q?: string
   /** Default OPEN. Use ARCHIVED for archived threads. */
   status?: 'OPEN' | 'ARCHIVED'
+  /** Which Twilio business line / inbox. Default client. */
+  inbox?: MessagingInboxKind
 }): Promise<ConversationsPageResponse> {
   const params = new URLSearchParams()
   if (options?.limit != null) params.set('limit', String(options.limit))
   if (options?.cursor) params.set('cursor', options.cursor)
   if (options?.q?.trim()) params.set('q', options.q.trim())
   if (options?.status === 'ARCHIVED') params.set('status', 'ARCHIVED')
+  if (options?.inbox === 'employee') params.set('inbox', 'employee')
   const qs = params.toString()
   const url = `${API_BASE_URL}/messaging/conversations${qs ? `?${qs}` : ''}`
   return fetchJson(url)
@@ -229,6 +234,7 @@ export type InboxLeaseResult =
 export async function postInboxLeaseRequest(options?: {
   tabId?: string
   force?: boolean
+  inbox?: MessagingInboxKind
 }): Promise<InboxLeaseResult> {
   const headers = new Headers({ 'Content-Type': 'application/json' })
   attachDashboardUserHeaders(headers)
@@ -240,6 +246,7 @@ export async function postInboxLeaseRequest(options?: {
     body: JSON.stringify({
       tabId: options?.tabId,
       force: options?.force,
+      inbox: options?.inbox === 'employee' ? 'employee' : 'client',
     }),
   })
   const text = await res.text()
@@ -257,8 +264,11 @@ export async function postInboxLeaseRequest(options?: {
   throw new Error(text || `Lease failed (${res.status})`)
 }
 
-export async function deleteInboxLease(): Promise<void> {
-  await fetchJson(`${API_BASE_URL}/messaging/inbox/lease`, {
+export async function deleteInboxLease(options?: { inbox?: MessagingInboxKind }): Promise<void> {
+  const params = new URLSearchParams()
+  if (options?.inbox === 'employee') params.set('inbox', 'employee')
+  const qs = params.toString()
+  await fetchJson(`${API_BASE_URL}/messaging/inbox/lease${qs ? `?${qs}` : ''}`, {
     method: 'DELETE',
   })
 }
@@ -327,6 +337,8 @@ export async function startConversationFromContact(input: {
   notes?: string | null
   /** Stored on new Client.from (e.g. Form, Call). */
   clientFrom?: string | null
+  /** client = TWILIO_FROM_NUMBER; employee = TWILIO_ADMIN_FROM_NUMBER */
+  inbox?: MessagingInboxKind
 }): Promise<{ conversationId: number; contactPointId: number; clientId: number | null }> {
   return fetchJson(`${API_BASE_URL}/messaging/contacts/start`, {
     method: 'POST',

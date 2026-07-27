@@ -53,6 +53,20 @@ describe('twilioSms', () => {
     })
   })
 
+  it('forceFrom uses fromE164 and skips Messaging Service', () => {
+    process.env.TWILIO_MESSAGING_SERVICE_SID = 'MGaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    process.env.TWILIO_FROM_NUMBER = '+19876543210'
+    const p = twilioMessageCreateParams('+15551234567', 'hi', {
+      fromE164: '+15550001111',
+      forceFrom: true,
+    })
+    expect(p).toEqual({
+      to: '+15551234567',
+      body: 'hi',
+      from: '+15550001111',
+    })
+  })
+
   it('throws when neither is set', () => {
     delete process.env.TWILIO_MESSAGING_SERVICE_SID
     delete process.env.TWILIO_FROM_NUMBER

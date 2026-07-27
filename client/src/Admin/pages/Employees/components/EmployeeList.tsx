@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Employee } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import { formatPhone } from '../../../../formatPhone'
+import EmployeeCodeBadge from '../../../components/EmployeeCodeBadge'
 
 interface EmployeeListProps {}
 
@@ -90,7 +91,10 @@ export default function EmployeeList(_: EmployeeListProps) {
             enabledItems.map((c) => (
               <li key={c.id} className="bg-white">
                 <Link to={String(c.id)} className="block py-2 px-3 hover:bg-slate-50">
-                  <div className="font-medium">{c.name}</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium">{c.name}</span>
+                    <EmployeeCodeBadge employeeId={c.id} />
+                  </div>
                   <div className="text-sm text-gray-600">{formatPhone(c.number)}</div>
                 </Link>
               </li>
@@ -110,7 +114,10 @@ export default function EmployeeList(_: EmployeeListProps) {
             disabledItems.map((c) => (
               <li key={c.id} className="bg-red-50">
                 <Link to={String(c.id)} className="block py-2 px-3 hover:bg-red-100">
-                  <div className="font-medium text-slate-700">{c.name}</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-slate-700">{c.name}</span>
+                    <EmployeeCodeBadge employeeId={c.id} />
+                  </div>
                   <div className="text-sm text-slate-500">{formatPhone(c.number)}</div>
                 </Link>
               </li>

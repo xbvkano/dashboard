@@ -1,23 +1,30 @@
 import type { PrismaClient } from '@prisma/client'
+import {
+  CLIENT_INBOX_LOCK_KEY,
+  type MessagingInboxKind,
+  inboxLockKey,
+} from './messaging/inboxLines'
 
-export const INBOX_LOCK_KEY = 'admin_inbox'
 const LEASE_MS = 60_000
+
+export { CLIENT_INBOX_LOCK_KEY as INBOX_LOCK_KEY }
 
 export async function acquireOrRenewInboxLock(
   prisma: PrismaClient,
-  args: { userId: number; tabId?: string | null; force?: boolean }
+  args: { userId: number; tabId?: string | null; force?: boolean; inbox?: MessagingInboxKind }
 ): Promise<{ ok: true } | { ok: false; holderUserId: number; leaseUntil: string }> {
+  const key = inboxLockKey(args.inbox === 'employee' ? 'employee' : 'client')
   const now = new Date()
   const leaseUntil = new Date(now.getTime() + LEASE_MS)
 
   let row = await prisma.messagingInboxLock.findUnique({
-    where: { key: INBOX_LOCK_KEY },
+    where: { key },
   })
 
   if (!row) {
     await prisma.messagingInboxLock.create({
       data: {
-        key: INBOX_LOCK_KEY,
+        key,
         holderUserId: args.userId,
         leaseUntil,
         tabId: args.tabId ?? undefined,
@@ -32,7 +39,7 @@ export async function acquireOrRenewInboxLock(
 
   if (args.force && !sameUser && !expired && !vacant) {
     await prisma.messagingInboxLock.update({
-      where: { key: INBOX_LOCK_KEY },
+      where: { key },
       data: { holderUserId: args.userId, leaseUntil, tabId: args.tabId ?? undefined },
     })
     return { ok: true }
@@ -40,7 +47,7 @@ export async function acquireOrRenewInboxLock(
 
   if (vacant || expired || sameUser) {
     await prisma.messagingInboxLock.update({
-      where: { key: INBOX_LOCK_KEY },
+      where: { key },
       data: { holderUserId: args.userId, leaseUntil, tabId: args.tabId ?? undefined },
     })
     return { ok: true }
@@ -53,11 +60,15 @@ export async function acquireOrRenewInboxLock(
   }
 }
 
-export async function releaseInboxLock(prisma: PrismaClient, args: { userId: number }): Promise<void> {
-  const row = await prisma.messagingInboxLock.findUnique({ where: { key: INBOX_LOCK_KEY } })
+export async function releaseInboxLock(
+  prisma: PrismaClient,
+  args: { userId: number; inbox?: MessagingInboxKind }
+): Promise<void> {
+  const key = inboxLockKey(args.inbox === 'employee' ? 'employee' : 'client')
+  const row = await prisma.messagingInboxLock.findUnique({ where: { key } })
   if (!row || row.holderUserId !== args.userId) return
   await prisma.messagingInboxLock.update({
-    where: { key: INBOX_LOCK_KEY },
+    where: { key },
     data: { holderUserId: null, leaseUntil: null, tabId: null },
   })
 }

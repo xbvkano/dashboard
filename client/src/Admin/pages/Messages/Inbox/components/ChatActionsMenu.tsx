@@ -10,10 +10,15 @@ type Props = {
   /** Linked CRM client id — enables "View client". */
   linkedClientId?: number | null
   onViewClient?: () => void
+  /** Linked employee id — enables "View employee account" (employee inbox). */
+  linkedEmployeeId?: number | null
+  onViewEmployee?: () => void
   /** From conversation detail — when set, show archive / restore. */
   conversationStatus?: 'OPEN' | 'ARCHIVED' | string
   onArchiveToggle?: () => void | Promise<void>
   archiveBusy?: boolean
+  /** Hide client CRM actions (book / generate appointment / edit contact). */
+  showClientBookingActions?: boolean
 }
 
 export default function ChatActionsMenu({
@@ -25,9 +30,12 @@ export default function ChatActionsMenu({
   extractAppointmentBusy,
   linkedClientId,
   onViewClient,
+  linkedEmployeeId,
+  onViewEmployee,
   conversationStatus,
   onArchiveToggle,
   archiveBusy,
+  showClientBookingActions = true,
 }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -73,40 +81,59 @@ export default function ChatActionsMenu({
               View client
             </button>
           )}
-          <button
-            type="button"
-            role="menuitem"
-            className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-800"
-            onClick={() => {
-              setOpen(false)
-              onEditContact()
-            }}
-          >
-            Edit contact
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-800"
-            onClick={() => {
-              setOpen(false)
-              onBookAppointment()
-            }}
-          >
-            Book Appointment
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-800 disabled:opacity-50"
-            disabled={extractAppointmentBusy}
-            onClick={() => {
-              setOpen(false)
-              onGenerateAppointment()
-            }}
-          >
-            {extractAppointmentBusy ? 'Generating…' : 'Generate Appointment'}
-          </button>
+          {linkedEmployeeId != null && onViewEmployee && (
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-800"
+              onClick={() => {
+                setOpen(false)
+                onViewEmployee()
+              }}
+            >
+              View employee account
+            </button>
+          )}
+          {showClientBookingActions && (
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-800"
+              onClick={() => {
+                setOpen(false)
+                onEditContact()
+              }}
+            >
+              Edit contact
+            </button>
+          )}
+          {showClientBookingActions && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-800"
+                onClick={() => {
+                  setOpen(false)
+                  onBookAppointment()
+                }}
+              >
+                Book Appointment
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-800 disabled:opacity-50"
+                disabled={extractAppointmentBusy}
+                onClick={() => {
+                  setOpen(false)
+                  onGenerateAppointment()
+                }}
+              >
+                {extractAppointmentBusy ? 'Generating…' : 'Generate Appointment'}
+              </button>
+            </>
+          )}
           {onArchiveToggle && (conversationStatus === 'OPEN' || conversationStatus === 'ARCHIVED') && (
             <button
               type="button"

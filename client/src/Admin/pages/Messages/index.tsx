@@ -14,7 +14,8 @@ export default function Messages() {
         <div className="flex min-h-0 flex-1 flex-col">
           <Routes>
             <Route index element={<MessagesHome />} />
-            <Route path="inbox" element={<Inbox />} />
+            <Route path="inbox" element={<Inbox inboxKind="client" />} />
+            <Route path="employee-inbox" element={<Inbox inboxKind="employee" />} />
             <Route path="screenshot-booking" element={<ScreenshotBooking />} />
             <Route path="leads" element={<Leads />} />
             <Route path="message-bank" element={<MessageBank />} />
@@ -37,8 +38,16 @@ function MessagesHome() {
           className="flex flex-col items-center justify-center p-6 rounded-lg bg-white shadow border border-gray-200 hover:border-blue-300 hover:shadow-md transition-colors"
         >
           <span className="text-2xl mb-2">💬</span>
-          <span className="font-medium text-gray-900">Inbox</span>
-          <span className="text-sm text-gray-500 mt-1">SMS conversations</span>
+          <span className="font-medium text-gray-900">Client inbox</span>
+          <span className="text-sm text-gray-500 mt-1">SMS with customers</span>
+        </Link>
+        <Link
+          to="employee-inbox"
+          className="flex flex-col items-center justify-center p-6 rounded-lg bg-white shadow border border-gray-200 hover:border-blue-300 hover:shadow-md transition-colors"
+        >
+          <span className="text-2xl mb-2">👷</span>
+          <span className="font-medium text-gray-900">Employee inbox</span>
+          <span className="text-sm text-gray-500 mt-1">SMS with employees (admin line)</span>
         </Link>
         <Link
           to="screenshot-booking"
@@ -50,7 +59,7 @@ function MessagesHome() {
         </Link>
         <Link
           to="leads"
-          className="flex flex-col items-center justify-center p-6 rounded-lg bg-white shadow border border-gray-200 hover:border-blue-300 hover:shadow-md transition-colors sm:col-span-2 lg:col-span-1"
+          className="flex flex-col items-center justify-center p-6 rounded-lg bg-white shadow border border-gray-200 hover:border-blue-300 hover:shadow-md transition-colors"
         >
           <span className="text-2xl mb-2">📩</span>
           <span className="font-medium text-gray-900">Leads</span>

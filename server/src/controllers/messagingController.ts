@@ -26,6 +26,10 @@ import {
 } from '../utils/messagingInboxQuery'
 import { translateEnToPt } from '../services/googleTranslate'
 import { acquireOrRenewInboxLock, releaseInboxLock } from '../services/messagingInboxLock'
+import {
+  parseMessagingInboxKind,
+  resolveInboxBusinessNumber,
+} from '../services/messaging/inboxLines'
 import { parseUserIdHeader } from '../utils/httpUser'
 import { randomUUID } from 'crypto'
 import { calculateAppointmentHours, parseSqft } from '../utils/appointmentUtils'
@@ -317,7 +321,20 @@ export async function listConversations(req: Request, res: Response) {
     const searchWhere = inboxSearchWhere(q)
     const rawStatus = typeof req.query.status === 'string' ? req.query.status.trim().toUpperCase() : 'OPEN'
     const convStatus = rawStatus === 'ARCHIVED' ? ConversationStatus.ARCHIVED : ConversationStatus.OPEN
-    const baseWhere: Prisma.ConversationWhereInput = { status: convStatus }
+    const inboxKind = parseMessagingInboxKind(req.query.inbox)
+
+    let businessNumber: string
+    try {
+      businessNumber = resolveInboxBusinessNumber(inboxKind)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Inbox business number not configured'
+      return res.status(503).json({ error: msg })
+    }
+
+    const baseWhere: Prisma.ConversationWhereInput = {
+      status: convStatus,
+      businessNumber,
+    }
     const where: Prisma.ConversationWhereInput = searchWhere ? { AND: [baseWhere, searchWhere] } : baseWhere
 
     const take = limit + 1
@@ -361,6 +378,8 @@ export async function listConversations(req: Request, res: Response) {
     res.json({
       items: mapConversationsToInboxDto(page as any),
       nextCursor,
+      inbox: inboxKind,
+      businessNumber,
     })
   } catch (e) {
     console.error(e)
@@ -708,17 +727,24 @@ export async function postInboundWebhook(req: Request, res: Response) {
 }
 
 export async function postStartConversationFromContact(req: Request, res: Response) {
-  const { phoneRaw, name, notes, clientFrom } = req.body as {
+  const { phoneRaw, name, notes, clientFrom, inbox } = req.body as {
     phoneRaw?: string
     name?: string | null
     notes?: string | null
     clientFrom?: string | null
+    inbox?: string | null
   }
   if (!phoneRaw || typeof phoneRaw !== 'string') {
     return res.status(400).json({ error: 'phoneRaw is required' })
   }
   try {
-    const out = await startConversationFromContact(prisma, { phoneRaw, name, notes, clientFrom })
+    const out = await startConversationFromContact(prisma, {
+      phoneRaw,
+      name,
+      notes,
+      clientFrom,
+      inbox: parseMessagingInboxKind(inbox),
+    })
     res.status(201).json(out)
   } catch (e: any) {
     console.error(e)
@@ -902,9 +928,14 @@ export async function postMessagingInboxLease(req: Request, res: Response) {
   if (userId == null) {
     return res.status(400).json({ error: 'x-user-id required' })
   }
-  const { tabId, force } = req.body as { tabId?: string; force?: boolean }
+  const { tabId, force, inbox } = req.body as { tabId?: string; force?: boolean; inbox?: string }
   try {
-    const out = await acquireOrRenewInboxLock(prisma, { userId, tabId, force: Boolean(force) })
+    const out = await acquireOrRenewInboxLock(prisma, {
+      userId,
+      tabId,
+      force: Boolean(force),
+      inbox: parseMessagingInboxKind(inbox),
+    })
     if (!out.ok) {
       return res.status(409).json({
         error: 'Messaging inbox is in use',
@@ -924,8 +955,11 @@ export async function deleteMessagingInboxLease(req: Request, res: Response) {
   if (userId == null) {
     return res.status(400).json({ error: 'x-user-id required' })
   }
+  const inbox = parseMessagingInboxKind(
+    typeof req.query.inbox === 'string' ? req.query.inbox : req.body?.inbox,
+  )
   try {
-    await releaseInboxLock(prisma, { userId })
+    await releaseInboxLock(prisma, { userId, inbox })
     res.json({ ok: true })
   } catch (e) {
     console.error(e)
