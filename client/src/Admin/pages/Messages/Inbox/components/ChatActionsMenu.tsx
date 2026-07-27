@@ -19,6 +19,8 @@ type Props = {
   archiveBusy?: boolean
   /** Hide client CRM actions (book / generate appointment / edit contact). */
   showClientBookingActions?: boolean
+  /** Optional click-to-call href (e.g. admin Twilio line for employee inbox). */
+  callHref?: string | null
 }
 
 export default function ChatActionsMenu({
@@ -36,6 +38,7 @@ export default function ChatActionsMenu({
   onArchiveToggle,
   archiveBusy,
   showClientBookingActions = true,
+  callHref,
 }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -93,6 +96,16 @@ export default function ChatActionsMenu({
             >
               View employee account
             </button>
+          )}
+          {callHref && (
+            <a
+              href={callHref}
+              role="menuitem"
+              className="block w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-800"
+              onClick={() => setOpen(false)}
+            >
+              Call
+            </a>
           )}
           {showClientBookingActions && (
             <button

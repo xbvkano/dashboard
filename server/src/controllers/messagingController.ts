@@ -23,6 +23,7 @@ import {
   decodeInboxCursor,
   encodeInboxCursor,
   inboxSearchWhere,
+  inboxSearchWhereWithEmployeePhones,
 } from '../utils/messagingInboxQuery'
 import { translateEnToPt } from '../services/googleTranslate'
 import { acquireOrRenewInboxLock, releaseInboxLock } from '../services/messagingInboxLock'
@@ -33,7 +34,7 @@ import {
 import { parseUserIdHeader } from '../utils/httpUser'
 import { randomUUID } from 'crypto'
 import { calculateAppointmentHours, parseSqft } from '../utils/appointmentUtils'
-import { phoneNumbersMatchForLinking, normalizePhone } from '../utils/phoneUtils'
+import { phoneNumbersMatchForLinking, normalizePhone, phoneLookupVariants } from '../utils/phoneUtils'
 import { isAppointmentInPast } from '../utils/appointmentPast'
 import { localDateStringToStartOfDayUtc, whereAppointmentOnBusinessDay } from '../utils/appointmentTimezone'
 import { withAppointmentLocalDate } from '../utils/appointmentJson'
@@ -318,10 +319,30 @@ export async function listConversations(req: Request, res: Response) {
     const cursorDecoded = decodeInboxCursor(req.query.cursor)
     const offset = cursorDecoded?.o ?? 0
 
-    const searchWhere = inboxSearchWhere(q)
     const rawStatus = typeof req.query.status === 'string' ? req.query.status.trim().toUpperCase() : 'OPEN'
     const convStatus = rawStatus === 'ARCHIVED' ? ConversationStatus.ARCHIVED : ConversationStatus.OPEN
     const inboxKind = parseMessagingInboxKind(req.query.inbox)
+
+    let searchWhere = inboxSearchWhere(q)
+    if (inboxKind === 'employee' && typeof q === 'string' && q.trim()) {
+      const matchingEmployees = await prisma.employee.findMany({
+        where: {
+          disabled: false,
+          name: { contains: q.trim(), mode: 'insensitive' },
+        },
+        select: { number: true },
+      })
+      const phoneSet = new Set<string>()
+      for (const e of matchingEmployees) {
+        const e164 = normalizePhone(e.number)
+        if (e164) {
+          for (const v of phoneLookupVariants(e164)) phoneSet.add(v)
+        } else if (e.number.trim()) {
+          phoneSet.add(e.number.trim())
+        }
+      }
+      searchWhere = inboxSearchWhereWithEmployeePhones(q, [...phoneSet])
+    }
 
     let businessNumber: string
     try {

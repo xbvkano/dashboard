@@ -33,6 +33,7 @@ type Props = {
   conversationId?: number | null
   messageBankInitialValues?: Record<string, string>
   showClientBookingActions?: boolean
+  callHref?: string | null
 }
 
 /** Pixels from bottom to still count as "at bottom" for auto-scroll */
@@ -82,6 +83,7 @@ export default function ChatThread({
   conversationId,
   messageBankInitialValues,
   showClientBookingActions = true,
+  callHref,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -164,6 +166,7 @@ export default function ChatThread({
         mockingEnabled={mockingEnabled}
         onMockingChange={onMockingChange}
         showClientBookingActions={showClientBookingActions}
+        callHref={callHref}
       />
       {belowHeader}
       <div

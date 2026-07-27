@@ -66,3 +66,22 @@ export function inboxSearchWhere(q: string | undefined): Prisma.ConversationWher
 
   return { OR: or }
 }
+
+/**
+ * Extend inbox search with contact-point phones that match employee names
+ * (employee inbox has no Client rows).
+ */
+export function inboxSearchWhereWithEmployeePhones(
+  q: string | undefined,
+  employeePhoneNumbers: string[],
+): Prisma.ConversationWhereInput | undefined {
+  const base = inboxSearchWhere(q)
+  const phones = employeePhoneNumbers.map((p) => p.trim()).filter(Boolean)
+  if (phones.length === 0) return base
+
+  const employeePhoneClause: Prisma.ConversationWhereInput = {
+    contactPoint: { value: { in: phones } },
+  }
+  if (!base) return employeePhoneClause
+  return { OR: [base, employeePhoneClause] }
+}

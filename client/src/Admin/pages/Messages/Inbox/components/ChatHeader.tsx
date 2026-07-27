@@ -25,6 +25,7 @@ type Props = {
   mockingEnabled?: boolean
   onMockingChange?: (enabled: boolean) => void
   showClientBookingActions?: boolean
+  callHref?: string | null
 }
 
 export default function ChatHeader({
@@ -47,6 +48,7 @@ export default function ChatHeader({
   mockingEnabled,
   onMockingChange,
   showClientBookingActions = true,
+  callHref,
 }: Props) {
   const phoneDisplay = formatPhone(conversation.phoneE164)
   const title = conversation.contactName ?? phoneDisplay
@@ -101,6 +103,7 @@ export default function ChatHeader({
         onArchiveToggle={onArchiveToggle}
         archiveBusy={archiveBusy}
         showClientBookingActions={showClientBookingActions}
+        callHref={callHref}
       />
     </header>
   )

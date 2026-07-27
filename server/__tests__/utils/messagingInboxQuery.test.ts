@@ -4,6 +4,7 @@ import {
   digitsOnly,
   encodeInboxCursor,
   inboxSearchWhere,
+  inboxSearchWhereWithEmployeePhones,
 } from '../../src/utils/messagingInboxQuery'
 
 describe('messagingInboxQuery', () => {
@@ -31,5 +32,19 @@ describe('messagingInboxQuery', () => {
     const w = inboxSearchWhere('john 555')
     expect(w?.OR).toBeDefined()
     expect(Array.isArray(w?.OR)).toBe(true)
+  })
+
+  it('inboxSearchWhereWithEmployeePhones ORs employee phone matches', () => {
+    const w = inboxSearchWhereWithEmployeePhones('rita', ['+15551234567'])
+    expect(w?.OR).toBeDefined()
+    expect(w).toEqual(
+      expect.objectContaining({
+        OR: expect.arrayContaining([
+          expect.objectContaining({
+            contactPoint: { value: { in: ['+15551234567'] } },
+          }),
+        ]),
+      }),
+    )
   })
 })

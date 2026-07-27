@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import ConversationList from './components/ConversationList'
-import EmployeeDirectoryList, {
-  type EmployeeDirectoryRow,
-} from './components/EmployeeDirectoryList'
 import ChatThread from './components/ChatThread'
 import InboxTakeOverConfirmModal from './components/InboxTakeOverConfirmModal'
 import NewConversationModal from './components/NewConversationModal'
@@ -20,7 +17,6 @@ import {
   type MessagingInboxKind,
   conversationInboxItemToThreadContact,
   formatApiError,
-  startConversationFromContact,
 } from './messagingApi'
 import {
   deleteConversationPresence,
@@ -120,17 +116,19 @@ function AppointmentBookedPill({ message, onDone }: { message: string; onDone: (
 function mergedThread(
   row: ConversationInboxItem | undefined,
   detail: ConversationDetail | null,
-  selectedId: number | null
+  selectedId: number | null,
+  fallbackName?: string | null,
 ): ThreadContact | null {
   if (!selectedId) return null
   const d = detail?.conversation.id === selectedId ? detail : null
   if (row) {
     const client = d?.client ?? row.client
+    const displayValue = d?.contactPoint.displayValue ?? row.contactPoint.displayValue
     return {
       id: selectedId,
       businessNumber: d?.conversation.businessNumber ?? row.businessNumber,
       phoneE164: d?.contactPoint.value ?? row.contactPoint.value,
-      contactName: client?.name ?? null,
+      contactName: client?.name ?? displayValue ?? fallbackName ?? null,
       clientNotes: client?.notes ?? null,
       clientId: client?.id ?? row.client?.id ?? null,
       lastPreview: row.lastMessagePreview,
@@ -144,7 +142,7 @@ function mergedThread(
       id: selectedId,
       businessNumber: d.conversation.businessNumber,
       phoneE164: d.contactPoint.value,
-      contactName: d.client?.name ?? null,
+      contactName: d.client?.name ?? d.contactPoint.displayValue ?? fallbackName ?? null,
       clientNotes: d.client?.notes ?? null,
       clientId: d.client?.id ?? null,
       lastPreview: lastMsg?.body ? lastMsg.body.slice(0, 160) : null,
@@ -180,9 +178,6 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
   const [employees, setEmployees] = useState<
     Array<{ id: number; name: string; number: string }>
   >([])
-  const [employeesLoading, setEmployeesLoading] = useState(false)
-  const [startingEmployeeId, setStartingEmployeeId] = useState<number | null>(null)
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null)
   const [listLoading, setListLoading] = useState(true)
   const [listLoadingMore, setListLoadingMore] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
@@ -269,14 +264,14 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
   const refreshList = useCallback(async () => {
     const res = await fetchConversationsPage({
       limit: 50,
-      q: isEmployeeInbox ? undefined : debouncedSearch || undefined,
+      q: debouncedSearch || undefined,
       status: showArchived ? 'ARCHIVED' : 'OPEN',
       inbox: inboxKind,
     })
     setList(res.items)
     setNextCursor(res.nextCursor)
     return res.items
-  }, [debouncedSearch, showArchived, inboxKind, isEmployeeInbox])
+  }, [debouncedSearch, showArchived, inboxKind])
 
   useEffect(() => {
     let cancelled = false
@@ -285,7 +280,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
     setNextCursor(null)
     fetchConversationsPage({
       limit: 50,
-      q: isEmployeeInbox ? undefined : debouncedSearch || undefined,
+      q: debouncedSearch || undefined,
       status: showArchived ? 'ARCHIVED' : 'OPEN',
       inbox: inboxKind,
     })
@@ -305,16 +300,15 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
     return () => {
       cancelled = true
     }
-  }, [debouncedSearch, showArchived, inboxKind, isEmployeeInbox])
+  }, [debouncedSearch, showArchived, inboxKind])
 
-  /** Employee directory (active / non-disabled only) */
+  /** Employee directory for name enrichment / linked account (active only) */
   useEffect(() => {
     if (!isEmployeeInbox) {
       setEmployees([])
       return
     }
     let cancelled = false
-    setEmployeesLoading(true)
     fetchJson<Array<{ id: number; name: string; number: string }>>(
       `${API_BASE_URL}/employees?take=500`
     )
@@ -324,12 +318,6 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
       })
       .catch((e) => {
         console.error(e)
-        if (!cancelled) {
-          setListError((prev) => prev || formatApiError(e) || 'Could not load employees')
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setEmployeesLoading(false)
       })
     return () => {
       cancelled = true
@@ -641,38 +629,30 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
     [selectedId, detail, list],
   )
 
-  const threadRows = useMemo(() => list.map(rowToThread), [list])
-
-  const employeeDirectoryRows = useMemo((): EmployeeDirectoryRow[] => {
-    const q = searchInput.trim().toLowerCase()
-    const filtered = employees.filter((e) => {
-      if (!q) return true
-      return (
-        e.name.toLowerCase().includes(q) ||
-        phoneDigits(e.number).includes(phoneDigits(q)) ||
-        e.number.toLowerCase().includes(q)
-      )
+  const threadRows = useMemo(() => {
+    return list.map((row) => {
+      const base = rowToThread(row)
+      if (!isEmployeeInbox || base.contactName) return base
+      const emp = employees.find((e) => phonesMatch(e.number, base.phoneE164))
+      return emp ? { ...base, contactName: emp.name } : base
     })
-    return filtered.map((e) => {
-      const conv = list.find((c) => phonesMatch(c.contactPoint.value, e.number))
-      return {
-        id: e.id,
-        name: e.name,
-        number: e.number,
-        conversationId: conv?.id ?? null,
-        unread: conv?.unread ?? false,
-        lastPreview: conv?.lastMessagePreview ?? null,
-      }
-    })
-  }, [employees, list, searchInput])
+  }, [list, employees, isEmployeeInbox])
 
   const selectedRow = useMemo(
     () => list.find((r) => r.id === selectedId),
     [list, selectedId]
   )
+  const matchedEmployeeName = useMemo(() => {
+    if (!isEmployeeInbox || selectedId == null) return null
+    const phone =
+      (detail?.conversation.id === selectedId ? detail.contactPoint.value : null) ??
+      selectedRow?.contactPoint.value
+    if (!phone) return null
+    return employees.find((e) => phonesMatch(e.number, phone))?.name ?? null
+  }, [isEmployeeInbox, selectedId, detail, selectedRow, employees])
   const threadContact = useMemo(
-    () => mergedThread(selectedRow, detail, selectedId),
-    [selectedRow, detail, selectedId]
+    () => mergedThread(selectedRow, detail, selectedId, matchedEmployeeName),
+    [selectedRow, detail, selectedId, matchedEmployeeName]
   )
   const showSplitBooking = useMemo(() => {
     if (isEmployeeInbox) return false
@@ -825,49 +805,29 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
 
   const linkedEmployeeId = useMemo(() => {
     if (!isEmployeeInbox || !threadContact) return null
-    if (selectedEmployeeId != null) {
-      const sel = employees.find((e) => e.id === selectedEmployeeId)
-      if (sel && phonesMatch(sel.number, threadContact.phoneE164)) return selectedEmployeeId
-    }
     const match = employees.find((e) => phonesMatch(e.number, threadContact.phoneE164))
     return match?.id ?? null
-  }, [isEmployeeInbox, threadContact, selectedEmployeeId, employees])
+  }, [isEmployeeInbox, threadContact, employees])
 
   const handleViewEmployee = useCallback(() => {
     if (linkedEmployeeId == null) return
     navigate(`/dashboard/contacts/employees/accounts/${linkedEmployeeId}`)
   }, [navigate, linkedEmployeeId])
 
+  /** Employee inbox Call dials the admin Twilio line (business number on the thread). */
+  const callHref = useMemo(() => {
+    if (!isEmployeeInbox || !threadContact?.businessNumber) return null
+    const digits = phoneDigits(threadContact.businessNumber)
+    if (!digits) return null
+    const e164 = threadContact.businessNumber.trim().startsWith('+')
+      ? threadContact.businessNumber.trim()
+      : `+${digits}`
+    return `tel:${e164}`
+  }, [isEmployeeInbox, threadContact?.businessNumber])
+
   const handleSelect = useCallback((id: number) => {
     setSelectedId(id)
   }, [])
-
-  const handleSelectEmployee = useCallback(
-    async (employee: EmployeeDirectoryRow) => {
-      setSelectedEmployeeId(employee.id)
-      if (employee.conversationId != null) {
-        setSelectedId(employee.conversationId)
-        return
-      }
-      setStartingEmployeeId(employee.id)
-      setListError(null)
-      try {
-        const out = await startConversationFromContact({
-          phoneRaw: employee.number,
-          name: employee.name,
-          inbox: 'employee',
-        })
-        await refreshList()
-        setSelectedId(out.conversationId)
-      } catch (e) {
-        console.error(e)
-        setListError(formatApiError(e) || 'Could not start conversation')
-      } finally {
-        setStartingEmployeeId(null)
-      }
-    },
-    [refreshList]
-  )
 
   const handleNewCreated = useCallback(
     async (conversationId: number) => {
@@ -1055,44 +1015,27 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
           }`}
         >
           <div className="flex-1 min-h-0 md:h-full border-0 md:border md:border-slate-200 md:rounded-l-xl overflow-hidden shadow-none md:shadow-sm">
-            {isEmployeeInbox ? (
-              <EmployeeDirectoryList
-                employees={employeeDirectoryRows}
-                selectedConversationId={selectedId}
-                selectedEmployeeId={selectedEmployeeId}
-                onSelectEmployee={handleSelectEmployee}
-                listLoading={employeesLoading || listLoading}
-                searchQuery={searchInput}
-                onSearchChange={setSearchInput}
-                showMockingToggle={showMockingToggle}
-                mockingEnabled={mockingEnabled}
-                onMockingChange={setMockingEnabled}
-                startingEmployeeId={startingEmployeeId}
-                title={inboxTitle}
-              />
-            ) : (
-              <ConversationList
-                conversations={threadRows}
-                selectedId={selectedId}
-                onSelect={handleSelect}
-                onNewConversation={() => setNewOpen(true)}
-                listLoading={listLoading}
-                listLoadingMore={listLoadingMore}
-                hasMore={Boolean(nextCursor)}
-                onLoadMore={handleLoadMore}
-                searchQuery={searchInput}
-                onSearchChange={setSearchInput}
-                showMockingToggle={showMockingToggle}
-                mockingEnabled={mockingEnabled}
-                onMockingChange={setMockingEnabled}
-                showSimulateInbound={isDevToolsEnabled}
-                simulateInboundRows={list.map(conversationInboxItemToThreadContact)}
-                onSimulateInboundSuccess={handleSimulateInboundSuccess}
-                showArchived={showArchived}
-                onToggleArchivedView={handleToggleArchivedView}
-                title={inboxTitle}
-              />
-            )}
+            <ConversationList
+              conversations={threadRows}
+              selectedId={selectedId}
+              onSelect={handleSelect}
+              onNewConversation={() => setNewOpen(true)}
+              listLoading={listLoading}
+              listLoadingMore={listLoadingMore}
+              hasMore={Boolean(nextCursor)}
+              onLoadMore={handleLoadMore}
+              searchQuery={searchInput}
+              onSearchChange={setSearchInput}
+              showMockingToggle={showMockingToggle}
+              mockingEnabled={mockingEnabled}
+              onMockingChange={setMockingEnabled}
+              showSimulateInbound={isDevToolsEnabled}
+              simulateInboundRows={threadRows}
+              onSimulateInboundSuccess={handleSimulateInboundSuccess}
+              showArchived={showArchived}
+              onToggleArchivedView={handleToggleArchivedView}
+              title={inboxTitle}
+            />
           </div>
         </div>
 
@@ -1131,6 +1074,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
                     conversationId={selectedId}
                     messageBankInitialValues={messageBankInitialValues}
               showClientBookingActions={!isEmployeeInbox}
+              callHref={callHref}
                   />
                 </div>
                 <div className="w-[min(440px,42%)] min-w-[300px] shrink-0 flex flex-col min-h-0 bg-slate-100/90 p-2 border-l border-slate-200/80">
@@ -1181,16 +1125,15 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
                 conversationId={selectedId}
                 messageBankInitialValues={messageBankInitialValues}
               showClientBookingActions={!isEmployeeInbox}
+              callHref={callHref}
               />
             )
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 text-sm px-6">
-              <p className="font-medium text-slate-700">
-                {isEmployeeInbox ? 'Select an employee' : 'Select a conversation'}
-              </p>
+              <p className="font-medium text-slate-700">Select a conversation</p>
               <p className="mt-1 text-center">
                 {isEmployeeInbox
-                  ? 'Choose someone on the left to message them on the admin line.'
+                  ? 'Choose a thread on the left, or start a new conversation on the admin line.'
                   : 'Choose a thread on the left to read messages.'}
               </p>
             </div>
@@ -1255,6 +1198,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
                     conversationId={selectedId}
                     messageBankInitialValues={messageBankInitialValues}
               showClientBookingActions={!isEmployeeInbox}
+              callHref={callHref}
                   />
                 ) : (
                   <div className="flex-1 min-h-0 min-w-0 p-2 overflow-hidden overflow-x-hidden flex flex-col">
@@ -1307,19 +1251,18 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
               conversationId={selectedId}
               messageBankInitialValues={messageBankInitialValues}
               showClientBookingActions={!isEmployeeInbox}
+              callHref={callHref}
             />
           )}
         </div>
       )}
 
-      {!isEmployeeInbox && (
-        <NewConversationModal
-          open={newOpen}
-          onClose={() => setNewOpen(false)}
-          onCreated={handleNewCreated}
-          inboxKind={inboxKind}
-        />
-      )}
+      <NewConversationModal
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        onCreated={handleNewCreated}
+        inboxKind={inboxKind}
+      />
       {selectedId != null && threadContact && (
         <EditContactModal
           open={editOpen}

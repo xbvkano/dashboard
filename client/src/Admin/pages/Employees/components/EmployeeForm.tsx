@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useModal } from '../../../../ModalProvider'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { Employee, SupervisorOption } from './types'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
 import useFormPersistence, { clearFormPersistence, loadFormPersistence } from '../../../../useFormPersistence'
 import AppointmentsSection from "../../../components/AppointmentsSection"
-import { phoneHasMinDigits, phoneToApiPayload } from '../../../../formatPhone'
+import { formatPhone, phoneHasMinDigits, phoneToApiPayload } from '../../../../formatPhone'
 import EmployeeCodeBadge from '../../../components/EmployeeCodeBadge'
 import PhoneInput from '../../../components/PhoneInput'
+import { copyTextToClipboard, phoneToE164 } from '../../../contactActions'
+import { formatApiError, startConversationFromContact } from '../../Messages/Inbox/messagingApi'
 
 function normalizeNumberForCompare(num: string): string {
   return num.replace(/\D/g, '')
@@ -33,7 +35,26 @@ export default function EmployeeForm() {
   const [lastSaved, setLastSaved] = useState<Pick<Employee, 'name' | 'number' | 'notes' | 'disabled' | 'supervisorId'> | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [contactMenuOpen, setContactMenuOpen] = useState(false)
+  const [textBusy, setTextBusy] = useState(false)
+  const [phoneCopied, setPhoneCopied] = useState(false)
+  const contactMenuRef = useRef<HTMLDivElement>(null)
   useFormPersistence(storageKey, { ...data, password: '' })
+
+  const phoneE164 = useMemo(() => phoneToE164(data.number), [data.number])
+  const telHref = phoneE164 ? `tel:${phoneE164}` : null
+  const contactActionsEnabled = !isNew && !!phoneE164
+
+  useEffect(() => {
+    if (!contactMenuOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (contactMenuRef.current && !contactMenuRef.current.contains(e.target as Node)) {
+        setContactMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [contactMenuOpen])
 
   useEffect(() => {
     fetchJson<SupervisorOption[]>(`${API_BASE_URL}/employees/supervisors`)
@@ -114,6 +135,38 @@ export default function EmployeeForm() {
     setData(updated)
   }
 
+  const handleCopyPhone = async () => {
+    if (!data.number) return
+    try {
+      await copyTextToClipboard(formatPhone(data.number))
+      setPhoneCopied(true)
+      setContactMenuOpen(false)
+      window.setTimeout(() => setPhoneCopied(false), 2000)
+    } catch (e) {
+      console.error(e)
+      await alert('Failed to copy phone number')
+    }
+  }
+
+  const handleOpenInboxText = async () => {
+    if (!phoneE164 || textBusy) return
+    setTextBusy(true)
+    setContactMenuOpen(false)
+    try {
+      const out = await startConversationFromContact({
+        phoneRaw: phoneE164,
+        name: data.name || null,
+        inbox: 'employee',
+      })
+      navigate(`/dashboard/messages/employee-inbox?conversation=${out.conversationId}`)
+    } catch (e) {
+      console.error(e)
+      await alert(formatApiError(e))
+    } finally {
+      setTextBusy(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const supervisorId = data.supervisorId === '' || data.supervisorId == null ? null : data.supervisorId
@@ -121,7 +174,7 @@ export default function EmployeeForm() {
       await alert('Assigned supervisor is required')
       return
     }
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       name: data.name,
       number: phoneToApiPayload(data.number),
       notes: data.notes,
@@ -193,7 +246,54 @@ export default function EmployeeForm() {
           Saved
         </div>
       )}
-      <Link to="/dashboard/contacts/employees/accounts" className="text-blue-500 text-sm">&larr; Back to employee users</Link>
+      <div className="flex items-center justify-between gap-2">
+        <Link to="/dashboard/contacts/employees/accounts" className="text-blue-500 text-sm">&larr; Back to employee users</Link>
+        {contactActionsEnabled && (
+          <div className="relative md:hidden" ref={contactMenuRef}>
+            <button
+              type="button"
+              className="p-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+              aria-label="Contact actions"
+              aria-expanded={contactMenuOpen}
+              onClick={() => setContactMenuOpen((o) => !o)}
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <circle cx="12" cy="6" r="1.75" />
+                <circle cx="12" cy="12" r="1.75" />
+                <circle cx="12" cy="18" r="1.75" />
+              </svg>
+            </button>
+            {contactMenuOpen && (
+              <div className="absolute right-0 mt-1 w-44 rounded-lg border border-slate-200 bg-white shadow-lg z-20 py-1">
+                {telHref && (
+                  <a
+                    href={telHref}
+                    className="block px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50"
+                    onClick={() => setContactMenuOpen(false)}
+                  >
+                    Call
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className="block w-full text-left px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                  onClick={() => void handleOpenInboxText()}
+                  disabled={textBusy}
+                >
+                  {textBusy ? 'Opening...' : 'Text'}
+                </button>
+                <button
+                  type="button"
+                  className="block w-full text-left px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50"
+                  onClick={() => void handleCopyPhone()}
+                >
+                  {phoneCopied ? 'Copied' : 'Copy phone'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       {!isNew && data.id != null && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 flex flex-wrap items-center gap-3">
           <div>
@@ -219,6 +319,31 @@ export default function EmployeeForm() {
           required
           className="w-full border p-2 rounded"
         />
+        {contactActionsEnabled && telHref && (
+          <div className="mt-2 hidden md:flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void handleOpenInboxText()}
+              disabled={textBusy}
+              className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-60"
+            >
+              {textBusy ? 'Opening...' : 'Text'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCopyPhone()}
+              className="px-3 py-1.5 bg-slate-100 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
+            >
+              {phoneCopied ? 'Copied' : 'Copy phone'}
+            </button>
+            <a
+              href={telHref}
+              className="px-3 py-1.5 bg-slate-100 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
+            >
+              Call
+            </a>
+          </div>
+        )}
       </div>
       <div>
         <label htmlFor="employee-number" className="block text-sm">
@@ -308,7 +433,7 @@ export default function EmployeeForm() {
         {!isNew && (
           <button
             type="button"
-            onClick={handleDelete}
+            onClick={() => void handleDelete()}
             className="bg-red-500 text-white px-4 py-2 rounded"
           >
             Delete
