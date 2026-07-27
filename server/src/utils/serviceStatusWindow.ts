@@ -42,15 +42,24 @@ export function getAppointmentServiceWindow(
   return { start: startDt.toUTC().toJSDate(), end: endDt.toUTC().toJSDate() }
 }
 
-/** Action/visibility window: early minutes before start through job end. */
+/**
+ * Action/visibility window: early minutes before start through end of the
+ * appointment's local calendar day (clears at local midnight; tomorrow is empty).
+ */
 export function getAppointmentActionWindow(
   appt: ServiceWindowAppointment,
   zone: string = DEFAULT_APPOINTMENT_TIMEZONE,
 ): { start: Date; end: Date } {
-  const { start, end } = getAppointmentServiceWindow(appt, zone)
+  const { start } = getAppointmentServiceWindow(appt, zone)
+  const localDay = appointmentLocalDateKey({ dateUtc: appt.dateUtc, date: appt.date }, zone)
+  const endOfLocalDay = DateTime.fromISO(localDay, { zone })
+    .plus({ days: 1 })
+    .startOf('day')
+    .toUTC()
+    .toJSDate()
   return {
     start: new Date(start.getTime() - SERVICE_STATUS_EARLY_MINUTES * 60 * 1000),
-    end,
+    end: endOfLocalDay,
   }
 }
 

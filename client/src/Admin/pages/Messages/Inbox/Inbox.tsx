@@ -1003,10 +1003,14 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
                   />
                 </svg>
               </div>
-              <h2 className="text-lg font-semibold text-slate-900">Messaging is open elsewhere</h2>
+              <h2 className="text-lg font-semibold text-slate-900">
+                {isEmployeeInbox ? 'Employee inbox is open elsewhere' : 'Client inbox is open elsewhere'}
+              </h2>
               <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                Another tab or browser session is using the inbox. Close it when you’re done, go back to
-                the dashboard, or take over if you need access here.
+                Another tab or browser session is using the{' '}
+                {isEmployeeInbox ? 'employee' : 'client'} inbox. The other inbox can still be used at the
+                same time. Close the other session when you&apos;re done, go back to the dashboard, or
+                take over if you need access here.
               </p>
               <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center sm:flex-wrap">
                 <button
@@ -1035,6 +1039,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
             }}
             onConfirm={handleTakeOverInboxConfirm}
             confirming={takeOverSubmitting}
+            inboxLabel={isEmployeeInbox ? 'employee inbox' : 'client inbox'}
           />
         </>
       )}

@@ -50,6 +50,9 @@ function mockPrisma(overrides: Record<string, unknown> = {}) {
     client: {
       findUnique: jest.fn().mockResolvedValue(null),
     },
+    employee: {
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
     ...overrides,
   } as any
 }

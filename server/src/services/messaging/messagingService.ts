@@ -9,7 +9,7 @@ import {
   MessageMediaSource,
   MessageSenderType,
 } from '@prisma/client'
-import { normalizePhone } from '../../utils/phoneUtils'
+import { normalizePhone, phoneLookupVariants } from '../../utils/phoneUtils'
 import { isSupabaseStorageConfigured, uploadBufferToMessaging } from '../supabaseStorage'
 import { ensureOpenSession } from './sessionLifecycle'
 import type { TwilioInboundSmsPayload } from './twilioTypes'
@@ -265,6 +265,7 @@ export async function ingestInboundSms(
     })
     if (allow) {
       try {
+        const employeeInbox = isEmployeeInboxBusinessNumber(toNorm)
         let senderLabel = fromNorm
         if (conv.clientId != null) {
           const client = await prisma.client.findUnique({
@@ -273,12 +274,22 @@ export async function ingestInboundSms(
           })
           const n = client?.name?.trim()
           if (n) senderLabel = n
+        } else if (fromCp.displayValue?.trim()) {
+          senderLabel = fromCp.displayValue.trim()
+        } else if (employeeInbox) {
+          const emp = await prisma.employee.findFirst({
+            where: { disabled: false, number: { in: phoneLookupVariants(fromNorm) } },
+            select: { name: true },
+          })
+          const n = emp?.name?.trim()
+          if (n) senderLabel = n
         }
         const pushoverPayload = buildInboundSmsPushoverPayload({
           senderLabel,
           body,
           mediaCount: msg.mediaCount,
           receivedAt,
+          inbox: employeeInbox ? 'employee' : 'client',
         })
         await sendPushoverMessage(pushoverPayload)
         await prisma.conversation.update({

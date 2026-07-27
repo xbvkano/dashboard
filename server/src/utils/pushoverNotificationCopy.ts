@@ -16,8 +16,11 @@ export function pushoverEmergencyDeliveryCount(retrySec: number, expireSec: numb
 }
 export const PUSHOVER_FORM_CALL_SOUND = 'cashregister'
 export const PUSHOVER_SMS_SOUND = 'magic'
+/** Employee-inbox inbound SMS — distinct from client `magic`. */
+export const PUSHOVER_EMPLOYEE_SMS_SOUND = 'bike'
 export const PUSHOVER_SERVICE_STATUS_SOUND = 'pushover'
 export const PUSHOVER_SERVICE_STATUS_PRIORITY = 1
+export const PUSHOVER_INBOUND_SMS_PRIORITY = 1
 
 export type PushoverTestType = 'INBOUND_SMS' | 'WEBSITE_FORM' | 'INBOUND_CALL' | 'SERVICE_STATUS'
 
@@ -70,8 +73,14 @@ export function buildInboundSmsPushoverPayload(input: {
   body: string
   mediaCount: number
   receivedAt: Date
+  /** Default client (magic). Employee inbox uses bike. */
+  inbox?: 'client' | 'employee'
 }): PushoverInboundPayload {
-  const title = input.senderLabel.slice(0, 250)
+  const employee = input.inbox === 'employee'
+  const rawTitle = employee
+    ? `Employee · ${input.senderLabel.trim() || 'Unknown'}`
+    : input.senderLabel
+  const title = rawTitle.slice(0, 250)
   const basePreview =
     input.body.trim().slice(0, 400) || (input.mediaCount > 0 ? '📷 Photo' : '(empty)')
   const when = input.receivedAt.toLocaleString(undefined, {
@@ -85,8 +94,8 @@ export function buildInboundSmsPushoverPayload(input: {
   return {
     title,
     message,
-    priority: 1,
-    sound: PUSHOVER_SMS_SOUND,
+    priority: PUSHOVER_INBOUND_SMS_PRIORITY,
+    sound: employee ? PUSHOVER_EMPLOYEE_SMS_SOUND : PUSHOVER_SMS_SOUND,
   }
 }
 
@@ -142,7 +151,7 @@ export function buildPushoverTestSample(type: PushoverTestType): PushoverTestSam
       return {
         type,
         label: 'Inbound SMS',
-        description: 'CRM inbox message (priority 1, magic sound, no repeat)',
+        description: 'CRM client inbox message (priority 1, magic sound, no repeat)',
         payload: buildInboundSmsPushoverPayload({
           senderLabel: 'Jane Customer',
           body: 'Hi — can I get a quote for carpet cleaning this week?',

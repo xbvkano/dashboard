@@ -3,16 +3,18 @@ type Props = {
   onClose: () => void
   onConfirm: () => void | Promise<void>
   confirming?: boolean
+  inboxLabel?: string
 }
 
 /**
- * Confirmation before forcing the global messaging inbox lease (replaces window.confirm).
+ * Confirmation before forcing a messaging inbox lease (client and employee use separate locks).
  */
 export default function InboxTakeOverConfirmModal({
   open,
   onClose,
   onConfirm,
   confirming = false,
+  inboxLabel = 'messaging inbox',
 }: Props) {
   if (!open) return null
 
@@ -46,11 +48,12 @@ export default function InboxTakeOverConfirmModal({
             </div>
             <div className="min-w-0 flex-1">
               <h2 id="takeover-modal-title" className="text-lg font-semibold text-slate-900">
-                Take over messaging inbox?
+                Take over {inboxLabel}?
               </h2>
               <p id="takeover-modal-desc" className="mt-2 text-sm text-slate-600 leading-relaxed">
-                The other session will lose access to the inbox until they refresh or leave Messages.
-                Use this if you intentionally closed the other tab or need to recover access.
+                The other session will lose access to this inbox until they refresh or leave Messages.
+                The other inbox (client vs employee) is unaffected. Use this if you intentionally closed
+                the other tab or need to recover access.
               </p>
             </div>
           </div>

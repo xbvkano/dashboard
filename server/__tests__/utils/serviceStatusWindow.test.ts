@@ -46,7 +46,7 @@ describe('serviceStatusWindow', () => {
   })
 
   describe('getAppointmentActionWindow', () => {
-    it(`starts ${SERVICE_STATUS_EARLY_MINUTES} minutes before appointment start`, () => {
+    it(`starts ${SERVICE_STATUS_EARLY_MINUTES} minutes before start and ends at local midnight`, () => {
       const job = getAppointmentServiceWindow(
         {
           dateUtc: new Date('2026-04-14T07:00:00.000Z'),
@@ -70,7 +70,9 @@ describe('serviceStatusWindow', () => {
         LA,
       )
       expect(action.start.toISOString()).toBe('2026-04-14T15:00:00.000Z') // 08:00 LA
-      expect(action.end.toISOString()).toBe(job.end.toISOString())
+      // End of Apr 14 LA = Apr 15 00:00 LA = 07:00Z (PDT)
+      expect(action.end.toISOString()).toBe('2026-04-15T07:00:00.000Z')
+      expect(action.end.getTime()).toBeGreaterThan(job.end.getTime())
       expect(action.start.getTime()).toBe(job.start.getTime() - SERVICE_STATUS_EARLY_MINUTES * 60 * 1000)
     })
   })
@@ -109,8 +111,19 @@ describe('serviceStatusWindow', () => {
       )
     })
 
-    it('returns false when now is at or after end (half-open)', () => {
+    it('returns true after estimated job end but still on the same local day', () => {
+      // Job ends 12:00 LA (19:00Z); still Apr 14 afternoon
       expect(isWithinAppointmentServiceWindow(appt, new Date('2026-04-14T19:00:00.000Z'), LA)).toBe(
+        true,
+      )
+      expect(isWithinAppointmentServiceWindow(appt, new Date('2026-04-15T06:59:00.000Z'), LA)).toBe(
+        true,
+      )
+    })
+
+    it('returns false at local midnight / next day (half-open)', () => {
+      // Apr 15 00:00 LA = 07:00Z
+      expect(isWithinAppointmentServiceWindow(appt, new Date('2026-04-15T07:00:00.000Z'), LA)).toBe(
         false,
       )
     })
@@ -178,7 +191,7 @@ describe('serviceStatusWindow', () => {
       expect(listActiveAppointments([cancelled], new Date('2026-04-14T17:00:00.000Z'), LA)).toEqual([])
     })
 
-    it('returns empty when none are in window', () => {
+    it('returns empty when none are in window (next local day)', () => {
       const appt = {
         id: 3,
         dateUtc: new Date('2026-04-14T07:00:00.000Z'),
@@ -189,8 +202,24 @@ describe('serviceStatusWindow', () => {
         type: 'STANDARD' as const,
         status: 'APPOINTED' as const,
       }
-      expect(pickActiveAppointment([appt], new Date('2026-04-14T20:00:00.000Z'), LA)).toBeNull()
-      expect(listActiveAppointments([appt], new Date('2026-04-14T20:00:00.000Z'), LA)).toEqual([])
+      // Apr 15 00:00 LA = 07:00Z — cleared for tomorrow
+      expect(pickActiveAppointment([appt], new Date('2026-04-15T07:00:00.000Z'), LA)).toBeNull()
+      expect(listActiveAppointments([appt], new Date('2026-04-15T07:00:00.000Z'), LA)).toEqual([])
+    })
+
+    it('keeps job active after estimated end while still the same local day', () => {
+      const appt = {
+        id: 3,
+        dateUtc: new Date('2026-04-14T07:00:00.000Z'),
+        date: new Date('2026-04-14T07:00:00.000Z'),
+        time: '09:00',
+        hours: 2,
+        size: null as string | null,
+        type: 'STANDARD' as const,
+        status: 'APPOINTED' as const,
+      }
+      // 13:00 LA = 20:00Z — past 2h estimate, still Apr 14
+      expect(pickActiveAppointment([appt], new Date('2026-04-14T20:00:00.000Z'), LA)?.id).toBe(3)
     })
   })
 })

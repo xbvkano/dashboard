@@ -51,6 +51,20 @@ describe('pushoverNotificationCopy', () => {
     expect(payload.sound).toBe('magic')
   })
 
+  it('buildInboundSmsPushoverPayload uses bike sound for employee inbox', () => {
+    const receivedAt = new Date('2026-04-13T12:00:00.000Z')
+    const payload = buildInboundSmsPushoverPayload({
+      senderLabel: 'Rita',
+      body: 'On my way',
+      mediaCount: 0,
+      receivedAt,
+      inbox: 'employee',
+    })
+    expect(payload.title).toBe('Employee · Rita')
+    expect(payload.priority).toBe(1)
+    expect(payload.sound).toBe('bike')
+  })
+
   it('listPushoverTestSamples returns all four notification types', () => {
     const samples = listPushoverTestSamples()
     expect(samples.map((s) => s.type)).toEqual([

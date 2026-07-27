@@ -672,70 +672,78 @@ export default function Schedule() {
                     {date.toLocaleDateString(locale, { month: 'short' })}
                   </div>
                 )}
-                {canSelectDay ? (
-                  <div className="flex-1 flex flex-col gap-0.5 md:gap-1 min-h-0 min-w-0">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        if (unconfirmedMorning && scheduledByDay[key]?.morningUnconfirmedAppointmentId != null) {
-                          setUnconfirmedGoToJobsModal({ appointmentId: scheduledByDay[key].morningUnconfirmedAppointmentId! })
-                          return
-                        }
-                        toggleShift(date, 'morning')
-                      }}
-                      disabled={savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null && !unconfirmedMorning}
-                      className={`flex-1 min-h-[28px] md:min-h-[22px] min-w-0 text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
-                        unconfirmedMorning
-                          ? 'bg-amber-500 text-white cursor-pointer'
-                          : scheduledMorning
-                          ? 'bg-emerald-600 text-white cursor-default'
-                          : savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null
-                          ? savedSchedule[key]?.morningStatus === 'B'
-                            ? 'bg-emerald-600 text-white cursor-not-allowed'
-                            : 'bg-violet-600 text-white cursor-not-allowed'
-                          : daySchedule.morning
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300'
-                      }`}
-                    >
-                      AM
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        if (unconfirmedAfternoon && scheduledByDay[key]?.afternoonUnconfirmedAppointmentId != null) {
-                          setUnconfirmedGoToJobsModal({ appointmentId: scheduledByDay[key].afternoonUnconfirmedAppointmentId! })
-                          return
-                        }
-                        toggleShift(date, 'afternoon')
-                      }}
-                      disabled={savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null && !unconfirmedAfternoon}
-                      className={`flex-1 min-h-[28px] md:min-h-[22px] min-w-0 text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
-                        unconfirmedAfternoon
-                          ? 'bg-amber-500 text-white cursor-pointer'
-                          : scheduledAfternoon
-                          ? 'bg-emerald-600 text-white cursor-default'
-                          : savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null
-                          ? savedSchedule[key]?.afternoonStatus === 'B'
-                            ? 'bg-emerald-600 text-white cursor-not-allowed'
-                            : 'bg-violet-600 text-white cursor-not-allowed'
-                          : daySchedule.afternoon
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300'
-                      }`}
-                    >
-                      PM
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center">
-                    <span className="text-[9px] text-slate-400">{t.today}</span>
-                  </div>
-                )}
+                <div className="flex-1 flex flex-col gap-0.5 md:gap-1 min-h-0 min-w-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      if (unconfirmedMorning && scheduledByDay[key]?.morningUnconfirmedAppointmentId != null) {
+                        setUnconfirmedGoToJobsModal({ appointmentId: scheduledByDay[key].morningUnconfirmedAppointmentId! })
+                        return
+                      }
+                      if (!canSelectDay) return
+                      toggleShift(date, 'morning')
+                    }}
+                    disabled={
+                      (!canSelectDay && !unconfirmedMorning) ||
+                      (Boolean(savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null) &&
+                        !unconfirmedMorning)
+                    }
+                    className={`flex-1 min-h-[28px] md:min-h-[22px] min-w-0 text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
+                      unconfirmedMorning
+                        ? 'bg-amber-500 text-white cursor-pointer'
+                        : scheduledMorning
+                        ? 'bg-emerald-600 text-white cursor-default'
+                        : savedSchedule[key]?.morning && savedSchedule[key]?.morningStatus !== null
+                        ? savedSchedule[key]?.morningStatus === 'B'
+                          ? 'bg-emerald-600 text-white cursor-not-allowed'
+                          : 'bg-violet-600 text-white cursor-not-allowed'
+                        : daySchedule.morning && canSelectDay
+                        ? 'bg-blue-500 text-white'
+                        : canSelectDay
+                        ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300'
+                        : 'bg-slate-100 text-slate-500 cursor-default'
+                    }`}
+                  >
+                    AM
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      if (unconfirmedAfternoon && scheduledByDay[key]?.afternoonUnconfirmedAppointmentId != null) {
+                        setUnconfirmedGoToJobsModal({ appointmentId: scheduledByDay[key].afternoonUnconfirmedAppointmentId! })
+                        return
+                      }
+                      if (!canSelectDay) return
+                      toggleShift(date, 'afternoon')
+                    }}
+                    disabled={
+                      (!canSelectDay && !unconfirmedAfternoon) ||
+                      (Boolean(savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null) &&
+                        !unconfirmedAfternoon)
+                    }
+                    className={`flex-1 min-h-[28px] md:min-h-[22px] min-w-0 text-[9px] md:text-[10px] rounded font-medium transition-all touch-manipulation ${
+                      unconfirmedAfternoon
+                        ? 'bg-amber-500 text-white cursor-pointer'
+                        : scheduledAfternoon
+                        ? 'bg-emerald-600 text-white cursor-default'
+                        : savedSchedule[key]?.afternoon && savedSchedule[key]?.afternoonStatus !== null
+                        ? savedSchedule[key]?.afternoonStatus === 'B'
+                          ? 'bg-emerald-600 text-white cursor-not-allowed'
+                          : 'bg-violet-600 text-white cursor-not-allowed'
+                        : daySchedule.afternoon && canSelectDay
+                        ? 'bg-blue-500 text-white'
+                        : canSelectDay
+                        ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300'
+                        : 'bg-slate-100 text-slate-500 cursor-default'
+                    }`}
+                  >
+                    PM
+                  </button>
+                </div>
               </div>
             )
           })}
