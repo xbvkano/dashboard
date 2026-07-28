@@ -34,6 +34,8 @@ type Props = {
   messageBankInitialValues?: Record<string, string>
   showClientBookingActions?: boolean
   callHref?: string | null
+  /** Employee inbox uses a slightly purple chat surface so it’s easy to tell apart from client. */
+  employeeChat?: boolean
 }
 
 /** Pixels from bottom to still count as "at bottom" for auto-scroll */
@@ -84,6 +86,7 @@ export default function ChatThread({
   messageBankInitialValues,
   showClientBookingActions = true,
   callHref,
+  employeeChat = false,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -145,7 +148,11 @@ export default function ChatThread({
   }, [])
 
   return (
-    <div className="flex h-full min-h-0 max-h-full flex-col bg-[#e5e5ea]">
+    <div
+      className={`flex h-full min-h-0 max-h-full flex-col ${
+        employeeChat ? 'bg-[#e8e4ef]' : 'bg-[#e5e5ea]'
+      }`}
+    >
       <ChatHeader
         conversation={conversation}
         showBack={showBack}

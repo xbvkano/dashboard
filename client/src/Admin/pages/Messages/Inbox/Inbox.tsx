@@ -1075,6 +1075,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
                     messageBankInitialValues={messageBankInitialValues}
               showClientBookingActions={!isEmployeeInbox}
               callHref={callHref}
+              employeeChat={isEmployeeInbox}
                   />
                 </div>
                 <div className="w-[min(440px,42%)] min-w-[300px] shrink-0 flex flex-col min-h-0 bg-slate-100/90 p-2 border-l border-slate-200/80">
@@ -1126,6 +1127,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
                 messageBankInitialValues={messageBankInitialValues}
               showClientBookingActions={!isEmployeeInbox}
               callHref={callHref}
+              employeeChat={isEmployeeInbox}
               />
             )
           ) : (
@@ -1199,6 +1201,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
                     messageBankInitialValues={messageBankInitialValues}
               showClientBookingActions={!isEmployeeInbox}
               callHref={callHref}
+              employeeChat={isEmployeeInbox}
                   />
                 ) : (
                   <div className="flex-1 min-h-0 min-w-0 p-2 overflow-hidden overflow-x-hidden flex flex-col">
@@ -1252,6 +1255,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
               messageBankInitialValues={messageBankInitialValues}
               showClientBookingActions={!isEmployeeInbox}
               callHref={callHref}
+              employeeChat={isEmployeeInbox}
             />
           )}
         </div>

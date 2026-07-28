@@ -23,6 +23,8 @@ export function getClientInboxBusinessNumber(): string {
 
 /**
  * Employee / admin SMS line. Prefer TWILIO_ADMIN_FROM_NUMBER.
+ * Must be a different number than TWILIO_FROM_NUMBER; keep it out of the client
+ * Messaging Service sender pool.
  * Also accepts TWILIO_ADMIN_ROM_NUMBER (common typo) and TWILIO_ADMIN_PHONE_NUMBER (voice line).
  */
 export function getEmployeeInboxBusinessNumber(): string {

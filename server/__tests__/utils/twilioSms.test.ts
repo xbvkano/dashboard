@@ -67,6 +67,54 @@ describe('twilioSms', () => {
     })
   })
 
+  it('pinned client business line skips Messaging Service even when MG is set', () => {
+    process.env.TWILIO_MESSAGING_SERVICE_SID = 'MGaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    process.env.TWILIO_FROM_NUMBER = '+19876543210'
+    const clientLine = '+19876543210'
+    const p = twilioMessageCreateParams('+15551234567', 'client hi', {
+      fromE164: clientLine,
+      forceFrom: true,
+    })
+    expect(p).toEqual({
+      to: '+15551234567',
+      body: 'client hi',
+      from: clientLine,
+    })
+    expect(p).not.toHaveProperty('messagingServiceSid')
+  })
+
+  it('pinned employee business line skips Messaging Service even when MG is set', () => {
+    process.env.TWILIO_MESSAGING_SERVICE_SID = 'MGaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    process.env.TWILIO_FROM_NUMBER = '+19876543210'
+    const adminLine = '+15557654321'
+    const p = twilioMessageCreateParams('+15551234567', 'employee hi', {
+      fromE164: adminLine,
+      forceFrom: true,
+    })
+    expect(p).toEqual({
+      to: '+15551234567',
+      body: 'employee hi',
+      from: adminLine,
+    })
+    expect(p).not.toHaveProperty('messagingServiceSid')
+  })
+
+  it('MMS with forceFrom pins from and skips Messaging Service', () => {
+    process.env.TWILIO_MESSAGING_SERVICE_SID = 'MGaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    const p = twilioMmsMessageCreateParams(
+      '+15551234567',
+      'caption',
+      ['https://cdn.example.com/a.jpg'],
+      { fromE164: '+19876543210', forceFrom: true },
+    )
+    expect(p).toEqual({
+      to: '+15551234567',
+      body: 'caption',
+      from: '+19876543210',
+      mediaUrl: ['https://cdn.example.com/a.jpg'],
+    })
+  })
+
   it('throws when neither is set', () => {
     delete process.env.TWILIO_MESSAGING_SERVICE_SID
     delete process.env.TWILIO_FROM_NUMBER

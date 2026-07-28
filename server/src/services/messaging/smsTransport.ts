@@ -11,7 +11,7 @@ export interface SmsSendInput {
   mediaPublicUrls?: string[]
   /** Conversation business line; when forceFrom, used as Twilio `from` */
   fromE164?: string
-  /** Skip Messaging Service and send from `fromE164` (employee admin line) */
+  /** Skip Messaging Service and send from `fromE164` (client + employee CRM lines) */
   forceFrom?: boolean
 }
 

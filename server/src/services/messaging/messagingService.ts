@@ -372,7 +372,9 @@ export async function sendOutboundSms(
   }
 
   const mediaUrls = media.map((m) => m.publicUrl).filter(Boolean)
-  const forceFrom = isEmployeeInboxBusinessNumber(business)
+  // Always pin Twilio `from` to this conversation's business line so client and
+  // employee inboxes never share a Messaging Service sender pool pick.
+  const forceFrom = Boolean(business?.trim())
   const sendResult = await transport.send({
     toE164: customer,
     body: trimmedBody,

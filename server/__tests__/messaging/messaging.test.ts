@@ -288,6 +288,14 @@ describe('messaging: inbound / outbound', () => {
     })
 
     expect(sendSpy).toHaveBeenCalled()
+    expect(sendSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toE164: '+15558887777',
+        fromE164: '+17255774523',
+        forceFrom: true,
+        body: 'Reply from staff',
+      }),
+    )
     expect(prisma.message.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -346,6 +354,8 @@ describe('messaging: inbound / outbound', () => {
     expect(sendSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         mediaPublicUrls: ['https://example.supabase.co/storage/v1/object/public/bucket/x.jpg'],
+        fromE164: '+17255774523',
+        forceFrom: true,
       })
     )
     expect(prisma.messageMedia.createMany).toHaveBeenCalled()

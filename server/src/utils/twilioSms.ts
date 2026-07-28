@@ -1,6 +1,10 @@
 /**
- * Outbound Twilio SMS: prefer Messaging Service (A2P) when TWILIO_MESSAGING_SERVICE_SID
- * is set; otherwise use TWILIO_FROM_NUMBER as `from`.
+ * Outbound Twilio SMS helpers.
+ *
+ * Jobs / scripts without a conversation line still prefer Messaging Service (A2P)
+ * when TWILIO_MESSAGING_SERVICE_SID is set.
+ * CRM inbox outbound always passes forceFrom + fromE164 (conversation.businessNumber)
+ * so client and employee lines never get mixed via a shared sender pool.
  */
 export const TWILIO_OUTBOUND_NOT_CONFIGURED =
   'Twilio outbound not configured: set TWILIO_MESSAGING_SERVICE_SID and/or TWILIO_FROM_NUMBER'
@@ -24,21 +28,21 @@ export type TwilioMessageCreateParams =
 
 export type TwilioOutboundOptions = {
   /**
-   * Force a specific Twilio `from` number.
-   * Used for employee inbox (`TWILIO_ADMIN_FROM_NUMBER`) so sends do not go through the
-   * client Messaging Service sender pool.
+   * Explicit Twilio `from` number (conversation business line).
+   * With `forceFrom`, skips Messaging Service so client vs employee lines stay separate.
    */
   fromE164?: string
   /**
    * When true with `fromE164`, always use `from` (never Messaging Service).
-   * Employee admin line should set this.
+   * Required for CRM inbox sends (both client TWILIO_FROM_NUMBER and employee
+   * TWILIO_ADMIN_FROM_NUMBER) so a shared Messaging Service pool cannot pick the wrong sender.
    */
   forceFrom?: boolean
 }
 
 /**
  * Build params for `twilioClient.messages.create(...)`.
- * Prefers Messaging Service SID when set (typical for US A2P), unless `forceFrom` + `fromE164`.
+ * Prefers Messaging Service SID when set (typical for US A2P jobs), unless `forceFrom` + `fromE164`.
  */
 export function twilioMessageCreateParams(
   to: string,
