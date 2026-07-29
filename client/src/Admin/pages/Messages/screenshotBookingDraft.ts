@@ -20,6 +20,13 @@ export function screenshotDraftFromExtraction(
   existingDraft?: BookAppointmentDraft,
 ): BookAppointmentDraft {
   const base = existingDraft ?? defaultDraft()
+  // Fresh extract: missing size stays unselected (''). Re-merge into an existing draft: keep prior size if AI omitted it.
+  const size =
+    extracted.size != null && String(extracted.size).trim()
+      ? String(extracted.size).trim()
+      : existingDraft
+        ? base.size
+        : ''
   return {
     ...base,
     clientName: extracted.clientName ?? base.clientName,
@@ -29,7 +36,7 @@ export function screenshotDraftFromExtraction(
     date: extracted.date ?? base.date,
     time: extracted.time ?? base.time,
     notes: extracted.notes ?? base.notes,
-    size: extracted.size ?? base.size,
+    size,
     serviceType: (extracted.serviceType ?? base.serviceType) as BookAppointmentDraft['serviceType'],
   }
 }

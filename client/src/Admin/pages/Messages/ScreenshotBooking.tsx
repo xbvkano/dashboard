@@ -227,7 +227,11 @@ export default function ScreenshotBooking() {
       try {
         const res = await postExtractAppointmentFromStandaloneImages(newFiles, reuse)
         const existingDraft = reuse?.length ? draftsByConversationId[SID] : undefined
-        setDraftForConversation(SID, screenshotDraftFromExtraction(res.draft, existingDraft))
+        const nextDraft = screenshotDraftFromExtraction(res.draft, existingDraft)
+        if (res.sizeLookupFailed || res.fieldHighlights?.size) {
+          nextDraft.size = ''
+        }
+        setDraftForConversation(SID, nextDraft)
         setHighlightsForConversation(SID, {
           fieldHighlights: res.fieldHighlights,
           notFoundNotes: res.notFoundNotes,

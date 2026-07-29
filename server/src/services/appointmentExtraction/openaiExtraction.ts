@@ -11,7 +11,7 @@ export function buildAppointmentExtractionSystemPrompt(now: Date = new Date()): 
 Return a single JSON object only (no markdown). Use these rules:
 
 - serviceType must be one of: STANDARD, DEEP, MOVE_IN_OUT (move-in, move-out, move in/out → MOVE_IN_OUT).
-- size: prefer a range matching the company's buckets: 0-1000, 1000-1500, 1500-2000, 2000-2500, 2500-3000, 3000-3500, 3500-4000, 4000-4500, 4500-5000, 5000-5500, 5500-6000, 6000+. If you only have approximate sqft, pick the closest bucket.
+- size: prefer a range matching the company's buckets: 0-1000, 1000-1500, 1500-2000, 2000-2500, 2500-3000, 3000-3500, 3500-4000, 4000-4500, 4500-5000, 5000-5500, 5500-6000, 6000+. If you only have approximate sqft, pick the closest bucket. If size/sqft is not stated and you cannot determine it confidently, set size to null and add "size" to missingOrUncertain — never guess a default bucket such as 0-1000.
 - date: YYYY-MM-DD. For year: use the current calendar year (${year}) whenever the message shows only month/day, relative phrasing ("next Tuesday", "March 5"), or no year. Use a different year only when the user or screenshot explicitly states it (e.g. "2027", "next year", a printed date including the year, or clear historical context).
 - time: 24-hour HH:mm (e.g. 09:00 for 9am).
 - price: number as agreed in the thread (final confirmed price if multiple).

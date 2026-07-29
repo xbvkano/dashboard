@@ -9,6 +9,26 @@ import type {
 
 const SERVICE_TYPES: ExtractionServiceType[] = ['STANDARD', 'DEEP', 'MOVE_IN_OUT']
 
+/** Valid size dropdown buckets (must match client SIZE_OPTIONS). */
+const SIZE_BUCKETS = new Set([
+  '0-1000',
+  '1000-1500',
+  '1500-2000',
+  '2000-2500',
+  '2500-3000',
+  '3000-3500',
+  '3500-4000',
+  '4000-4500',
+  '4500-5000',
+  '5000-5500',
+  '5500-6000',
+  '6000+',
+])
+
+function asValidSizeBucket(value: string): string {
+  return SIZE_BUCKETS.has(value) ? value : ''
+}
+
 function normalizeServiceType(raw: string | null | undefined): '' | ExtractionServiceType {
   if (!raw || typeof raw !== 'string') return ''
   const u = raw.trim().toUpperCase().replace(/[\s-]+/g, '_')
@@ -21,13 +41,21 @@ function normalizeServiceType(raw: string | null | undefined): '' | ExtractionSe
   return ''
 }
 
+function sizeMentionedAsUncertain(missingOrUncertain: string[] | null | undefined): boolean {
+  if (!missingOrUncertain?.length) return false
+  return missingOrUncertain.some((n) => /size|sqft|sq\.?\s*ft|square\s*foot|footage/i.test(String(n)))
+}
+
 /**
  * Normalize a size string from the model into a UI bucket (hyphen ranges).
+ * Returns '' when size cannot be mapped to a known dropdown option (leave unselected).
  */
 export function normalizeSizeString(raw: string | null | undefined): string {
   if (!raw || typeof raw !== 'string') return ''
   let s = raw.trim()
   if (!s) return ''
+
+  if (SIZE_BUCKETS.has(s)) return s
 
   // "1501 - 2000 sqft" -> extract range
   const rangeMatch = s.match(/\b(\d{3,5})\s*[-–]\s*(\d{3,5})\b/)
@@ -37,13 +65,13 @@ export function normalizeSizeString(raw: string | null | undefined): string {
     const lo = Math.min(a, b)
     const hi = Math.max(a, b)
     const mid = Math.round((lo + hi) / 2)
-    return getSizeRange(String(mid))
+    return asValidSizeBucket(getSizeRange(String(mid)))
   }
 
-  // "~1750 sf" or "1179 square feet"
-  const sqftMatch = s.match(/~?\s*(\d{3,5})\s*(?:sq\s*ft|sqft|sf|square\s*feet)?/i)
+  // "~1750 sf" or "1179 square feet" — require units so bare numbers are not guessed
+  const sqftMatch = s.match(/~?\s*(\d{3,5})\s*(?:sq\.?\s*ft|sqft|sf|square\s*feet)\b/i)
   if (sqftMatch) {
-    return getSizeRange(sqftMatch[1])
+    return asValidSizeBucket(getSizeRange(sqftMatch[1]))
   }
 
   // Already a range like 1500-2000
@@ -53,12 +81,17 @@ export function normalizeSizeString(raw: string | null | undefined): string {
       const lo = parseInt(parts[0], 10)
       const hi = parseInt(parts[1], 10)
       if (!Number.isNaN(lo) && !Number.isNaN(hi)) {
-        return getSizeRange(`${Math.min(lo, hi)}-${Math.max(lo, hi)}`)
+        return asValidSizeBucket(getSizeRange(`${Math.min(lo, hi)}-${Math.max(lo, hi)}`))
       }
     }
   }
 
-  return getSizeRange(s)
+  // Bare numeric sqft only when the whole string is digits
+  if (/^\d{3,5}$/.test(s)) {
+    return asValidSizeBucket(getSizeRange(s))
+  }
+
+  return ''
 }
 
 function normalizeTime(raw: string | null | undefined): string {
@@ -102,7 +135,10 @@ export function rawAiToDraft(raw: RawAiExtraction): AppointmentExtractionDraft {
     if (Number.isFinite(n)) priceStr = String(n)
   }
 
-  const sizeNorm = normalizeSizeString(raw.size ?? undefined)
+  // If the model marks size as uncertain, do not keep a guessed bucket (e.g. 0-1000).
+  const sizeNorm = sizeMentionedAsUncertain(raw.missingOrUncertain)
+    ? ''
+    : normalizeSizeString(raw.size ?? undefined)
   const phoneRaw =
     typeof raw.clientPhone === 'string' && raw.clientPhone.trim() ? raw.clientPhone.trim() : undefined
   return {

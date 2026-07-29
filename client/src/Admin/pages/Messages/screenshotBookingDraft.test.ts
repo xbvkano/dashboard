@@ -28,7 +28,17 @@ describe('screenshotDraftFromExtraction', () => {
       ...defaultDraft(),
       clientName: 'New Client',
       appointmentAddress: 'New address',
+      size: '',
     })
+  })
+
+  it('leaves size unselected when extract omits size on a fresh draft', () => {
+    expect(
+      screenshotDraftFromExtraction({
+        clientName: 'New Client',
+        size: null as unknown as undefined,
+      }).size,
+    ).toBe('')
   })
 
   it('can intentionally merge extract-again results into the current draft', () => {

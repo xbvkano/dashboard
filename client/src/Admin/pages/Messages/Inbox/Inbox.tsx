@@ -883,7 +883,12 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
         date: res.draft.date ?? base.date,
         time: res.draft.time ?? base.time,
         notes: res.draft.notes ?? base.notes,
-        size: res.draft.size ?? base.size,
+        size:
+          res.sizeLookupFailed || res.fieldHighlights?.size
+            ? ''
+            : res.draft.size != null && String(res.draft.size).trim()
+              ? String(res.draft.size).trim()
+              : '',
         serviceType: (res.draft.serviceType ?? base.serviceType) as BookAppointmentDraft['serviceType'],
       })
       setHighlightsForConversation(id, {
