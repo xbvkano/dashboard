@@ -19,6 +19,7 @@ export interface PricingResult {
   message?: string
   size?: string
   extraCleanerAmount?: number | null
+  appliancesInsidePrice?: number | null
   baseboardsPrice?: number | null
   carpetShampoo?: { rooms: number; ratePerRoom: number; total: number } | null
 }

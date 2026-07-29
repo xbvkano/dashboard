@@ -17,6 +17,7 @@ function toDto(row: {
   body: string
   builtinVariables: MessageBankBuiltinVariable[]
   customVariables: unknown
+  showOnCalculator: boolean
   groupId: number | null
   createdAt: Date
   updatedAt: Date
@@ -27,6 +28,7 @@ function toDto(row: {
     body: row.body,
     builtinVariables: row.builtinVariables,
     customVariables: parseCustomVariablesJson(row.customVariables),
+    showOnCalculator: row.showOnCalculator,
     groupId: row.groupId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -100,12 +102,13 @@ export async function getMessageBankTemplate(req: Request, res: Response) {
 
 export async function createMessageBankTemplate(req: Request, res: Response) {
   try {
-    const { name, body, builtinVariables, customVariables, groupId } = req.body as {
+    const { name, body, builtinVariables, customVariables, groupId, showOnCalculator } = req.body as {
       name?: string
       body?: string
       builtinVariables?: MessageBankBuiltinVariable[]
       customVariables?: CustomVariableDef[]
       groupId?: number | null
+      showOnCalculator?: boolean
     }
     if (!name?.trim() || !body?.trim()) {
       return res.status(400).json({ error: 'name and body are required' })
@@ -131,6 +134,7 @@ export async function createMessageBankTemplate(req: Request, res: Response) {
         builtinVariables: builtinVariables?.length ? builtinVariables : synced.builtinVariables,
         customVariables: synced.customVariables,
         groupId: resolvedGroupId,
+        showOnCalculator: Boolean(showOnCalculator),
       },
     })
     res.json(toDto(row))
@@ -144,12 +148,13 @@ export async function updateMessageBankTemplate(req: Request, res: Response) {
   const id = parseInt(req.params.id, 10)
   if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
   try {
-    const { name, body, builtinVariables, customVariables, groupId } = req.body as {
+    const { name, body, builtinVariables, customVariables, groupId, showOnCalculator } = req.body as {
       name?: string
       body?: string
       builtinVariables?: MessageBankBuiltinVariable[]
       customVariables?: CustomVariableDef[]
       groupId?: number | null
+      showOnCalculator?: boolean
     }
     if (!name?.trim() || !body?.trim()) {
       return res.status(400).json({ error: 'name and body are required' })
@@ -176,6 +181,7 @@ export async function updateMessageBankTemplate(req: Request, res: Response) {
         builtinVariables: builtinVariables?.length ? builtinVariables : synced.builtinVariables,
         customVariables: synced.customVariables,
         groupId: resolvedGroupId,
+        showOnCalculator: Boolean(showOnCalculator),
       },
     })
     res.json(toDto(row))

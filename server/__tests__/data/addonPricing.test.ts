@@ -1,4 +1,5 @@
 import {
+  getAppliancesInsidePrice,
   getBaseboardsPrice,
   getCarpetShampooPrice,
   getCarpetShampooRatePerRoom,
@@ -21,37 +22,47 @@ describe('addonPricing', () => {
     })
   })
 
+  describe('getAppliancesInsidePrice', () => {
+    it('returns 30 for STANDARD only', () => {
+      expect(getAppliancesInsidePrice('STANDARD')).toBe(30)
+      expect(getAppliancesInsidePrice('DEEP')).toBeNull()
+      expect(getAppliancesInsidePrice('MOVE_IN_OUT')).toBeNull()
+    })
+  })
+
   describe('getCarpetShampooRatePerRoom', () => {
-    it('returns 45 for up to 1000 sqft', () => {
-      expect(getCarpetShampooRatePerRoom('0-1000')).toBe(45)
-      expect(getCarpetShampooRatePerRoom('999')).toBe(45)
+    it('returns 70 for one room', () => {
+      expect(getCarpetShampooRatePerRoom(1)).toBe(70)
     })
 
-    it('returns 50 above 1000 up to 4000 sqft', () => {
-      expect(getCarpetShampooRatePerRoom('1000-1500')).toBe(50)
-      expect(getCarpetShampooRatePerRoom('3500-4000')).toBe(50)
-      expect(getCarpetShampooRatePerRoom('4000')).toBe(50)
+    it('returns 60 for two rooms', () => {
+      expect(getCarpetShampooRatePerRoom(2)).toBe(60)
     })
 
-    it('returns 55 above 4000 sqft', () => {
-      expect(getCarpetShampooRatePerRoom('4000-4500')).toBe(55)
-      expect(getCarpetShampooRatePerRoom('5500-6000')).toBe(55)
+    it('returns 50 for three or more rooms', () => {
+      expect(getCarpetShampooRatePerRoom(3)).toBe(50)
+      expect(getCarpetShampooRatePerRoom(5)).toBe(50)
+    })
+
+    it('returns null for zero or negative rooms', () => {
+      expect(getCarpetShampooRatePerRoom(0)).toBeNull()
+      expect(getCarpetShampooRatePerRoom(-1)).toBeNull()
     })
   })
 
   describe('getCarpetShampooPrice', () => {
-    it('calculates total from rooms and tier rate', () => {
-      expect(getCarpetShampooPrice('0-1000', 3)).toEqual({
-        ratePerRoom: 45,
-        total: 135,
+    it('calculates total from room-count rate', () => {
+      expect(getCarpetShampooPrice('0-1000', 1)).toEqual({
+        ratePerRoom: 70,
+        total: 70,
       })
       expect(getCarpetShampooPrice('3000-3500', 2)).toEqual({
-        ratePerRoom: 50,
-        total: 100,
+        ratePerRoom: 60,
+        total: 120,
       })
       expect(getCarpetShampooPrice('4500-5000', 4)).toEqual({
-        ratePerRoom: 55,
-        total: 220,
+        ratePerRoom: 50,
+        total: 200,
       })
     })
 
@@ -61,9 +72,15 @@ describe('addonPricing', () => {
   })
 
   describe('getBaseboardsPrice', () => {
-    it('returns flat 20 regardless of size and type', () => {
-      expect(getBaseboardsPrice('0-1000', 'STANDARD')).toBe(20)
-      expect(getBaseboardsPrice('5000-5500', 'DEEP')).toBe(20)
+    it('returns 30 up to 2500 sqft', () => {
+      expect(getBaseboardsPrice('0-1000', 'STANDARD')).toBe(30)
+      expect(getBaseboardsPrice('2000-2500', 'DEEP')).toBe(30)
+      expect(getBaseboardsPrice('2500', 'STANDARD')).toBe(30)
+    })
+
+    it('returns 40 above 2500 sqft', () => {
+      expect(getBaseboardsPrice('2500-3000', 'STANDARD')).toBe(40)
+      expect(getBaseboardsPrice('5000-5500', 'DEEP')).toBe(40)
     })
   })
 })

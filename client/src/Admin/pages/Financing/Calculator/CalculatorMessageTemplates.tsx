@@ -26,12 +26,9 @@ type Props = {
   homeSize?: string | null
 }
 
-/** Templates usable from the calculator: any that include price and/or name. */
-function usesPriceOrName(template: MessageBankTemplateDto): boolean {
-  return (
-    template.builtinVariables.includes('PRICE') ||
-    template.builtinVariables.includes('NAME')
-  )
+/** Templates opted into the calculator via Message Bank checkbox. */
+function showsOnCalculator(template: MessageBankTemplateDto): boolean {
+  return Boolean(template.showOnCalculator)
 }
 
 function buildInitialValues(
@@ -74,7 +71,7 @@ export default function CalculatorMessageTemplates({
   const formattedHomeSize = (homeSize ?? '').trim()
 
   const quoteTemplates = useMemo(
-    () => templates.filter(usesPriceOrName).sort((a, b) => a.name.localeCompare(b.name)),
+    () => templates.filter(showsOnCalculator).sort((a, b) => a.name.localeCompare(b.name)),
     [templates],
   )
 
@@ -192,7 +189,7 @@ export default function CalculatorMessageTemplates({
       {error && <p className="text-sm text-red-600">{error}</p>}
       {!loading && !error && quoteTemplates.length === 0 && (
         <p className="text-sm text-slate-500">
-          No Message Bank templates use price or name yet.
+          No Message Bank templates are marked “Show on pricing calculator” yet.
         </p>
       )}
 

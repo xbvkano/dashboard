@@ -51,13 +51,14 @@ export function getCarpetShampooPriceEndpoint(req: Request, res: Response) {
   const size = String(req.query.size || '')
   const rooms = parseInt(String(req.query.rooms || '0'), 10)
 
-  if (!size || isNaN(rooms) || rooms <= 0) {
-    return res.status(400).json({ error: 'size and rooms required' })
+  // `size` kept for API compatibility; carpet rate is by room count only.
+  if (isNaN(rooms) || rooms <= 0) {
+    return res.status(400).json({ error: 'rooms required' })
   }
 
   const result = getCarpetShampooPrice(size, rooms)
   if (!result) {
-    return res.status(400).json({ error: 'invalid size' })
+    return res.status(400).json({ error: 'invalid rooms' })
   }
 
   res.json(result)

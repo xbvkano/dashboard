@@ -85,7 +85,8 @@ describe('resolvePricingInput', () => {
       requiresReview: false,
       size: '1000-1500',
       extraCleanerAmount: 100,
-      baseboardsPrice: 20,
+      appliancesInsidePrice: null,
+      baseboardsPrice: 30,
       carpetShampoo: null,
     })
   })
@@ -104,7 +105,8 @@ describe('resolvePricingInput', () => {
       requiresReview: false,
       size: '1500-2000',
       extraCleanerAmount: 80,
-      baseboardsPrice: 20,
+      appliancesInsidePrice: 30,
+      baseboardsPrice: 30,
       carpetShampoo: null,
     })
   })
@@ -173,7 +175,7 @@ describe('resolvePricingInput', () => {
         carpetShampooRooms: 2,
       })
     ).toMatchObject({
-      carpetShampoo: { rooms: 2, ratePerRoom: 45, total: 90 },
+      carpetShampoo: { rooms: 2, ratePerRoom: 60, total: 120 },
     })
   })
 

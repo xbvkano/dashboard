@@ -635,6 +635,8 @@ model MessageBankTemplate {
   body             String
   builtinVariables MessageBankBuiltinVariable[]
   customVariables  Json                         @default("[]")
+  /** When true, template is listed in the pricing calculator SMS panel. */
+  showOnCalculator Boolean                      @default(false)
   groupId          Int?
   group            MessageBankGroup?            @relation(fields: [groupId], references: [id], onDelete: SetNull)
   createdAt        DateTime                     @default(now())

@@ -1,4 +1,5 @@
 import {
+  getAppliancesInsidePrice,
   getBaseboardsPrice,
   getCarpetShampooPrice,
   getExtraCleanerAmount,
@@ -12,6 +13,7 @@ export function buildCalculatorResult(
   carpetShampooRooms?: number
 ): PricingResult {
   const extraCleanerAmount = getExtraCleanerAmount(type)
+  const appliancesInsidePrice = getAppliancesInsidePrice(type)
   const baseboardsPrice = getBaseboardsPrice(size, type)
   const carpetShampoo =
     carpetShampooRooms != null && carpetShampooRooms > 0
@@ -27,6 +29,7 @@ export function buildCalculatorResult(
     ...base,
     size,
     extraCleanerAmount,
+    appliancesInsidePrice,
     baseboardsPrice,
     carpetShampoo,
   }

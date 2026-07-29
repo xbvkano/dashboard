@@ -41,6 +41,7 @@ export default function TemplateEditor({
   const [body, setBody] = useState('')
   const [customVariables, setCustomVariables] = useState<CustomVariableDef[]>([])
   const [groupId, setGroupId] = useState<number | null>(null)
+  const [showOnCalculator, setShowOnCalculator] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [duplicateModal, setDuplicateModal] = useState<{
@@ -56,11 +57,13 @@ export default function TemplateEditor({
       setBody(template.body)
       setCustomVariables(template.customVariables ?? [])
       setGroupId(template.groupId ?? null)
+      setShowOnCalculator(Boolean(template.showOnCalculator))
     } else if (isNew) {
       setName('')
       setBody('')
       setCustomVariables([])
       setGroupId(null)
+      setShowOnCalculator(false)
     }
     setError(null)
   }, [template, isNew])
@@ -95,6 +98,7 @@ export default function TemplateEditor({
         builtinVariables: synced.builtinVariables,
         customVariables: synced.customVariables,
         groupId,
+        showOnCalculator,
       }
       const saved = template && !isNew
         ? await updateMessageBankTemplate(template.id, payload)
@@ -206,6 +210,21 @@ export default function TemplateEditor({
             ))}
           </select>
         </div>
+
+        <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showOnCalculator}
+            onChange={(e) => setShowOnCalculator(e.target.checked)}
+            className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
+          />
+          <span>
+            <span className="block text-sm font-medium text-slate-800">Show on pricing calculator</span>
+            <span className="block text-xs text-slate-500 mt-0.5">
+              Only checked templates appear in the calculator SMS templates panel.
+            </span>
+          </span>
+        </label>
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Message body</label>

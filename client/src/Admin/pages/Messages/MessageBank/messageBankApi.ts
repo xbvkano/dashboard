@@ -7,6 +7,7 @@ export type MessageBankTemplateDto = {
   body: string
   builtinVariables: Array<'NAME' | 'PRICE' | 'SERVICE_TYPE'>
   customVariables: CustomVariableDef[]
+  showOnCalculator: boolean
   groupId: number | null
   createdAt: string
   updatedAt: string
@@ -37,6 +38,7 @@ export async function createMessageBankTemplate(payload: {
   builtinVariables?: Array<'NAME' | 'PRICE' | 'SERVICE_TYPE'>
   customVariables?: CustomVariableDef[]
   groupId?: number | null
+  showOnCalculator?: boolean
 }): Promise<MessageBankTemplateDto> {
   return fetchJson(base, {
     method: 'POST',
@@ -53,6 +55,7 @@ export async function updateMessageBankTemplate(
     builtinVariables?: Array<'NAME' | 'PRICE' | 'SERVICE_TYPE'>
     customVariables?: CustomVariableDef[]
     groupId?: number | null
+    showOnCalculator?: boolean
   },
 ): Promise<MessageBankTemplateDto> {
   return fetchJson(`${base}/${id}`, {

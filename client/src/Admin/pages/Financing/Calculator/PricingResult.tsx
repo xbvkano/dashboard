@@ -5,6 +5,7 @@ export interface PricingResult {
   message?: string
   size?: string
   extraCleanerAmount?: number | null
+  appliancesInsidePrice?: number | null
   baseboardsPrice?: number | null
   carpetShampoo?: { rooms: number; ratePerRoom: number; total: number } | null
 }
@@ -40,6 +41,13 @@ function buildResultFields(result: PricingResult): ResultField[] {
       id: 'extraCleaner',
       label: 'Extra Cleaner',
       value: `$${result.extraCleanerAmount}`,
+    })
+  }
+  if (result.appliancesInsidePrice != null) {
+    fields.push({
+      id: 'appliancesInside',
+      label: 'Appliances Inside Add-on',
+      value: `$${result.appliancesInsidePrice}`,
     })
   }
   if (result.carpetShampoo) {

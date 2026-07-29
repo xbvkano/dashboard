@@ -160,6 +160,7 @@ export default function TemplateList({
                           <span className="text-xs text-slate-500 mt-0.5 block">
                             {t.builtinVariables.length + t.customVariables.length} variable
                             {t.builtinVariables.length + t.customVariables.length === 1 ? '' : 's'}
+                            {t.showOnCalculator ? ' · Calculator' : ''}
                           </span>
                         </button>
                         <div className="flex items-center pr-3 py-2 shrink-0">
