@@ -1044,9 +1044,9 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
         </div>
 
         <div
-          className={`hidden md:flex flex-1 min-h-0 min-w-0 border border-l-0 border-slate-200 rounded-r-xl overflow-hidden bg-[#e5e5ea] shadow-sm ${
-            showSplitBooking && threadContact ? 'flex-row' : 'flex-col'
-          }`}
+          className={`hidden md:flex flex-1 min-h-0 min-w-0 border border-l-0 border-slate-200 rounded-r-xl overflow-hidden shadow-sm ${
+            isEmployeeInbox ? 'bg-[#d4c4eb]' : 'bg-[#e5e5ea]'
+          } ${showSplitBooking && threadContact ? 'flex-row' : 'flex-col'}`}
         >
           {threadContact ? (
             showSplitBooking ? (
@@ -1148,7 +1148,11 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
       </div>
 
       {selectedId && !isDesktop && threadContact && (
-        <div className="fixed inset-0 z-[100] flex flex-col md:hidden bg-[#e5e5ea] min-h-0 overflow-x-hidden">
+        <div
+          className={`fixed inset-0 z-[100] flex flex-col md:hidden min-h-0 overflow-x-hidden ${
+            isEmployeeInbox ? 'bg-[#d4c4eb]' : 'bg-[#e5e5ea]'
+          }`}
+        >
           {showSplitBooking ? (
             <>
               <div className="flex shrink-0 border-b border-slate-200 bg-white">

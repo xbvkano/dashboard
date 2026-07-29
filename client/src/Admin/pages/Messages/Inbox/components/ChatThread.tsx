@@ -34,7 +34,7 @@ type Props = {
   messageBankInitialValues?: Record<string, string>
   showClientBookingActions?: boolean
   callHref?: string | null
-  /** Employee inbox uses a slightly purple chat surface so it’s easy to tell apart from client. */
+  /** Employee inbox uses a purple chat surface so it’s easy to tell apart from client. */
   employeeChat?: boolean
 }
 
@@ -150,7 +150,7 @@ export default function ChatThread({
   return (
     <div
       className={`flex h-full min-h-0 max-h-full flex-col ${
-        employeeChat ? 'bg-[#e8e4ef]' : 'bg-[#e5e5ea]'
+        employeeChat ? 'bg-[#d4c4eb]' : 'bg-[#e5e5ea]'
       }`}
     >
       <ChatHeader
