@@ -19,7 +19,7 @@ type Props = {
   archiveBusy?: boolean
   /** Hide client CRM actions (book / generate appointment / edit contact). */
   showClientBookingActions?: boolean
-  /** Optional click-to-call href (e.g. admin Twilio line for employee inbox). */
+  /** Optional click-to-call href (client phone, or admin Twilio line for employee inbox). */
   callHref?: string | null
 }
 

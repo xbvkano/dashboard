@@ -814,16 +814,20 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
     navigate(`/dashboard/contacts/employees/accounts/${linkedEmployeeId}`)
   }, [navigate, linkedEmployeeId])
 
-  /** Employee inbox Call dials the admin Twilio line (business number on the thread). */
+  /**
+   * Client inbox Call dials the contact phone.
+   * Employee inbox Call dials the admin Twilio line (business number on the thread).
+   */
   const callHref = useMemo(() => {
-    if (!isEmployeeInbox || !threadContact?.businessNumber) return null
-    const digits = phoneDigits(threadContact.businessNumber)
+    const raw = isEmployeeInbox
+      ? threadContact?.businessNumber
+      : threadContact?.phoneE164
+    if (!raw?.trim()) return null
+    const digits = phoneDigits(raw)
     if (!digits) return null
-    const e164 = threadContact.businessNumber.trim().startsWith('+')
-      ? threadContact.businessNumber.trim()
-      : `+${digits}`
+    const e164 = raw.trim().startsWith('+') ? raw.trim() : `+${digits}`
     return `tel:${e164}`
-  }, [isEmployeeInbox, threadContact?.businessNumber])
+  }, [isEmployeeInbox, threadContact?.businessNumber, threadContact?.phoneE164])
 
   const handleSelect = useCallback((id: number) => {
     setSelectedId(id)

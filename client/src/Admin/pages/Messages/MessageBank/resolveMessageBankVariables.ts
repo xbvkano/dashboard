@@ -1,7 +1,10 @@
 import type { Call, FormData } from '../../../../external_prisma_schemas/website_schema'
 import type { ConversationDetail } from '../Inbox/messagingApi'
 import type { ThreadContact } from '../Inbox/types'
-import { formatPriceForMessage } from '../../../../shared/messageBank'
+import {
+  formatPriceForMessage,
+  formatServiceTypeForMessage,
+} from '../../../../shared/messageBank'
 
 export type BookAppointmentDraftLike = {
   clientName?: string
@@ -28,16 +31,6 @@ function phonesMatch(a: string, b: string): boolean {
   if (da.length === 10 && db.length === 11 && db.endsWith(da)) return true
   if (db.length === 10 && da.length === 11 && da.endsWith(db)) return true
   return da.slice(-10) === db.slice(-10)
-}
-
-function formatServiceType(raw: string | null | undefined): string {
-  if (!raw?.trim()) return ''
-  const v = raw.trim()
-  const upper = v.toUpperCase()
-  if (upper === 'STANDARD') return 'Standard'
-  if (upper === 'DEEP') return 'Deep'
-  if (upper === 'MOVE_IN_OUT') return 'Move in/out'
-  return v
 }
 
 function pickQuote(quotes: FormData[], phone: string): FormData | null {
@@ -99,11 +92,12 @@ export function resolveMessageBankVariables(input: {
   }
 
   let serviceType = ''
-  if (bookingDraft?.serviceType) serviceType = formatServiceType(bookingDraft.serviceType)
+  if (bookingDraft?.serviceType) serviceType = formatServiceTypeForMessage(bookingDraft.serviceType)
   else {
     const openSession = detail?.sessions?.find((s) => !s.closedAt)
-    if (openSession?.bookingIntent?.trim()) serviceType = formatServiceType(openSession.bookingIntent)
-    else {
+    if (openSession?.bookingIntent?.trim()) {
+      serviceType = formatServiceTypeForMessage(openSession.bookingIntent)
+    } else {
       const quote = pickQuote(quotes, phone)
       if (quote?.service?.trim()) serviceType = quote.service.trim()
       else {

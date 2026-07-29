@@ -18,13 +18,33 @@ const smsClient = twilio(
 )
 
 /**
+ * IANA zones that should receive day-before reminders at 08:30 local.
+ * Today every appointment uses the business default (LA). When locations get their
+ * own timezone, expand this list (or derive distinct zones from locations) and
+ * filter sends so each appointment is reminded only in its zone's run.
+ */
+function appointmentReminderTimezones(): string[] {
+  return [DEFAULT_APPOINTMENT_TIMEZONE]
+}
+
+/**
  * Recurring / tomorrow appointment reminder: the only job that sends messages to clients.
  * Sends SMS to clients about their appointment tomorrow. No other job should message clients.
+ *
+ * @param zone IANA timezone for "tomorrow" and message date formatting (appointment location TZ).
  */
-export async function sendAppointmentReminders(): Promise<void> {
+export async function sendAppointmentReminders(
+  zone: string = DEFAULT_APPOINTMENT_TIMEZONE,
+): Promise<void> {
   try {
-    const { start: tomorrowStart, endExclusive: dayAfterTomorrow } = getTomorrowLocalDayRangeUtcFrom(new Date())
-    const tomorrowStr = appointmentLocalDateKey({ dateUtc: tomorrowStart, date: tomorrowStart })
+    const { start: tomorrowStart, endExclusive: dayAfterTomorrow } = getTomorrowLocalDayRangeUtcFrom(
+      new Date(),
+      zone,
+    )
+    const tomorrowStr = appointmentLocalDateKey(
+      { dateUtc: tomorrowStart, date: tomorrowStart },
+      zone,
+    )
     const legacyR = legacyNaiveUtcMidnightRange(tomorrowStr)
 
     // Get all appointments for tomorrow (both confirmed and unconfirmed recurring)
@@ -72,7 +92,7 @@ export async function sendAppointmentReminders(): Promise<void> {
       }
 
       const client = appointment.client
-      
+
       // Normalize phone number for Twilio (E.164 format: +1XXXXXXXXXX)
       const normalized = normalizePhone(client.number)
       if (!normalized) {
@@ -85,22 +105,25 @@ export async function sendAppointmentReminders(): Promise<void> {
         })
         continue
       }
-      
+
       // E.164 from normalizePhone (Twilio `to` expects +...)
       const phoneNumber: string = normalized
-      
-      const anchor = appointmentAnchorUtc({
-        dateUtc: appointment.dateUtc,
-        date: appointment.date,
-      })
+
+      const anchor = appointmentAnchorUtc(
+        {
+          dateUtc: appointment.dateUtc,
+          date: appointment.date,
+        },
+        zone,
+      )
       const dateStr = anchor.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric',
-        timeZone: DEFAULT_APPOINTMENT_TIMEZONE,
+        timeZone: zone,
       })
-      
+
       // Build the reminder message
       const message = `Hi ${client.name}, this is a reminder from Evidence Cleaning. You have an appointment scheduled for tomorrow (${dateStr}) at ${appointment.time}. Please do not reply to this message. Thank you!`
 
@@ -124,10 +147,13 @@ export async function sendAppointmentReminders(): Promise<void> {
           clientName: client.name,
           phoneNumber: phoneNumber,
           appointmentId: appointment.id!,
-          appointmentDate: appointmentLocalDateKey({
-            dateUtc: appointment.dateUtc,
-            date: appointment.date,
-          }),
+          appointmentDate: appointmentLocalDateKey(
+            {
+              dateUtc: appointment.dateUtc,
+              date: appointment.date,
+            },
+            zone,
+          ),
           appointmentTime: appointment.time,
           twilioSid: result.sid,
         })
@@ -149,14 +175,22 @@ export async function sendAppointmentReminders(): Promise<void> {
   }
 }
 
-// Setup cron job to run daily at 8:30 AM
+/** Cron: 08:30 local in each appointment timezone (today: America/Los_Angeles only). */
 export function setupAppointmentReminderJob(): void {
-  // Run daily at 08:30 (8:30 AM)
-  cron.schedule('30 8 * * *', async () => {
-    try {
-      await sendAppointmentReminders()
-    } catch (error) {
-      console.error('Appointment reminder job failed:', error)
+  for (const zone of appointmentReminderTimezones()) {
+    cron.schedule(
+      '30 8 * * *',
+      async () => {
+        try {
+          await sendAppointmentReminders(zone)
+        } catch (error) {
+          console.error(`Appointment reminder job failed (${zone}):`, error)
+        }
+      },
+      { timezone: zone },
+    )
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`Appointment reminder cron scheduled daily at 08:30 (${zone})`)
     }
-  })
+  }
 }

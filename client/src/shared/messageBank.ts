@@ -103,6 +103,17 @@ export function formatPriceForMessage(value: string | number | null | undefined)
   return String(value).trim()
 }
 
+/** Format service type enum / free text for {{ServiceType}} in Message Bank. */
+export function formatServiceTypeForMessage(raw: string | null | undefined): string {
+  if (!raw?.trim()) return ''
+  const v = raw.trim()
+  const upper = v.toUpperCase()
+  if (upper === 'STANDARD') return 'Standard'
+  if (upper === 'DEEP') return 'Deep'
+  if (upper === 'MOVE_IN_OUT') return 'Move in/out'
+  return v
+}
+
 /** Single variable value as it would appear in a rendered message. */
 export function renderValueForKey(key: string, value: string): string {
   if (key === 'price') return formatPriceForMessage(value)

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import PricingResult, { type PricingResult as PricingResultType } from './PricingResult'
+import CalculatorMessageTemplates from './CalculatorMessageTemplates'
 import {
   searchModes,
   defaultSizeTypeValues,
@@ -26,6 +27,9 @@ export default function PricingCalculator() {
 
   const values: CalculatorSearchValues =
     activeMode === 'sizeType' ? sizeTypeValues : bedBathValues
+
+  const selectedType =
+    activeMode === 'sizeType' ? sizeTypeValues.type : bedBathValues.type
 
   const handleValuesChange = (next: CalculatorSearchValues) => {
     if (activeMode === 'sizeType') {
@@ -99,6 +103,14 @@ export default function PricingCalculator() {
     return () => clearTimeout(timer)
   }, [calculate])
 
+  const showTemplates =
+    !loading &&
+    !error &&
+    result != null &&
+    !result.requiresReview &&
+    result.price != null &&
+    Boolean(selectedType)
+
   return (
     <div className="space-y-6">
       {enabledModes.length > 1 && (
@@ -139,6 +151,14 @@ export default function PricingCalculator() {
       </label>
 
       <PricingResult result={result} loading={loading} error={error} />
+
+      {showTemplates && result?.price != null && (
+        <CalculatorMessageTemplates
+          serviceType={selectedType}
+          price={result.price}
+          homeSize={result.size ?? null}
+        />
+      )}
     </div>
   )
 }
