@@ -1109,35 +1109,37 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
                 </div>
               </>
             ) : (
-              <ChatThread
-                conversation={threadContact}
-                messages={messages}
-                showBack={false}
-                onBack={() => {}}
-                onSend={handleSend}
-                onEditContact={() => setEditOpen(true)}
-                onBookAppointment={openBookingModal}
-                onGenerateAppointment={handleGenerateAppointment}
-                onDeleteContact={handleDeleteContact}
-                extractAppointmentBusy={extracting}
-                detailLoading={detailLoading}
-                linkedClientId={threadContact.clientId}
-                onViewClient={handleViewClient}
-                linkedEmployeeId={linkedEmployeeId}
-                onViewEmployee={handleViewEmployee}
-                conversationStatus={headerConversationStatus}
-                onArchiveToggle={handleConversationArchiveToggle}
-                archiveBusy={archiveBusy}
-                showMockingToggle={showMockingToggle}
-                mockingEnabled={mockingEnabled}
-                onMockingChange={setMockingEnabled}
-                belowHeader={bookedToastStrip}
-                conversationId={selectedId}
-                messageBankInitialValues={messageBankInitialValues}
-              showClientBookingActions={!isEmployeeInbox}
-              callHref={callHref}
-              employeeChat={isEmployeeInbox}
-              />
+              <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
+                <ChatThread
+                  conversation={threadContact}
+                  messages={messages}
+                  showBack={false}
+                  onBack={() => {}}
+                  onSend={handleSend}
+                  onEditContact={() => setEditOpen(true)}
+                  onBookAppointment={openBookingModal}
+                  onGenerateAppointment={handleGenerateAppointment}
+                  onDeleteContact={handleDeleteContact}
+                  extractAppointmentBusy={extracting}
+                  detailLoading={detailLoading}
+                  linkedClientId={threadContact.clientId}
+                  onViewClient={handleViewClient}
+                  linkedEmployeeId={linkedEmployeeId}
+                  onViewEmployee={handleViewEmployee}
+                  conversationStatus={headerConversationStatus}
+                  onArchiveToggle={handleConversationArchiveToggle}
+                  archiveBusy={archiveBusy}
+                  showMockingToggle={showMockingToggle}
+                  mockingEnabled={mockingEnabled}
+                  onMockingChange={setMockingEnabled}
+                  belowHeader={bookedToastStrip}
+                  conversationId={selectedId}
+                  messageBankInitialValues={messageBankInitialValues}
+                  showClientBookingActions={!isEmployeeInbox}
+                  callHref={callHref}
+                  employeeChat={isEmployeeInbox}
+                />
+              </div>
             )
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 text-sm px-6">
@@ -1154,7 +1156,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
 
       {selectedId && !isDesktop && threadContact && (
         <div
-          className={`fixed inset-0 z-[100] flex flex-col md:hidden min-h-0 overflow-x-hidden ${
+          className={`fixed inset-0 z-[100] flex flex-col md:hidden min-h-0 overflow-hidden ${
             isEmployeeInbox ? 'bg-[#d4c4eb]' : 'bg-[#e5e5ea]'
           }`}
         >
@@ -1241,35 +1243,37 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
               </div>
             </>
           ) : (
-            <ChatThread
-              conversation={threadContact}
-              messages={messages}
-              showBack
-              onBack={handleBack}
-              onSend={handleSend}
-              onEditContact={() => setEditOpen(true)}
-              onBookAppointment={openBookingModal}
-              onGenerateAppointment={handleGenerateAppointment}
-              onDeleteContact={handleDeleteContact}
-              extractAppointmentBusy={extracting}
-              detailLoading={detailLoading}
-              linkedClientId={threadContact.clientId}
-              onViewClient={handleViewClient}
-              linkedEmployeeId={linkedEmployeeId}
-              onViewEmployee={handleViewEmployee}
-              conversationStatus={headerConversationStatus}
-              onArchiveToggle={handleConversationArchiveToggle}
-              archiveBusy={archiveBusy}
-              showMockingToggle={showMockingToggle}
-              mockingEnabled={mockingEnabled}
-              onMockingChange={setMockingEnabled}
-              belowHeader={bookedToastStrip}
-              conversationId={selectedId}
-              messageBankInitialValues={messageBankInitialValues}
-              showClientBookingActions={!isEmployeeInbox}
-              callHref={callHref}
-              employeeChat={isEmployeeInbox}
-            />
+            <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
+              <ChatThread
+                conversation={threadContact}
+                messages={messages}
+                showBack
+                onBack={handleBack}
+                onSend={handleSend}
+                onEditContact={() => setEditOpen(true)}
+                onBookAppointment={openBookingModal}
+                onGenerateAppointment={handleGenerateAppointment}
+                onDeleteContact={handleDeleteContact}
+                extractAppointmentBusy={extracting}
+                detailLoading={detailLoading}
+                linkedClientId={threadContact.clientId}
+                onViewClient={handleViewClient}
+                linkedEmployeeId={linkedEmployeeId}
+                onViewEmployee={handleViewEmployee}
+                conversationStatus={headerConversationStatus}
+                onArchiveToggle={handleConversationArchiveToggle}
+                archiveBusy={archiveBusy}
+                showMockingToggle={showMockingToggle}
+                mockingEnabled={mockingEnabled}
+                onMockingChange={setMockingEnabled}
+                belowHeader={bookedToastStrip}
+                conversationId={selectedId}
+                messageBankInitialValues={messageBankInitialValues}
+                showClientBookingActions={!isEmployeeInbox}
+                callHref={callHref}
+                employeeChat={isEmployeeInbox}
+              />
+            </div>
           )}
         </div>
       )}

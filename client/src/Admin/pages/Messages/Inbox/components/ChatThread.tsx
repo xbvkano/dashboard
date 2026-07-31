@@ -149,7 +149,7 @@ export default function ChatThread({
 
   return (
     <div
-      className={`flex h-full min-h-0 max-h-full flex-col ${
+      className={`flex h-full min-h-0 max-h-full flex-col overflow-hidden ${
         employeeChat ? 'bg-[#d4c4eb]' : 'bg-[#e5e5ea]'
       }`}
     >

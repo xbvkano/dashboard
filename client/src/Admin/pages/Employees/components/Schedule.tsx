@@ -655,7 +655,7 @@ export default function Schedule() {
                         <button
                           type="button"
                           onClick={() => toggleAvailabilitySelection(key, 'AM')}
-                          className={`rounded px-1 py-1 flex flex-col min-h-[36px] justify-center w-full text-left cursor-pointer hover:opacity-90 ${getAmClass()} ${amSelected ? 'ring-2 ring-red-500 ring-inset' : ''}`}
+                          className={`rounded px-1 py-1 flex flex-col min-h-[36px] justify-center w-full text-left cursor-pointer hover:opacity-90 ${amSelected ? 'bg-red-600 text-white' : getAmClass()}`}
                         >
                           <div className="text-[9px] font-semibold uppercase tracking-wide opacity-90">AM</div>
                         </button>
@@ -676,7 +676,7 @@ export default function Schedule() {
                         <button
                           type="button"
                           onClick={() => toggleAvailabilitySelection(key, 'PM')}
-                          className={`rounded px-1 py-1 flex flex-col min-h-[36px] justify-center w-full text-left cursor-pointer hover:opacity-90 ${getPmClass()} ${pmSelected ? 'ring-2 ring-red-500 ring-inset' : ''}`}
+                          className={`rounded px-1 py-1 flex flex-col min-h-[36px] justify-center w-full text-left cursor-pointer hover:opacity-90 ${pmSelected ? 'bg-red-600 text-white' : getPmClass()}`}
                         >
                           <div className="text-[9px] font-semibold uppercase tracking-wide opacity-90">PM</div>
                         </button>
