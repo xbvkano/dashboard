@@ -24,6 +24,12 @@ import { twilioMessageCreateParams } from '../utils/twilioSms'
 import twilio from 'twilio'
 import { parseUserIdHeader } from '../utils/httpUser'
 import { isAppointmentInPast } from '../utils/appointmentPast'
+import {
+  buildAppointmentEditNotice,
+  hasEmployeeNotifiableAppointmentChanges,
+  snapshotFromAppointment,
+  type AppointmentEditSnapshot,
+} from '../utils/appointmentEditNotice'
 
 const prisma = new PrismaClient()
 const smsClient = twilio(
@@ -360,7 +366,7 @@ export async function updateAppointment(req: Request, res: Response) {
       carpetEmployees,
       observation,
       notes,
-      noTeam = false,
+      noTeam,
       payrollAmounts,
       payrollNote,
     } = req.body as {
@@ -446,7 +452,7 @@ export async function updateAppointment(req: Request, res: Response) {
     if (carpetRooms !== undefined) data.carpetRooms = carpetRooms
     if (carpetPrice !== undefined) data.carpetPrice = carpetPrice
     if (carpetEmployees !== undefined) data.carpetEmployees = carpetEmployees
-    if (employeeIds) {
+    if (employeeIds !== undefined) {
       data.employees = { set: employeeIds.map((id) => ({ id })) }
     }
 
@@ -824,5 +830,101 @@ export async function sendAppointmentInfo(req: Request, res: Response) {
   } catch (err) {
     console.error('Failed to send appointment info:', err)
     res.status(500).json({ error: 'Failed to send info' })
+  }
+}
+
+/**
+ * Notify assigned team that an existing appointment was edited.
+ * Does not create/reset payroll confirmation or send unconfirmed-job reminders.
+ * Allowed for today and future (calendar-day past check).
+ */
+export async function sendAppointmentEditNotice(req: Request, res: Response) {
+  const id = parseInt(req.params.id, 10)
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
+  try {
+    const previousRaw = (req.body as { previous?: Partial<AppointmentEditSnapshot> | null })?.previous
+    if (!previousRaw || typeof previousRaw !== 'object') {
+      return res.status(400).json({ error: 'previous appointment snapshot is required' })
+    }
+
+    const appt = await prisma.appointment.findUnique({
+      where: { id },
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+        family: true,
+      },
+    })
+    if (!appt) return res.status(404).json({ error: 'Not found' })
+
+    if (isAppointmentInPast(appt, new Date())) {
+      return res.status(400).json({ error: 'Cannot send edit notice for a past appointment' })
+    }
+
+    if (appt.noTeam || !appt.employees || appt.employees.length === 0) {
+      return res.status(400).json({
+        error:
+          'Cannot send edit notice: No team assigned to this appointment. Please add at least one team member before notifying.',
+      })
+    }
+
+    const previous: AppointmentEditSnapshot = {
+      address: String(previousRaw.address ?? ''),
+      instructions: previousRaw.instructions ?? null,
+      date: String(previousRaw.date ?? ''),
+      time: String(previousRaw.time ?? ''),
+      type: previousRaw.type ?? null,
+      size: previousRaw.size ?? null,
+      price: previousRaw.price ?? null,
+      notes: previousRaw.notes ?? null,
+    }
+    const current = snapshotFromAppointment({
+      address: appt.address,
+      cityStateZip: appt.cityStateZip,
+      localDate: appointmentLocalDateKey({ dateUtc: appt.dateUtc, date: appt.date }),
+      date: appt.date,
+      dateUtc: appt.dateUtc,
+      time: appt.time,
+      type: appt.type,
+      size: appt.size,
+      price: appt.price,
+      notes: appt.notes,
+    })
+
+    if (!hasEmployeeNotifiableAppointmentChanges({ previous, current })) {
+      return res.status(400).json({
+        error:
+          'No employee-visible changes (address, instructions, date, or time). Nothing to notify.',
+      })
+    }
+
+    const body = buildAppointmentEditNotice({ previous, current })
+
+    for (const e of appt.employees) {
+      const to =
+        normalizePhone(e.number) ??
+        (e.number.startsWith('+') ? e.number : `+${e.number.replace(/\D/g, '')}`)
+      await smsClient.messages.create(twilioMessageCreateParams(to, body))
+    }
+
+    // Do not touch payrollItems.confirmed / reminderSentAt — keep existing confirmation.
+    const updated = await prisma.appointment.update({
+      where: { id },
+      data: { infoSent: true },
+      include: {
+        client: true,
+        employees: true,
+        admin: true,
+        payrollItems: { include: { extras: true } },
+        family: true,
+      },
+    })
+
+    res.json(withAppointmentLocalDate(updated))
+  } catch (err) {
+    console.error('Failed to send appointment edit notice:', err)
+    res.status(500).json({ error: 'Failed to send edit notice' })
   }
 }

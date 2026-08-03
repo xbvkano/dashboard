@@ -68,6 +68,7 @@ function hasMeaningfulDraft(d: BookAppointmentDraft | undefined): boolean {
     d.date !== def.date ||
     d.time !== def.time ||
     d.notes !== def.notes ||
+    d.instructions !== def.instructions ||
     d.size !== def.size ||
     d.serviceType !== def.serviceType
   )

@@ -25,6 +25,7 @@ export async function createAIAppointment(req: Request, res: Response) {
       date,
       time,
       notes,
+      instructions,
       size,
       serviceType,
       anyDate,
@@ -37,6 +38,7 @@ export async function createAIAppointment(req: Request, res: Response) {
       date?: string
       time?: string
       notes?: string
+      instructions?: string
       size?: string
       serviceType?: string
       anyDate?: boolean
@@ -171,20 +173,28 @@ export async function createAIAppointment(req: Request, res: Response) {
           address: appointmentAddress,
           price: price,
           notes: templateNotes,
-          instructions: '',
+          instructions: instructions?.trim() || null,
           clientId: client.id,
         }
       })
-    } else if (notes !== undefined && notes !== null) {
-      // Update existing template with provided notes
-      template = await prisma.appointmentTemplate.update({
-        where: { id: template.id },
-        data: { notes: notes },
-      })
+    } else {
+      const templatePatch: { notes?: string | null; instructions?: string | null } = {}
+      if (notes !== undefined && notes !== null) templatePatch.notes = notes
+      if (instructions != null) templatePatch.instructions = instructions.trim() || null
+      if (Object.keys(templatePatch).length > 0) {
+        template = await prisma.appointmentTemplate.update({
+          where: { id: template.id },
+          data: templatePatch,
+        })
+      }
     }
 
     // Calculate hours based on size and service type
     const hours = calculateAppointmentHours(size, serviceType)
+    const resolvedInstructions =
+      (instructions != null && instructions.trim() ? instructions.trim() : null) ??
+      template.instructions ??
+      undefined
 
     // Step 4: Create the appointment
     const appt = await prisma.appointment.create({
@@ -197,6 +207,7 @@ export async function createAIAppointment(req: Request, res: Response) {
         time,
         type: serviceType as any, // Use the actual service type (STANDARD, DEEP, MOVE_IN_OUT)
         address: appointmentAddress,
+        cityStateZip: resolvedInstructions || undefined,
         size: mappedSize,
         hours, // Add the calculated hours
         price,

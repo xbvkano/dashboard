@@ -57,6 +57,7 @@ type BookAppointmentInput = {
   date: string
   time: string
   notes?: string
+  instructions?: string
   size: string
   serviceType: string
   /** When true, allows booking when local date+time is already in the past (business timezone). */
@@ -96,6 +97,7 @@ async function executeBookAppointmentCore(
     date,
     time,
     notes,
+    instructions,
     size,
     serviceType,
     bookingScreenshotUrls: screenshotUrlsInput,
@@ -238,18 +240,27 @@ async function executeBookAppointmentCore(
         address: appointmentAddress,
         price,
         notes: notes ?? null,
-        instructions: '',
+        instructions: instructions?.trim() || null,
         clientId: client.id,
       },
     })
-  } else if (notes != null) {
-    template = await prisma.appointmentTemplate.update({
-      where: { id: template.id },
-      data: { notes },
-    })
+  } else {
+    const templatePatch: { notes?: string | null; instructions?: string | null } = {}
+    if (notes != null) templatePatch.notes = notes
+    if (instructions != null) templatePatch.instructions = instructions.trim() || null
+    if (Object.keys(templatePatch).length > 0) {
+      template = await prisma.appointmentTemplate.update({
+        where: { id: template.id },
+        data: templatePatch,
+      })
+    }
   }
 
   const hours = calculateAppointmentHours(size, serviceType)
+  const resolvedInstructions =
+    (instructions != null && instructions.trim() ? instructions.trim() : null) ??
+    template.instructions ??
+    undefined
   const appt = await prisma.appointment.create({
     data: {
       clientId: client.id,
@@ -260,6 +271,7 @@ async function executeBookAppointmentCore(
       time,
       type: serviceType as any,
       address: appointmentAddress,
+      cityStateZip: resolvedInstructions || undefined,
       size: mappedSize,
       hours,
       price,
@@ -1006,6 +1018,7 @@ export async function postBookAppointmentFromConversation(req: Request, res: Res
       date,
       time,
       notes,
+      instructions,
       size,
       serviceType,
       datePastOverride,
@@ -1016,6 +1029,7 @@ export async function postBookAppointmentFromConversation(req: Request, res: Res
       date?: string
       time?: string
       notes?: string
+      instructions?: string
       size?: string
       serviceType?: string
       datePastOverride?: boolean
@@ -1036,6 +1050,7 @@ export async function postBookAppointmentFromConversation(req: Request, res: Res
       date,
       time,
       notes,
+      instructions,
       size,
       serviceType,
       datePastOverride: datePastOverride === true ? true : undefined,
@@ -1087,6 +1102,7 @@ export async function postBookAppointmentFromScreenshot(req: Request, res: Respo
     date,
     time,
     notes,
+    instructions,
     size,
     serviceType,
     datePastOverride,
@@ -1098,6 +1114,7 @@ export async function postBookAppointmentFromScreenshot(req: Request, res: Respo
     date?: string
     time?: string
     notes?: string
+    instructions?: string
     size?: string
     serviceType?: string
     datePastOverride?: boolean
@@ -1130,6 +1147,7 @@ export async function postBookAppointmentFromScreenshot(req: Request, res: Respo
       date,
       time,
       notes,
+      instructions,
       size,
       serviceType,
       datePastOverride: datePastOverride === true ? true : undefined,

@@ -8,6 +8,10 @@ import EmployeeCodeBadge from '../../../../components/EmployeeCodeBadge'
 import { copyTextToClipboard, phoneToE164 } from '../../../../contactActions'
 import { formatApiError, startConversationFromContact } from '../../../Messages/Inbox/messagingApi'
 import { appointmentCalendarDateKey, type Appointment } from '../../types'
+import {
+  hasEmployeeNotifiableAppointmentChanges,
+  isAppointmentBeforeBusinessToday,
+} from '../CreateAppointmentModalNotify'
 
 function parseSqft(s: string | null | undefined): number | null {
   if (!s) return null
@@ -97,6 +101,10 @@ export default function AppointmentDetails({
   const [editingTemplateNotes, setEditingTemplateNotes] = useState(false)
   const [editingTemplateNotesId, setEditingTemplateNotesId] = useState<number | null>(null)
   const [editingTemplateNotesValue, setEditingTemplateNotesValue] = useState('')
+  const [showEditInstructions, setShowEditInstructions] = useState(false)
+  const [instructionsDraft, setInstructionsDraft] = useState('')
+  const [instructionsConfirmStep, setInstructionsConfirmStep] = useState(false)
+  const [savingInstructions, setSavingInstructions] = useState(false)
   const [textBusy, setTextBusy] = useState(false)
   const [phoneCopied, setPhoneCopied] = useState(false)
 
@@ -220,6 +228,108 @@ export default function AppointmentDetails({
     } else {
       await alert('Failed to update appointment')
     }
+  }
+
+  const openEditInstructions = () => {
+    if (!template?.id) {
+      void alert('No template linked to this appointment. Edit the appointment to set instructions.')
+      return
+    }
+    setInstructionsDraft(template.instructions || appointment.cityStateZip || '')
+    setInstructionsConfirmStep(false)
+    setShowEditInstructions(true)
+    setShowActionPanel(false)
+  }
+
+  const closeEditInstructions = () => {
+    if (savingInstructions) return
+    setShowEditInstructions(false)
+    setInstructionsConfirmStep(false)
+    setInstructionsDraft('')
+  }
+
+  const currentInstructionsValue = () =>
+    (template?.instructions || appointment.cityStateZip || '').trim()
+
+  const canNotifyInstructionsChange = () => {
+    const hasTeam =
+      !appointment.noTeam &&
+      Array.isArray(appointment.employees) &&
+      appointment.employees.length > 0
+    return hasTeam && !isAppointmentBeforeBusinessToday(appointment)
+  }
+
+  const persistInstructions = async (notifyTeam: boolean) => {
+    if (!template?.id || !appointment.id || savingInstructions) return
+    const next = instructionsDraft.trim()
+    const previousInstructions = currentInstructionsValue()
+    setSavingInstructions(true)
+    try {
+      const updatedTemplate = await fetchJson(`${API_BASE_URL}/appointment-templates/${template.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instructions: next || null }),
+      })
+      setTemplate(updatedTemplate)
+
+      // Re-apply template so appointment.cityStateZip stays in sync for SMS / edit-notice.
+      let updatedAppointment = await fetchJson(`${API_BASE_URL}/appointments/${appointment.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId: template.id }),
+      })
+
+      if (notifyTeam) {
+        const previous = {
+          address: appointment.address ?? '',
+          instructions: previousInstructions || null,
+          date: appointmentCalendarDateKey(appointment),
+          time: appointment.time ?? '',
+        }
+        const current = {
+          address: updatedAppointment.address ?? appointment.address ?? '',
+          instructions: next || null,
+          date: appointmentCalendarDateKey(updatedAppointment),
+          time: updatedAppointment.time ?? appointment.time ?? '',
+        }
+        if (hasEmployeeNotifiableAppointmentChanges({ previous, current })) {
+          updatedAppointment = await fetchJson(
+            `${API_BASE_URL}/appointments/${appointment.id}/send-edit-notice`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ previous }),
+            },
+          )
+        }
+      }
+
+      onUpdate(updatedAppointment)
+      setShowEditInstructions(false)
+      setInstructionsConfirmStep(false)
+      setInstructionsDraft('')
+    } catch (e) {
+      await alert(formatApiError(e) || 'Failed to save instructions')
+    } finally {
+      setSavingInstructions(false)
+    }
+  }
+
+  const handleInstructionsSaveClick = () => {
+    const next = instructionsDraft.trim()
+    const prev = currentInstructionsValue()
+    if (next === prev) {
+      closeEditInstructions()
+      return
+    }
+    if (canNotifyInstructionsChange()) {
+      setInstructionsConfirmStep(true)
+      return
+    }
+    void (async () => {
+      if (!(await confirm('Save instruction changes?'))) return
+      await persistInstructions(false)
+    })()
   }
 
   const handleSendInfo = async () => {
@@ -912,6 +1022,13 @@ export default function AppointmentDetails({
               >
                 Edit appointment
               </button>
+              <button
+                type="button"
+                onClick={openEditInstructions}
+                className="px-4 py-2.5 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition-colors col-span-2 w-full"
+              >
+                Edit Instructions
+              </button>
               {appointment.observe ? (
                 <button
                   type="button"
@@ -1046,6 +1163,96 @@ export default function AppointmentDetails({
         </div>,
         document.body
       )}
+
+      {showEditInstructions &&
+        createPortal(
+          <div
+            className="fixed inset-0 flex items-center justify-center p-4 z-[10100]"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="absolute inset-0 bg-black/50" onClick={closeEditInstructions} aria-hidden="true" />
+            <div
+              className="relative bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-md w-full overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-800">
+                  {instructionsConfirmStep ? 'Save & notify?' : 'Edit Instructions'}
+                </h3>
+              </div>
+              <div className="p-4 space-y-3">
+                {instructionsConfirmStep ? (
+                  <>
+                    <p className="text-sm text-slate-600">
+                      Save the new instructions and notify the assigned team? Notifying keeps their job
+                      confirmed — it will not create a new unconfirmed assignment.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+                      <button
+                        type="button"
+                        className="px-4 py-2 text-sm font-medium bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors disabled:opacity-50"
+                        onClick={() => setInstructionsConfirmStep(false)}
+                        disabled={savingInstructions}
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        className="px-4 py-2 text-sm font-medium bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors disabled:opacity-50"
+                        onClick={() => void persistInstructions(false)}
+                        disabled={savingInstructions}
+                      >
+                        Save without notifying
+                      </button>
+                      <button
+                        type="button"
+                        className="px-4 py-2 text-sm font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
+                        onClick={() => void persistInstructions(true)}
+                        disabled={savingInstructions}
+                      >
+                        {savingInstructions ? 'Saving…' : 'Save & notify team'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label className="block text-xs font-medium text-slate-700">
+                      Instructions (gate code, door code, pets, etc)
+                    </label>
+                    <textarea
+                      className="w-full border border-slate-200 rounded-lg p-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y min-h-[100px]"
+                      rows={5}
+                      value={instructionsDraft}
+                      onChange={(e) => setInstructionsDraft(e.target.value)}
+                      placeholder="Optional"
+                      disabled={savingInstructions}
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        type="button"
+                        className="px-4 py-2 text-sm font-medium bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors disabled:opacity-50"
+                        onClick={closeEditInstructions}
+                        disabled={savingInstructions}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="px-4 py-2 text-sm font-medium bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
+                        onClick={handleInstructionsSaveClick}
+                        disabled={savingInstructions}
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

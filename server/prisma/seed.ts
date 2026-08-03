@@ -1,10 +1,14 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcrypt'
+import path from 'path'
+import dotenv from 'dotenv'
 import { ruleToJson, calculateNextAppointmentDate } from '../src/utils/recurrenceUtils'
 import { calculateAppointmentHours } from '../src/utils/appointmentUtils'
 import { normalizeToBusinessDayAnchorUtc } from '../src/utils/appointmentTimezone'
 import { getNextOrThisUpdateDay } from '../src/utils/schedulePolicyUtils'
 import { normalizePhone, generateUserName } from '../src/utils/phoneUtils'
+
+dotenv.config({ path: path.join(__dirname, '..', '.env') })
 
 const prisma = new PrismaClient()
 
@@ -1031,7 +1035,15 @@ async function main() {
   })
 
   // --- SMS inbox demo (GET /messaging/conversations, etc.) ---
-  const bizE164 = normalizePhone('7255774523')!
+  // Must match TWILIO_FROM_NUMBER — listConversations filters client inbox by that business line.
+  const bizRaw = process.env.TWILIO_FROM_NUMBER?.trim()
+  if (!bizRaw) {
+    throw new Error(
+      'TWILIO_FROM_NUMBER is required to seed messaging conversations (must match the client inbox line)',
+    )
+  }
+  const bizE164 = normalizePhone(bizRaw) ?? bizRaw
+  console.log(`Seeding SMS conversations with businessNumber=${bizE164}`)
   const cpBiz = await prisma.contactPoint.create({
     data: { type: 'PHONE', value: bizE164, displayValue: 'Main SMS line' },
   })

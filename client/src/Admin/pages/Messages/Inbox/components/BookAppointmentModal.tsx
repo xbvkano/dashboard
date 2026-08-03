@@ -21,6 +21,8 @@ export type BookAppointmentDraft = {
   date: string
   time: string
   notes: string
+  /** Gate code, door code, pets, access — stored on template / appointment cityStateZip. */
+  instructions: string
   /** When true, server allows booking a slot already in the past (business timezone). */
   datePastOverride: boolean
   size: string
@@ -35,6 +37,7 @@ export type BookAppointmentFieldHighlightKey =
   | 'date'
   | 'time'
   | 'notes'
+  | 'instructions'
   | 'size'
   | 'serviceType'
 
@@ -120,6 +123,7 @@ export function defaultDraft(): BookAppointmentDraft {
     date: '',
     time: '',
     notes: '',
+    instructions: '',
     datePastOverride: false,
     size: '',
     serviceType: '',
@@ -270,6 +274,7 @@ export default function BookAppointmentModal({
           date: draft.date,
           time: draft.time,
           notes: draft.notes.trim() ? draft.notes.trim() : undefined,
+          instructions: draft.instructions.trim() ? draft.instructions.trim() : undefined,
           size: draft.size,
           serviceType: draft.serviceType as any,
           ...(draft.datePastOverride ? { datePastOverride: true } : {}),
@@ -294,6 +299,7 @@ export default function BookAppointmentModal({
           date: draft.date,
           time: draft.time,
           notes: draft.notes.trim() ? draft.notes.trim() : undefined,
+          instructions: draft.instructions.trim() ? draft.instructions.trim() : undefined,
           size: draft.size,
           serviceType: draft.serviceType as any,
           ...(draft.datePastOverride ? { datePastOverride: true } : {}),
@@ -508,6 +514,20 @@ export default function BookAppointmentModal({
                     2:00 PM
                   </button>
                 </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-xs font-medium text-slate-700">
+                  Instructions (gate code, door code, pets, etc)
+                </label>
+                <textarea
+                  value={draft.instructions}
+                  onChange={(e) => onDraftChange({ ...draft, instructions: e.target.value })}
+                  rows={2}
+                  className="mt-1 w-full min-w-0 max-w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 resize-none"
+                  placeholder="Optional"
+                  disabled={submitting}
+                />
               </div>
 
               <div className="md:col-span-2">

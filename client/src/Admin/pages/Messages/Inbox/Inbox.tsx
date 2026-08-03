@@ -883,6 +883,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
         date: res.draft.date ?? base.date,
         time: res.draft.time ?? base.time,
         notes: res.draft.notes ?? base.notes,
+        instructions: res.draft.instructions ?? base.instructions,
         size:
           res.sizeLookupFailed || res.fieldHighlights?.size
             ? ''

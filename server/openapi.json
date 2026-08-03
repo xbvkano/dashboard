@@ -61,6 +61,11 @@
                     "description": "Additional notes for the appointment",
                     "example": "Deep cleaning needed"
                   },
+                  "instructions": {
+                    "type": "string",
+                    "description": "On-site access instructions for the team (gate code, door code, pets, etc)",
+                    "example": "Gate code 4521, dog in backyard"
+                  },
                   "size": {
                     "type": "string",
                     "description": "Property size in square feet (e.g., '1500-2000', '2000-2500')",

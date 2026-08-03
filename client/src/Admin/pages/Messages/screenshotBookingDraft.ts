@@ -10,6 +10,7 @@ type ExtractedScreenshotDraft = Partial<
     | 'date'
     | 'time'
     | 'notes'
+    | 'instructions'
     | 'size'
     | 'serviceType'
   >
@@ -36,6 +37,7 @@ export function screenshotDraftFromExtraction(
     date: extracted.date ?? base.date,
     time: extracted.time ?? base.time,
     notes: extracted.notes ?? base.notes,
+    instructions: extracted.instructions ?? base.instructions,
     size,
     serviceType: (extracted.serviceType ?? base.serviceType) as BookAppointmentDraft['serviceType'],
   }

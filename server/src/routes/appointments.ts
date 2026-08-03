@@ -8,7 +8,8 @@ import {
   createRecurringAppointment,
   createAppointment,
   updateAppointment,
-  sendAppointmentInfo
+  sendAppointmentInfo,
+  sendAppointmentEditNotice,
 } from '../controllers/appointmentsController'
 
 const router = Router()
@@ -23,5 +24,6 @@ router.post('/appointments/recurring', createRecurringAppointment)
 router.post('/appointments', createAppointment)
 router.put('/appointments/:id', updateAppointment)
 router.post('/appointments/:id/send-info', sendAppointmentInfo)
+router.post('/appointments/:id/send-edit-notice', sendAppointmentEditNotice)
 
 export default router

@@ -150,6 +150,7 @@ export function rawAiToDraft(raw: RawAiExtraction): AppointmentExtractionDraft {
     date: normalizeDate(raw.date ?? undefined) || undefined,
     time: normalizeTime(raw.time ?? undefined) || undefined,
     notes: typeof raw.notes === 'string' ? raw.notes.trim() : undefined,
+    instructions: typeof raw.instructions === 'string' ? raw.instructions.trim() : undefined,
     size: sizeNorm || undefined,
     serviceType: normalizeServiceType(raw.serviceType ?? undefined),
   }

@@ -8,6 +8,7 @@ export type ExtractionFieldKey =
   | 'date'
   | 'time'
   | 'notes'
+  | 'instructions'
   | 'size'
   | 'serviceType'
 
@@ -20,6 +21,7 @@ export type AppointmentExtractionDraft = {
   date?: string
   time?: string
   notes?: string
+  instructions?: string
   size?: string
   serviceType?: '' | ExtractionServiceType
 }
@@ -45,6 +47,7 @@ export type RawAiExtraction = {
   date?: string | null
   time?: string | null
   notes?: string | null
+  instructions?: string | null
   size?: string | null
   serviceType?: string | null
   missingOrUncertain?: string[] | null

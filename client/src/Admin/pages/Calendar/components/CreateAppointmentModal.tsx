@@ -30,6 +30,15 @@ import { useModal } from '../../../../ModalProvider'
 import { formatPhone, phoneToApiPayload } from '../../../../formatPhone'
 import PhoneInput from '../../../components/PhoneInput'
 import { SIZE_OPTIONS } from '../../../../shared/sizeOptions'
+import {
+  appointmentCalendarDateKey,
+  type Appointment,
+} from '../types'
+import {
+  isAppointmentBeforeBusinessToday,
+  hasEmployeeNotifiableAppointmentChanges,
+  type AppointmentEditPreviousPayload,
+} from './CreateAppointmentModalNotify'
 
 interface Props {
   onClose: () => void
@@ -200,6 +209,9 @@ export default function CreateAppointmentModal({
 
   // Legacy recurring state removed - use Recurring Appointments page instead
   const [creating, setCreating] = useState(false)
+  const [notifyPromptAppt, setNotifyPromptAppt] = useState<Appointment | null>(null)
+  const [notifyPrevious, setNotifyPrevious] = useState<AppointmentEditPreviousPayload | null>(null)
+  const [notifyingTeam, setNotifyingTeam] = useState(false)
 
   const clearDraft = () => {
     localStorage.removeItem(persistenceKey)
@@ -207,11 +219,19 @@ export default function CreateAppointmentModal({
   }
 
   const handleClose = () => {
+    if (notifyPromptAppt) {
+      finishAfterSave(notifyPromptAppt)
+      return
+    }
     clearDraft()
     onClose()
   }
 
   const handleCancel = () => {
+    if (notifyPromptAppt) {
+      finishAfterSave(notifyPromptAppt)
+      return
+    }
     clearDraft()
     onClose()
   }
@@ -798,6 +818,43 @@ const preserveTeamRef = useRef(false)
     }
   }
 
+  const finishAfterSave = (appt: Appointment) => {
+    setNotifyPromptAppt(null)
+    setNotifyPrevious(null)
+    onCreated(appt)
+    if (!isPage) onClose()
+  }
+
+  const handleSkipNotifyTeam = () => {
+    if (!notifyPromptAppt) return
+    finishAfterSave(notifyPromptAppt)
+  }
+
+  const handleNotifyTeam = async () => {
+    if (!notifyPromptAppt?.id || notifyingTeam || !notifyPrevious) return
+    setNotifyingTeam(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/appointments/${notifyPromptAppt.id}/send-edit-notice`, {
+        method: 'POST',
+        headers: dashboardJsonHeaders(),
+        body: JSON.stringify({ previous: notifyPrevious }),
+      })
+      if (res.ok) {
+        const updated = (await res.json()) as Appointment
+        finishAfterSave(updated)
+      } else {
+        const errorData = await res.json().catch(() => ({}))
+        await alert(errorData.error || 'Failed to notify team')
+        finishAfterSave(notifyPromptAppt)
+      }
+    } catch {
+      await alert('Failed to notify team')
+      finishAfterSave(notifyPromptAppt)
+    } finally {
+      setNotifyingTeam(false)
+    }
+  }
+
   const isValidCarpet = () => {
     if (!carpetEnabled) return true
     return carpetRooms !== '' && carpetEmployees.length > 0
@@ -863,20 +920,18 @@ const preserveTeamRef = useRef(false)
       appointmentStatus = 'APPOINTED'
     }
     
-    const body = {
+    const body: Record<string, unknown> = {
       clientId: selectedClient.id,
       templateId: selectedTemplate,
       date, // Send as YYYY-MM-DD, server will parse as UTC
       time,
       hours: undefined, // Server calculates from template
-      employeeIds: [], // Team assigned via Team Options after creation
       paid,
       paymentMethod: paid ? (paymentMethod || 'CASH') : 'CASH',
       paymentMethodNote:
         paid && paymentMethod === 'OTHER' && otherPayment ? otherPayment : undefined,
       tip: paid ? parseFloat(tip) || 0 : 0,
       status: appointmentStatus,
-      noTeam: false,
       ...(carpetEnabled
         ? {
             carpetRooms: parseInt(carpetRooms, 10) || 0,
@@ -884,6 +939,12 @@ const preserveTeamRef = useRef(false)
             carpetEmployees,
           }
         : {}),
+    }
+
+    // Create: leave team empty (assigned via Team Options). Edit: omit so existing team is preserved.
+    if (!initialAppointment) {
+      body.employeeIds = []
+      body.noTeam = false
     }
 
     // Legacy recurring removed - use Recurring Appointments page to create recurring appointments
@@ -905,8 +966,29 @@ const preserveTeamRef = useRef(false)
       })
       
       if (res.ok) {
-        const appt = await res.json()
+        const appt = (await res.json()) as Appointment
         clearDraft()
+        const hasTeam =
+          !appt.noTeam && Array.isArray(appt.employees) && appt.employees.length > 0
+        if (initialAppointment && hasTeam && !isAppointmentBeforeBusinessToday(appt)) {
+          const previous: AppointmentEditPreviousPayload = {
+            address: initialAppointment.address ?? '',
+            instructions: initialAppointment.cityStateZip ?? null,
+            date: appointmentCalendarDateKey(initialAppointment),
+            time: initialAppointment.time ?? '',
+          }
+          const current: AppointmentEditPreviousPayload = {
+            address: appt.address ?? '',
+            instructions: appt.cityStateZip ?? null,
+            date: appointmentCalendarDateKey(appt),
+            time: appt.time ?? '',
+          }
+          if (hasEmployeeNotifiableAppointmentChanges({ previous, current })) {
+            setNotifyPrevious(previous)
+            setNotifyPromptAppt(appt)
+            return
+          }
+        }
         onCreated(appt)
         // Modal edit/create needs onClose to dismiss overlay. Page flow navigates in onCreated.
         if (!isPage) onClose()
@@ -1524,14 +1606,54 @@ const preserveTeamRef = useRef(false)
         </div>
   )
 
+  const notifyTeamModal = notifyPromptAppt ? (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10010]">
+      <div
+        className="bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-sm w-full overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+          <h3 className="text-lg font-semibold text-slate-800">Notify team?</h3>
+        </div>
+        <div className="p-4">
+          <p className="text-sm text-slate-600 mb-4">
+            Appointment saved. Notify the assigned team about what changed? This keeps their job
+            confirmed — it will not create a new unconfirmed assignment.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="px-4 py-2 text-sm font-medium bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors disabled:opacity-50"
+              onClick={handleSkipNotifyTeam}
+              disabled={notifyingTeam}
+            >
+              Don&apos;t notify
+            </button>
+            <button
+              type="button"
+              className="px-4 py-2 text-sm font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
+              onClick={() => void handleNotifyTeam()}
+              disabled={notifyingTeam}
+            >
+              {notifyingTeam ? 'Sending…' : 'Notify team'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null
+
   if (isPage) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-800">New Appointment</h2>
+      <>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+            <h2 className="text-lg font-semibold text-slate-800">New Appointment</h2>
+          </div>
+          <div className="p-4">{formBody}</div>
         </div>
-        <div className="p-4">{formBody}</div>
-      </div>
+        {notifyTeamModal}
+      </>
     )
   }
 
@@ -1555,7 +1677,7 @@ const preserveTeamRef = useRef(false)
         {formBody}
       </div>
     </div>
-    {/* Legacy recurring modal removed - use Recurring Appointments page */}
+    {notifyTeamModal}
     </>
   )
 }

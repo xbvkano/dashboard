@@ -16,12 +16,13 @@ Return a single JSON object only (no markdown). Use these rules:
 - time: 24-hour HH:mm (e.g. 09:00 for 9am).
 - price: number as agreed in the thread (final confirmed price if multiple).
 - appointmentAddress: full street address if available.
-- notes: gate codes, pets, payment method, discounts, special instructions, or anything not captured above.
+- instructions: gate codes, door codes, pets, parking, building access, or other on-site access details for the cleaning team.
+- notes: payment method, discounts, or anything else not captured above (do not duplicate instructions here).
 - clientPhone: phone number visible in the screenshots if any (prefer E.164 like +17025551234, or US 10-digit). Omit or null if not visible.
 - missingOrUncertain: array of short strings listing what you could not determine confidently.
 
 Examples of expected JSON shape:
-{"clientName":"Reem Witwit","clientPhone":"+17025551234","appointmentAddress":"11584 Ashy Storm Ave, Las Vegas, NV 89138","price":360,"date":"${exampleDate}","time":"09:00","notes":"Move-in cleaning, no gate code","size":"1500-2000","serviceType":"MOVE_IN_OUT","missingOrUncertain":[]}`
+{"clientName":"Reem Witwit","clientPhone":"+17025551234","appointmentAddress":"11584 Ashy Storm Ave, Las Vegas, NV 89138","price":360,"date":"${exampleDate}","time":"09:00","instructions":"Gate code 4521, dog in backyard","notes":"Move-in cleaning","size":"1500-2000","serviceType":"MOVE_IN_OUT","missingOrUncertain":[]}`
 }
 
 function getOpenAI(): OpenAI {

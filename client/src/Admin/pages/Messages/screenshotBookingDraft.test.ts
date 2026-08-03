@@ -11,6 +11,7 @@ function oldDraft(): BookAppointmentDraft {
     date: '2026-01-01',
     time: '09:00',
     notes: 'old notes',
+    instructions: 'old gate code',
     datePastOverride: true,
     size: '1000-1500',
     serviceType: 'DEEP',
