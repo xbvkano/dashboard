@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 interface ModalContextProps {
@@ -28,18 +28,31 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     setModal(null)
   }
 
+  useEffect(() => {
+    if (!modal) return
+    const original = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = original
+    }
+  }, [modal])
+
   return (
     <ModalContext.Provider value={{ alert, confirm }}>
       {children}
       {modal &&
         createPortal(
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10010]"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10010] overflow-hidden overscroll-none"
             onClick={() => close(modal.type === 'confirm' ? false : undefined)}
+            onWheel={(e) => e.preventDefault()}
+            onTouchMove={(e) => e.preventDefault()}
           >
             <div
               className="bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-sm w-full overflow-hidden max-h-[90vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
+              onWheel={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
             >
               <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 shrink-0">
                 <h3 className="text-lg font-semibold text-slate-800">

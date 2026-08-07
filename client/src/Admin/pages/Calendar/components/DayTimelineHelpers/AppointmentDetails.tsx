@@ -9,9 +9,11 @@ import { copyTextToClipboard, phoneToE164 } from '../../../../contactActions'
 import { formatApiError, startConversationFromContact } from '../../../Messages/Inbox/messagingApi'
 import { appointmentCalendarDateKey, type Appointment } from '../../types'
 import {
+  buildAppointmentEditNotice,
   hasEmployeeNotifiableAppointmentChanges,
   isAppointmentBeforeBusinessToday,
 } from '../CreateAppointmentModalNotify'
+import { isSupersededTemplateName } from '../../utils/templateVersioning'
 
 function parseSqft(s: string | null | undefined): number | null {
   if (!s) return null
@@ -248,8 +250,11 @@ export default function AppointmentDetails({
     setInstructionsDraft('')
   }
 
-  const currentInstructionsValue = () =>
-    (template?.instructions || appointment.cityStateZip || '').trim()
+  const currentInstructionsValue = () => {
+    // Prefer the appointment snapshot so edits (and old template versions) stay accurate per job.
+    if (appointment.cityStateZip != null) return String(appointment.cityStateZip).trim()
+    return (template?.instructions || '').trim()
+  }
 
   const canNotifyInstructionsChange = () => {
     const hasTeam =
@@ -265,19 +270,36 @@ export default function AppointmentDetails({
     const previousInstructions = currentInstructionsValue()
     setSavingInstructions(true)
     try {
-      const updatedTemplate = await fetchJson(`${API_BASE_URL}/appointment-templates/${template.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instructions: next || null }),
-      })
-      setTemplate(updatedTemplate)
-
-      // Re-apply template so appointment.cityStateZip stays in sync for SMS / edit-notice.
-      let updatedAppointment = await fetchJson(`${API_BASE_URL}/appointments/${appointment.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId: template.id }),
-      })
+      let updatedAppointment: Appointment
+      // Past appointments may still point at an "old(n)" template — only update this job's
+      // instructions snapshot so we don't create a duplicate current template name.
+      if (isSupersededTemplateName(template.templateName || '')) {
+        updatedAppointment = await fetchJson(`${API_BASE_URL}/appointments/${appointment.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cityStateZip: next || null }),
+        })
+      } else {
+        const versionResult = await fetchJson(
+          `${API_BASE_URL}/appointment-templates/${template.id}/version`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              instructions: next || null,
+              retargetAppointmentId: appointment.id,
+            }),
+          },
+        )
+        setTemplate(versionResult.current)
+        updatedAppointment =
+          versionResult.retargetedAppointment ??
+          (await fetchJson(`${API_BASE_URL}/appointments/${appointment.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ templateId: versionResult.current.id }),
+          }))
+      }
 
       if (notifyTeam) {
         const previous = {
@@ -661,10 +683,16 @@ export default function AppointmentDetails({
               </>
             )}
           </dl>
-          {template?.instructions && (
+          {(appointment.cityStateZip != null
+            ? String(appointment.cityStateZip).trim()
+            : template?.instructions) && (
             <div className="mt-3 pt-3 border-t border-slate-100">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Instructions</p>
-              <p className="text-sm text-slate-800 whitespace-pre-wrap">{template.instructions}</p>
+              <p className="text-sm text-slate-800 whitespace-pre-wrap">
+                {appointment.cityStateZip != null
+                  ? String(appointment.cityStateZip)
+                  : template?.instructions}
+              </p>
             </div>
           )}
         </div>
@@ -1167,27 +1195,61 @@ export default function AppointmentDetails({
       {showEditInstructions &&
         createPortal(
           <div
-            className="fixed inset-0 flex items-center justify-center p-4 z-[10100]"
+            className="fixed inset-0 flex items-center justify-center p-4 z-[10100] overflow-hidden overscroll-none"
             role="dialog"
             aria-modal="true"
+            onWheel={(e) => {
+              if (e.target === e.currentTarget) e.preventDefault()
+            }}
+            onTouchMove={(e) => {
+              if (e.target === e.currentTarget) e.preventDefault()
+            }}
           >
-            <div className="absolute inset-0 bg-black/50" onClick={closeEditInstructions} aria-hidden="true" />
             <div
-              className="relative bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-md w-full overflow-hidden"
+              className="absolute inset-0 bg-black/50"
+              onClick={closeEditInstructions}
+              onWheel={(e) => e.preventDefault()}
+              onTouchMove={(e) => e.preventDefault()}
+              aria-hidden="true"
+            />
+            <div
+              className="relative bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-md w-full overflow-hidden max-h-[90vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
+              onWheel={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
             >
-              <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+              <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 shrink-0">
                 <h3 className="text-lg font-semibold text-slate-800">
                   {instructionsConfirmStep ? 'Save & notify?' : 'Edit Instructions'}
                 </h3>
               </div>
-              <div className="p-4 space-y-3">
+              <div className="p-4 space-y-3 overflow-y-auto min-h-0 flex-1">
                 {instructionsConfirmStep ? (
                   <>
                     <p className="text-sm text-slate-600">
                       Save the new instructions and notify the assigned team? Notifying keeps their job
-                      confirmed — it will not create a new unconfirmed assignment.
+                      confirmed — it will not create a new unconfirmed assignment. Saving creates a new
+                      template version; past appointments keep the previous instructions.
                     </p>
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-1">Message preview</p>
+                      <pre className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-3 whitespace-pre-wrap font-mono max-h-40 overflow-y-auto">
+                        {buildAppointmentEditNotice({
+                          previous: {
+                            address: appointment.address ?? '',
+                            instructions: currentInstructionsValue() || null,
+                            date: appointmentCalendarDateKey(appointment),
+                            time: appointment.time ?? '',
+                          },
+                          current: {
+                            address: appointment.address ?? '',
+                            instructions: instructionsDraft.trim() || null,
+                            date: appointmentCalendarDateKey(appointment),
+                            time: appointment.time ?? '',
+                          },
+                        })}
+                      </pre>
+                    </div>
                     <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
                       <button
                         type="button"

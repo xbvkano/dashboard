@@ -37,8 +37,10 @@ import {
 import {
   isAppointmentBeforeBusinessToday,
   hasEmployeeNotifiableAppointmentChanges,
+  buildAppointmentEditNotice,
   type AppointmentEditPreviousPayload,
 } from './CreateAppointmentModalNotify'
+import { isSupersededTemplateName } from '../utils/templateVersioning'
 
 interface Props {
   onClose: () => void
@@ -212,6 +214,7 @@ export default function CreateAppointmentModal({
   const [notifyPromptAppt, setNotifyPromptAppt] = useState<Appointment | null>(null)
   const [notifyPrevious, setNotifyPrevious] = useState<AppointmentEditPreviousPayload | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState(false)
+  const [showEditTemplateConfirm, setShowEditTemplateConfirm] = useState(false)
 
   const clearDraft = () => {
     localStorage.removeItem(persistenceKey)
@@ -665,11 +668,19 @@ const preserveTeamRef = useRef(false)
     })
   }
 
-  /** Update the selected template in place (PATCH via PUT). */
+  /** Confirm before versioned edit (old row becomes "Name old(n)"). */
   const startEditTemplate = () => {
     if (!selectedTemplate) return
     const t = templates.find((tt) => tt.id === selectedTemplate)
     if (!t) return
+    setShowEditTemplateConfirm(true)
+  }
+
+  const confirmStartEditTemplate = () => {
+    if (!selectedTemplate) return
+    const t = templates.find((tt) => tt.id === selectedTemplate)
+    if (!t) return
+    setShowEditTemplateConfirm(false)
     fillTemplateFormFrom(t)
     setEditing(true)
     setEditingTemplateId(selectedTemplate)
@@ -713,43 +724,47 @@ const preserveTeamRef = useRef(false)
     }
 
     if (editing && editingTemplateId != null) {
-      const putBody: Record<string, unknown> = {
+      const versionBody: Record<string, unknown> = {
         templateName: templateForm.templateName.trim(),
         type: templateForm.type,
         size: templateForm.size,
         teamSize: teamSizeNum,
         address: templateForm.address.trim(),
         price: priceNum,
-        notes: templateForm.notes?.trim() || undefined,
-        instructions: templateForm.instructions?.trim() || undefined,
+        notes: templateForm.notes?.trim() || null,
+        instructions: templateForm.instructions?.trim() || null,
       }
       if (templateForm.carpetEnabled) {
-        putBody.carpetRooms = parseInt(templateForm.carpetRooms, 10) || 0
-        putBody.carpetPrice = parseFloat(templateForm.carpetPrice) || 0
+        versionBody.carpetRooms = parseInt(templateForm.carpetRooms, 10) || 0
+        versionBody.carpetPrice = parseFloat(templateForm.carpetPrice) || 0
       } else {
-        putBody.carpetRooms = null
-        putBody.carpetPrice = null
+        versionBody.carpetRooms = null
+        versionBody.carpetPrice = null
       }
-      const res = await fetch(`${API_BASE_URL}/appointment-templates/${editingTemplateId}`, {
-        method: 'PUT',
+      if (initialAppointment?.id) {
+        versionBody.retargetAppointmentId = initialAppointment.id
+      }
+      const res = await fetch(`${API_BASE_URL}/appointment-templates/${editingTemplateId}/version`, {
+        method: 'POST',
         headers: dashboardJsonHeaders(),
-        body: JSON.stringify(putBody),
+        body: JSON.stringify(versionBody),
       })
       if (res.ok) {
-        const t = await res.json()
-        setTemplates((p) =>
-          p.map((tt) =>
-            tt.id === editingTemplateId
-              ? {
-                  ...t,
-                  carpetEnabled: templateForm.carpetEnabled,
-                  carpetRooms: templateForm.carpetRooms,
-                  carpetPrice: templateForm.carpetEnabled ? parseFloat(templateForm.carpetPrice) : undefined,
-                }
-              : tt
-          )
-        )
-        setSelectedTemplate(editingTemplateId)
+        const { archived, current } = await res.json() as {
+          archived: AppointmentTemplate
+          current: AppointmentTemplate
+        }
+        const withCarpet = {
+          ...current,
+          carpetEnabled: templateForm.carpetEnabled,
+          carpetRooms: templateForm.carpetRooms,
+          carpetPrice: templateForm.carpetEnabled ? parseFloat(templateForm.carpetPrice) : undefined,
+        }
+        setTemplates((p) => [
+          ...p.map((tt) => (tt.id === editingTemplateId ? { ...tt, ...archived } : tt)),
+          withCarpet,
+        ])
+        setSelectedTemplate(current.id ?? null)
         preserveTeamRef.current = true
         setShowNewTemplate(false)
         setEditing(false)
@@ -1014,6 +1029,21 @@ const preserveTeamRef = useRef(false)
   const sectionTitleClass = 'text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3'
   const btnPrimary = 'px-4 py-2 text-sm font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
   const btnSecondary = 'text-sm font-medium text-blue-600 hover:text-blue-800 py-1.5 px-3 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors'
+  const btnBranch = 'text-sm font-medium text-purple-600 hover:text-purple-800 py-1.5 px-3 rounded-lg border border-purple-200 hover:bg-purple-50 transition-colors'
+  const btnEdit = 'text-sm font-medium text-amber-700 hover:text-amber-900 py-1.5 px-3 rounded-lg border border-amber-300 hover:bg-amber-50 transition-colors'
+  const selectableTemplates = templates.filter((t) => !isSupersededTemplateName(t.templateName))
+  const notifyPreviewText =
+    notifyPromptAppt && notifyPrevious
+      ? buildAppointmentEditNotice({
+          previous: notifyPrevious,
+          current: {
+            address: notifyPromptAppt.address ?? '',
+            instructions: notifyPromptAppt.cityStateZip ?? null,
+            date: appointmentCalendarDateKey(notifyPromptAppt),
+            time: notifyPromptAppt.time ?? '',
+          },
+        })
+      : null
   const btnCancel = 'px-4 py-2 text-sm font-medium bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors'
   const btnClose = 'text-slate-500 hover:text-slate-700 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200 transition-colors'
 
@@ -1372,8 +1402,8 @@ const preserveTeamRef = useRef(false)
                   <p className="font-medium text-slate-900">{templates.find((t) => t.id === selectedTemplate)?.templateName}</p>
                   <div className="flex flex-wrap gap-2 justify-end">
                     <button type="button" className={btnSecondary} onClick={resetTemplateRelated}>Change</button>
-                    <button type="button" className={btnSecondary} onClick={startEditTemplate}>Edit</button>
-                    <button type="button" className={btnSecondary} onClick={startBranchTemplate}>Branch</button>
+                    <button type="button" className={btnBranch} onClick={startBranchTemplate}>Branch</button>
+                    <button type="button" className={btnEdit} onClick={startEditTemplate}>Edit</button>
                     <button type="button" className="text-sm font-medium text-red-600 hover:text-red-800 py-1.5 px-3 rounded-lg border border-red-200 hover:bg-red-50 transition-colors" onClick={deleteTemplate}>Delete</button>
                   </div>
                 </div>
@@ -1485,7 +1515,7 @@ const preserveTeamRef = useRef(false)
                     }}
                   >
                     <option value="">Select template</option>
-                    {templates.map((t) => (
+                    {selectableTemplates.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.templateName} {t.size ? `(${t.size})` : ''}
                       </option>
@@ -1607,19 +1637,33 @@ const preserveTeamRef = useRef(false)
   )
 
   const notifyTeamModal = notifyPromptAppt ? (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10010]">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10010] overflow-hidden overscroll-none"
+      onWheel={(e) => e.preventDefault()}
+      onTouchMove={(e) => e.preventDefault()}
+    >
       <div
-        className="bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-sm w-full overflow-hidden"
+        className="bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-sm w-full overflow-hidden max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
       >
-        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 shrink-0">
           <h3 className="text-lg font-semibold text-slate-800">Notify team?</h3>
         </div>
-        <div className="p-4">
-          <p className="text-sm text-slate-600 mb-4">
+        <div className="p-4 overflow-y-auto min-h-0 flex-1">
+          <p className="text-sm text-slate-600 mb-3">
             Appointment saved. Notify the assigned team about what changed? This keeps their job
             confirmed — it will not create a new unconfirmed assignment.
           </p>
+          {notifyPreviewText ? (
+            <div className="mb-4">
+              <p className="text-xs font-medium text-slate-500 mb-1">Message preview</p>
+              <pre className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-3 whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
+                {notifyPreviewText}
+              </pre>
+            </div>
+          ) : null}
           <div className="flex justify-end gap-2">
             <button
               type="button"
@@ -1643,6 +1687,48 @@ const preserveTeamRef = useRef(false)
     </div>
   ) : null
 
+  const editTemplateConfirmModal = showEditTemplateConfirm ? (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10010] overflow-hidden overscroll-none"
+      onWheel={(e) => e.preventDefault()}
+      onTouchMove={(e) => e.preventDefault()}
+    >
+      <div
+        className="bg-white rounded-xl shadow-lg border-2 border-slate-200 max-w-sm w-full overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
+        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+          <h3 className="text-lg font-semibold text-slate-800">Edit template?</h3>
+        </div>
+        <div className="p-4">
+          <p className="text-sm text-slate-600 mb-4">
+            Editing creates a new current template. The previous version is kept as &quot;old(n)&quot; for
+            past appointments and will not appear in the template picker. Prefer Branch if you only
+            want a separate copy under a new name.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="px-4 py-2 text-sm font-medium bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors"
+              onClick={() => setShowEditTemplateConfirm(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="px-4 py-2 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+              onClick={confirmStartEditTemplate}
+            >
+              Continue to edit
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null
+
   if (isPage) {
     return (
       <>
@@ -1653,6 +1739,7 @@ const preserveTeamRef = useRef(false)
           <div className="p-4">{formBody}</div>
         </div>
         {notifyTeamModal}
+        {editTemplateConfirmModal}
       </>
     )
   }
@@ -1660,7 +1747,13 @@ const preserveTeamRef = useRef(false)
   return (
     <>
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-2 overflow-hidden"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-2 overflow-hidden overscroll-none"
+      onWheel={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault()
+      }}
+      onTouchMove={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault()
+      }}
     >
       <div
         className="bg-white rounded-xl shadow-lg w-full max-w-xl overflow-hidden max-h-[90vh] flex flex-col"
@@ -1678,6 +1771,7 @@ const preserveTeamRef = useRef(false)
       </div>
     </div>
     {notifyTeamModal}
+    {editTemplateConfirmModal}
     </>
   )
 }

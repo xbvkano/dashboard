@@ -69,61 +69,57 @@ export default function DayTimelineModalContainer({
   const templateTeamSize = template?.teamSize
 
   return (
-    <>
-      {/* When editing or rescheduling, the modal has its own chrome; hide backdrop for edit only */}
-      {(
-        <div
-          className="fixed inset-0 bg-black/50"
-          style={{ zIndex: 9999 }}
-          onClick={onClose}
-        />
-      )}
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-4 overflow-hidden overscroll-none"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      onWheel={(e) => e.preventDefault()}
+      onTouchMove={(e) => e.preventDefault()}
+    >
+      <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
       <div
-        className="fixed inset-0 flex items-center justify-center p-4"
-        style={{ zIndex: 10000 }}
+        className={`relative z-[1] w-full max-w-xl max-h-[90vh] min-h-0 overflow-y-auto overflow-x-hidden flex flex-col items-center overscroll-contain ${view === 'team-options' || view === 'reschedule' ? 'justify-center' : 'justify-start'}`}
         onClick={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
       >
-        <div
-          className={`w-full max-w-xl max-h-[90vh] min-h-0 overflow-y-auto overflow-x-hidden flex flex-col items-center ${view === 'team-options' || view === 'reschedule' ? 'justify-center' : 'justify-start'}`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {view === 'details' && (
-            <AppointmentDetails
-              appointment={appointment}
-              onUpdate={onUpdate}
-              onClose={onClose}
-              onCreate={onCreate}
-              onEdit={onEdit}
-              onNavigateToDate={onNavigateToDate}
-              onRefresh={onRefresh}
-              onRequestSkip={onRequestSkip}
-              onRequestConfirm={onRequestConfirm}
-              onOpenTeamOptions={() => onViewChange('team-options')}
-              onOpenReschedule={() => onViewChange('reschedule')}
-              onViewInCalendar={onViewInCalendar}
-            />
-          )}
-          {view === 'team-options' && (
-            <TeamOptionsModal
-              appointment={appointment}
-              onClose={() => onViewChange('details')}
-              onSave={(updated) => {
-                onUpdate(updated)
-                onViewChange('details')
-              }}
-              templateTeamSize={templateTeamSize}
-              embed
-            />
-          )}
-          {view === 'reschedule' && onRescheduled && (
-            <RescheduleAppointmentModal
-              appointment={appointment}
-              onClose={() => onViewChange('details')}
-              onRescheduled={onRescheduled}
-            />
-          )}
-        </div>
+        {view === 'details' && (
+          <AppointmentDetails
+            appointment={appointment}
+            onUpdate={onUpdate}
+            onClose={onClose}
+            onCreate={onCreate}
+            onEdit={onEdit}
+            onNavigateToDate={onNavigateToDate}
+            onRefresh={onRefresh}
+            onRequestSkip={onRequestSkip}
+            onRequestConfirm={onRequestConfirm}
+            onOpenTeamOptions={() => onViewChange('team-options')}
+            onOpenReschedule={() => onViewChange('reschedule')}
+            onViewInCalendar={onViewInCalendar}
+          />
+        )}
+        {view === 'team-options' && (
+          <TeamOptionsModal
+            appointment={appointment}
+            onClose={() => onViewChange('details')}
+            onSave={(updated) => {
+              onUpdate(updated)
+              onViewChange('details')
+            }}
+            templateTeamSize={templateTeamSize}
+            embed
+          />
+        )}
+        {view === 'reschedule' && onRescheduled && (
+          <RescheduleAppointmentModal
+            appointment={appointment}
+            onClose={() => onViewChange('details')}
+            onRescheduled={onRescheduled}
+          />
+        )}
       </div>
-    </>
+    </div>
   )
 }

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
 import { formatPhone } from '../../../../formatPhone'
 import type { RecurrenceRule } from '../../../../types'
 import { SIZE_OPTIONS } from '../../../../shared/sizeOptions'
+import { isSupersededTemplateName } from '../../Calendar/utils/templateVersioning'
 
 interface Client {
   id: number
@@ -18,6 +20,7 @@ interface AppointmentTemplate {
   type: string
   address: string
   size: string | null
+  teamSize?: number
   price: number
   notes?: string | null
   instructions?: string | null
@@ -54,6 +57,7 @@ export default function CreateRecurrenceFamilyModal({
     templateName: '',
     type: 'STANDARD',
     size: '',
+    teamSize: '',
     address: '',
     price: '',
     notes: '',
@@ -62,6 +66,19 @@ export default function CreateRecurrenceFamilyModal({
     carpetRooms: '',
     carpetPrice: '',
   })
+  const emptyTemplateForm = {
+    templateName: '',
+    type: 'STANDARD',
+    size: '',
+    teamSize: '',
+    address: '',
+    price: '',
+    notes: '',
+    instructions: '',
+    carpetEnabled: false,
+    carpetRooms: '',
+    carpetPrice: '',
+  }
   const [admins, setAdmins] = useState<Admin[]>([])
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null)
   const [date, setDate] = useState('')
@@ -84,6 +101,14 @@ export default function CreateRecurrenceFamilyModal({
         }
       })
       .catch((err) => console.error('Failed to load admins:', err))
+  }, [])
+
+  useEffect(() => {
+    const original = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = original
+    }
   }, [])
 
   // Load initial client if initialClientId is provided
@@ -136,9 +161,30 @@ export default function CreateRecurrenceFamilyModal({
     }
   }, [selectedClientId])
 
+  // Prefill default team size (and price if empty) when size/type change.
+  useEffect(() => {
+    if (!templateForm.size || !templateForm.type) return
+    fetchJson(
+      `${API_BASE_URL}/team-size?size=${encodeURIComponent(templateForm.size)}&type=${templateForm.type}`,
+    )
+      .then((d: { teamSize: number; price: number }) => {
+        setTemplateForm((prev) => ({
+          ...prev,
+          teamSize: String(d.teamSize),
+          price: prev.price.trim() ? prev.price : String(d.price),
+        }))
+      })
+      .catch(() => {})
+  }, [templateForm.size, templateForm.type])
+
   const createTemplate = async () => {
     if (!templateForm.templateName.trim() || !templateForm.address.trim() || !templateForm.price.trim() || !selectedClientId) {
       await alert('Please fill in template name, address, and price')
+      return
+    }
+    const teamSizeNum = parseInt(templateForm.teamSize, 10)
+    if (!templateForm.teamSize.trim() || isNaN(teamSizeNum) || teamSizeNum < 1) {
+      await alert('Please provide team size (min 1)')
       return
     }
     try {
@@ -150,6 +196,7 @@ export default function CreateRecurrenceFamilyModal({
           templateName: templateForm.templateName,
           type: templateForm.type,
           size: templateForm.size,
+          teamSize: teamSizeNum,
           address: templateForm.address,
           price: Number(templateForm.price),
           notes: templateForm.notes,
@@ -160,18 +207,7 @@ export default function CreateRecurrenceFamilyModal({
       })
       setSelectedTemplateId(template.id)
       setShowNewTemplate(false)
-      setTemplateForm({
-        templateName: '',
-        type: 'STANDARD',
-        size: '',
-        address: '',
-        price: '',
-        notes: '',
-        instructions: '',
-        carpetEnabled: false,
-        carpetRooms: '',
-        carpetPrice: '',
-      })
+      setTemplateForm(emptyTemplateForm)
       // Reload templates
       if (selectedClientId) {
         fetchJson(`${API_BASE_URL}/appointment-templates?clientId=${selectedClientId}`)
@@ -249,9 +285,22 @@ export default function CreateRecurrenceFamilyModal({
     }
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+  return createPortal(
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 overflow-hidden overscroll-none"
+      onWheel={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault()
+      }}
+      onTouchMove={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault()
+      }}
+    >
+      <div
+        className="bg-white p-6 rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto overscroll-contain"
+        onClick={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold">Create Recurrence Family</h3>
           <button
@@ -336,6 +385,9 @@ export default function CreateRecurrenceFamilyModal({
                         {selectedTemplate.size && (
                           <div className="text-sm text-gray-600">Size: {selectedTemplate.size}</div>
                         )}
+                        <div className="text-sm text-gray-600">
+                          Team size: {selectedTemplate.teamSize ?? 1}
+                        </div>
                         <div className="text-sm text-gray-600">Address: {selectedTemplate.address}</div>
                         <div className="text-sm text-gray-600">Price: ${selectedTemplate.price.toFixed(2)}</div>
                         {selectedTemplate.notes && (
@@ -361,7 +413,9 @@ export default function CreateRecurrenceFamilyModal({
                       required
                     >
                       <option value="">Select a template</option>
-                      {templates.map((template) => (
+                      {templates
+                        .filter((template) => !isSupersededTemplateName(template.templateName))
+                        .map((template) => (
                         <option key={template.id} value={template.id}>
                           {template.templateName} - {template.address}
                         </option>
@@ -390,18 +444,7 @@ export default function CreateRecurrenceFamilyModal({
                       type="button"
                       onClick={() => {
                         setShowNewTemplate(false)
-                        setTemplateForm({
-                          templateName: '',
-                          type: 'STANDARD',
-                          size: '',
-                          address: '',
-                          price: '',
-                          notes: '',
-                          instructions: '',
-                          carpetEnabled: false,
-                          carpetRooms: '',
-                          carpetPrice: '',
-                        })
+                        setTemplateForm(emptyTemplateForm)
                       }}
                       className="text-gray-500 hover:text-gray-700"
                     >
@@ -436,6 +479,22 @@ export default function CreateRecurrenceFamilyModal({
                       </option>
                     ))}
                   </select>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder={
+                      templateForm.size && templateForm.type
+                        ? 'Team size *'
+                        : 'Team size * (select size first)'
+                    }
+                    value={templateForm.teamSize}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, '')
+                      setTemplateForm({ ...templateForm, teamSize: v })
+                    }}
+                    className="w-full border p-2 rounded"
+                  />
                   <input
                     type="text"
                     placeholder="Address *"
@@ -492,7 +551,13 @@ export default function CreateRecurrenceFamilyModal({
                   <button
                     type="button"
                     onClick={createTemplate}
-                    disabled={!templateForm.templateName.trim() || !templateForm.address.trim() || !templateForm.price.trim()}
+                    disabled={
+                      !templateForm.templateName.trim() ||
+                      !templateForm.address.trim() ||
+                      !templateForm.price.trim() ||
+                      !templateForm.teamSize.trim() ||
+                      parseInt(templateForm.teamSize, 10) < 1
+                    }
                     className="w-full bg-blue-500 text-white px-4 py-2 rounded disabled:bg-gray-400"
                   >
                     Create Template
@@ -767,6 +832,7 @@ export default function CreateRecurrenceFamilyModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

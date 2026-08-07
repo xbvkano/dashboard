@@ -50,3 +50,35 @@ export function hasEmployeeNotifiableAppointmentChanges(params: {
     !sameText(previous.time, current.time)
   )
 }
+
+/**
+ * Build SMS body for team edit notifications (mirrors server appointmentEditNotice).
+ * Always identifies the job by the previous address; change lines use new values only
+ * for employee-visible logistics fields (address, instructions, date, time).
+ */
+export function buildAppointmentEditNotice(params: {
+  previous: AppointmentEditPreviousPayload
+  current: AppointmentEditPreviousPayload
+}): string {
+  const { previous, current } = params
+  const lines: string[] = [
+    'Appointment Edit Notice',
+    `Address: ${normText(previous.address) || normText(current.address) || '(unknown)'}`,
+  ]
+
+  if (!sameText(previous.address, current.address)) {
+    lines.push(`Address updated: ${normText(current.address) || '(none)'}`)
+  }
+  if (!sameText(previous.instructions, current.instructions)) {
+    lines.push(`Instructions updated: ${normText(current.instructions) || '(none)'}`)
+  }
+  if (!sameText(previous.date, current.date)) {
+    lines.push(`Date updated: ${normText(current.date) || '(none)'}`)
+  }
+  if (!sameText(previous.time, current.time)) {
+    lines.push(`Time updated: ${normText(current.time) || '(none)'}`)
+  }
+
+  lines.push('\n Please do not respond to this message')
+  return lines.join('\n')
+}

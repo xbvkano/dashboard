@@ -395,6 +395,7 @@ export async function createRecurrenceFamily(req: Request, res: Response) {
         address: template.address,
         cityStateZip: template.instructions ?? undefined,
         size: template.size,
+        teamSize: template.teamSize ?? 1,
         hours: calculatedHours,
         price: template.price,
         paid: false,
@@ -907,6 +908,17 @@ async function ensureSingleUnconfirmedInstance(
     if (templateAppt) {
       // Use templateId from family if available, otherwise from the template appointment
       const templateIdToUse = family.templateId ?? templateAppt.templateId ?? null
+
+      let teamSizeToUse = templateAppt.teamSize ?? 1
+      if (templateIdToUse != null) {
+        const familyTemplate = await prisma.appointmentTemplate.findUnique({
+          where: { id: templateIdToUse },
+          select: { teamSize: true },
+        })
+        if (familyTemplate?.teamSize != null) {
+          teamSizeToUse = familyTemplate.teamSize
+        }
+      }
       
       await prisma.appointment.create({
         data: {
@@ -919,6 +931,7 @@ async function ensureSingleUnconfirmedInstance(
           address: templateAppt.address,
           cityStateZip: templateAppt.cityStateZip,
           size: templateAppt.size,
+          teamSize: teamSizeToUse,
           hours: templateAppt.hours ?? (templateAppt.size && templateAppt.type
             ? (await import('../utils/appointmentUtils')).calculateAppointmentHours(templateAppt.size, templateAppt.type)
             : null),
@@ -1002,6 +1015,17 @@ export async function restartRecurrenceFamily(req: Request, res: Response) {
     // Use templateId from family if available, otherwise from the last appointment
     const templateIdToUse = family.templateId ?? lastAppt.templateId ?? null
 
+    let teamSizeToUse = lastAppt.teamSize ?? 1
+    if (templateIdToUse != null) {
+      const familyTemplate = await prisma.appointmentTemplate.findUnique({
+        where: { id: templateIdToUse },
+        select: { teamSize: true },
+      })
+      if (familyTemplate?.teamSize != null) {
+        teamSizeToUse = familyTemplate.teamSize
+      }
+    }
+
     const unconfirmedAppt = await prisma.appointment.create({
       data: {
         clientId: lastAppt.clientId,
@@ -1013,6 +1037,7 @@ export async function restartRecurrenceFamily(req: Request, res: Response) {
         address: lastAppt.address,
         cityStateZip: lastAppt.cityStateZip,
         size: lastAppt.size,
+        teamSize: teamSizeToUse,
         hours: calculatedHours,
         price: lastAppt.price,
         paid: false,

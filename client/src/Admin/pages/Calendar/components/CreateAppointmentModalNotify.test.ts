@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildAppointmentEditNotice,
   hasEmployeeNotifiableAppointmentChanges,
   isAppointmentBeforeBusinessToday,
 } from './CreateAppointmentModalNotify'
@@ -67,5 +68,27 @@ describe('hasEmployeeNotifiableAppointmentChanges', () => {
         current: { ...base },
       }),
     ).toBe(false)
+  })
+})
+
+describe('buildAppointmentEditNotice', () => {
+  const base = {
+    address: '100 Main St',
+    instructions: 'Gate 1',
+    date: '2026-08-03',
+    time: '09:00',
+  }
+
+  it('includes only changed logistics lines', () => {
+    const text = buildAppointmentEditNotice({
+      previous: base,
+      current: { ...base, instructions: 'Gate 2', time: '10:00' },
+    })
+    expect(text).toContain('Appointment Edit Notice')
+    expect(text).toContain('Address: 100 Main St')
+    expect(text).toContain('Instructions updated: Gate 2')
+    expect(text).toContain('Time updated: 10:00')
+    expect(text).not.toContain('Address updated:')
+    expect(text).not.toContain('Date updated:')
   })
 })
