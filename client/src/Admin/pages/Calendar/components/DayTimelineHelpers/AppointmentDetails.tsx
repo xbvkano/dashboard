@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../../api'
 import { useModal } from '../../../../../ModalProvider'
+import { CONFIRM_Z } from '../../../../../modalLayers'
 import { formatPhone } from '../../../../../formatPhone'
 import EmployeeCodeBadge from '../../../../components/EmployeeCodeBadge'
 import { copyTextToClipboard, phoneToE164 } from '../../../../contactActions'
@@ -1137,10 +1138,11 @@ export default function AppointmentDetails({
         </div>
       </div>
 
-      {/* Past Date Confirmation Modal - z-[10100] so it appears above view appointment details */}
+      {/* Past Date Confirmation Modal — above DayTimelineModalContainer */}
       {showPastDateConfirm && pendingMoveData && createPortal(
         <div
-          className="fixed inset-0 flex items-center justify-center p-4 z-[10100]"
+          className="fixed inset-0 flex items-center justify-center p-4"
+          style={{ zIndex: CONFIRM_Z }}
           role="dialog"
           aria-modal="true"
         >
@@ -1195,7 +1197,8 @@ export default function AppointmentDetails({
       {showEditInstructions &&
         createPortal(
           <div
-            className="fixed inset-0 flex items-center justify-center p-4 z-[10100] overflow-hidden overscroll-none"
+            className="fixed inset-0 flex items-center justify-center p-4 overflow-hidden overscroll-none"
+            style={{ zIndex: CONFIRM_Z }}
             role="dialog"
             aria-modal="true"
             onWheel={(e) => {

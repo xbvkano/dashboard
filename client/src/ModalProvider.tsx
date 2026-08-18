@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { ALERT_Z } from './modalLayers'
 
 interface ModalContextProps {
   alert: (message: string) => Promise<void>
@@ -43,7 +44,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       {modal &&
         createPortal(
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10010] overflow-hidden overscroll-none"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 overflow-hidden overscroll-none"
+            style={{ zIndex: ALERT_Z }}
             onClick={() => close(modal.type === 'confirm' ? false : undefined)}
             onWheel={(e) => e.preventDefault()}
             onTouchMove={(e) => e.preventDefault()}

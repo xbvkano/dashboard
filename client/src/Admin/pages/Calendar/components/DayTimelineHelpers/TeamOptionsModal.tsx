@@ -2,9 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../../api'
 import { appointmentCalendarDateKey, type Appointment } from '../../types'
-
-/** Z-index for the confirm overlay. Above DayTimelineModalContainer content (10000) so confirm shows on top. */
-const CONFIRM_OVERLAY_Z = 10001
+import { CONFIRM_Z } from '../../../../../modalLayers'
 
 interface EmployeeWithAvailability {
   id: number
@@ -469,47 +467,53 @@ export default function TeamOptionsModal({
         </div>
       </div>
 
-      {/* Confirmation modal: rendered inside this component so z-index is correct relative to container (10000). */}
-      {showConfirmModal && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
-          style={{ zIndex: CONFIRM_OVERLAY_Z }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="team-confirm-title"
-          onClick={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
-          }}
-        >
+      {/* Confirmation modal: portaled to body so it stacks above DayTimelineModalContainer. */}
+      {showConfirmModal &&
+        createPortal(
           <div
-            className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 overflow-hidden overscroll-none"
+            style={{ zIndex: CONFIRM_Z }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="team-confirm-title"
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+            }}
+            onWheel={(e) => e.preventDefault()}
+            onTouchMove={(e) => e.preventDefault()}
           >
-            <h3 id="team-confirm-title" className="text-lg font-semibold text-slate-800 mb-2">
-              {confirmTitle}
-            </h3>
-            <p className="text-sm text-slate-600 mb-5">{confirmMessage}</p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={dismissConfirm}
-                className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => onConfirm()}
-                disabled={saving}
-                className="flex-1 px-4 py-2.5 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? 'Saving...' : 'Yes, continue'}
-              </button>
+            <div
+              className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5"
+              onClick={(e) => e.stopPropagation()}
+              onWheel={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+            >
+              <h3 id="team-confirm-title" className="text-lg font-semibold text-slate-800 mb-2">
+                {confirmTitle}
+              </h3>
+              <p className="text-sm text-slate-600 mb-5">{confirmMessage}</p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={dismissConfirm}
+                  className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onConfirm()}
+                  disabled={saving}
+                  className="flex-1 px-4 py-2.5 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {saving ? 'Saving...' : 'Yes, continue'}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   )
 

@@ -4,6 +4,7 @@ import type { Appointment } from '../../types'
 import AppointmentDetails from './AppointmentDetails'
 import TeamOptionsModal from './TeamOptionsModal'
 import RescheduleAppointmentModal from './RescheduleAppointmentModal'
+import { MODAL_Z } from '../../../../../modalLayers'
 
 export type DayTimelineModalView = 'details' | 'team-options' | 'reschedule'
 
@@ -70,7 +71,8 @@ export default function DayTimelineModalContainer({
 
   return (
     <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center p-4 overflow-hidden overscroll-none"
+      className="fixed inset-0 flex items-center justify-center p-4 overflow-hidden overscroll-none"
+      style={{ zIndex: MODAL_Z }}
       role="dialog"
       aria-modal="true"
       onClick={onClose}

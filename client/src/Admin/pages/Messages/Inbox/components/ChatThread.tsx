@@ -41,22 +41,9 @@ type Props = {
 /** Pixels from bottom to still count as "at bottom" for auto-scroll */
 const NEAR_BOTTOM_PX = 96
 
-/** Run after images decode / layout so scrollHeight is final */
 function flushScrollToBottom(el: HTMLDivElement | null): void {
   if (!el) return
-  const snap = () => {
-    el.scrollTop = el.scrollHeight
-  }
-  snap()
-  requestAnimationFrame(() => {
-    snap()
-    requestAnimationFrame(snap)
-  })
-  // Late layout (images, fonts)
-  setTimeout(snap, 0)
-  setTimeout(snap, 50)
-  setTimeout(snap, 120)
-  setTimeout(snap, 280)
+  el.scrollTop = el.scrollHeight
 }
 
 export default function ChatThread({
@@ -93,26 +80,46 @@ export default function ChatThread({
   /** If true, new messages / image layout changes keep the view pinned to the bottom */
   const pinnedToBottomRef = useRef(true)
   const prevDetailLoadingRef = useRef(detailLoading)
+  const prevLastMessageIdRef = useRef<number | string | null>(null)
+  const prevMessageCountRef = useRef(0)
+  const prevContentHeightRef = useRef(0)
+  const prevScrollPortHeightRef = useRef(0)
+  const programmaticScrollRef = useRef(false)
 
   const lastMessageId = messages.length ? messages[messages.length - 1].id : 0
 
   const updatePinnedFromScroll = useCallback(() => {
+    if (programmaticScrollRef.current) return
     const el = scrollRef.current
     if (!el) return
     const gap = el.scrollHeight - el.scrollTop - el.clientHeight
     pinnedToBottomRef.current = gap <= NEAR_BOTTOM_PX
   }, [])
 
+  const snapToBottom = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return
+    programmaticScrollRef.current = true
+    flushScrollToBottom(el)
+    requestAnimationFrame(() => {
+      flushScrollToBottom(el)
+      programmaticScrollRef.current = false
+    })
+  }, [])
+
   const scrollPinnedToBottom = useCallback(() => {
     if (!pinnedToBottomRef.current) return
-    flushScrollToBottom(scrollRef.current)
-  }, [])
+    snapToBottom(scrollRef.current)
+  }, [snapToBottom])
 
   /** Switching threads: always start at the bottom */
   useLayoutEffect(() => {
     pinnedToBottomRef.current = true
-    flushScrollToBottom(scrollRef.current)
-  }, [conversation.id])
+    prevLastMessageIdRef.current = null
+    prevMessageCountRef.current = 0
+    prevContentHeightRef.current = 0
+    prevScrollPortHeightRef.current = 0
+    snapToBottom(scrollRef.current)
+  }, [conversation.id, snapToBottom])
 
   /** Conversation detail just finished loading — show latest messages first */
   useLayoutEffect(() => {
@@ -120,32 +127,65 @@ export default function ChatThread({
     prevDetailLoadingRef.current = detailLoading
     if (wasLoading && !detailLoading) {
       pinnedToBottomRef.current = true
-      flushScrollToBottom(scrollRef.current)
+      prevLastMessageIdRef.current = lastMessageId
+      prevMessageCountRef.current = messages.length
+      snapToBottom(scrollRef.current)
     }
-  }, [detailLoading])
+  }, [detailLoading, lastMessageId, messages.length, snapToBottom])
 
-  /** New messages / poll: follow only if already near bottom */
+  /** New messages only — ignore poll identity churn when last id / length unchanged */
   useLayoutEffect(() => {
     if (detailLoading) return
+    const prevId = prevLastMessageIdRef.current
+    const prevCount = prevMessageCountRef.current
+    const grew =
+      messages.length > prevCount || (lastMessageId !== 0 && lastMessageId !== prevId)
+    prevLastMessageIdRef.current = lastMessageId
+    prevMessageCountRef.current = messages.length
+    if (!grew) return
     if (pinnedToBottomRef.current) {
-      flushScrollToBottom(scrollRef.current)
+      snapToBottom(scrollRef.current)
     }
-  }, [messages, lastMessageId, detailLoading])
+  }, [messages, lastMessageId, detailLoading, snapToBottom])
 
-  /** Content height changes (images, text wrap) without React state */
+  /**
+   * Viewport shrunk (composer grew) → keep distance from bottom; never flush-to-bottom.
+   * Content grew (images/wrap) → pin if already near bottom.
+   */
   useEffect(() => {
     const scrollEl = scrollRef.current
     const contentEl = contentRef.current
     if (!scrollEl || !contentEl) return
 
+    prevContentHeightRef.current = contentEl.getBoundingClientRect().height
+    prevScrollPortHeightRef.current = scrollEl.clientHeight
+
     const ro = new ResizeObserver(() => {
-      if (pinnedToBottomRef.current) {
-        flushScrollToBottom(scrollEl)
+      const portH = scrollEl.clientHeight
+      const prevPortH = prevScrollPortHeightRef.current
+      prevScrollPortHeightRef.current = portH
+      const portDelta = prevPortH - portH
+
+      if (Math.abs(portDelta) > 1) {
+        programmaticScrollRef.current = true
+        scrollEl.scrollTop += portDelta
+        requestAnimationFrame(() => {
+          programmaticScrollRef.current = false
+        })
+        return
+      }
+
+      const contentH = contentEl.getBoundingClientRect().height
+      const prevContentH = prevContentHeightRef.current
+      prevContentHeightRef.current = contentH
+      if (contentH > prevContentH + 1 && pinnedToBottomRef.current) {
+        snapToBottom(scrollEl)
       }
     })
     ro.observe(contentEl)
+    ro.observe(scrollEl)
     return () => ro.disconnect()
-  }, [])
+  }, [conversation.id, snapToBottom])
 
   return (
     <div
@@ -179,7 +219,7 @@ export default function ChatThread({
       <div
         ref={scrollRef}
         onScroll={updatePinnedFromScroll}
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 pt-2 pb-1 [overflow-anchor:none]"
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 pt-2 pb-1 [overflow-anchor:none] [scrollbar-gutter:stable]"
       >
         {detailLoading && (
           <p className="text-center text-sm text-slate-500 py-6">Loading messages…</p>

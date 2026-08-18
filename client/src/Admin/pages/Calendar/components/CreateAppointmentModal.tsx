@@ -28,6 +28,7 @@ function dashboardHeadersNoBody(): Headers {
 }
 import { useModal } from '../../../../ModalProvider'
 import { formatPhone, phoneToApiPayload } from '../../../../formatPhone'
+import { CONFIRM_Z, MODAL_Z } from '../../../../modalLayers'
 import PhoneInput from '../../../components/PhoneInput'
 import { SIZE_OPTIONS } from '../../../../shared/sizeOptions'
 import {
@@ -1638,7 +1639,8 @@ const preserveTeamRef = useRef(false)
 
   const notifyTeamModal = notifyPromptAppt ? (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10010] overflow-hidden overscroll-none"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 overflow-hidden overscroll-none"
+      style={{ zIndex: CONFIRM_Z }}
       onWheel={(e) => e.preventDefault()}
       onTouchMove={(e) => e.preventDefault()}
     >
@@ -1689,7 +1691,8 @@ const preserveTeamRef = useRef(false)
 
   const editTemplateConfirmModal = showEditTemplateConfirm ? (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10010] overflow-hidden overscroll-none"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 overflow-hidden overscroll-none"
+      style={{ zIndex: CONFIRM_Z }}
       onWheel={(e) => e.preventDefault()}
       onTouchMove={(e) => e.preventDefault()}
     >
@@ -1747,7 +1750,8 @@ const preserveTeamRef = useRef(false)
   return (
     <>
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-2 overflow-hidden overscroll-none"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-2 overflow-hidden overscroll-none"
+      style={{ zIndex: MODAL_Z }}
       onWheel={(e) => {
         if (e.target === e.currentTarget) e.preventDefault()
       }}

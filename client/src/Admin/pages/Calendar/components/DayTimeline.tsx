@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Appointment } from '../types'
 import { API_BASE_URL, fetchJson, withApiAuth } from '../../../../api'
 import { useModal } from '../../../../ModalProvider'
+import { CONFIRM_Z } from '../../../../modalLayers'
 import DayTimelineModalContainer from './DayTimelineHelpers/DayTimelineModalContainer'
 import type { DayTimelineModalView } from './DayTimelineHelpers/DayTimelineModalContainer'
 import AppointmentCard from './DayTimelineHelpers/AppointmentCard'
@@ -857,10 +858,11 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
         document.body
       )}
 
-      {/* Skip Confirmation Modal - wrapper z-[10100] so it appears above view appointment details (10000) */}
+      {/* Skip Confirmation Modal — above DayTimelineModalContainer */}
       {showSkipConfirm && skipAppointment && createPortal(
         <div
-          className="fixed inset-0 flex items-center justify-center p-4 z-[10100]"
+          className="fixed inset-0 flex items-center justify-center p-4"
+          style={{ zIndex: CONFIRM_Z }}
           role="dialog"
           aria-modal="true"
         >
@@ -902,10 +904,11 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
         document.body
       )}
 
-      {/* Confirm Confirmation Modal - wrapper z-[10100] so it appears above view appointment details (10000) */}
+      {/* Confirm Confirmation Modal — above DayTimelineModalContainer */}
       {showConfirmConfirm && confirmAppointment && createPortal(
         <div
-          className="fixed inset-0 flex items-center justify-center p-4 z-[10100]"
+          className="fixed inset-0 flex items-center justify-center p-4"
+          style={{ zIndex: CONFIRM_Z }}
           role="dialog"
           aria-modal="true"
         >
@@ -947,10 +950,11 @@ function Day({ appointments, nowOffset, scrollRef, animating, initialApptId, scr
         document.body
       )}
 
-      {/* Past Date Confirmation Modal - wrapper z-[10100] so it appears above view appointment details (10000) */}
+      {/* Past Date Confirmation Modal — above DayTimelineModalContainer */}
       {showPastDateConfirm && pendingMoveData && createPortal(
         <div
-          className="fixed inset-0 flex items-center justify-center p-4 z-[10100]"
+          className="fixed inset-0 flex items-center justify-center p-4"
+          style={{ zIndex: CONFIRM_Z }}
           role="dialog"
           aria-modal="true"
         >

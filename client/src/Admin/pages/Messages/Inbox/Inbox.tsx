@@ -534,8 +534,15 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
         inbox: inboxKind,
       })
         .then((res) => {
-          setList(res.items)
-          setNextCursor(res.nextCursor)
+          setList((prev) => {
+            const pageIds = new Set(res.items.map((i) => i.id))
+            const rest = prev.filter((p) => !pageIds.has(p.id))
+            // Only refresh pagination cursor when still on the first page; keep load-more state otherwise.
+            if (rest.length === 0) {
+              setNextCursor(res.nextCursor)
+            }
+            return [...res.items, ...rest]
+          })
         })
         .catch(() => {})
     }
@@ -1045,6 +1052,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
               showArchived={showArchived}
               onToggleArchivedView={handleToggleArchivedView}
               title={inboxTitle}
+              listResetKey={`${inboxKind}|${showArchived ? 'archived' : 'open'}|${debouncedSearch}`}
             />
           </div>
         </div>

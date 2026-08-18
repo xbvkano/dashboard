@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import ConversationListItem from './ConversationListItem'
 import MockingToggle from './MockingToggle'
@@ -28,6 +28,11 @@ type Props = {
   onToggleArchivedView?: () => void
   /** List header title when not viewing archived */
   title?: string
+  /**
+   * When this changes (search / archived / inbox kind / first load), scroll to top.
+   * Polls that only refresh row data should keep the same key so scroll is preserved.
+   */
+  listResetKey?: string
 }
 
 export default function ConversationList({
@@ -50,17 +55,39 @@ export default function ConversationList({
   showArchived = false,
   onToggleArchivedView,
   title = 'Messages',
+  listResetKey = '',
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const scrollTopRef = useRef(0)
+  const prevResetKeyRef = useRef(listResetKey)
+  const didInitScrollRef = useRef(false)
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current
-    if (!el || !hasMore || listLoadingMore || !onLoadMore) return
+    if (!el) return
+    scrollTopRef.current = el.scrollTop
+    if (!hasMore || listLoadingMore || !onLoadMore) return
     const { scrollTop, scrollHeight, clientHeight } = el
     if (scrollHeight - scrollTop - clientHeight < 80) {
       onLoadMore()
     }
   }, [hasMore, listLoadingMore, onLoadMore])
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const resetChanged = prevResetKeyRef.current !== listResetKey
+    if (!didInitScrollRef.current || resetChanged) {
+      didInitScrollRef.current = true
+      prevResetKeyRef.current = listResetKey
+      el.scrollTop = 0
+      scrollTopRef.current = 0
+      return
+    }
+
+    el.scrollTop = scrollTopRef.current
+  }, [conversations, listResetKey])
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-white md:rounded-l-xl md:border md:border-slate-200 md:overflow-hidden">
@@ -127,7 +154,7 @@ export default function ConversationList({
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="flex-1 overflow-y-auto overscroll-contain min-h-0"
+        className="flex-1 overflow-y-auto overscroll-contain min-h-0 [overflow-anchor:none]"
       >
         {listLoading && (
           <p className="text-center text-sm text-slate-500 py-8 px-4">Loading conversations…</p>

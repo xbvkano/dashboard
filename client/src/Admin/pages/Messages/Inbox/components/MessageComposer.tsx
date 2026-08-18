@@ -14,13 +14,8 @@ type PendingImage = { file: File; url: string }
 
 type PanelState = 'closed' | AttachmentPanelView
 
-/** Half of the visual viewport — stable on mobile URL bar show/hide when using dvh */
-function maxComposerTextareaHeightPx(): number {
-  if (typeof window === 'undefined') return 400
-  const v = window.visualViewport
-  const h = v?.height ?? window.innerHeight
-  return Math.max(120, Math.floor(h * 0.5))
-}
+const composerFieldClass =
+  'min-h-[40px] max-h-[50dvh] px-3 py-2.5 text-[16px] md:text-[15px] leading-normal whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-2xl border border-slate-300 box-border'
 
 export default function MessageComposer({
   onSend,
@@ -40,18 +35,6 @@ export default function MessageComposer({
   const toggleRef = useRef<HTMLButtonElement>(null)
   const selectionRef = useRef({ start: 0, end: 0 })
   const galleryId = useId()
-
-  const syncTextareaHeight = useCallback(() => {
-    const el = textareaRef.current
-    if (!el) return
-    const maxH = maxComposerTextareaHeightPx()
-    const minH = 40
-    el.style.height = 'auto'
-    const contentH = el.scrollHeight
-    const next = Math.min(Math.max(contentH, minH), maxH)
-    el.style.height = `${next}px`
-    el.style.overflowY = contentH > maxH ? 'auto' : 'hidden'
-  }, [])
 
   const closePanel = useCallback(() => {
     setPanelState('closed')
@@ -79,27 +62,12 @@ export default function MessageComposer({
           if (!el) return
           el.focus()
           el.setSelectionRange(cursor, cursor)
-          syncTextareaHeight()
         })
         return next
       })
     },
-    [syncTextareaHeight],
+    [],
   )
-
-  useEffect(() => {
-    syncTextareaHeight()
-  }, [text, syncTextareaHeight])
-
-  useEffect(() => {
-    const onResize = () => syncTextareaHeight()
-    window.addEventListener('resize', onResize)
-    window.visualViewport?.addEventListener('resize', onResize)
-    return () => {
-      window.removeEventListener('resize', onResize)
-      window.visualViewport?.removeEventListener('resize', onResize)
-    }
-  }, [syncTextareaHeight])
 
   useEffect(() => {
     if (panelState === 'closed') return
@@ -164,7 +132,6 @@ export default function MessageComposer({
         return []
       })
       closePanel()
-      requestAnimationFrame(() => syncTextareaHeight())
     } finally {
       sendInFlightRef.current = false
       setSending(false)
@@ -223,19 +190,27 @@ export default function MessageComposer({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onSelect={updateSelection}
-          onClick={updateSelection}
-          onKeyUp={updateSelection}
-          placeholder="Message"
-          rows={1}
-          readOnly={sending}
-          aria-disabled={sending}
-          className="flex-1 min-h-[40px] max-h-[50dvh] resize-none rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-[16px] md:text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50 box-border disabled:opacity-70"
-        />
+        <div className="grid flex-1 min-w-0">
+          <div
+            aria-hidden
+            className={`col-start-1 row-start-1 invisible overflow-hidden ${composerFieldClass}`}
+          >
+            {`${text || ' '} `}
+          </div>
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onSelect={updateSelection}
+            onClick={updateSelection}
+            onKeyUp={updateSelection}
+            placeholder="Message"
+            rows={1}
+            readOnly={sending}
+            aria-disabled={sending}
+            className={`col-start-1 row-start-1 h-full w-full resize-none overflow-y-auto bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-70 ${composerFieldClass}`}
+          />
+        </div>
         <button
           type="button"
           onClick={(e) => {

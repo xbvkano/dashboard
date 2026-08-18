@@ -1,65 +1,88 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Employee } from './types'
 import { API_BASE_URL, fetchJson } from '../../../../api'
 import { formatPhone } from '../../../../formatPhone'
 import EmployeeCodeBadge from '../../../components/EmployeeCodeBadge'
 
-interface EmployeeListProps {}
+const PAGE_SIZE = 20
 
-export default function EmployeeList(_: EmployeeListProps) {
+function dedupeEmployees(rows: Employee[]): Employee[] {
+  const seen = new Set<number>()
+  return rows.filter((c) => {
+    if (c.id === undefined) return false
+    if (seen.has(c.id)) return false
+    seen.add(c.id)
+    return true
+  })
+}
+
+export default function EmployeeList() {
   const [items, setItems] = useState<Employee[]>([])
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(0)
-  const [hasMore, setHasMore] = useState(true)
   const loader = useRef<HTMLDivElement | null>(null)
+  const skipRef = useRef(0)
+  const loadingRef = useRef(false)
+  const hasMoreRef = useRef(true)
+  const searchRef = useRef(search)
+  const reqIdRef = useRef(0)
 
-  useEffect(() => {
-    setItems([])
-    setPage(0)
-    setHasMore(true)
-  }, [search])
+  const loadPage = useCallback(async (reset: boolean) => {
+    if (!reset && loadingRef.current) return
+    if (!reset && !hasMoreRef.current) return
 
-  useEffect(() => {
-    load()
-  }, [page, search])
+    const reqId = reset ? ++reqIdRef.current : reqIdRef.current
+    loadingRef.current = true
+    const skip = reset ? 0 : skipRef.current
+    const searchTerm = searchRef.current
 
-  function load() {
-    fetchJson(
-      `${API_BASE_URL}/employees?search=${encodeURIComponent(search)}&skip=${
-        page * 20
-      }&take=20&all=true`,
-    )
-      .then((data: Employee[]) => {
-        setItems((prev) => {
-          const next = page === 0 ? data : [...prev, ...data]
-          const seen = new Set<number>()
-          return next.filter((c) => {
-            if (c.id === undefined) return false
-            const exists = seen.has(c.id)
-            seen.add(c.id)
-            return !exists
-          })
-        })
-        if (data.length < 20) setHasMore(false)
+    try {
+      const data: Employee[] = await fetchJson(
+        `${API_BASE_URL}/employees?search=${encodeURIComponent(searchTerm)}&skip=${skip}&take=${PAGE_SIZE}&all=true`,
+      )
+      if (reqId !== reqIdRef.current) return
+
+      skipRef.current = skip + data.length
+      hasMoreRef.current = data.length === PAGE_SIZE
+      setItems((prev) => dedupeEmployees(reset ? data : [...prev, ...data]))
+    } catch (err) {
+      if (reqId !== reqIdRef.current) return
+      console.error(err)
+      hasMoreRef.current = false
+    } finally {
+      if (reqId !== reqIdRef.current) return
+      loadingRef.current = false
+
+      requestAnimationFrame(() => {
+        if (reqId !== reqIdRef.current) return
+        const el = loader.current
+        if (!el || !hasMoreRef.current || loadingRef.current) return
+        const rect = el.getBoundingClientRect()
+        if (rect.top < window.innerHeight + 80) {
+          void loadPage(false)
+        }
       })
-      .catch((err) => {
-        console.error(err)
-        setHasMore(false)
-      })
-  }
-
-  useEffect(() => {
-    const obs = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasMore) {
-        setPage((p) => p + 1)
-      }
-    })
-    if (loader.current) obs.observe(loader.current)
-    return () => {
-      if (loader.current) obs.unobserve(loader.current)
     }
-  }, [hasMore])
+  }, [])
+
+  useEffect(() => {
+    searchRef.current = search
+    skipRef.current = 0
+    hasMoreRef.current = true
+    loadingRef.current = false
+    setItems([])
+    void loadPage(true)
+  }, [search, loadPage])
+
+  useEffect(() => {
+    const el = loader.current
+    if (!el) return
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) void loadPage(false)
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [loadPage])
 
   const enabledItems = items.filter((c) => !c.disabled)
   const disabledItems = items.filter((c) => c.disabled)
