@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { downloadMediaUrl } from '../../../../components/downloadMediaUrl'
 import { copyTextToClipboard } from '../../../../contactActions'
+import { isAudioMedia, isImageMedia } from '../isImageMedia'
 import { postTranslateMessage } from '../messagingApi'
 import type { ThreadMessage } from '../types'
 
@@ -63,7 +64,7 @@ export default function MessageActionSheet({
   const [translating, setTranslating] = useState(false)
 
   const hasText = message.body.trim().length > 0
-  const imgs = message.media?.filter((m) => m.publicUrl) ?? []
+  const attachments = message.media?.filter((m) => m.publicUrl) ?? []
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -135,7 +136,13 @@ export default function MessageActionSheet({
               </p>
             </div>
           ) : (
-            <p className="text-sm text-slate-500 italic">No text in this message (photo only).</p>
+            <p className="text-sm text-slate-500 italic">
+              {attachments.some(isAudioMedia)
+                ? 'No text in this message (audio).'
+                : attachments.some(isImageMedia)
+                  ? 'No text in this message (photo only).'
+                  : 'No text in this message.'}
+            </p>
           )}
         </div>
 
@@ -168,17 +175,25 @@ export default function MessageActionSheet({
               )}
             </>
           )}
-          {imgs.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => downloadMediaUrl(m.publicUrl!, m.fileName ?? `image-${m.id}.jpg`)}
-              className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-4 shadow-sm"
-            >
-              <IconDownload className="w-5 h-5 shrink-0" />
-              Download image{m.fileName ? ` (${m.fileName})` : ''}
-            </button>
-          ))}
+          {attachments.map((m) => {
+            const kind = isImageMedia(m) ? 'image' : isAudioMedia(m) ? 'audio' : 'file'
+            const label =
+              kind === 'image' ? 'Download image' : kind === 'audio' ? 'Download audio' : 'Download file'
+            const fallbackName =
+              kind === 'image' ? `image-${m.id}.jpg` : kind === 'audio' ? `audio-${m.id}` : `file-${m.id}`
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => downloadMediaUrl(m.publicUrl!, m.fileName ?? fallbackName)}
+                className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-4 shadow-sm"
+              >
+                <IconDownload className="w-5 h-5 shrink-0" />
+                {label}
+                {m.fileName ? ` (${m.fileName})` : ''}
+              </button>
+            )
+          })}
           <button
             type="button"
             onClick={onClose}

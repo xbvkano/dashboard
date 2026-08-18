@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import PhotoViewer, { type PhotoViewerItem } from '../../../../components/PhotoViewer'
 import { formatMessageTime } from '../formatTime'
 import { outboundBubbleStyle } from '../bubbleColor'
+import { isAudioMedia, isImageMedia } from '../isImageMedia'
 import type { ThreadMessage } from '../types'
 import MessageActionSheet from './MessageActionSheet'
 
@@ -19,10 +20,14 @@ function isOutboundDirection(direction: string): boolean {
 export default function MessageBubble({ message, onMediaLoad }: Props) {
   const outbound = isOutboundDirection(message.direction)
   const hasText = message.body.trim().length > 0
-  const imgs = message.media ?? []
-  const viewablePhotos: PhotoViewerItem[] = imgs
-    .filter((m): m is typeof m & { publicUrl: string } => Boolean(m.publicUrl))
-    .map((m) => ({ url: m.publicUrl, fileName: m.fileName }))
+  const media = message.media ?? []
+  const imageMedia = media.filter(
+    (m): m is typeof m & { publicUrl: string } => Boolean(m.publicUrl) && isImageMedia(m),
+  )
+  const viewablePhotos: PhotoViewerItem[] = imageMedia.map((m) => ({
+    url: m.publicUrl,
+    fileName: m.fileName,
+  }))
   const [imgFailed, setImgFailed] = useState<Record<number, boolean>>({})
   const [actionsOpen, setActionsOpen] = useState(false)
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
@@ -52,7 +57,7 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
   const obStyle = outbound ? outboundBubbleStyle(message.senderBubbleColor) : null
 
   const openPhoto = (mediaId: number) => {
-    const idx = imgs.filter((m) => m.publicUrl).findIndex((m) => m.id === mediaId)
+    const idx = imageMedia.findIndex((m) => m.id === mediaId)
     if (idx < 0) return
     setViewerIndex(idx)
   }
@@ -94,16 +99,43 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
               : undefined
           }
         >
-          {imgs.length > 0 && (
+          {media.length > 0 && (
             <div className="space-y-1.5 mb-1.5">
-              {imgs.map((m) =>
-                m.publicUrl ? (
-                  <div
-                    key={m.id}
-                    className={`rounded-lg overflow-hidden border bg-black/10 ${
-                      outbound ? 'border-white/20' : 'border-slate-200'
-                    }`}
-                  >
+              {media.map((m) => {
+                if (!m.publicUrl) return null
+                const frameClass = `rounded-lg overflow-hidden border bg-black/10 ${
+                  outbound ? 'border-white/20' : 'border-slate-200'
+                }`
+                if (!isImageMedia(m)) {
+                  const audio = isAudioMedia(m)
+                  return (
+                    <div key={m.id} className={`${frameClass} px-2 py-2`}>
+                      {audio ? (
+                        <audio
+                          src={m.publicUrl}
+                          controls
+                          preload="metadata"
+                          className="w-full"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <a
+                          href={m.publicUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className={`block text-sm underline ${
+                            outbound ? (customOutbound ? 'text-blue-700' : 'text-white') : 'text-blue-600'
+                          }`}
+                        >
+                          {m.fileName ?? 'Attachment'}
+                        </a>
+                      )}
+                    </div>
+                  )
+                }
+                return (
+                  <div key={m.id} className={frameClass}>
                     {imgFailed[m.id] ? (
                       <div className="px-2 py-3 text-xs text-center leading-snug">
                         <p
@@ -152,14 +184,17 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
                       </button>
                     )}
                   </div>
-                ) : null
-              )}
+                )
+              })}
             </div>
           )}
           {hasText && (
             <p className="text-[15px] leading-snug whitespace-pre-wrap break-words">{displayBody}</p>
           )}
-          {!hasText && imgs.length > 0 && <span className="sr-only">Photo message</span>}
+          {!hasText && viewablePhotos.length > 0 && <span className="sr-only">Photo message</span>}
+          {!hasText && viewablePhotos.length === 0 && media.length > 0 && (
+            <span className="sr-only">{media.some(isAudioMedia) ? 'Audio message' : 'Attachment'}</span>
+          )}
         </div>
         <p
           className={`mt-1 px-0.5 text-[11px] tabular-nums text-slate-500 ${
