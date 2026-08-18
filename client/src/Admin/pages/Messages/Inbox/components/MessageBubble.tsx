@@ -57,6 +57,14 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
     setViewerIndex(idx)
   }
 
+  const onBubbleClick = () => {
+    if (!hasText && viewablePhotos.length > 0) {
+      setViewerIndex(0)
+      return
+    }
+    setActionsOpen(true)
+  }
+
   return (
     <div className={`flex py-1 ${outbound ? 'justify-end' : 'justify-start'}`}>
       <div
@@ -69,7 +77,7 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
         ) : null}
         <div
           role="presentation"
-          onClick={() => setActionsOpen(true)}
+          onClick={onBubbleClick}
           className={`w-full rounded-2xl px-3 py-2 shadow-sm text-left cursor-pointer active:opacity-90 ${
             outbound
               ? customOutbound
