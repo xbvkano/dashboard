@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import PhotoViewer from '../../../../components/PhotoViewer'
 import ComposerAttachmentPanel, { type AttachmentPanelView } from './ComposerAttachmentPanel'
 import MessageBankToolPanel from '../../MessageBank/MessageBankToolPanel'
 import MessageBankUseModal from '../../MessageBank/MessageBankUseModal'
@@ -24,6 +25,7 @@ export default function MessageComposer({
 }: Props) {
   const [text, setText] = useState('')
   const [pending, setPending] = useState<PendingImage[]>([])
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [sending, setSending] = useState(false)
   const [panelState, setPanelState] = useState<PanelState>('closed')
   const [messageBankTemplate, setMessageBankTemplate] = useState<MessageBankTemplateDto | null>(null)
@@ -127,6 +129,7 @@ export default function MessageComposer({
     try {
       await onSend(t, hasMedia ? files : undefined)
       setText('')
+      setViewerIndex(null)
       setPending((prev) => {
         prev.forEach((p) => URL.revokeObjectURL(p.url))
         return []
@@ -147,10 +150,20 @@ export default function MessageComposer({
         <div className="max-w-4xl mx-auto mb-2 flex flex-wrap gap-2 px-0.5">
           {pending.map((row, i) => (
             <div key={`${galleryId}-${i}`} className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
-              <img src={row.url} alt="" className="w-full h-full object-cover" />
               <button
                 type="button"
-                onClick={() => removeAt(i)}
+                className="block h-full w-full cursor-pointer"
+                aria-label={`View ${row.file.name || 'photo'}`}
+                onClick={() => setViewerIndex(i)}
+              >
+                <img src={row.url} alt="" className="w-full h-full object-cover" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  removeAt(i)
+                }}
                 className="absolute top-0.5 right-0.5 w-6 h-6 rounded-full bg-black/55 text-white text-xs flex items-center justify-center"
                 aria-label="Remove image"
               >
@@ -265,6 +278,14 @@ export default function MessageComposer({
             />
           )}
         </div>
+      )}
+      {viewerIndex != null && pending.length > 0 && (
+        <PhotoViewer
+          photos={pending.map((p) => ({ url: p.url, fileName: p.file.name }))}
+          index={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+          onIndexChange={setViewerIndex}
+        />
       )}
       {conversationId != null && (
         <MessageBankUseModal

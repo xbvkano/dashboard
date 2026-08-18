@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { downloadMediaUrl } from '../../../../components/downloadMediaUrl'
 import { copyTextToClipboard } from '../../../../contactActions'
 import { postTranslateMessage } from '../messagingApi'
 import type { ThreadMessage } from '../types'
@@ -11,25 +12,6 @@ type Props = {
   onTranslationApplied?: (text: string) => void
   /** When copy succeeds (sheet closes; parent may show confirmation) */
   onCopied?: () => void
-}
-
-async function downloadMediaUrl(url: string, fileName: string): Promise<void> {
-  try {
-    const res = await fetch(url, { mode: 'cors' })
-    if (!res.ok) throw new Error('fetch failed')
-    const blob = await res.blob()
-    const u = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = u
-    a.download = fileName || 'attachment'
-    a.rel = 'noopener'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(u)
-  } catch {
-    window.open(url, '_blank', 'noopener,noreferrer')
-  }
 }
 
 function IconTranslate({ className }: { className?: string }) {

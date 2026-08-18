@@ -6,6 +6,7 @@ import { useModal } from '../../../../../ModalProvider'
 import { CONFIRM_Z } from '../../../../../modalLayers'
 import { formatPhone } from '../../../../../formatPhone'
 import EmployeeCodeBadge from '../../../../components/EmployeeCodeBadge'
+import PhotoViewer from '../../../../components/PhotoViewer'
 import { copyTextToClipboard, phoneToE164 } from '../../../../contactActions'
 import { formatApiError, startConversationFromContact } from '../../../Messages/Inbox/messagingApi'
 import { appointmentCalendarDateKey, type Appointment } from '../../types'
@@ -110,6 +111,7 @@ export default function AppointmentDetails({
   const [savingInstructions, setSavingInstructions] = useState(false)
   const [textBusy, setTextBusy] = useState(false)
   const [phoneCopied, setPhoneCopied] = useState(false)
+  const [screenshotViewerIndex, setScreenshotViewerIndex] = useState<number | null>(null)
 
   const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
   const clientPhoneDisplay = appointment.client?.number ? formatPhone(appointment.client.number) : ''
@@ -637,15 +639,15 @@ export default function AppointmentDetails({
             </h4>
             <div className="flex flex-wrap gap-2">
               {appointment.bookingScreenshotUrls.map((url, i) => (
-                <a
+                <button
                   key={`${url}-${i}`}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block shrink-0 w-24 h-24 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 hover:opacity-95"
+                  type="button"
+                  onClick={() => setScreenshotViewerIndex(i)}
+                  aria-label={`View booking screenshot ${i + 1}`}
+                  className="block shrink-0 w-24 h-24 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 hover:opacity-95 cursor-pointer"
                 >
                   <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                </a>
+                </button>
               ))}
             </div>
           </div>
@@ -1317,6 +1319,19 @@ export default function AppointmentDetails({
             </div>
           </div>,
           document.body,
+        )}
+      {screenshotViewerIndex != null &&
+        appointment.bookingScreenshotUrls &&
+        appointment.bookingScreenshotUrls.length > 0 && (
+          <PhotoViewer
+            photos={appointment.bookingScreenshotUrls.map((url, i) => ({
+              url,
+              fileName: `booking-screenshot-${i + 1}.jpg`,
+            }))}
+            index={screenshotViewerIndex}
+            onClose={() => setScreenshotViewerIndex(null)}
+            onIndexChange={setScreenshotViewerIndex}
+          />
         )}
     </div>
   )

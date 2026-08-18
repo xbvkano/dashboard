@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import PhotoViewer, { type PhotoViewerItem } from '../../../../components/PhotoViewer'
 import { formatMessageTime } from '../formatTime'
 import { outboundBubbleStyle } from '../bubbleColor'
 import type { ThreadMessage } from '../types'
@@ -19,8 +20,12 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
   const outbound = isOutboundDirection(message.direction)
   const hasText = message.body.trim().length > 0
   const imgs = message.media ?? []
+  const viewablePhotos: PhotoViewerItem[] = imgs
+    .filter((m): m is typeof m & { publicUrl: string } => Boolean(m.publicUrl))
+    .map((m) => ({ url: m.publicUrl, fileName: m.fileName }))
   const [imgFailed, setImgFailed] = useState<Record<number, boolean>>({})
   const [actionsOpen, setActionsOpen] = useState(false)
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [copyNotice, setCopyNotice] = useState(false)
   const [translatedText, setTranslatedText] = useState<string | null>(null)
   const [viewingOriginal, setViewingOriginal] = useState(false)
@@ -34,6 +39,7 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
   useEffect(() => {
     setTranslatedText(null)
     setViewingOriginal(false)
+    setViewerIndex(null)
   }, [message.id])
 
   const displayBody =
@@ -45,6 +51,12 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
     /^#[0-9A-Fa-f]{6}$/.test(message.senderBubbleColor)
   const obStyle = outbound ? outboundBubbleStyle(message.senderBubbleColor) : null
 
+  const openPhoto = (mediaId: number) => {
+    const idx = imgs.filter((m) => m.publicUrl).findIndex((m) => m.id === mediaId)
+    if (idx < 0) return
+    setViewerIndex(idx)
+  }
+
   return (
     <div className={`flex py-1 ${outbound ? 'justify-end' : 'justify-start'}`}>
       <div
@@ -55,8 +67,8 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
             {message.attributionLabel.trim()}
           </p>
         ) : null}
-        <button
-          type="button"
+        <div
+          role="presentation"
           onClick={() => setActionsOpen(true)}
           className={`w-full rounded-2xl px-3 py-2 shadow-sm text-left cursor-pointer active:opacity-90 ${
             outbound
@@ -98,6 +110,7 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
                           href={m.publicUrl}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className={`mt-1 inline-block underline ${
                             outbound ? (customOutbound ? 'text-blue-700' : 'text-white') : 'text-blue-600'
                           }`}
@@ -106,11 +119,19 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
                         </a>
                       </div>
                     ) : (
-                      <span className="block">
+                      <button
+                        type="button"
+                        className="block w-full cursor-pointer"
+                        aria-label={m.fileName ? `View ${m.fileName}` : 'View photo'}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openPhoto(m.id)
+                        }}
+                      >
                         <img
                           src={m.publicUrl}
                           alt={m.fileName ?? 'Attachment'}
-                          className="max-h-48 w-full object-cover pointer-events-none"
+                          className="max-h-48 w-full object-cover"
                           loading="eager"
                           decoding="async"
                           referrerPolicy="no-referrer"
@@ -120,7 +141,7 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
                             onMediaLoad?.()
                           }}
                         />
-                      </span>
+                      </button>
                     )}
                   </div>
                 ) : null
@@ -131,7 +152,7 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
             <p className="text-[15px] leading-snug whitespace-pre-wrap break-words">{displayBody}</p>
           )}
           {!hasText && imgs.length > 0 && <span className="sr-only">Photo message</span>}
-        </button>
+        </div>
         <p
           className={`mt-1 px-0.5 text-[11px] tabular-nums text-slate-500 ${
             outbound ? 'text-right self-end' : 'text-left self-start'
@@ -175,6 +196,14 @@ export default function MessageBubble({ message, onMediaLoad }: Props) {
             setTranslatedText(text)
             setViewingOriginal(false)
           }}
+        />
+      )}
+      {viewerIndex != null && viewablePhotos.length > 0 && (
+        <PhotoViewer
+          photos={viewablePhotos}
+          index={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+          onIndexChange={setViewerIndex}
         />
       )}
     </div>

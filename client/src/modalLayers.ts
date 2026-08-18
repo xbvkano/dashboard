@@ -6,5 +6,8 @@ export const MODAL_Z = 10000
 /** Nested confirm / notify overlays above a primary modal */
 export const CONFIRM_Z = 10100
 
+/** Full-screen photo viewer — above appointment modals, below alerts */
+export const PHOTO_VIEWER_Z = 10150
+
 /** ModalProvider alert/confirm — always above nested confirms and high parents (e.g. invoice) */
 export const ALERT_Z = 10200

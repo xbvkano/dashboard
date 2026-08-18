@@ -13,6 +13,7 @@ import {
   SCREENSHOT_BOOKING_CONVERSATION_ID,
 } from './Inbox/messagingApi'
 import { screenshotDraftFromExtraction } from './screenshotBookingDraft'
+import PhotoViewer from '../../components/PhotoViewer'
 
 const SID = SCREENSHOT_BOOKING_CONVERSATION_ID
 
@@ -89,6 +90,7 @@ export default function ScreenshotBooking() {
   const isDesktop = useMediaQuery('(min-width: 768px)')
   const [mobileTab, setMobileTab] = useState<'photos' | 'booking'>('photos')
   const [photoSlots, setPhotoSlots] = useState<PhotoSlot[]>([])
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [extracting, setExtracting] = useState(false)
   const [extractOnce, setExtractOnce] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -332,6 +334,7 @@ export default function ScreenshotBooking() {
       })
       return []
     })
+    setViewerIndex(null)
     setError(null)
   }, [])
 
@@ -342,6 +345,7 @@ export default function ScreenshotBooking() {
       })
       return []
     })
+    setViewerIndex(null)
     setDraftForConversation(SID, defaultDraft())
     setHighlightsForConversation(SID, null)
     setBookingScreenshotUrlsForConversation(SID, [])
@@ -362,6 +366,7 @@ export default function ScreenshotBooking() {
       })
       return []
     })
+    setViewerIndex(null)
     setDraftForConversation(SID, defaultDraft())
     setHighlightsForConversation(SID, null)
     setBookingScreenshotUrlsForConversation(SID, [])
@@ -417,11 +422,18 @@ export default function ScreenshotBooking() {
                 }
                 className="relative aspect-square min-h-[96px] overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-sm"
               >
-                <img
-                  src={slot.kind === 'local' ? slot.previewUrl : slot.publicUrl}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
+                <button
+                  type="button"
+                  className="block h-full w-full cursor-pointer"
+                  aria-label={`View photo ${i + 1}`}
+                  onClick={() => setViewerIndex(i)}
+                >
+                  <img
+                    src={slot.kind === 'local' ? slot.previewUrl : slot.publicUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                </button>
                 <span
                   className={`absolute left-1 top-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm ${
                     slot.kind === 'local' ? 'bg-amber-600/95' : 'bg-slate-900/70'
@@ -431,7 +443,10 @@ export default function ScreenshotBooking() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => removePhotoAtIndex(i)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    removePhotoAtIndex(i)
+                  }}
                   disabled={extracting}
                   className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm hover:bg-black/70 disabled:opacity-40"
                   aria-label={`Remove photo ${i + 1}`}
@@ -608,6 +623,17 @@ export default function ScreenshotBooking() {
         </div>
       )}
       <AiChatExtractingOverlay open={extracting} />
+      {viewerIndex != null && photoSlots.length > 0 && (
+        <PhotoViewer
+          photos={photoSlots.map((slot) => ({
+            url: slot.kind === 'local' ? slot.previewUrl : slot.publicUrl,
+            fileName: slot.kind === 'local' ? slot.file.name : null,
+          }))}
+          index={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+          onIndexChange={setViewerIndex}
+        />
+      )}
     </div>
   )
 }
