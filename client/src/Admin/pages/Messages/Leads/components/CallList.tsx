@@ -19,13 +19,14 @@ interface CallsResponse {
 
 interface CallListProps {
   sections?: string[]
+  reloadNonce?: number
 }
 
 function digitsOnly(value: string): string {
   return (value || '').replace(/\D/g, '')
 }
 
-export default function CallList({ sections = [] }: CallListProps) {
+export default function CallList({ sections = [], reloadNonce = 0 }: CallListProps) {
   const { counts, refresh } = useActionCounts()
   const [items, setItems] = useState<Call[]>([])
   const [total, setTotal] = useState(0)
@@ -91,7 +92,7 @@ export default function CallList({ sections = [] }: CallListProps) {
     setNextOffset(null)
     setCurrentPage(1)
     fetchPage(0)
-  }, [sectionFilter, debouncedSearch])
+  }, [sectionFilter, debouncedSearch, reloadNonce])
 
   useEffect(() => {
     if (debouncedSearch) return

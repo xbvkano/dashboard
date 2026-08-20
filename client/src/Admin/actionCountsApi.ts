@@ -24,3 +24,21 @@ export async function fetchActionCounts(): Promise<ActionCounts> {
   ])
   return { messages, leads }
 }
+
+export async function postMarkAllLeadsRead(opts?: {
+  forms?: boolean
+  calls?: boolean
+}): Promise<{ forms: number; calls: number }> {
+  const data = await fetchJson(`${API_BASE_URL}/api/leads/mark-all-read`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      forms: opts?.forms !== false,
+      calls: opts?.calls !== false,
+    }),
+  })
+  return {
+    forms: typeof data?.forms === 'number' ? data.forms : 0,
+    calls: typeof data?.calls === 'number' ? data.calls : 0,
+  }
+}

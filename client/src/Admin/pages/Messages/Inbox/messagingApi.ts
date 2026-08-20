@@ -215,6 +215,18 @@ export async function postMarkConversationRead(conversationId: number): Promise<
   })
 }
 
+export async function postMarkInboxConversationsRead(inbox: MessagingInboxKind = 'client'): Promise<{
+  markedRead: number
+}> {
+  const data = await fetchJson(`${API_BASE_URL}/messaging/inbox/mark-all-read`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inbox }),
+  })
+  const markedRead = typeof data?.markedRead === 'number' ? data.markedRead : 0
+  return { markedRead }
+}
+
 export async function postConversationPresence(conversationId: number): Promise<void> {
   await fetchJson(`${API_BASE_URL}/messaging/conversations/${conversationId}/presence`, {
     method: 'POST',

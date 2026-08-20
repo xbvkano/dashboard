@@ -28,6 +28,9 @@ type Props = {
   onToggleArchivedView?: () => void
   /** List header title when not viewing archived */
   title?: string
+  onMarkAllRead?: () => void | Promise<void>
+  markAllReadBusy?: boolean
+  markAllReadDisabled?: boolean
   /**
    * When this changes (search / archived / inbox kind / first load), scroll to top.
    * Polls that only refresh row data should keep the same key so scroll is preserved.
@@ -56,6 +59,9 @@ export default function ConversationList({
   onToggleArchivedView,
   title = 'Messages',
   listResetKey = '',
+  onMarkAllRead,
+  markAllReadBusy = false,
+  markAllReadDisabled = false,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const scrollTopRef = useRef(0)
@@ -147,6 +153,16 @@ export default function ConversationList({
               }`}
             >
               {showArchived ? 'Inbox' : 'Archived'}
+            </button>
+          )}
+          {onMarkAllRead && !showArchived && (
+            <button
+              type="button"
+              onClick={() => void onMarkAllRead()}
+              disabled={markAllReadBusy || markAllReadDisabled}
+              className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold whitespace-nowrap text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none"
+            >
+              {markAllReadBusy ? 'Marking…' : 'Mark all as read'}
             </button>
           )}
         </div>

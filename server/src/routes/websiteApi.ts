@@ -5,6 +5,7 @@
 
 import { Router, Request, Response } from 'express'
 import { fetchLeadUnreadCounts } from '../services/leadUnreadCounts'
+import { resetUnvisitedLeads } from '../services/websiteLeadDev'
 
 const router = Router()
 
@@ -54,6 +55,20 @@ router.get('/stats', proxy('/api/stats'))
 router.get('/lead-unread-counts', async (_req: Request, res: Response) => {
   const counts = await fetchLeadUnreadCounts()
   res.json(counts)
+})
+
+router.post('/leads/mark-all-read', async (req: Request, res: Response) => {
+  const forms = req.body?.forms !== false
+  const calls = req.body?.calls !== false
+  try {
+    const out = await resetUnvisitedLeads({ forms, calls })
+    res.json({ ok: true, ...out })
+  } catch (e) {
+    console.error(e)
+    const message = e instanceof Error ? e.message : 'Failed to mark leads as read'
+    const status = message.includes('not configured') ? 503 : 502
+    res.status(status).json({ error: message })
+  }
 })
 
 // PATCH to mark quote/call as visited

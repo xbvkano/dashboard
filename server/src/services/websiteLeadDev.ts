@@ -164,7 +164,11 @@ async function resetKind(
   return { marked, attempted, failures }
 }
 
-export async function resetUnvisitedLeads(args?: { fetchImpl?: FetchLike }): Promise<{
+export async function resetUnvisitedLeads(args?: {
+  fetchImpl?: FetchLike
+  forms?: boolean
+  calls?: boolean
+}): Promise<{
   forms: number
   calls: number
   formsAttempted: number
@@ -175,9 +179,12 @@ export async function resetUnvisitedLeads(args?: { fetchImpl?: FetchLike }): Pro
   const base = websiteBase()
   if (!base) throw new Error('WEBSITE_SERVER_URL is not configured')
   const fetchImpl = args?.fetchImpl ?? fetch
+  const doForms = args?.forms !== false
+  const doCalls = args?.calls !== false
+  const empty = { marked: 0, attempted: 0, failures: [] as number[] }
   const [quotes, calls] = await Promise.all([
-    resetKind(fetchImpl, base, 'quotes'),
-    resetKind(fetchImpl, base, 'calls'),
+    doForms ? resetKind(fetchImpl, base, 'quotes') : Promise.resolve(empty),
+    doCalls ? resetKind(fetchImpl, base, 'calls') : Promise.resolve(empty),
   ])
   return {
     forms: quotes.marked,

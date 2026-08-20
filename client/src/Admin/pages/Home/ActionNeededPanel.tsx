@@ -2,11 +2,14 @@ import { Link } from 'react-router-dom'
 import { messagesHomeHref } from '../../actionCounts'
 import { useActionCounts } from '../../ActionCountsProvider'
 
-function tileClass(tone: 'red' | 'blue'): string {
+function tileClass(tone: 'red' | 'blue' | 'green'): string {
   const base =
     'flex flex-col items-center justify-center rounded-2xl border-2 text-center transition-colors w-full min-h-[7.5rem] md:min-h-[14rem] px-4 py-4 md:px-6 md:py-7 shadow-md'
   if (tone === 'blue') {
     return `${base} bg-blue-50 border-blue-400 hover:border-blue-500 text-blue-800`
+  }
+  if (tone === 'green') {
+    return `${base} bg-green-50 border-green-400 hover:border-green-500 text-green-800`
   }
   return `${base} bg-red-50 border-red-400 hover:border-red-500 text-red-800`
 }
@@ -21,7 +24,7 @@ function GlanceTile({
   title: string
   total: number
   href: string
-  tone: 'red' | 'blue'
+  tone: 'red' | 'blue' | 'green'
   breakdown: Array<{ label: string; count: number }>
 }) {
   return (
@@ -56,7 +59,7 @@ export default function ActionNeededPanel() {
           title="Messages"
           total={value.messages.total}
           href={messagesHomeHref(value.messages)}
-          tone="red"
+          tone="green"
           breakdown={[
             { label: 'Client', count: value.messages.client },
             { label: 'Employee', count: value.messages.employee },

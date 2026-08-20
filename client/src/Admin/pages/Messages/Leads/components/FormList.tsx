@@ -19,9 +19,10 @@ interface QuotesResponse {
 
 interface FormListProps {
   sources?: string[]
+  reloadNonce?: number
 }
 
-export default function FormList({ sources = [] }: FormListProps) {
+export default function FormList({ sources = [], reloadNonce = 0 }: FormListProps) {
   const { counts, refresh } = useActionCounts()
   const [items, setItems] = useState<FormData[]>([])
   const [total, setTotal] = useState(0)
@@ -81,7 +82,7 @@ export default function FormList({ sources = [] }: FormListProps) {
     setNextOffset(null)
     setCurrentPage(1)
     fetchPage(0)
-  }, [sourceFilter, debouncedSearch])
+  }, [sourceFilter, debouncedSearch, reloadNonce])
 
   useEffect(() => {
     if (debouncedSearch) return

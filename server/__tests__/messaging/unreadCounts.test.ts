@@ -2,6 +2,7 @@ import { ConversationStatus, MessageDirection } from '@prisma/client'
 import {
   countMessagingUnread,
   countUnreadForBusinessNumber,
+  markInboxConversationsRead,
 } from '../../src/services/messaging/unreadCounts'
 
 function mockDb(rows: unknown[]) {
@@ -74,5 +75,55 @@ describe('countMessagingUnread', () => {
     const db = { conversation: { findMany } } as any
     await expect(countMessagingUnread(db, 1)).resolves.toEqual({ client: 0, employee: 0, total: 0 })
     expect(findMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('markInboxConversationsRead', () => {
+  it('upserts read state for OPEN threads on that business line and clears Pushover', async () => {
+    const upsert = jest.fn().mockResolvedValue({})
+    const updateMany = jest.fn().mockResolvedValue({ count: 2 })
+    const db = {
+      conversation: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 1, messages: [{ id: 10 }] },
+          { id: 2, messages: [] },
+        ]),
+        updateMany,
+      },
+      userConversationRead: { upsert },
+    } as any
+
+    await expect(markInboxConversationsRead(db, 7, '+15550001111')).resolves.toBe(2)
+    expect(db.conversation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: ConversationStatus.OPEN, businessNumber: '+15550001111' },
+      }),
+    )
+    expect(upsert).toHaveBeenCalledTimes(2)
+    expect(upsert).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: { userId_conversationId: { userId: 7, conversationId: 1 } },
+        create: expect.objectContaining({ lastReadMessageId: 10 }),
+      }),
+    )
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: [1, 2] } },
+        data: { lastPushoverNotifiedAt: null },
+      }),
+    )
+  })
+
+  it('is a no-op when the inbox has no OPEN conversations', async () => {
+    const upsert = jest.fn()
+    const updateMany = jest.fn()
+    const db = {
+      conversation: { findMany: jest.fn().mockResolvedValue([]), updateMany },
+      userConversationRead: { upsert },
+    } as any
+    await expect(markInboxConversationsRead(db, 7, '+15550001111')).resolves.toBe(0)
+    expect(upsert).not.toHaveBeenCalled()
+    expect(updateMany).not.toHaveBeenCalled()
   })
 })

@@ -9,6 +9,7 @@ import AiChatExtractingOverlay from './components/AiChatExtractingOverlay'
 import BookAppointmentModal, { defaultDraft, type BookAppointmentDraft } from './components/BookAppointmentModal'
 import DeleteContactConfirmModal from './components/DeleteContactConfirmModal'
 import TwilioContentSizeExceededModal from './components/TwilioContentSizeExceededModal'
+import MarkAllReadConfirmModal from '../../../components/MarkAllReadConfirmModal'
 import { useMediaQuery } from './useMediaQuery'
 import { useBookAppointmentDrafts } from '../BookAppointmentDraftsContext'
 import { useActionCounts } from '../../../ActionCountsProvider'
@@ -30,6 +31,7 @@ import {
   postExtractAppointmentFromConversation,
   postInboxLeaseRequest,
   postMarkConversationRead,
+  postMarkInboxConversationsRead,
   postOutboundMessage,
 } from './messagingApi'
 import type { ThreadContact, ThreadMessage } from './types'
@@ -174,7 +176,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
     cancelBookModal,
     completeBookModal,
   } = useBookAppointmentDrafts()
-  const { refresh: refreshActionCounts } = useActionCounts()
+  const { counts, refresh: refreshActionCounts } = useActionCounts()
   const isDesktop = useMediaQuery('(min-width: 768px)')
   const [list, setList] = useState<ConversationInboxItem[]>([])
   const [employees, setEmployees] = useState<
@@ -183,6 +185,8 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
   const [listLoading, setListLoading] = useState(true)
   const [listLoadingMore, setListLoadingMore] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
+  const [markAllReadBusy, setMarkAllReadBusy] = useState(false)
+  const [markAllReadConfirmOpen, setMarkAllReadConfirmOpen] = useState(false)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [searchInput, setSearchInput] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -274,6 +278,22 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
     setNextCursor(res.nextCursor)
     return res.items
   }, [debouncedSearch, showArchived, inboxKind])
+
+  const handleMarkAllRead = useCallback(async () => {
+    if (showArchived) return
+    setMarkAllReadBusy(true)
+    setListError(null)
+    try {
+      await postMarkInboxConversationsRead(inboxKind)
+      setList((prev) => prev.map((r) => ({ ...r, unread: false })))
+      await refreshActionCounts()
+      setMarkAllReadConfirmOpen(false)
+    } catch {
+      setListError('Failed to mark conversations as read')
+    } finally {
+      setMarkAllReadBusy(false)
+    }
+  }, [inboxKind, showArchived, refreshActionCounts])
 
   useEffect(() => {
     let cancelled = false
@@ -1024,6 +1044,20 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
           />
         </>
       )}
+      <MarkAllReadConfirmModal
+        open={markAllReadConfirmOpen}
+        title={
+          isEmployeeInbox
+            ? 'Mark all employee messages as read?'
+            : 'Mark all client messages as read?'
+        }
+        description="Unread badges for this inbox on Home and in Messages will clear. Threads will no longer show as unread."
+        confirming={markAllReadBusy}
+        onClose={() => {
+          if (!markAllReadBusy) setMarkAllReadConfirmOpen(false)
+        }}
+        onConfirm={handleMarkAllRead}
+      />
       {listError && (
         <div className="px-3 py-2 text-sm text-red-700 bg-red-50 border-b border-red-100 shrink-0">
           {listError}
@@ -1057,6 +1091,12 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
               onToggleArchivedView={handleToggleArchivedView}
               title={inboxTitle}
               listResetKey={`${inboxKind}|${showArchived ? 'archived' : 'open'}|${debouncedSearch}`}
+              onMarkAllRead={() => setMarkAllReadConfirmOpen(true)}
+              markAllReadBusy={markAllReadBusy}
+              markAllReadDisabled={
+                (isEmployeeInbox ? counts.messages.employee : counts.messages.client) <= 0 &&
+                !list.some((r) => r.unread)
+              }
             />
           </div>
         </div>

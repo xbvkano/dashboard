@@ -16,6 +16,7 @@ import {
   postConversationPresence,
   postInboundWebhook,
   postMarkConversationRead,
+  postMarkInboxRead,
   postMessagingInboxLease,
   postMessagingTranslate,
   postMockAppointmentExtraction,
@@ -44,6 +45,7 @@ router.get('/messaging/conversations', listConversations)
 router.get('/messaging/unread-counts', getUnreadCounts)
 router.post('/messaging/inbox/lease', postMessagingInboxLease)
 router.delete('/messaging/inbox/lease', deleteMessagingInboxLease)
+router.post('/messaging/inbox/mark-all-read', postMarkInboxRead)
 router.post('/messaging/translate', postMessagingTranslate)
 router.post('/messaging/contacts/start', postStartConversationFromContact)
 router.post('/messaging/conversations/:id/read', postMarkConversationRead)

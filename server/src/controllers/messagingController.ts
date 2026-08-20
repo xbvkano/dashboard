@@ -17,7 +17,7 @@ import { deleteMessagingStorageKeys } from '../services/supabaseStorage'
 import { extensionForMime } from '../services/messaging/twilioInboundMedia'
 import type { ConversationDetailDto } from '../types/messaging'
 import { mapConversationsToInboxDto } from '../utils/messagingDto'
-import { countMessagingUnread } from '../services/messaging/unreadCounts'
+import { countMessagingUnread, markInboxConversationsRead } from '../services/messaging/unreadCounts'
 import { resolveOutboundBubbleColor } from '../utils/messageBubbleDisplay'
 import {
   clampInboxLimit,
@@ -432,6 +432,29 @@ export async function getUnreadCounts(req: Request, res: Response) {
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Failed to count unread conversations' })
+  }
+}
+
+/** Mark every OPEN conversation in this inbox as read for the current user */
+export async function postMarkInboxRead(req: Request, res: Response) {
+  const userId = parseUserIdHeader(req.headers['x-user-id'])
+  if (userId == null) {
+    return res.status(400).json({ error: 'x-user-id header required' })
+  }
+  const inboxKind = parseMessagingInboxKind(req.body?.inbox ?? req.query.inbox)
+  let businessNumber: string
+  try {
+    businessNumber = resolveInboxBusinessNumber(inboxKind)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Inbox business number not configured'
+    return res.status(503).json({ error: msg })
+  }
+  try {
+    const markedRead = await markInboxConversationsRead(prisma, userId, businessNumber)
+    res.json({ ok: true, markedRead, inbox: inboxKind })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Failed to mark inbox as read' })
   }
 }
 

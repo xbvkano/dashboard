@@ -4,6 +4,8 @@ import FormList from './Leads/components/FormList'
 import CallList from './Leads/components/CallList'
 import { useActionCounts } from '../../ActionCountsProvider'
 import UnreadBadge from '../../components/UnreadBadge'
+import MarkAllReadConfirmModal from '../../components/MarkAllReadConfirmModal'
+import { postMarkAllLeadsRead } from '../../actionCountsApi'
 
 function toYYYYMMDD(d: Date) {
   return d.toISOString().slice(0, 10)
@@ -15,7 +17,12 @@ export default function Leads() {
   const [sources, setSources] = useState<string[]>([])
   const [sections, setSections] = useState<string[]>([])
   const [mobileTab, setMobileTab] = useState<LeadsTab>('forms')
-  const { counts } = useActionCounts()
+  const [reloadNonce, setReloadNonce] = useState(0)
+  const [markAllReadOpen, setMarkAllReadOpen] = useState(false)
+  const [markAllReadBusy, setMarkAllReadBusy] = useState(false)
+  const [markAllReadError, setMarkAllReadError] = useState<string | null>(null)
+  const { counts, refresh } = useActionCounts()
+  const hasUnreadLeads = counts.leads.total > 0
 
   useEffect(() => {
     const end = new Date()
@@ -49,9 +56,40 @@ export default function Leads() {
       .catch(() => {})
   }, [])
 
+  const handleMarkAllRead = async () => {
+    setMarkAllReadBusy(true)
+    setMarkAllReadError(null)
+    try {
+      await postMarkAllLeadsRead({ forms: true, calls: true })
+      setReloadNonce((n) => n + 1)
+      await refresh()
+      setMarkAllReadOpen(false)
+    } catch {
+      setMarkAllReadError('Failed to mark leads as read')
+    } finally {
+      setMarkAllReadBusy(false)
+    }
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-2 md:p-3 md:h-[calc(100dvh-3.5rem)] md:max-h-[calc(100dvh-3.5rem)]">
-      <h2 className="text-xl font-semibold text-slate-900 mb-2 shrink-0">Leads</h2>
+      <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
+        <h2 className="text-xl font-semibold text-slate-900">Leads</h2>
+        <button
+          type="button"
+          onClick={() => {
+            setMarkAllReadError(null)
+            setMarkAllReadOpen(true)
+          }}
+          disabled={!hasUnreadLeads || markAllReadBusy}
+          className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold whitespace-nowrap text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none"
+        >
+          Mark all as read
+        </button>
+      </div>
+      {markAllReadError && (
+        <p className="mb-2 shrink-0 text-sm text-red-700">{markAllReadError}</p>
+      )}
 
       {/* Mobile: switch between Forms and Calls */}
       <div className="md:hidden mb-2 shrink-0 flex gap-0 rounded-lg border border-slate-300 overflow-hidden">
@@ -91,12 +129,22 @@ export default function Leads() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 grid-rows-[minmax(0,1fr)] gap-2 md:gap-4 flex-1 min-h-0 overflow-hidden">
         <div className={`flex flex-col flex-1 min-h-0 ${mobileTab !== 'forms' ? 'hidden md:flex' : ''}`}>
-          <FormList sources={sources} />
+          <FormList sources={sources} reloadNonce={reloadNonce} />
         </div>
         <div className={`flex flex-col flex-1 min-h-0 ${mobileTab !== 'calls' ? 'hidden md:flex' : ''}`}>
-          <CallList sections={sections} />
+          <CallList sections={sections} reloadNonce={reloadNonce} />
         </div>
       </div>
+      <MarkAllReadConfirmModal
+        open={markAllReadOpen}
+        title="Mark all leads as read?"
+        description="Every unvisited form submission and call will be marked as read. Home and Messages lead badges will clear."
+        confirming={markAllReadBusy}
+        onClose={() => {
+          if (!markAllReadBusy) setMarkAllReadOpen(false)
+        }}
+        onConfirm={handleMarkAllRead}
+      />
     </div>
   )
 }
