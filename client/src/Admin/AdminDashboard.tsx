@@ -1,6 +1,8 @@
 import { Link, Routes, Route, Navigate, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { useEffect } from 'react'
 import { isDevToolsEnabled } from '../devTools'
+import { ActionCountsProvider, useActionCounts } from './ActionCountsProvider'
+import UnreadBadge from './components/UnreadBadge'
 import Home from './pages/Home'
 import Calendar from './pages/Calendar'
 import Contacts from './pages/Contacts'
@@ -158,7 +160,17 @@ function ReloadDeepLinkRestore() {
 }
 
 export default function AdminDashboard({ onLogout, onSwitchRole }: Props) {
+  return (
+    <ActionCountsProvider>
+      <AdminDashboardShell onLogout={onLogout} onSwitchRole={onSwitchRole} />
+    </ActionCountsProvider>
+  )
+}
+
+function AdminDashboardShell({ onLogout, onSwitchRole }: Props) {
   const location = useLocation()
+  const { counts } = useActionCounts()
+  const messagesUnread = counts.messages.total
   const navClass = (path: string) => {
     const active = path === '/dashboard'
       ? location.pathname === '/dashboard'
@@ -184,8 +196,16 @@ export default function AdminDashboard({ onLogout, onSwitchRole }: Props) {
             </Link>
           </li>
           <li className="min-w-0 flex-1 md:flex-none">
-            <Link className={navClass('/dashboard/messages')} to="/dashboard/messages" aria-label="Messages" title="Messages">
-              <IconChat className="w-6 h-6 md:w-5 md:h-5 shrink-0" />
+            <Link
+              className={navClass('/dashboard/messages')}
+              to="/dashboard/messages"
+              aria-label={messagesUnread > 0 ? `Messages, ${messagesUnread} unread` : 'Messages'}
+              title="Messages"
+            >
+              <span className="relative inline-flex">
+                <IconChat className="w-6 h-6 md:w-5 md:h-5 shrink-0" />
+                <UnreadBadge count={messagesUnread} />
+              </span>
               <span className="block text-[11px] leading-none font-semibold md:text-sm">Messages</span>
             </Link>
           </li>

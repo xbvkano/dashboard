@@ -5,6 +5,7 @@ import {
   deleteMessagingInboxLease,
   getConversationDetail,
   listConversations,
+  getUnreadCounts,
   patchConversationClient,
   patchConversationStatus,
   postBookAppointmentFromConversation,
@@ -40,6 +41,7 @@ function optionalOutboundMultipart(req: Request, res: Response, next: NextFuncti
 }
 
 router.get('/messaging/conversations', listConversations)
+router.get('/messaging/unread-counts', getUnreadCounts)
 router.post('/messaging/inbox/lease', postMessagingInboxLease)
 router.delete('/messaging/inbox/lease', deleteMessagingInboxLease)
 router.post('/messaging/translate', postMessagingTranslate)

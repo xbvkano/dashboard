@@ -1,5 +1,6 @@
 import { MessageDirection } from '@prisma/client'
 import {
+  isLastMessageUnread,
   lastMessagePreviewText,
   mapConversationsToInboxDto,
   previewBody,
@@ -66,5 +67,13 @@ describe('messagingDto', () => {
       },
     ])
     expect(dto[0].unread).toBe(false)
+  })
+
+  it('isLastMessageUnread matches inbox unread rules', () => {
+    expect(isLastMessageUnread(undefined, null)).toBe(false)
+    expect(isLastMessageUnread({ id: 1, direction: 'OUTBOUND' }, null)).toBe(false)
+    expect(isLastMessageUnread({ id: 2, direction: 'INBOUND' }, null)).toBe(true)
+    expect(isLastMessageUnread({ id: 2, direction: 'INBOUND' }, 2)).toBe(false)
+    expect(isLastMessageUnread({ id: 5, direction: 'INBOUND' }, 2)).toBe(true)
   })
 })

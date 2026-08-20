@@ -11,6 +11,7 @@ import type { ThreadContact } from '../Messages/Inbox/types'
 import SimulateInboundDevControls from '../Messages/Inbox/components/SimulateInboundDevControls'
 import PushoverTestDevControls from './PushoverTestDevControls'
 import CallCenterDevControls from './CallCenterDevControls'
+import ActionCountsDevControls from './ActionCountsDevControls'
 import {
   conversationInboxItemToThreadContact,
   fetchConversationsPage,
@@ -196,6 +197,15 @@ export default function DevTools({ onSwitchRole }: DevToolsProps) {
           — not under <code className="text-xs bg-gray-100 px-1 rounded">/api</code>.
         </p>
         <CallCenterDevControls />
+      </div>
+
+      <div className="border rounded-lg p-4 bg-white shadow">
+        <h3 className="text-lg font-semibold mb-2">Home / nav notification counts</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Create or clear unread SMS and unvisited (blue) leads so you can test the Home glance panel,
+          nav bubbles, and desktop notifications. Not available in production.
+        </p>
+        <ActionCountsDevControls />
       </div>
 
       <div className="border rounded-lg p-4 bg-white shadow">

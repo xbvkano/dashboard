@@ -7,6 +7,7 @@ import { appointmentCalendarDateKey, type Appointment } from '../Calendar/types'
 import CreateAppointmentModal from '../Calendar/components/CreateAppointmentModal'
 import HomePanel, { HomePanelCard } from './HomePanel'
 import StatsSection from './StatsSection'
+import ActionNeededPanel from './ActionNeededPanel'
 
 export default function Home() {
   const { confirm } = useModal()
@@ -91,6 +92,7 @@ export default function Home() {
           )}
         </div>
       </div>
+      <ActionNeededPanel />
       <StatsSection />
       <HomePanel title="Appointments with no teams" cards={cards} />
       {editParams && (

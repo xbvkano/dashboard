@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../../../api'
 import type { FormData } from '../../../../../external_prisma_schemas/website_schema'
 import FormCard from './FormCard'
+import { useActionCounts } from '../../../../ActionCountsProvider'
+import UnreadBadge from '../../../../components/UnreadBadge'
 
 const CARDS_PER_PAGE = 5
 const INITIAL_PAGES = 4
@@ -20,6 +22,7 @@ interface FormListProps {
 }
 
 export default function FormList({ sources = [] }: FormListProps) {
+  const { counts, refresh } = useActionCounts()
   const [items, setItems] = useState<FormData[]>([])
   const [total, setTotal] = useState(0)
   const [nextOffset, setNextOffset] = useState<number | null>(null)
@@ -101,7 +104,10 @@ export default function FormList({ sources = [] }: FormListProps) {
   return (
     <section className="flex flex-col flex-1 min-h-0 h-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-200 shrink-0 space-y-2">
-        <h3 className="text-lg font-semibold text-slate-800">Form submissions</h3>
+        <h3 className="relative inline-flex items-center text-lg font-semibold text-slate-800 pr-4">
+          Form submissions
+          <UnreadBadge count={counts.leads.forms} tone="blue" />
+        </h3>
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="search"
@@ -138,11 +144,12 @@ export default function FormList({ sources = [] }: FormListProps) {
               <FormCard
                 key={form.id}
                 form={form}
-                onMarkVisited={() =>
+                onMarkVisited={() => {
                   setItems((prev) =>
                     prev.map((f) => (f.id === form.id ? { ...f, visited: true } : f))
                   )
-                }
+                  void refresh()
+                }}
               />
             ))
           )}

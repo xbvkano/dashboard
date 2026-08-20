@@ -36,7 +36,15 @@ export default function MessageComposer({
   const panelRef = useRef<HTMLDivElement>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
   const selectionRef = useRef({ start: 0, end: 0 })
+  const pendingRef = useRef(pending)
+  pendingRef.current = pending
   const galleryId = useId()
+
+  useEffect(() => {
+    return () => {
+      pendingRef.current.forEach((p) => URL.revokeObjectURL(p.url))
+    }
+  }, [])
 
   const closePanel = useCallback(() => {
     setPanelState('closed')

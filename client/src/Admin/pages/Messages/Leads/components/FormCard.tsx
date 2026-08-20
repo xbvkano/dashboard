@@ -69,7 +69,9 @@ export default function FormCard({ form, onMarkVisited }: FormCardProps) {
       headers,
       body: JSON.stringify({ visited: true }),
       keepalive: true,
-    })).catch(() => {})
+    })).finally(() => {
+      onMarkVisited()
+    }).catch(() => {})
   }
 
   async function handleOpenInboxText() {

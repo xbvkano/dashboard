@@ -4,6 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express'
+import { fetchLeadUnreadCounts } from '../services/leadUnreadCounts'
 
 const router = Router()
 
@@ -50,6 +51,10 @@ function proxy(path: string, method: string = 'GET'): (req: Request, res: Respon
 router.get('/quotes', proxy('/api/quotes'))
 router.get('/calls', proxy('/api/calls'))
 router.get('/stats', proxy('/api/stats'))
+router.get('/lead-unread-counts', async (_req: Request, res: Response) => {
+  const counts = await fetchLeadUnreadCounts()
+  res.json(counts)
+})
 
 // PATCH to mark quote/call as visited
 router.patch('/quotes/:id', async (req: Request, res: Response) => {

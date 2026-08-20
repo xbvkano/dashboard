@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../api'
 import FormList from './Leads/components/FormList'
 import CallList from './Leads/components/CallList'
+import { useActionCounts } from '../../ActionCountsProvider'
+import UnreadBadge from '../../components/UnreadBadge'
 
 function toYYYYMMDD(d: Date) {
   return d.toISOString().slice(0, 10)
@@ -13,6 +15,7 @@ export default function Leads() {
   const [sources, setSources] = useState<string[]>([])
   const [sections, setSections] = useState<string[]>([])
   const [mobileTab, setMobileTab] = useState<LeadsTab>('forms')
+  const { counts } = useActionCounts()
 
   useEffect(() => {
     const end = new Date()
@@ -55,24 +58,34 @@ export default function Leads() {
         <button
           type="button"
           onClick={() => setMobileTab('forms')}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+          className={`relative flex-1 px-4 py-2 text-sm font-medium transition-colors ${
             mobileTab === 'forms'
               ? 'bg-blue-600 text-white'
               : 'bg-white text-slate-600 hover:bg-slate-50'
           }`}
         >
           Forms
+          <UnreadBadge
+            count={counts.leads.forms}
+            tone="blue"
+            className={mobileTab === 'forms' ? 'bg-white text-blue-600' : ''}
+          />
         </button>
         <button
           type="button"
           onClick={() => setMobileTab('calls')}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+          className={`relative flex-1 px-4 py-2 text-sm font-medium transition-colors ${
             mobileTab === 'calls'
               ? 'bg-blue-600 text-white'
               : 'bg-white text-slate-600 hover:bg-slate-50'
           }`}
         >
           Calls
+          <UnreadBadge
+            count={counts.leads.calls}
+            tone="blue"
+            className={mobileTab === 'calls' ? 'bg-white text-blue-600' : ''}
+          />
         </button>
       </div>
 

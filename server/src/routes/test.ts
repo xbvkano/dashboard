@@ -16,6 +16,12 @@ import {
   probeCallCenterApi,
   proxyCallCenterVoice,
 } from '../controllers/callCenterTestController'
+import {
+  createLeadNotifications,
+  createMessageNotifications,
+  resetLeadNotifications,
+  resetMessageNotifications,
+} from '../controllers/actionCountsTestController'
 
 const router = Router()
 
@@ -34,6 +40,10 @@ router.post('/test/pushover/send', sendPushoverTest)
 router.get('/test/call-center/status', getCallCenterTestStatus)
 router.post('/test/call-center/probe', probeCallCenterApi)
 router.post('/test/call-center/voice', proxyCallCenterVoice)
+router.post('/test/action-counts/reset-messages', resetMessageNotifications)
+router.post('/test/action-counts/create-messages', createMessageNotifications)
+router.post('/test/action-counts/reset-leads', resetLeadNotifications)
+router.post('/test/action-counts/create-leads', createLeadNotifications)
 
 export default router
 

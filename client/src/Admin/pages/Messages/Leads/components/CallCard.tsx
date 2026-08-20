@@ -53,7 +53,9 @@ export default function CallCard({ call, onMarkVisited }: CallCardProps) {
       headers,
       body: JSON.stringify({ visited: true }),
       keepalive: true,
-    })).catch(() => {})
+    })).finally(() => {
+      onMarkVisited()
+    }).catch(() => {})
   }
 
   async function handleOpenInboxText() {

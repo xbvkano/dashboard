@@ -34,6 +34,16 @@ export function computeUnread(
   return lastMessageId > lastReadMessageId
 }
 
+/** Staff outbound as latest does not count as unread — only inbound customer messages do. */
+export function isLastMessageUnread(
+  last: { id: number; direction?: string } | undefined,
+  lastReadMessageId: number | null | undefined,
+): boolean {
+  if (!last) return false
+  if (last.direction === 'OUTBOUND') return false
+  return computeUnread(last.id, lastReadMessageId)
+}
+
 export function lastMessagePreviewText(last: { body: string; mediaCount?: number } | undefined): string | null {
   if (!last) return null
   const t = last.body.trim()
@@ -48,15 +58,7 @@ export function mapConversationsToInboxDto(rows: InboxRow[]): ConversationInboxI
     const open = c.sessions[0]
     const lastReadMessageId = c.userReads?.[0]?.lastReadMessageId ?? null
     const lastMessageId = last?.id ?? null
-    /** Staff outbound does not count as unread — only inbound customer messages do. */
-    let unread = false
-    if (last) {
-      if (last.direction === 'OUTBOUND') {
-        unread = false
-      } else {
-        unread = computeUnread(last.id, lastReadMessageId)
-      }
-    }
+    const unread = isLastMessageUnread(last, lastReadMessageId)
     return {
       id: c.id,
       channel: c.channel,

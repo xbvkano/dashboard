@@ -149,7 +149,8 @@ export default function ChatThread({
   }, [messages, lastMessageId, detailLoading, snapToBottom])
 
   /**
-   * Viewport shrunk (composer grew) → keep distance from bottom; never flush-to-bottom.
+   * Viewport resized (composer grew/shrank) → snap to bottom if already pinned,
+   * otherwise keep distance from the bottom so mid-thread reading does not jump.
    * Content grew (images/wrap) → pin if already near bottom.
    */
   useEffect(() => {
@@ -167,11 +168,15 @@ export default function ChatThread({
       const portDelta = prevPortH - portH
 
       if (Math.abs(portDelta) > 1) {
-        programmaticScrollRef.current = true
-        scrollEl.scrollTop += portDelta
-        requestAnimationFrame(() => {
-          programmaticScrollRef.current = false
-        })
+        if (pinnedToBottomRef.current) {
+          snapToBottom(scrollEl)
+        } else {
+          programmaticScrollRef.current = true
+          scrollEl.scrollTop += portDelta
+          requestAnimationFrame(() => {
+            programmaticScrollRef.current = false
+          })
+        }
         return
       }
 
@@ -238,6 +243,7 @@ export default function ChatThread({
         )}
       </div>
       <MessageComposer
+        key={conversationId ?? conversation.id}
         onSend={onSend}
         conversationId={conversationId ?? conversation.id}
         messageBankInitialValues={messageBankInitialValues}

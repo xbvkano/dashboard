@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { API_BASE_URL, fetchJson } from '../../../../../api'
 import type { Call } from '../../../../../external_prisma_schemas/website_schema'
 import CallCard from './CallCard'
+import { useActionCounts } from '../../../../ActionCountsProvider'
+import UnreadBadge from '../../../../components/UnreadBadge'
 
 const CARDS_PER_PAGE = 5
 const INITIAL_PAGES = 4
@@ -24,6 +26,7 @@ function digitsOnly(value: string): string {
 }
 
 export default function CallList({ sections = [] }: CallListProps) {
+  const { counts, refresh } = useActionCounts()
   const [items, setItems] = useState<Call[]>([])
   const [total, setTotal] = useState(0)
   const [nextOffset, setNextOffset] = useState<number | null>(null)
@@ -111,7 +114,10 @@ export default function CallList({ sections = [] }: CallListProps) {
   return (
     <section className="flex flex-col flex-1 min-h-0 h-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-200 shrink-0 space-y-2">
-        <h3 className="text-lg font-semibold text-slate-800">Calls</h3>
+        <h3 className="relative inline-flex items-center text-lg font-semibold text-slate-800 pr-4">
+          Calls
+          <UnreadBadge count={counts.leads.calls} tone="blue" />
+        </h3>
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="search"
@@ -149,11 +155,12 @@ export default function CallList({ sections = [] }: CallListProps) {
               <CallCard
                 key={call.id}
                 call={call}
-                onMarkVisited={() =>
+                onMarkVisited={() => {
                   setItems((prev) =>
                     prev.map((c) => (c.id === call.id ? { ...c, visited: true } : c))
                   )
-                }
+                  void refresh()
+                }}
               />
             ))
           )}

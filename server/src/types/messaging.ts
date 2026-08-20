@@ -21,6 +21,12 @@ export interface ConversationInboxItemDto {
   openSession: { id: number; openedAt: string } | null
 }
 
+export interface MessagingUnreadCountsDto {
+  client: number
+  employee: number
+  total: number
+}
+
 export interface ConversationDetailDto {
   conversation: {
     id: number

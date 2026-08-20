@@ -11,6 +11,7 @@ import DeleteContactConfirmModal from './components/DeleteContactConfirmModal'
 import TwilioContentSizeExceededModal from './components/TwilioContentSizeExceededModal'
 import { useMediaQuery } from './useMediaQuery'
 import { useBookAppointmentDrafts } from '../BookAppointmentDraftsContext'
+import { useActionCounts } from '../../../ActionCountsProvider'
 import {
   type ConversationDetail,
   type ConversationInboxItem,
@@ -173,6 +174,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
     cancelBookModal,
     completeBookModal,
   } = useBookAppointmentDrafts()
+  const { refresh: refreshActionCounts } = useActionCounts()
   const isDesktop = useMediaQuery('(min-width: 768px)')
   const [list, setList] = useState<ConversationInboxItem[]>([])
   const [employees, setEmployees] = useState<
@@ -443,9 +445,10 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
     postMarkConversationRead(selectedId)
       .then(() => {
         setList((prev) => prev.map((r) => (r.id === selectedId ? { ...r, unread: false } : r)))
+        void refreshActionCounts()
       })
       .catch(() => {})
-  }, [selectedId, detail])
+  }, [selectedId, detail, refreshActionCounts])
 
   /**
    * Presence heartbeat while this thread is open *and* the tab is visible.
@@ -503,6 +506,7 @@ export default function Inbox({ inboxKind = 'client' }: { inboxKind?: MessagingI
                     r.id === selectedIdRef.current ? { ...r, unread: false } : r,
                   ),
                 )
+                void refreshActionCounts()
               })
               .catch(() => {})
           }

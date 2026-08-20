@@ -6,6 +6,8 @@ import MessageBank from './MessageBank'
 import { BookAppointmentDraftsProvider } from './BookAppointmentDraftsContext'
 import { MessageBankDraftsProvider } from './MessageBank/MessageBankDraftsContext'
 import MessagesBookAppointmentModalHost from './MessagesBookAppointmentModalHost'
+import { useActionCounts } from '../../ActionCountsProvider'
+import UnreadBadge from '../../components/UnreadBadge'
 
 export default function Messages() {
   return (
@@ -28,6 +30,7 @@ export default function Messages() {
 }
 
 function MessagesHome() {
+  const { counts } = useActionCounts()
   return (
     <div className="p-4">
       <h2 className="text-xl font-semibold mb-4">Messages</h2>
@@ -35,17 +38,23 @@ function MessagesHome() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-w-4xl">
         <Link
           to="inbox"
-          className="flex flex-col items-center justify-center p-6 rounded-lg bg-white shadow border border-gray-200 hover:border-blue-300 hover:shadow-md transition-colors"
+          className="relative flex flex-col items-center justify-center p-6 rounded-lg bg-white shadow border border-gray-200 hover:border-blue-300 hover:shadow-md transition-colors"
         >
-          <span className="text-2xl mb-2">💬</span>
+          <span className="relative inline-flex mb-2">
+            <span className="text-2xl">💬</span>
+            <UnreadBadge count={counts.messages.client} />
+          </span>
           <span className="font-medium text-gray-900">Client inbox</span>
           <span className="text-sm text-gray-500 mt-1">SMS with customers</span>
         </Link>
         <Link
           to="employee-inbox"
-          className="flex flex-col items-center justify-center p-6 rounded-lg bg-white shadow border border-gray-200 hover:border-blue-300 hover:shadow-md transition-colors"
+          className="relative flex flex-col items-center justify-center p-6 rounded-lg bg-white shadow border border-gray-200 hover:border-blue-300 hover:shadow-md transition-colors"
         >
-          <span className="text-2xl mb-2">👷</span>
+          <span className="relative inline-flex mb-2">
+            <span className="text-2xl">👷</span>
+            <UnreadBadge count={counts.messages.employee} />
+          </span>
           <span className="font-medium text-gray-900">Employee inbox</span>
           <span className="text-sm text-gray-500 mt-1">SMS with employees (admin line)</span>
         </Link>
@@ -59,9 +68,12 @@ function MessagesHome() {
         </Link>
         <Link
           to="leads"
-          className="flex flex-col items-center justify-center p-6 rounded-lg bg-white shadow border border-gray-200 hover:border-blue-300 hover:shadow-md transition-colors"
+          className="relative flex flex-col items-center justify-center p-6 rounded-lg bg-white shadow border border-gray-200 hover:border-blue-300 hover:shadow-md transition-colors"
         >
-          <span className="text-2xl mb-2">📩</span>
+          <span className="relative inline-flex mb-2">
+            <span className="text-2xl">📩</span>
+            <UnreadBadge count={counts.leads.total} tone="blue" />
+          </span>
           <span className="font-medium text-gray-900">Leads</span>
           <span className="text-sm text-gray-500 mt-1">Manage leads</span>
         </Link>

@@ -17,6 +17,7 @@ import { deleteMessagingStorageKeys } from '../services/supabaseStorage'
 import { extensionForMime } from '../services/messaging/twilioInboundMedia'
 import type { ConversationDetailDto } from '../types/messaging'
 import { mapConversationsToInboxDto } from '../utils/messagingDto'
+import { countMessagingUnread } from '../services/messaging/unreadCounts'
 import { resolveOutboundBubbleColor } from '../utils/messageBubbleDisplay'
 import {
   clampInboxLimit,
@@ -417,6 +418,20 @@ export async function listConversations(req: Request, res: Response) {
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Failed to list conversations' })
+  }
+}
+
+export async function getUnreadCounts(req: Request, res: Response) {
+  const userId = parseUserIdHeader(req.headers['x-user-id'])
+  if (userId == null) {
+    return res.status(400).json({ error: 'x-user-id header required' })
+  }
+  try {
+    const counts = await countMessagingUnread(prisma, userId)
+    res.json(counts)
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Failed to count unread conversations' })
   }
 }
 

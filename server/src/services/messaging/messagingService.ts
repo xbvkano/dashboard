@@ -131,7 +131,7 @@ function inboundTimestamp(payload: TwilioInboundSmsPayload, fallback: Date): Dat
 export async function ingestInboundSms(
   prisma: PrismaClient,
   payload: TwilioInboundSmsPayload,
-  options?: { now?: Date }
+  options?: { now?: Date; skipPushover?: boolean }
 ): Promise<{ conversationId: number; messageId: number; sessionId: number }> {
   const now = options?.now ?? new Date()
   const fromRaw = String(payload.From ?? '')
@@ -257,7 +257,7 @@ export async function ingestInboundSms(
       },
       update: { lastReadMessageId: msg.id },
     })
-  } else if (isPushoverConfigured() && !wasArchived) {
+  } else if (!options?.skipPushover && isPushoverConfigured() && !wasArchived) {
     const allow = shouldSendInboundPushover({
       now,
       hasActivePresence: false,
